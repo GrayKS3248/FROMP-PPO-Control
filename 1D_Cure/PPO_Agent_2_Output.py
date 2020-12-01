@@ -7,7 +7,7 @@ Created on Wed Nov 11 10:41:07 2020
 
 import numpy as np
 import torch
-import NN_Stdev
+import NN_Stdev_2_Output
 import NN
 
 class PPO_Agent:
@@ -17,13 +17,13 @@ class PPO_Agent:
         # Policy and value estimation network
         # Input is the state
         # Output is the mean of the gaussian distribution from which actions are sampled
-        self.actor = NN_Stdev.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=2, num_neurons_in_layer=128)
+        self.actor = NN_Stdev_2_Output.Neural_Network(num_inputs=num_states, num_outputs=2, num_hidden_layers=3, num_neurons_in_layer=128)
         self.actor_optimizer =  torch.optim.Adam(self.actor.parameters() , lr=alpha)
         
         # Old policy and value estimation network used to calculate clipped surrogate objective
         # Input is the state
         # Output is the mean of the gaussian distribution from which actions are sampled
-        self.old_actor = NN_Stdev.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=2, num_neurons_in_layer=128)
+        self.old_actor = NN_Stdev_2_Output.Neural_Network(num_inputs=num_states, num_outputs=2, num_hidden_layers=3, num_neurons_in_layer=128)
         self.old_actor.load_state_dict(self.actor.state_dict())
                 
         # Critic NN that estimates the value function
@@ -38,7 +38,7 @@ class PPO_Agent:
         self.trajectory_index  = 0
         self.trajectories_per_batch = trajectories_per_batch
         self.trajectory_states = np.zeros((trajectories_per_batch*steps_per_trajectory, num_states))
-        self.trajectory_actions = np.zeros(trajectories_per_batch*steps_per_trajectory)
+        self.trajectory_actions = np.zeros((2, trajectories_per_batch*steps_per_trajectory))
         self.trajectory_rewards = np.zeros(trajectories_per_batch*steps_per_trajectory)
         
         # Hyperparameters
@@ -71,14 +71,19 @@ class PPO_Agent:
     def get_action(self, state):
         
         # Get the gaussian distribution parameters used to sample the action for the old and new policy
-        mean, stdev = self.actor.forward(torch.tensor(state, dtype=torch.float))
+        means, stdev_1, stdev_2 = self.actor.forward(torch.tensor(state, dtype=torch.float))
         
-        # Sample the action and constrain it to the space [0.0, 1.0]
-        dist = torch.distributions.normal.Normal(mean, stdev)
-        action = dist.sample().item()
-        stdev = stdev.detach().item()
+        # Sample the first action
+        dist_1 = torch.distributions.normal.Normal(means[0], stdev_1)
+        action_1 = dist_1.sample().item()
+        stdev_1 = stdev_1.detach().item()
         
-        return action, stdev
+        # Sample the second action
+        dist_2 = torch.distributions.normal.Normal(means[1], stdev_2)
+        action_2 = dist_2.sample().item()
+        stdev_2 = stdev_2.detach().item()
+        
+        return action_1, stdev_1, action_2, stdev_2
   
     
     # Gets the autodifferentiable probability ratios for the given trajectory
@@ -91,19 +96,23 @@ class PPO_Agent:
         for curr_epoch in range(self.num_epochs):
             # Get the current and old action distribution parameters
             state_minibatch = torch.tensor(self.trajectory_states[minibatch_indices[curr_epoch,:], :], dtype=torch.float)
-            mean_minibatch, stdev = self.actor.forward(state_minibatch)
+            means_minibatch, stdev_1, stdev_2 = self.actor.forward(state_minibatch)
             with torch.no_grad():
-                old_mean_minibatch, old_stdev = self.old_actor.forward(state_minibatch)
+                old_means_minibatch, old_stdev_1, old_stdev_2 = self.old_actor.forward(state_minibatch)
             
             # Set the distributions based on the parameters above
-            dist = torch.distributions.normal.Normal(mean_minibatch.squeeze(), stdev)
-            old_dist = torch.distributions.normal.Normal(old_mean_minibatch.squeeze(), old_stdev)
+            dist_1 = torch.distributions.normal.Normal(means_minibatch[:,0], stdev_1)
+            dist_2 = torch.distributions.normal.Normal(means_minibatch[:,1], stdev_2)
+            old_dist_1 = torch.distributions.normal.Normal(old_means_minibatch[:,0], old_stdev_1)
+            old_dist_2 = torch.distributions.normal.Normal(old_means_minibatch[:,1], old_stdev_2)
             
             # Get the probability ratios
-            action_minibatch = torch.tensor(self.trajectory_actions[minibatch_indices[curr_epoch,:]], dtype=torch.float)
-            numerator = torch.exp(dist.log_prob(action_minibatch)).double()
-            denominator =  torch.exp(old_dist.log_prob(action_minibatch)).double()
-            probability_ratio = numerator / denominator
+            action_minibatch = torch.tensor(self.trajectory_actions[:,minibatch_indices[curr_epoch,:]], dtype=torch.float)
+            numerator_1 = torch.exp(dist_1.log_prob(action_minibatch[0,:])).double()
+            numerator_2 = torch.exp(dist_2.log_prob(action_minibatch[1,:])).double()
+            denominator_1 =  torch.exp(old_dist_1.log_prob(action_minibatch[0,:])).double()
+            denominator_2 =  torch.exp(old_dist_2.log_prob(action_minibatch[1,:])).double()
+            probability_ratio = (numerator_1 * numerator_2) / (denominator_1 * denominator_2)
             
             probability_ratio_minibatches.append(probability_ratio)
             
@@ -210,7 +219,7 @@ class PPO_Agent:
         
         # Update the state, action, and reward memory
         self.trajectory_states[self.trajectory_index,:] = state 
-        self.trajectory_actions[self.trajectory_index] = action
+        self.trajectory_actions[:, self.trajectory_index] = action
         self.trajectory_rewards[self.trajectory_index] = reward
         
         # Update the trajectory index
@@ -220,7 +229,7 @@ class PPO_Agent:
         if current_step == self.steps_per_trajectory - 1 and current_trajectory == self.trajectories_per_batch - 1:
             
             # Define the minibatches to be used for minibatch SGD
-            minibatch_indices = np.random.permutation(len(self.trajectory_actions)).astype(int).reshape(self.num_epochs, self.minibatch_size)
+            minibatch_indices = np.random.permutation(len(self.trajectory_actions[0,:])).astype(int).reshape(self.num_epochs, self.minibatch_size)
             
             # Calculate the value estimates and targets in minibatches
             value_estimate_minibatches = self.get_value_estimate_minibatches(minibatch_indices)
@@ -237,7 +246,7 @@ class PPO_Agent:
             # After learning, reset the memory
             self.trajectory_index  = 0
             self.trajectory_states = np.zeros((self.trajectories_per_batch*self.steps_per_trajectory, self.num_states))
-            self.trajectory_actions = np.zeros(self.trajectories_per_batch*self.steps_per_trajectory)
+            self.trajectory_actions = np.zeros((2, self.trajectories_per_batch*self.steps_per_trajectory))
             self.trajectory_rewards = np.zeros(self.trajectories_per_batch*self.steps_per_trajectory)
         
         

@@ -50,8 +50,8 @@ class FES():
         self.autocatalysis_const = 0.365
         
         # Input parameters
-        self.peak_thermal_rate = 5.0
-        self.radius_of_input = self.field_length / 10.0
+        self.peak_thermal_rate = 3.0
+        self.radius_of_input = self.field_length / 15.0
         self.input_location = self.initial_input_location
         self.max_movement_rate = self.field_length * self.temporal_precision
         self.input_magnitude = self.peak_thermal_rate / 2.0
@@ -65,7 +65,6 @@ class FES():
         self.c1 =  5e6
         self.c2 = 0.20
         self.max_reward = 5.0
-        self.min_positive_reward = -self.c2 * self.max_reward
         
         # Mesh grids
         self.spacial_grid = np.linspace(0.0,self.field_length,self.spacial_precision)
@@ -157,7 +156,7 @@ class FES():
                 
                 # Calculate square error between current state and desired state
                 sq_error = ((self.front_rate - self.desired_front_rate)**2)
-                reward = max(self.max_reward - self.c1 * sq_error, self.min_positive_reward)
+                reward = max(self.max_reward - self.c1 * sq_error, 0.0)
                 
             # If the maximum temperature is above the maximum allowed temperature, return a negative reward
             else:

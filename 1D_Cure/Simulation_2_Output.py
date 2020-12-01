@@ -5,24 +5,22 @@ Created on Wed Nov 25 11:50:34 2020
 @author: Grayson Schaer
 """
 import Finite_Element_Solver_1D as fes 
-import PPO_Agent as ppo
+import PPO_Agent_2_Output as ppo
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque 
 
-def main(env, pos_agent, mag_agent, total_sets):
+def main(env, agent, total_sets):
 
     # Create dict to store data from simulation
     data = {
         'r_per_step' : [],
         'r_per_epoch' : [],
         'total_reward' : [],
-        'pos_value_error' : [],
-        'mag_value_error' : [],
+        'value_error' : [],
         'pos_stdev': [],
         'mag_stdev': [],
-        'pos_deltas': [],
-        'mag_deltas': [],
+        'deltas': [],
         'input_location': [],
         'input_magnitude':[],
         'temperature_field': [],
@@ -43,7 +41,7 @@ def main(env, pos_agent, mag_agent, total_sets):
         
         # User readout parameters
         percent_complete = curr_set / total_sets
-        r_per_step_history.append(epoch_reward/pos_agent.steps_per_trajectory)
+        r_per_step_history.append(epoch_reward/agent.steps_per_trajectory)
         r_per_set_history.append(epoch_reward)
         if len(r_per_step_history) >= 20:
             r_per_step_history.popleft()
@@ -51,8 +49,8 @@ def main(env, pos_agent, mag_agent, total_sets):
  
         # User readout
         print_str = (('{:03.2f}'.format(100.0 * percent_complete) + "% Complete").ljust(17) + 
-            ("| Set: " + str(curr_set) + "/" + str(total_sets-1)).ljust(17) + 
-            ("| Reward: " + '{:.0f}'.format(r_total)).ljust(21) + 
+            ("| Set: " + str(curr_set) + "/" + str(total_sets-1)).ljust(19) + 
+            ("| Reward: " + '{:.0f}'.format(r_total)).ljust(22) + 
             ("| R/Step: " + '{:.2f}'.format(sum(r_per_step_history) / len(r_per_step_history))).ljust(17) + 
             ("| R/Set: " + '{:.0f}'.format(sum(r_per_set_history) / len(r_per_set_history))).ljust(16) + 
             ("| Best: " + '{:.0f}'.format(best_set)).ljust(14) + 
@@ -68,11 +66,9 @@ def main(env, pos_agent, mag_agent, total_sets):
         while not done:
             
             # Get action, do action, learn
-            pos_a, pos_stdev = pos_agent.get_action(s)
-            mag_a, mag_stdev = mag_agent.get_action(s)
-            (s2, r, done) = env.step(np.array([pos_a, mag_a]))
-            pos_agent.update_agent(s, pos_a, r)
-            mag_agent.update_agent(s, mag_a, r)
+            pos_action, pos_stdev, mag_action, mag_stdev = agent.get_action(s)
+            (s2, r, done) = env.step(np.array([pos_action, mag_action]))
+            agent.update_agent(s, np.array([pos_action, mag_action]), r)
             
             # Update logs
             data['pos_stdev'].append(pos_stdev)
@@ -96,23 +92,21 @@ def main(env, pos_agent, mag_agent, total_sets):
         data['r_per_epoch'].append(epoch_reward)
    
     # Store the training data
-    data['pos_value_error'].append(pos_agent.value_estimation_error)
-    data['pos_deltas'].append(pos_agent.deltas_memory)
-    data['mag_value_error'].append(mag_agent.value_estimation_error)
-    data['mag_deltas'].append(mag_agent.deltas_memory)
+    data['value_error'].append(agent.value_estimation_error)
+    data['deltas'].append(agent.deltas_memory)
         
     # User readout
     percent_complete = 1.0
-    print_str = (('{:03.2f}'.format(100.0 * percent_complete) + "% Complete").ljust(20) + 
-        ("| Set: " + str(curr_set) + "/" + str(total_sets-1)).ljust(20) + 
-        ("| Tot R: " + '{:.0f}'.format(r_total)).ljust(20) + 
-        ("| R/step: " + '{:.2f}'.format(r_total/curr_step)).ljust(20) + 
-        ("| R/Set: " + '{:.2f}'.format(epoch_reward)).ljust(20) + 
-        ("| Best Set: " + '{:.0f}'.format(best_set)).ljust(20) + 
+    print_str = (("100.00% Complete").ljust(17) + 
+        ("| Set: " + str(curr_set) + "/" + str(total_sets-1)).ljust(19) + 
+        ("| Reward: " + '{:.0f}'.format(r_total)).ljust(22) + 
+        ("| R/Step: " + '{:.2f}'.format(sum(r_per_step_history) / len(r_per_step_history))).ljust(17) + 
+        ("| R/Set: " + '{:.0f}'.format(sum(r_per_set_history) / len(r_per_set_history))).ljust(16) + 
+        ("| Best: " + '{:.0f}'.format(best_set)).ljust(14) + 
         "|")
     print(print_str, end="\n", flush=True)
     
-    return data, pos_agent, mag_agent, env
+    return data, agent, env
 
 
 if __name__ == '__main__':
@@ -122,9 +116,9 @@ if __name__ == '__main__':
     num_states = int(env.spacial_precision/10 + 4)
     
     # Set agent parameters
-    trajectories_per_batch = 5
-    num_epochs = 40
-    total_simulation_step = 1e8
+    trajectories_per_batch = 1
+    num_epochs = 100
+    total_simulation_step = 1e7
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
@@ -145,21 +139,18 @@ if __name__ == '__main__':
 
     # Create agents, run simulations, save results
     for curr_agent in range(num_agents):
-        pos_agent = ppo.PPO_Agent(num_states, steps_per_trajecotry, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, alpha)
-        mag_agent = ppo.PPO_Agent(num_states, steps_per_trajecotry, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, alpha)
-        data, pos_agent, mag_agent, env = main(env, pos_agent, mag_agent, trajectories_per_batch*num_batches)
+        agent = ppo.PPO_Agent(num_states, steps_per_trajecotry, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, alpha)
+        data, agent, env = main(env, agent, trajectories_per_batch*num_batches)
         logbook['data'].append(data)
-        logbook['agents'].append([pos_agent, mag_agent])
+        logbook['agents'].append(agent)
         logbook['envs'].append(env)
     
     # Average results from all agents
     print('Processing...')
     average_r_per_step_curve = np.array([0.0]*len(logbook['data'][curr_agent]['r_per_step']))
     average_r_per_epoch_curve = np.array([0.0]*len(logbook['data'][curr_agent]['r_per_epoch']))
-    average_pos_value_learning_curve = np.array([0.0]*len(logbook['data'][curr_agent]['pos_value_error'][0]))
-    average_mag_value_learning_curve = np.array([0.0]*len(logbook['data'][curr_agent]['mag_value_error'][0]))
-    average_pos_delta_curve = np.array([0.0]*len(logbook['data'][curr_agent]['pos_deltas'][0]))
-    average_mag_delta_curve = np.array([0.0]*len(logbook['data'][curr_agent]['mag_deltas'][0]))
+    average_value_learning_curve = np.array([0.0]*len(logbook['data'][curr_agent]['value_error'][0]))
+    average_delta_curve = np.array([0.0]*len(logbook['data'][curr_agent]['deltas'][0]))
     average_pos_stdev_curve = np.array([0.0]*len(logbook['data'][curr_agent]['pos_stdev']))
     average_mag_stdev_curve = np.array([0.0]*len(logbook['data'][curr_agent]['mag_stdev']))
     average_total_reward_curve = np.array([0.0]*len(logbook['data'][curr_agent]['total_reward']))
@@ -168,10 +159,8 @@ if __name__ == '__main__':
     for curr_agent in range(num_agents):
         average_r_per_step_curve = average_r_per_step_curve + np.array(logbook['data'][curr_agent]['r_per_step'])
         average_r_per_epoch_curve = average_r_per_epoch_curve + np.array(logbook['data'][curr_agent]['r_per_epoch'])
-        average_pos_value_learning_curve = average_pos_value_learning_curve + np.array(logbook['data'][curr_agent]['pos_value_error'][0])
-        average_mag_value_learning_curve = average_mag_value_learning_curve + np.array(logbook['data'][curr_agent]['mag_value_error'][0])
-        average_pos_delta_curve = average_pos_delta_curve + np.array(logbook['data'][curr_agent]['pos_deltas'][0])
-        average_mag_delta_curve = average_mag_delta_curve + np.array(logbook['data'][curr_agent]['mag_deltas'][0])
+        average_value_learning_curve = average_value_learning_curve + np.array(logbook['data'][curr_agent]['value_error'][0])
+        average_delta_curve = average_delta_curve + np.array(logbook['data'][curr_agent]['deltas'][0])
         average_pos_stdev_curve = average_pos_stdev_curve + np.array(logbook['data'][curr_agent]['pos_stdev'])
         average_mag_stdev_curve = average_mag_stdev_curve + np.array(logbook['data'][curr_agent]['mag_stdev'])
         average_total_reward_curve = average_total_reward_curve + np.array(logbook['data'][curr_agent]['total_reward'])
@@ -180,10 +169,8 @@ if __name__ == '__main__':
             highest_reward = logbook['data'][curr_agent]['total_reward'][-1]
     average_r_per_step_curve = average_r_per_step_curve / float(num_agents)
     average_r_per_epoch_curve = average_r_per_epoch_curve / float(num_agents)
-    average_pos_value_learning_curve = average_pos_value_learning_curve / float(num_agents)
-    average_mag_value_learning_curve = average_mag_value_learning_curve / float(num_agents)
-    average_pos_delta_curve = average_pos_delta_curve / float(num_agents)
-    average_mag_delta_curve = average_mag_delta_curve / float(num_agents)
+    average_value_learning_curve = average_value_learning_curve / float(num_agents)
+    average_delta_curve = average_delta_curve / float(num_agents)
     average_pos_stdev_curve = average_pos_stdev_curve / float(num_agents)
     average_mag_stdev_curve = average_mag_stdev_curve / float(num_agents)
     average_total_reward_curve = average_total_reward_curve / float(num_agents)
@@ -239,43 +226,23 @@ if __name__ == '__main__':
     
     # Plot value learning curve
     plt.clf()
-    title_str = "Pos Value Learning: α = " + str(alpha) + ", γ = " + str(gamma) + ", λ = " + str(lamb) + ", ε = " + str(epsilon)
+    title_str = "Value Learning: α = " + str(alpha) + ", γ = " + str(gamma) + ", λ = " + str(lamb) + ", ε = " + str(epsilon)
     plt.title(title_str)
     plt.xlabel("Episode")
     plt.ylabel("Value Target - Estimate Percent Error [%]")
-    plt.plot([*range(len(average_pos_value_learning_curve))],average_pos_value_learning_curve)
-    plt.savefig('Results/pos_value_learning.png', dpi = 200)
-    plt.close()
-   
-    # Plot value learning curve
-    plt.clf()
-    title_str = "Mag Value Learning: α = " + str(alpha) + ", γ = " + str(gamma) + ", λ = " + str(lamb) + ", ε = " + str(epsilon)
-    plt.title(title_str)
-    plt.xlabel("Episode")
-    plt.ylabel("Value Target - Estimate Percent Error [%]")
-    plt.plot([*range(len(average_mag_value_learning_curve))],average_mag_value_learning_curve)
-    plt.savefig('Results/mag_value_learning.png', dpi = 200)
-    plt.close() 
-   
-    # Plot advantage estimation deltas curve
-    plt.clf()
-    title_str = "Pos Delta: α = " + str(alpha) + ", γ = " + str(gamma) + ", λ = " + str(lamb) + ", ε = " + str(epsilon)
-    plt.title(title_str)
-    plt.xlabel("Episode")
-    plt.ylabel("RMS Delta Value")
-    plt.plot([*range(len(average_pos_delta_curve))],average_pos_delta_curve)
-    plt.savefig('Results/pos_delta.png', dpi = 200)
+    plt.plot([*range(len(average_value_learning_curve))],average_value_learning_curve)
+    plt.savefig('Results/value_learning.png', dpi = 200)
     plt.close()
    
     # Plot advantage estimation deltas curve
     plt.clf()
-    title_str = "Mag Delta: α = " + str(alpha) + ", γ = " + str(gamma) + ", λ = " + str(lamb) + ", ε = " + str(epsilon)
+    title_str = "Delta: α = " + str(alpha) + ", γ = " + str(gamma) + ", λ = " + str(lamb) + ", ε = " + str(epsilon)
     plt.title(title_str)
     plt.xlabel("Episode")
     plt.ylabel("RMS Delta Value")
-    plt.plot([*range(len(average_mag_delta_curve))],average_mag_delta_curve)
-    plt.savefig('Results/mag_delta.png', dpi = 200)
-    plt.close() 
+    plt.plot([*range(len(average_delta_curve))],average_delta_curve)
+    plt.savefig('Results/delta.png', dpi = 200)
+    plt.close()
    
     # Plot stdev curve
     plt.clf()

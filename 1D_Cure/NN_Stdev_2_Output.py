@@ -47,7 +47,8 @@ class Neural_Network(nn.Module):
             else:
                 exec("self." + hidden_layer_name + "= nn.Linear(self.num_neurons_in_layer, self.num_outputs)")
                 
-        self.stdev = torch.nn.Parameter(1.0 * torch.ones(1, dtype=torch.double).double())
+        self.stdev_1 = torch.nn.Parameter(1.0 * torch.ones(1, dtype=torch.double).double())
+        self.stdev_2 = torch.nn.Parameter(1.0 * torch.ones(1, dtype=torch.double).double())
 
     # Feed-forward function
     # @param x - set of inputs
@@ -63,7 +64,8 @@ class Neural_Network(nn.Module):
         current_layer_name = "fc" + str(self.num_hidden_layers + 1)
         x = eval("self." + current_layer_name + "(x)")
         
-        stdev = torch.exp(self.stdev)
+        stdev_1 = torch.exp(self.stdev_1)
+        stdev_2 = torch.exp(self.stdev_2)
         
         # Return the permuted x_copy (now in output form)
-        return x, stdev
+        return x, stdev_1, stdev_2
