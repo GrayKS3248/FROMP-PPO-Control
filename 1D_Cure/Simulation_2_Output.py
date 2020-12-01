@@ -116,7 +116,7 @@ if __name__ == '__main__':
     num_states = int(env.spacial_precision/10 + 4)
     
     # Set agent parameters
-    trajectories_per_batch = 1
+    trajectories_per_batch = 5
     num_epochs = 100
     total_simulation_step = 1e7
     gamma = 0.99
