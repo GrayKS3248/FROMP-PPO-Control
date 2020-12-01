@@ -53,7 +53,6 @@ class PPO_Agent:
         
         # Training memory
         self.value_estimation_error = []
-        self.deltas_memory = []
         
     # Clips an input float to the range [min_val, max_val]
     # @ param num - the float to be clipped
@@ -186,7 +185,6 @@ class PPO_Agent:
         gamma_reduced_next_value_estimates = self.gamma * np.roll(value_estimates, -1, axis=1)
         deltas = rewards + gamma_reduced_next_value_estimates - value_estimates
         deltas[:,-1] = rewards[:,-1]
-        self.deltas_memory.append(np.sqrt(np.mean(deltas**2)))
         
         # Initialize the advantage array
         advantages = np.zeros((self.trajectories_per_batch,self.steps_per_trajectory))
