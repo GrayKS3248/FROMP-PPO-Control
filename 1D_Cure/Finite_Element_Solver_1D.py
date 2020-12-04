@@ -6,24 +6,23 @@ Created on Wed Nov 25 09:39:40 2020
 """
 
 import numpy as np
-from scipy.interpolate import UnivariateSpline
 
 class FES():
     
     def __init__(self):
     
         # Simulation parameters
-        self.spacial_precision = 200 # Must be multiple of 10
+        self.spacial_precision = 300 # Must be multiple of 10
         self.temporal_precision = 0.05
         self.field_length = 0.10
-        self.simulation_time = 300.0
+        self.simulation_time = 180.0
         self.current_time = 0.0
         
         # Initial conditions
         self.initial_temperature = 298.15
-        self.initial_temp_perturbation = 0.02 * self.initial_temperature
+        self.initial_temp_perturbation = 0.005 * self.initial_temperature
         self.initial_cure = 0.10
-        self.initial_cure_perturbation = 0.02 * self.initial_cure
+        self.initial_cure_perturbation = 0.01 * self.initial_cure
         
         # Boundary conditions
         self.bc_thermal_conductivity = 0.80
@@ -32,7 +31,7 @@ class FES():
         
         # Reward and training targets
         self.maximum_temperature = 523.15
-        self.desired_front_rate = 0.001
+        self.desired_front_rate = 0.00025
         
         # Trigger conditions
         self.trigger_temperature = 453.15
@@ -60,7 +59,7 @@ class FES():
         self.previous_front_move = 0.0
         
         # Input parameters
-        self.peak_thermal_rate = 5.0
+        self.peak_thermal_rate = 3.0
         self.radius_of_input = self.field_length / 10.0
         self.input_location = np.random.choice(self.spacial_grid)
         self.max_movement_rate = self.field_length * self.temporal_precision
@@ -74,7 +73,10 @@ class FES():
         # Reward constants
         self.c1 =  5e6
         self.c2 = 0.20
-        self.max_reward = 5.0
+        self.max_reward = 1.5
+
+        # Simulation limits
+        self.stable_temperature_limit = 10.0 * self.maximum_temperature
 
     def step(self, action):
         
@@ -96,8 +98,8 @@ class FES():
         x_step_size = self.spacial_grid[1] - self.spacial_grid[0]
         diff_x_grid = np.insert(self.spacial_grid, 0, np.array([-2.0*x_step_size, -x_step_size]))
         diff_x_grid = np.insert(diff_x_grid, len(diff_x_grid), np.array([self.spacial_grid[-1]+x_step_size, self.spacial_grid[-1]+2.0*x_step_size]))
-        diff_y_grid = np.insert(self.temperature_grid, 0, np.array([self.ambient_temp, self.ambient_temp]))
-        diff_y_grid = np.insert(diff_y_grid, len(diff_y_grid), np.array([self.ambient_temp, self.ambient_temp]))
+        diff_y_grid = np.insert(self.temperature_grid, 0, np.array([self.ambient_temperature, self.ambient_temperature]))
+        diff_y_grid = np.insert(diff_y_grid, len(diff_y_grid), np.array([self.ambient_temperature, self.ambient_temperature]))
         first_diff_grid = np.zeros(diff_y_grid.shape)
         first_diff_grid[0:-1] = np.diff(diff_y_grid)/np.diff(diff_x_grid)
         first_diff_grid[-1] = (diff_y_grid[-1] - diff_y_grid[-2])/(diff_x_grid[-1] - diff_x_grid[-2])
@@ -115,8 +117,8 @@ class FES():
         self.cure_grid = self.cure_grid + cure_rate * self.temporal_precision
         
         # Calculate the front position and rate
-        if (self.cure_grid >= 0.99).any():
-            new_front_position = self.spacial_grid[np.flatnonzero(self.cure_grid>=0.99)[-1]]
+        if (self.cure_grid >= 0.85).any():
+            new_front_position = self.spacial_grid[np.flatnonzero(self.cure_grid>=0.85)[-1]]
             if new_front_position != self.front_position:
                 self.front_rate = (new_front_position - self.front_position) / (self.current_time - self.previous_front_move)
                 self.previous_front_move = self.current_time
@@ -142,8 +144,12 @@ class FES():
         if self.current_time >= self.trigger_time and self.current_time < self.trigger_time + self.trigger_length:
             self.temperature_grid[0] = self.trigger_temperature
         
+        # Check for unstable growth
+        if((self.temperature_grid >= self.stable_temperature_limit).any() or (self.temperature_grid <= -self.stable_temperature_limit).any()):
+            raise RuntimeError('Unstable growth detected. Increase temporal precision, decrease spatial precision, or lower thermal conductivity')
+        
         # Return the current state (reduced temperature field, front pos, front rate, input pos, input mag), and get reward
-        state = np.concatenate((self.temperature_grid[0::10], [self.front_position], [self.front_rate], [self.input_location], [self.input_magnitude]))
+        state = np.concatenate((self.temperature_grid[0::10], [self.temperature_grid[-1]], [self.front_position], [self.front_rate], [self.input_location], [self.input_magnitude]))
         reward = self.get_reward(ok_action)
         
         # Update the current time and check for simulation completion
@@ -191,4 +197,4 @@ class FES():
         self.previous_front_move = 0.0
         
         # Return the temperature field
-        return np.concatenate((self.temperature_grid[0::10], [self.front_position], [0.0], [self.input_location], [self.input_magnitude]))
+        return np.concatenate((self.temperature_grid[0::10], [self.temperature_grid[-1]], [self.front_position], [self.front_rate], [self.input_location], [self.input_magnitude]))

@@ -23,6 +23,9 @@ def main(env, agent, total_trajectories, execution_rate):
         'input_magnitude':[],
         'temperature_field': [],
         'cure_field': [],
+        'front_location': [],
+        'front_velocity': [],
+        'time': [],
         'best_episode': [],
     }
     trajectory = {
@@ -30,6 +33,9 @@ def main(env, agent, total_trajectories, execution_rate):
         'input_magnitude':[],
         'temperature_field': [],
         'cure_field': [],
+        'front_location': [],
+        'front_velocity': [],
+        'time': [],
         }
     
     r_per_step_history = deque()
@@ -89,6 +95,9 @@ def main(env, agent, total_trajectories, execution_rate):
             trajectory['temperature_field'].append(env.temperature_grid)
             trajectory['input_magnitude'].append(env.input_magnitude)
             trajectory['cure_field'].append(env.cure_grid)
+            trajectory['front_location'].append(env.front_position)
+            trajectory['front_velocity'].append(env.front_rate)
+            trajectory['time'].append(env.current_time)
             
             # Update state and step
             s = s2
@@ -103,6 +112,9 @@ def main(env, agent, total_trajectories, execution_rate):
             data['temperature_field'] = trajectory['temperature_field']
             data['input_magnitude'] = trajectory['input_magnitude']
             data['cure_field'] = trajectory['cure_field']
+            data['front_location'] = trajectory['front_location']
+            data['front_velocity'] = trajectory['front_velocity']
+            data['time'] = trajectory['time']
             data['best_episode'] = episode_reward
         
         # Update the logs
@@ -114,6 +126,9 @@ def main(env, agent, total_trajectories, execution_rate):
         trajectory['temperature_field'] = []
         trajectory['input_magnitude'] = []
         trajectory['cure_field'] = []
+        trajectory['front_location'] = []
+        trajectory['front_velocity'] = []
+        trajectory['time'] = []
    
     # Store the training data
     data['value_error'].append(agent.value_estimation_error)
@@ -136,20 +151,17 @@ if __name__ == '__main__':
     
     # Create environment
     env = fes.FES()
-    if env.spacial_precision > 30:
-        num_states = int(env.spacial_precision/10 + 3)
-    else:
-        num_states = int(env.spacial_precision + 2)
+    num_states = int(env.spacial_precision/10 + 5)
         
     # Set agent parameters
-    total_trajectories = 25000
-    steps_per_trajecotry = 120
-    trajectories_per_batch = 20
+    total_trajectories = 50000
+    steps_per_trajecotry = 240
+    trajectories_per_batch = 40
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    alpha = 1e-4
+    alpha = 1.0e-4
     
     # Calculated agent parameters
     agent_temporal_precision = (env.simulation_time / float(steps_per_trajecotry))
@@ -204,35 +216,52 @@ if __name__ == '__main__':
     print("Plotting...")
     
     # Make video of the best temperature field trajecotry as function of time
-    y_min = 0.99*np.min(logbook['data'][best_overall_agent]['temperature_field'])
-    y_max = 1.01*np.max(logbook['data'][best_overall_agent]['temperature_field'])
+    y_min_temperature = 0.99*np.min(logbook['data'][best_overall_agent]['temperature_field'])
+    y_max_temperature = 1.01*np.max(logbook['data'][best_overall_agent]['temperature_field'])
     for curr_step in range(len(logbook['data'][best_overall_agent]['temperature_field'])):
-        if curr_step % 2 == 0 or curr_step == len(logbook['data'][best_overall_agent]['temperature_field']) - 1:
+        if curr_step % 5 == 0 or curr_step == len(logbook['data'][best_overall_agent]['temperature_field']) - 1:
             plt.clf()
             fig, ax1 = plt.subplots()
-            title_str = "Temperature and Cure: t = "+'{:2.4}'.format(curr_step*env.temporal_precision)+'s'
+            ax2 = ax1.twinx()
+            title_str = "Temperature and Cure: t = "+'{:.2f}'.format(curr_step*env.temporal_precision)+'s'
             plt.title(title_str)
             color = 'k'
             ax1.set_xlabel('Position [m]')
             ax1.set_ylabel('Temperature [K]', color=color)
-            ax1.plot(env.spacial_grid, logbook['data'][best_overall_agent]['temperature_field'][curr_step], color=color)
+            temp = ax1.plot(env.spacial_grid, logbook['data'][best_overall_agent]['temperature_field'][curr_step], color=color,label='Temperature')
             ax1.tick_params(axis='y', labelcolor=color)
             ax1.set_xlim(0.0, env.field_length)
-            ax1.set_ylim(y_min, y_max)
-            ax2 = ax1.twinx()
-            color = 'tab:blue'
+            ax1.set_ylim(y_min_temperature, y_max_temperature)
+            color = 'b'
             ax2.set_ylabel('Degree Cure [-]', color=color)
-            ax2.plot(env.spacial_grid, logbook['data'][best_overall_agent]['cure_field'][curr_step], color=color)
+            cure = ax2.plot(env.spacial_grid, logbook['data'][best_overall_agent]['cure_field'][curr_step], color=color, label = 'Cure')
+            front = plt.axvline(x=logbook['data'][best_overall_agent]['front_location'][curr_step],c='g',label='Front')
             ax2.tick_params(axis='y', labelcolor=color)
             ax2.set_ylim(0.0, 1.01)
             input_location = logbook['data'][best_overall_agent]['input_location'][curr_step]
             input_magnitude = logbook['data'][best_overall_agent]['input_magnitude'][curr_step]
-            plt.axvline(x=input_location,c='r',alpha=input_magnitude/env.peak_thermal_rate)
-            plt.axvline(x=input_location+env.radius_of_input,c='r',ls=':',alpha=input_magnitude/env.peak_thermal_rate)
+            input_center = ax2.axvline(x=input_location,c='r',alpha=input_magnitude/env.peak_thermal_rate,label='Input Center')
+            input_edge = ax2.axvline(x=input_location+env.radius_of_input,c='r',ls=':',alpha=input_magnitude/env.peak_thermal_rate, label='Input Edge')
             plt.axvline(x=input_location-env.radius_of_input,c='r',ls=':',alpha=input_magnitude/env.peak_thermal_rate)
+            lns=(temp[0],cure[0],front,input_center,input_edge)
+            labs=(temp[0].get_label(),cure[0].get_label(),front.get_label(),input_center.get_label(),input_edge.get_label())
+            ax1.legend(lns, labs, loc=1)
             plt.gcf().set_size_inches(8.5, 5.5)
             plt.savefig('Results/fields/fields_'+'{:2.4}'.format(curr_step*env.temporal_precision)+'.png', dpi = 100)
             plt.close()
+        
+    # Plot front rate trajectory
+    plt.clf()
+    title_str = "Front Velocity: t = "+'{:2.4}'.format(curr_step*env.temporal_precision)+'s'
+    plt.title(title_str)
+    plt.xlabel("Simulation Time [s]")
+    plt.ylabel("Front Rate [m/s]")
+    plt.plot(logbook['data'][best_overall_agent]['time'], logbook['data'][best_overall_agent]['front_velocity'], c='k')
+    plt.axhline(y=env.desired_front_rate, c='b', ls='--')
+    plt.legend(('Actual','Target'))
+    plt.gcf().set_size_inches(8.5, 5.5)
+    plt.savefig('Results/front_velocity.png', dpi = 500)
+    plt.close()
         
     # Plot learning curve 1
     plt.clf()
