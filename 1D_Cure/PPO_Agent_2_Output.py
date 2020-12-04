@@ -17,13 +17,13 @@ class PPO_Agent:
         # Policy and value estimation network
         # Input is the state
         # Output is the mean of the gaussian distribution from which actions are sampled
-        self.actor = NN_Stdev_2_Output.Neural_Network(num_inputs=num_states, num_outputs=2, num_hidden_layers=3, num_neurons_in_layer=128)
+        self.actor = NN_Stdev_2_Output.Neural_Network(num_inputs=num_states, num_outputs=2, num_hidden_layers=2, num_neurons_in_layer=128)
         self.actor_optimizer =  torch.optim.Adam(self.actor.parameters() , lr=alpha)
         
         # Old policy and value estimation network used to calculate clipped surrogate objective
         # Input is the state
         # Output is the mean of the gaussian distribution from which actions are sampled
-        self.old_actor = NN_Stdev_2_Output.Neural_Network(num_inputs=num_states, num_outputs=2, num_hidden_layers=3, num_neurons_in_layer=128)
+        self.old_actor = NN_Stdev_2_Output.Neural_Network(num_inputs=num_states, num_outputs=2, num_hidden_layers=2, num_neurons_in_layer=128)
         self.old_actor.load_state_dict(self.actor.state_dict())
                 
         # Critic NN that estimates the value function
@@ -122,25 +122,20 @@ class PPO_Agent:
     # @ param minibatch_indices - list of indices that represent set of minibatches over which SGD will occur
     # @ return - value targets for the minibatches
     def get_value_target_minibatches(self, minibatch_indices):
-                
+        
         value_target_minibatches = []
         
-        states = torch.tensor(self.trajectory_states, dtype=torch.float)
-        with torch.no_grad():
-            next_value_estimate_minibatch = self.critic.forward(states).double().squeeze()
-        next_minibatch_indices = minibatch_indices + 1
-        mask = next_minibatch_indices % self.steps_per_trajectory == 0
-        next_minibatch_indices[mask] = next_minibatch_indices[mask] - 1
+        value_estimates, next_value_estimates = self.get_value_estimate()
+        next_value_estimates = next_value_estimates.reshape(self.trajectories_per_batch*self.steps_per_trajectory)
         
         for curr_epoch in range(self.num_epochs):
             # Calculate V(s_{t+1})
-            next_value_estimate = next_value_estimate_minibatch[next_minibatch_indices[curr_epoch]]
-            next_value_estimate[mask[curr_epoch]] = torch.tensor(self.trajectory_rewards[(minibatch_indices)[curr_epoch,mask[curr_epoch]]]).double()
+            next_value_estimate_minibatch = next_value_estimates[minibatch_indices[curr_epoch]]
             
             # Use the TD(0) algorithm to calculate the target value function
-            reward = torch.tensor(self.trajectory_rewards[minibatch_indices[curr_epoch]])
-            value_target = reward + self.gamma * next_value_estimate
-            value_target_minibatches.append(value_target)
+            reward_minibatch = torch.tensor(self.trajectory_rewards[minibatch_indices[curr_epoch]])
+            value_target_minibatch = reward_minibatch + self.gamma * next_value_estimate_minibatch
+            value_target_minibatches.append(value_target_minibatch)
         
         return value_target_minibatches
   
@@ -162,14 +157,19 @@ class PPO_Agent:
         
     
     # Estimates the value function of a given state trajectory based on the critic NN
-    # @ return - value estimation of the stored states
+    # @ return - value estimation of the stored states and the value estimation of the stored states + 1
     def get_value_estimate(self):
         
         # Get the value estimation based on the critic NN
-        state = torch.tensor(self.trajectory_states, dtype=torch.float)
-        value_estimate = self.critic.forward(state).double().detach().numpy().reshape(self.trajectories_per_batch,self.steps_per_trajectory)
+        with torch.no_grad():
+            state = torch.tensor(self.trajectory_states, dtype=torch.float)
+            value_estimates = self.critic.forward(state).double().numpy().reshape(self.trajectories_per_batch,self.steps_per_trajectory)
         
-        return value_estimate
+        # Get the next value estimate
+        next_value_estimates = np.roll(value_estimates, -1, axis=1)
+        next_value_estimates[:,-1] = next_value_estimates[:,-2]
+        
+        return value_estimates, next_value_estimates
     
     
     # Calculates the advantage function sequence for a given trajectory
@@ -178,13 +178,11 @@ class PPO_Agent:
     def get_advantage_minibatches(self, minibatch_indices):
         
         # Split rewards and value estimates into their respective trajecotries
-        value_estimates = self.get_value_estimate()
+        value_estimates, next_value_estimates = self.get_value_estimate()
         rewards = self.trajectory_rewards.reshape(self.trajectories_per_batch,self.steps_per_trajectory)
         
         # Calculate the deltas
-        gamma_reduced_next_value_estimates = self.gamma * np.roll(value_estimates, -1, axis=1)
-        deltas = rewards + gamma_reduced_next_value_estimates - value_estimates
-        deltas[:,-1] = rewards[:,-1]
+        deltas = rewards + (self.gamma * next_value_estimates) - value_estimates
         
         # Initialize the advantage array
         advantages = np.zeros((self.trajectories_per_batch,self.steps_per_trajectory))
@@ -197,6 +195,7 @@ class PPO_Agent:
         
         # Format the output
         advantages = torch.tensor(advantages.reshape(self.trajectories_per_batch*self.steps_per_trajectory)).double()
+        advantages = (advantages - torch.mean(advantages)) / torch.sqrt(torch.var(advantages)) 
         
         advantage_estimate_minibatches = []
         for curr_epoch in range(self.num_epochs):
