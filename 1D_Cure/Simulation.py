@@ -154,7 +154,7 @@ if __name__ == '__main__':
     num_states = int(env.spacial_precision/10 + 5)
         
     # Set agent parameters
-    total_trajectories = 1
+    total_trajectories = 25000
     steps_per_trajecotry = 240
     trajectories_per_batch = 40
     num_epochs = 10
