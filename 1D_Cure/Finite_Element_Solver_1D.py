@@ -13,7 +13,7 @@ class FES():
     def __init__(self):
     
         # Simulation parameters
-        self.spacial_precision = 300 # Must be multiple of 10
+        self.spacial_precision = 200 # Must be multiple of 10
         self.temporal_precision = 0.05
         self.field_length = 0.10
         self.simulation_time = 300.0
@@ -21,8 +21,9 @@ class FES():
         
         # Initial conditions
         self.initial_temperature = 298.15
+        self.initial_temp_perturbation = 0.02 * self.initial_temperature
         self.initial_cure = 0.10
-        self.initial_input_location = self.field_length / 2.0
+        self.initial_cure_perturbation = 0.02 * self.initial_cure
         
         # Boundary conditions
         self.bc_thermal_conductivity = 0.80
@@ -49,12 +50,21 @@ class FES():
         self.model_fit_order = 1.927
         self.autocatalysis_const = 0.365
         
+        # Mesh grids
+        self.spacial_grid = np.linspace(0.0,self.field_length,self.spacial_precision)
+        self.temperature_grid = self.initial_temperature + self.initial_temp_perturbation * np.sin((np.random.randint(1,6) * np.pi * self.spacial_grid) / (self.field_length))
+        self.cure_grid = self.initial_cure + self.initial_cure_perturbation * np.sin((np.random.randint(1,6) * np.pi * self.spacial_grid) / (self.field_length))
+        self.input_grid = np.array([0.0]*self.spacial_precision)
+        self.front_position = 0.0
+        self.front_rate = 0.0
+        self.previous_front_move = 0.0
+        
         # Input parameters
-        self.peak_thermal_rate = 3.0
-        self.radius_of_input = self.field_length / 15.0
-        self.input_location = self.initial_input_location
+        self.peak_thermal_rate = 5.0
+        self.radius_of_input = self.field_length / 10.0
+        self.input_location = np.random.choice(self.spacial_grid)
         self.max_movement_rate = self.field_length * self.temporal_precision
-        self.input_magnitude = self.peak_thermal_rate / 2.0
+        self.input_magnitude = np.random.rand() * self.peak_thermal_rate
         self.max_magnitude_rate = self.peak_thermal_rate * self.temporal_precision
         K = (self.peak_thermal_rate * self.radius_of_input * np.sqrt(2.0*np.pi)) / (2.0*np.sqrt(np.log(10.0)))
         sigma = self.radius_of_input / (2.0*np.sqrt(np.log(10.0)))
@@ -65,22 +75,13 @@ class FES():
         self.c1 =  5e6
         self.c2 = 0.20
         self.max_reward = 5.0
-        
-        # Mesh grids
-        self.spacial_grid = np.linspace(0.0,self.field_length,self.spacial_precision)
-        self.temperature_grid = np.array([self.initial_temperature]*self.spacial_precision)
-        self.cure_grid = np.array([self.initial_cure]*self.spacial_precision)
-        self.input_grid = np.array([0.0]*self.spacial_precision)
-        self.front_position = 0.0
-        self.front_rate = 0.0
-        self.previous_front_move = 0.0
 
     def step(self, action):
         
         # Clip the action and use it to update the input's position and magnitude
         ok_action = True
-        next_input_location = self.input_location + np.clip(action[0], -self.max_movement_rate, self.max_movement_rate)
-        next_magnitude = self.input_magnitude + np.clip(action[1], -self.max_magnitude_rate, self.max_magnitude_rate)
+        next_input_location = self.input_location + np.clip(0.001*action[0], -self.max_movement_rate, self.max_movement_rate)
+        next_magnitude = self.input_magnitude + np.clip(0.1*action[1], -self.max_magnitude_rate, self.max_magnitude_rate)
         if (next_input_location > self.field_length+self.radius_of_input) or (next_input_location < self.radius_of_input):
             ok_action = False
         else:
@@ -92,9 +93,18 @@ class FES():
         self.input_grid[self.input_grid<0.01*self.peak_thermal_rate] = 0.0
         
         # Get the second spacial derivative of the temperature field
-        temperature_grid_spline = UnivariateSpline(self.spacial_grid, self.temperature_grid, k=3, s=0.0)
-        temperature_grid_second_derivative = temperature_grid_spline.derivative(n=2)
-        temperature_grid_second_derivative = temperature_grid_second_derivative(self.spacial_grid)
+        x_step_size = self.spacial_grid[1] - self.spacial_grid[0]
+        diff_x_grid = np.insert(self.spacial_grid, 0, np.array([-2.0*x_step_size, -x_step_size]))
+        diff_x_grid = np.insert(diff_x_grid, len(diff_x_grid), np.array([self.spacial_grid[-1]+x_step_size, self.spacial_grid[-1]+2.0*x_step_size]))
+        diff_y_grid = np.insert(self.temperature_grid, 0, np.array([self.ambient_temp, self.ambient_temp]))
+        diff_y_grid = np.insert(diff_y_grid, len(diff_y_grid), np.array([self.ambient_temp, self.ambient_temp]))
+        first_diff_grid = np.zeros(diff_y_grid.shape)
+        first_diff_grid[0:-1] = np.diff(diff_y_grid)/np.diff(diff_x_grid)
+        first_diff_grid[-1] = (diff_y_grid[-1] - diff_y_grid[-2])/(diff_x_grid[-1] - diff_x_grid[-2])
+        second_diff_grid = np.zeros(first_diff_grid.shape)
+        second_diff_grid[0:-1] = np.diff(first_diff_grid)/np.diff(diff_x_grid)
+        second_diff_grid[-1] = (first_diff_grid[-1] - first_diff_grid[-2])/(diff_x_grid[-1] - diff_x_grid[-2])
+        second_diff_grid = second_diff_grid[1:-3]
         
         # Get the cure rate based on the cure kinetics
         cure_rate = ((self.pre_exponential*np.exp(-self.activiation_energy / (self.temperature_grid*self.gas_const))) * 
@@ -116,7 +126,7 @@ class FES():
         self.front_position = new_front_position
         
         # Use the second spacial derivative of the temperature field, input field, and cure rate to calculate the temperature field rate
-        temperature_grid_rate = (((self.thermal_conductivity * temperature_grid_second_derivative) + 
+        temperature_grid_rate = (((self.thermal_conductivity * second_diff_grid) + 
                                   (self.density * self.enthalpy_of_reaction * cure_rate) + 
                                   (self.density * self.specific_heat * self.input_grid)) / 
                                   (self.density * self.specific_heat))
@@ -169,14 +179,16 @@ class FES():
         self.current_time = 0.0
         
         # Reset input
-        self.input_location = self.initial_input_location
-        self.input_magnitude = self.peak_thermal_rate / 2.0
+        self.input_location = np.random.choice(self.spacial_grid)
+        self.input_magnitude = np.random.rand() * self.peak_thermal_rate
                 
         # Reset fields
-        self.temperature_grid = np.array([self.initial_temperature]*self.spacial_precision)
-        self.cure_grid = np.array([self.initial_cure]*self.spacial_precision)
+        self.temperature_grid = self.initial_temperature + self.initial_temp_perturbation * np.sin((np.random.randint(1,6) * np.pi * self.spacial_grid) / (self.field_length))
+        self.cure_grid = self.initial_cure + self.initial_cure_perturbation * np.sin((np.random.randint(1,6) * np.pi * self.spacial_grid) / (self.field_length))
         self.input_grid = np.array([0.0]*self.spacial_precision)
         self.front_position = 0.0
+        self.front_rate = 0.0
+        self.previous_front_move = 0.0
         
         # Return the temperature field
         return np.concatenate((self.temperature_grid[0::10], [self.front_position], [0.0], [self.input_location], [self.input_magnitude]))
