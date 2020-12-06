@@ -253,10 +253,10 @@ if __name__ == '__main__':
         
     # Plot front rate trajectory
     plt.clf()
-    title_str = "Front Velocity: t = "+'{:2.4}'.format(curr_step*env.temporal_precision)+'s'
+    title_str = "Front Velocity"
     plt.title(title_str)
     plt.xlabel("Simulation Time [s]")
-    plt.ylabel("Front Rate [m/s]")
+    plt.ylabel("Front Velocity [m/s]")
     plt.plot(logbook['data'][best_overall_agent]['time'], logbook['data'][best_overall_agent]['front_velocity'], c='k')
     plt.axhline(y=env.desired_front_rate, c='b', ls='--')
     plt.legend(('Actual','Target'))
