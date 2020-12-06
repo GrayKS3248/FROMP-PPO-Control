@@ -31,7 +31,7 @@ class FES():
         
         # Reward and training targets
         self.maximum_temperature = 523.15
-        self.desired_front_rate = 0.00025
+        self.desired_front_rate = 0.00040
         
         # Trigger conditions
         self.trigger_temperature = 453.15
@@ -71,7 +71,7 @@ class FES():
         self.exponential_const = -1.0 / (2.0 * sigma * sigma)
         
         # Reward constants
-        self.c1 =  5e6
+        self.c1 =  7500.0
         self.c2 = 0.20
         self.max_reward = 1.5
 
@@ -171,8 +171,8 @@ class FES():
             if (self.temperature_grid <= self.maximum_temperature).all():
                 
                 # Calculate square error between current state and desired state
-                sq_error = ((self.front_rate - self.desired_front_rate)**2)
-                reward = max(self.max_reward - self.c1 * sq_error, 0.0)
+                error = abs(self.front_rate - self.desired_front_rate)
+                reward = max(self.max_reward - self.c1 * error, 0.0)
                 
             # If the maximum temperature is above the maximum allowed temperature, return a negative reward
             else:
