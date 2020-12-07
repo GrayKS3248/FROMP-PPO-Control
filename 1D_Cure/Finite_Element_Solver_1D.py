@@ -19,24 +19,24 @@ class FES():
         self.current_time = 0.0
         
         # Initial conditions
-        self.initial_temperature = 298.15
+        self.initial_temperature = 268.15
         self.initial_temp_perturbation = 0.005 * self.initial_temperature
         self.initial_cure = 0.10
         self.initial_cure_perturbation = 0.01 * self.initial_cure
         
         # Boundary conditions
-        self.bc_thermal_conductivity = 0.80
-        self.bc_heat_transfer_coef = 8.59
-        self.ambient_temperature = 298.15
+        self.bc_thermal_conductivity = 0.152
+        self.bc_heat_transfer_coef = 0.025
+        self.ambient_temperature = self.initial_temperature
         
         # Reward and training targets
-        self.maximum_temperature = 523.15
-        self.desired_front_rate = 0.00040
+        self.maximum_temperature = 533.15
+        self.desired_front_rate = 0.000165
         
         # Trigger conditions
-        self.trigger_temperature = 453.15
+        self.trigger_temperature = 458.15
         self.trigger_time = 0.0
-        self.trigger_length = 30.0
+        self.trigger_length = 35.0
         
         # Physical parameters
         self.thermal_conductivity = 0.152
@@ -51,15 +51,19 @@ class FES():
         
         # Mesh grids
         self.spacial_grid = np.linspace(0.0,self.field_length,self.spacial_precision)
-        self.temperature_grid = self.initial_temperature + self.initial_temp_perturbation * np.sin((np.random.randint(1,6) * np.pi * self.spacial_grid) / (self.field_length))
-        self.cure_grid = self.initial_cure + self.initial_cure_perturbation * np.sin((np.random.randint(1,6) * np.pi * self.spacial_grid) / (self.field_length))
+        rough_temp_perturbation = np.random.rand(self.spacial_precision)*self.initial_temp_perturbation
+        smooth_temp_perturbation = self.initial_temp_perturbation * np.sin((np.random.randint(1,6) * np.pi * self.spacial_grid) / (self.field_length))
+        self.temperature_grid = self.initial_temperature + rough_temp_perturbation + smooth_temp_perturbation
+        rough_cure_perturbation = np.random.rand(self.spacial_precision)*self.initial_cure_perturbation
+        smooth_cure_perturbation = self.initial_cure_perturbation * np.sin((np.random.randint(1,6) * np.pi * self.spacial_grid) / (self.field_length))
+        self.cure_grid = self.initial_cure + rough_cure_perturbation + smooth_cure_perturbation
         self.input_grid = np.array([0.0]*self.spacial_precision)
         self.front_position = 0.0
         self.front_rate = 0.0
         self.previous_front_move = 0.0
         
         # Input parameters
-        self.peak_thermal_rate = 3.0
+        self.peak_thermal_rate = 0.0#3.0
         self.radius_of_input = self.field_length / 10.0
         self.input_location = np.random.choice(self.spacial_grid)
         self.max_movement_rate = self.field_length * self.temporal_precision
@@ -71,7 +75,7 @@ class FES():
         self.exponential_const = -1.0 / (2.0 * sigma * sigma)
         
         # Reward constants
-        self.c1 =  7500.0
+        self.c1 =  6000.0
         self.c2 = 0.20
         self.max_reward = 1.5
 
