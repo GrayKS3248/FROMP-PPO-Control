@@ -35,7 +35,7 @@ class FES():
         
         # Trigger conditions
         self.trigger_temperature = 458.15
-        self.trigger_time = 60.0
+        self.trigger_time = 0.0
         self.trigger_length = 35.0
         
         # Physical parameters

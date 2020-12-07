@@ -159,7 +159,7 @@ if __name__ == '__main__':
     trajectories_per_batch = 20
     num_epochs = 10
     gamma = 0.99
-    lamb = 0.99
+    lamb = 0.95
     epsilon = 0.20
     alpha = 2.5e-4
     
