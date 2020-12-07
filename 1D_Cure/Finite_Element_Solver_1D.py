@@ -19,7 +19,7 @@ class FES():
         self.current_time = 0.0
         
         # Initial conditions
-        self.initial_temperature = 268.15
+        self.initial_temperature = 288.15
         self.initial_temp_perturbation = 0.005 * self.initial_temperature
         self.initial_cure = 0.10
         self.initial_cure_perturbation = 0.01 * self.initial_cure
