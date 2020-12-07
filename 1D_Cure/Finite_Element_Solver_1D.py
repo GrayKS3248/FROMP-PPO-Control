@@ -63,7 +63,7 @@ class FES():
         self.previous_front_move = 0.0
         
         # Input parameters
-        self.peak_thermal_rate = 0.0#3.0
+        self.peak_thermal_rate = 5.0
         self.radius_of_input = self.field_length / 10.0
         self.input_location = np.random.choice(self.spacial_grid)
         self.max_movement_rate = self.field_length * self.temporal_precision
@@ -77,7 +77,7 @@ class FES():
         # Reward constants
         self.c1 =  6000.0
         self.c2 = 0.20
-        self.max_reward = 1.5
+        self.max_reward = 2.5
 
         # Simulation limits
         self.stable_temperature_limit = 10.0 * self.maximum_temperature
