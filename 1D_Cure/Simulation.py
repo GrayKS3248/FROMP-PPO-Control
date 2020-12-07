@@ -154,12 +154,12 @@ if __name__ == '__main__':
     num_states = int(env.spacial_precision/10 + 5)
         
     # Set agent parameters
-    total_trajectories = 50000
+    total_trajectories = 1000
     steps_per_trajecotry = 240
     trajectories_per_batch = 20
     num_epochs = 10
     gamma = 0.99
-    lamb = 0.95
+    lamb = 0.99
     epsilon = 0.20
     alpha = 2.5e-4
     
@@ -220,11 +220,11 @@ if __name__ == '__main__':
     title_str = "Front Velocity"
     plt.title(title_str)
     plt.xlabel("Simulation Time [s]")
-    plt.ylabel("Front Velocity [m/s]")
-    plt.plot(logbook['data'][best_overall_agent]['time'], logbook['data'][best_overall_agent]['front_velocity'], c='k')
-    plt.axhline(y=env.desired_front_rate, c='b', ls='--')
+    plt.ylabel("Front Velocity [mm/s]")
+    plt.plot(logbook['data'][best_overall_agent]['time'], 1000.0*np.array(logbook['data'][best_overall_agent]['front_velocity']), c='k')
+    plt.axhline(y=1000.0*env.desired_front_rate, c='b', ls='--')
     plt.legend(('Actual','Target'))
-    plt.ylim(0.0, 1.25*env.desired_front_rate)
+    plt.ylim(0.0, 1250.0*env.desired_front_rate)
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('Results/front_velocity.png', dpi = 500)
     plt.close()

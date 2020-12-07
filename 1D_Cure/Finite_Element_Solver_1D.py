@@ -15,11 +15,11 @@ class FES():
         self.spacial_precision = 300 # Must be multiple of 10
         self.temporal_precision = 0.05
         self.field_length = 0.10
-        self.simulation_time = 180.0
+        self.simulation_time = 360.0
         self.current_time = 0.0
         
         # Initial conditions
-        self.initial_temperature = 288.15
+        self.initial_temperature = 278.15
         self.initial_temp_perturbation = 0.005 * self.initial_temperature
         self.initial_cure = 0.10
         self.initial_cure_perturbation = 0.01 * self.initial_cure
@@ -30,12 +30,12 @@ class FES():
         self.ambient_temperature = self.initial_temperature
         
         # Reward and training targets
-        self.maximum_temperature = 533.15
-        self.desired_front_rate = 0.000165
+        self.maximum_temperature = 563.15
+        self.desired_front_rate = 0.00016
         
         # Trigger conditions
         self.trigger_temperature = 458.15
-        self.trigger_time = 0.0
+        self.trigger_time = 60.0
         self.trigger_length = 35.0
         
         # Physical parameters
@@ -75,9 +75,9 @@ class FES():
         self.exponential_const = -1.0 / (2.0 * sigma * sigma)
         
         # Reward constants
-        self.c1 =  6000.0
-        self.c2 = 0.20
         self.max_reward = 2.5
+        self.c1 =  self.max_reward / (0.75*self.desired_front_rate)
+        self.c2 = 0.75
 
         # Simulation limits
         self.stable_temperature_limit = 10.0 * self.maximum_temperature
@@ -121,8 +121,9 @@ class FES():
         self.cure_grid = self.cure_grid + cure_rate * self.temporal_precision
         
         # Calculate the front position and rate
-        if (self.cure_grid >= 0.85).any():
-            new_front_position = self.spacial_grid[np.flatnonzero(self.cure_grid>=0.85)[-1]]
+        cure_diff = -1.0*np.diff(self.cure_grid)/np.diff(self.spacial_grid)
+        if (cure_diff>=100.0).any():
+            new_front_position = self.spacial_grid[np.flatnonzero(cure_diff>=100.0)[-1]]
             if new_front_position != self.front_position:
                 self.front_rate = (new_front_position - self.front_position) / (self.current_time - self.previous_front_move)
                 self.previous_front_move = self.current_time
