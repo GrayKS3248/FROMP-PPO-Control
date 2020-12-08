@@ -14,7 +14,7 @@ class FES():
         # Simulation parameters
         self.spacial_precision = 400 # Must be multiple of 10
         self.temporal_precision = 0.05
-        self.field_length = 0.65
+        self.field_length = 0.060
         self.simulation_time = 360.0
         self.current_time = 0.0
         
@@ -61,6 +61,7 @@ class FES():
         self.front_position = 0.0
         self.front_rate = 0.0
         self.previous_front_move = 0.0
+        self.front_has_started=False
         
         # Input parameters
         self.peak_thermal_rate = 3.0
@@ -125,7 +126,10 @@ class FES():
         if (cure_diff>=100.0).any():
             new_front_position = self.spacial_grid[np.flatnonzero(cure_diff>=100.0)[-1]]
             if new_front_position != self.front_position:
-                self.front_rate = (new_front_position - self.front_position) / (self.current_time - self.previous_front_move)
+                if self.front_has_started:
+                    self.front_rate = (new_front_position - self.front_position) / (self.current_time - self.previous_front_move)
+                else:
+                    self.front_has_started = True
                 self.previous_front_move = self.current_time
         else:
             new_front_position = 0.0

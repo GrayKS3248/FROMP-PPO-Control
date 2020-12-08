@@ -223,8 +223,9 @@ if __name__ == '__main__':
     plt.ylabel("Front Velocity [mm/s]")
     plt.plot(logbook['data'][best_overall_agent]['time'], 1000.0*np.array(logbook['data'][best_overall_agent]['front_velocity']), c='k')
     plt.axhline(y=1000.0*env.desired_front_rate, c='b', ls='--')
-    plt.legend(('Actual','Target'))
-    plt.ylim(0.0, 1250.0*env.desired_front_rate)
+    plt.legend(('Actual','Target'),loc='lower right')
+    plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.desired_front_rate))
+    plt.xlim(0.0, env.simulation_time)
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('Results/front_velocity.png', dpi = 500)
     plt.close()
@@ -286,7 +287,7 @@ if __name__ == '__main__':
     
     # Make video of the best temperature field trajecotry as function of time
     y_min_temperature = 0.99*np.min(logbook['data'][best_overall_agent]['temperature_field'])
-    y_max_temperature = max(1.01*np.max(logbook['data'][best_overall_agent]['temperature_field']), env.maximum_temperature)
+    y_max_temperature = max(1.05*np.max(logbook['data'][best_overall_agent]['temperature_field']), 1.05*env.maximum_temperature)
     for curr_step in range(len(logbook['data'][best_overall_agent]['temperature_field'])):
         if curr_step % 5 == 0 or curr_step == len(logbook['data'][best_overall_agent]['temperature_field']) - 1:
             plt.clf()
