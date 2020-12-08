@@ -12,7 +12,7 @@ class FES():
     def __init__(self):
     
         # Simulation parameters
-        self.spacial_precision = 300 # Must be multiple of 10
+        self.spacial_precision = 400 # Must be multiple of 10
         self.temporal_precision = 0.05
         self.field_length = 0.65
         self.simulation_time = 360.0
@@ -31,7 +31,7 @@ class FES():
         
         # Reward and training targets
         self.maximum_temperature = 563.15
-        self.desired_front_rate = 0.00016
+        self.desired_front_rate = 0.00015
         
         # Trigger conditions
         self.trigger_temperature = 458.15
@@ -77,7 +77,7 @@ class FES():
         # Reward constants
         self.max_reward = 1.5
         self.c1 =  self.max_reward / (0.75*self.desired_front_rate)
-        self.c2 = 0.10
+        self.c2 = self.max_reward / 15.0
 
         # Simulation limits
         self.stable_temperature_limit = 10.0 * self.maximum_temperature
@@ -175,13 +175,15 @@ class FES():
             # If the maximum temperature is below the maximum allowed temperature, return a positive reward
             if (self.temperature_grid <= self.maximum_temperature).all():
                 
-                # Calculate square error between current state and desired state
+                # Calculate error between current state and desired state
                 error = abs(self.front_rate - self.desired_front_rate)
                 reward = max(self.max_reward - self.c1 * error, 0.0)
                 
             # If the maximum temperature is above the maximum allowed temperature, return a negative reward
             else:
-                reward = -self.c2 * self.max_reward
+                # Calculate overage between current temperature and maximum temperature
+                overage = np.max(self.temperature_grid) - self.maximum_temperature
+                reward = max(-self.c2 * overage, -self.max_reward)
             
             return reward
     
