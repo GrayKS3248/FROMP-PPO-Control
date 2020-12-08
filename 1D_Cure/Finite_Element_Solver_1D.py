@@ -75,9 +75,9 @@ class FES():
         self.exponential_const = -1.0 / (2.0 * sigma * sigma)
         
         # Reward constants
-        self.max_reward = 1.5
+        self.max_reward = 2.5
         self.c1 =  self.max_reward / (0.75*self.desired_front_rate)
-        self.c2 = self.max_reward / 15.0
+        self.c2 = self.max_reward / 25.0
 
         # Simulation limits
         self.stable_temperature_limit = 10.0 * self.maximum_temperature
