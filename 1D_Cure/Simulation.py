@@ -9,6 +9,7 @@ import PPO_Agent_2_Output as ppo
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque 
+import pickle
 
 def main(env, agent, total_trajectories, execution_rate):
 
@@ -213,8 +214,23 @@ if __name__ == '__main__':
     average_pos_rate_stdev = average_pos_rate_stdev / float(num_agents)
     average_mag_rate_stdev = average_mag_rate_stdev / float(num_agents)
 
+    # Pickle all important outputs
+    print("Saving...")
+    outputs = {
+    'total_trajectories' : total_trajectories, 
+    'steps_per_trajecotry' : steps_per_trajecotry, 
+    'trajectories_per_batch' : trajectories_per_batch,
+    'num_epochs' : num_epochs, 
+    'gamma' : gamma,
+    'lambda' : lamb,
+    'epsilon' : epsilon,
+    'alpha' : alpha,
+    'logbook' : logbook
+    }
+    with open("results/output", 'wb') as file:
+        pickle.dump(outputs, file)  
+
     print("Plotting...")
-    
     # Plot front rate trajectory
     plt.clf()
     title_str = "Front Velocity"
@@ -227,7 +243,7 @@ if __name__ == '__main__':
     plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.desired_front_rate))
     plt.xlim(0.0, env.simulation_time)
     plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('Results/front_velocity.png', dpi = 500)
+    plt.savefig('results/front_velocity.png', dpi = 500)
     plt.close()
         
     # Plot learning curve 1
@@ -238,7 +254,7 @@ if __name__ == '__main__':
     plt.ylabel("Reward per Simulation Step")
     plt.plot([*range(len(average_r_per_step))],average_r_per_step)
     plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('Results/actor_learning_1.png', dpi = 500)
+    plt.savefig('results/actor_learning_1.png', dpi = 500)
     plt.close()
     
     # Plot learning curve 2
@@ -249,7 +265,7 @@ if __name__ == '__main__':
     plt.ylabel("Reward per Episode")
     plt.plot([*range(len(average_r_per_episode))],average_r_per_episode)
     plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('Results/actor_learning_2.png', dpi = 500)
+    plt.savefig('results/actor_learning_2.png', dpi = 500)
     plt.close()
     
     # Plot value learning curve
@@ -260,7 +276,7 @@ if __name__ == '__main__':
     plt.ylabel("Value Target to Estimated Value % Error")
     plt.plot([*range(len(average_value_learning))],average_value_learning)
     plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('Results/critic_learning.png', dpi = 500)
+    plt.savefig('results/critic_learning.png', dpi = 500)
     plt.close()
    
     # Plot stdev curve
@@ -271,7 +287,7 @@ if __name__ == '__main__':
     plt.ylabel("Laser Velocity Stdev [m/s]")
     plt.plot([*range(len(average_pos_rate_stdev))],average_pos_rate_stdev)
     plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('Results/pos_rate_stdev.png', dpi = 500)
+    plt.savefig('results/pos_rate_stdev.png', dpi = 500)
     plt.close()
     
     # Plot stdev curve
@@ -282,10 +298,11 @@ if __name__ == '__main__':
     plt.ylabel('Laser Magnitude Rate Stdev [' + '$d^2$' + 'T/' + '$dt^2$' + ']')
     plt.plot([*range(len(average_mag_rate_stdev))],average_mag_rate_stdev)
     plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('Results/mag_rate_stdev.png', dpi = 500)
+    plt.savefig('results/mag_rate_stdev.png', dpi = 500)
     plt.close()
     
     # Make video of the best temperature field trajecotry as function of time
+    print("Rendering...")
     y_min_temperature = 0.99*np.min(logbook['data'][best_overall_agent]['temperature_field'])
     y_max_temperature = max(1.05*np.max(logbook['data'][best_overall_agent]['temperature_field']), 1.05*env.maximum_temperature)
     for curr_step in range(len(logbook['data'][best_overall_agent]['temperature_field'])):
@@ -318,7 +335,7 @@ if __name__ == '__main__':
             labs=(temp[0].get_label(),max_temp.get_label(),cure[0].get_label(),front.get_label(),input_center.get_label(),input_edge.get_label())
             ax1.legend(lns, labs, loc=1)
             plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig('Results/fields/fields_'+'{:.2f}'.format(curr_step*env.temporal_precision)+'.png', dpi = 100)
+            plt.savefig('results/fields/fields_'+'{:.2f}'.format(curr_step*env.temporal_precision)+'.png', dpi = 100)
             plt.close()
     
     print("Done!")

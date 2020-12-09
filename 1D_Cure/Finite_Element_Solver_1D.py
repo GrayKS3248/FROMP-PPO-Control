@@ -88,7 +88,7 @@ class FES():
         # Clip the action and use it to update the input's position and magnitude
         ok_action = True
         next_input_location = self.input_location + np.clip(0.001*action[0], -self.max_movement_rate, self.max_movement_rate)
-        next_magnitude = self.input_magnitude + np.clip(0.1*action[1], -self.max_magnitude_rate, self.max_magnitude_rate)
+        next_magnitude = self.input_magnitude + np.clip(0.05*action[1], -self.max_magnitude_rate, self.max_magnitude_rate)
         if (next_input_location > self.field_length+self.radius_of_input) or (next_input_location < self.radius_of_input):
             ok_action = False
         else:
