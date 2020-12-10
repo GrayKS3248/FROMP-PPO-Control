@@ -76,9 +76,7 @@ class FES():
         self.exponential_const = -1.0 / (2.0 * sigma * sigma)
         
         # Reward constants
-        self.max_reward = 1.5
-        self.c1 =  self.max_reward / (0.75*self.desired_front_rate)
-        self.c2 = self.max_reward / 25.0
+        self.max_reward = 2.0
 
         # Simulation limits
         self.stable_temperature_limit = 10.0 * self.maximum_temperature
@@ -88,7 +86,7 @@ class FES():
         # Clip the action and use it to update the input's position and magnitude
         ok_action = True
         next_input_location = self.input_location + np.clip(0.001*action[0], -self.max_movement_rate, self.max_movement_rate)
-        next_magnitude = self.input_magnitude + np.clip(0.05*action[1], -self.max_magnitude_rate, self.max_magnitude_rate)
+        next_magnitude = self.input_magnitude + np.clip(0.020*action[1], -self.max_magnitude_rate, self.max_magnitude_rate)
         if (next_input_location > self.field_length+self.radius_of_input) or (next_input_location < self.radius_of_input):
             ok_action = False
         else:
@@ -172,7 +170,7 @@ class FES():
     def get_reward(self, ok_action):
         
         if not ok_action:
-            return -self.max_reward
+            return -0.25*self.max_reward
         
         else:
             
@@ -181,13 +179,39 @@ class FES():
                 
                 # Calculate error between current state and desired state
                 error = abs(self.front_rate - self.desired_front_rate)
-                reward = max(self.max_reward - self.c1 * error, 0.0)
+                
+                # Determine the reward based on the error
+                if error/self.desired_front_rate > 0.25:
+                    reward = -0.05*self.max_reward
+                elif error/self.desired_front_rate <= 0.25 and error/self.desired_front_rate > 0.15:
+                    reward = 0.0
+                elif error/self.desired_front_rate <= 0.15 and error/self.desired_front_rate > 0.10:
+                    reward = 0.05*self.max_reward
+                elif error/self.desired_front_rate <= 0.10 and error/self.desired_front_rate > 0.05:
+                    reward = 0.10*self.max_reward
+                elif error/self.desired_front_rate <= 0.05 and error/self.desired_front_rate > 0.01:
+                    reward = 0.75*self.max_reward
+                elif error/self.desired_front_rate <= 0.01:
+                    reward = self.max_reward
                 
             # If the maximum temperature is above the maximum allowed temperature, return a negative reward
             else:
                 # Calculate overage between current temperature and maximum temperature
                 overage = np.max(self.temperature_grid) - self.maximum_temperature
-                reward = max(-self.c2 * overage, -self.max_reward)
+                
+                # Determine the reward based on the overage
+                if overage/self.maximum_temperature > 0.100:
+                    reward = -self.max_reward
+                elif overage/self.maximum_temperature <= 0.100 and overage/self.maximum_temperature > 0.075:
+                    reward = -0.75*self.max_reward
+                elif overage/self.maximum_temperature <= 0.075 and overage/self.maximum_temperature > 0.050:
+                    reward = -0.50*self.max_reward
+                elif overage/self.maximum_temperature <= 0.050 and overage/self.maximum_temperature > 0.010:
+                    reward = -0.25*self.max_reward
+                elif overage/self.maximum_temperature <= 0.010 and overage/self.maximum_temperature > 0.005:
+                    reward = -0.10*self.max_reward
+                elif overage/self.maximum_temperature <= 0.005:
+                    reward = -0.05*self.max_reward
             
             return reward
     

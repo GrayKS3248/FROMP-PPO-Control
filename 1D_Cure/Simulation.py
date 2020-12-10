@@ -8,7 +8,6 @@ import Finite_Element_Solver_1D as fes
 import PPO_Agent_2_Output as ppo
 import numpy as np
 import matplotlib.pyplot as plt
-from collections import deque 
 import pickle
 
 def main(env, agent, total_trajectories, execution_rate):
@@ -39,9 +38,6 @@ def main(env, agent, total_trajectories, execution_rate):
         'time': [],
         }
     
-    r_per_step_history = deque()
-    r_per_episode_history = deque()
-    
     # Create variables used to keep track of learning
     r_total = 0
     episode_reward = 0
@@ -54,21 +50,26 @@ def main(env, agent, total_trajectories, execution_rate):
         
         # # User readout parameters
         percent_complete = curr_episode / total_trajectories
-        r_per_step_history.append(episode_reward/(agent.steps_per_trajectory * execution_rate))
-        r_per_episode_history.append(episode_reward)
-        if len(r_per_step_history) >= 100:
-            r_per_step_history.popleft()
-            r_per_episode_history.popleft()
         
         # User readout
-        print_str = (('{:03.2f}'.format(100.0 * percent_complete) + "% Complete").ljust(17) + 
-            ("| Episode: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(24) + 
-            ("| Reward: " + '{:.0f}'.format(r_total)).ljust(22) + 
-            ("| R/Step: " + '{:.2f}'.format(sum(r_per_step_history) / len(r_per_step_history))).ljust(17) + 
-            ("| R/Episode: " + '{:.0f}'.format(sum(r_per_episode_history) / len(r_per_episode_history))).ljust(21) + 
-            ("| Best: " + '{:.0f}'.format(best_episode)).ljust(14) + 
-            "|")
-        print(print_str, end="\r", flush=True)
+        if curr_episode >= 1:
+            print_str = (('{:03.2f}'.format(100.0 * percent_complete) + "% Complete").ljust(17) + 
+                ("| Episode: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(24) + 
+                ("| Reward: " + '{:.0f}'.format(r_total)).ljust(22) + 
+                ("| R/Step: " + '{:.2f}'.format(data['r_per_step'][-1])).ljust(17) + 
+                ("| R/Episode: " + '{:.0f}'.format(data['r_per_episode'][-1])).ljust(21) + 
+                ("| Best: " + '{:.0f}'.format(best_episode)).ljust(14) + 
+                "|")
+            print(print_str, end="\r", flush=True)
+        else:
+            print_str = (('{:03.2f}'.format(100.0 * percent_complete) + "% Complete").ljust(17) + 
+                ("| Episode: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(24) + 
+                ("| Reward: " + '{:.0f}'.format(r_total)).ljust(22) + 
+                ("| R/Step: " + '{:.2f}'.format(0.0)).ljust(17) + 
+                ("| R/Episode: " + '{:.0f}'.format(0.0)).ljust(21) + 
+                ("| Best: " + '{:.0f}'.format(best_episode)).ljust(14) + 
+                "|")
+            print(print_str, end="\r", flush=True)
         
         # Initialize simulation
         s = env.reset()
@@ -139,8 +140,8 @@ def main(env, agent, total_trajectories, execution_rate):
     print_str = (("100.00% Complete").ljust(17) + 
         ("| Episode: " + str(total_trajectories) + "/" + str(total_trajectories)).ljust(24) + 
         ("| Reward: " + '{:.0f}'.format(r_total)).ljust(22) + 
-        ("| R/Step: " + '{:.2f}'.format(sum(r_per_step_history) / len(r_per_step_history))).ljust(17) + 
-        ("| R/Episode: " + '{:.0f}'.format(sum(r_per_episode_history) / len(r_per_episode_history))).ljust(21) + 
+        ("| R/Step: " + '{:.2f}'.format(data['r_per_step'][-1])).ljust(17) + 
+        ("| R/Episode: " + '{:.0f}'.format(data['r_per_episode'][-1])).ljust(21) + 
         ("| Best: " + '{:.0f}'.format(best_episode)).ljust(14) + 
         "|")
     print(print_str, end="\n", flush=True)
