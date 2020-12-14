@@ -53,21 +53,21 @@ def main(env, agent, total_trajectories, execution_rate):
         
         # User readout
         if curr_episode >= 1:
-            print_str = (('{:03.2f}'.format(100.0 * percent_complete) + "% Complete").ljust(17) + 
-                ("| Episode: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(24) + 
-                ("| Reward: " + '{:.0f}'.format(r_total)).ljust(22) + 
-                ("| R/Step: " + '{:.2f}'.format(data['r_per_step'][-1])).ljust(17) + 
-                ("| R/Episode: " + '{:.0f}'.format(data['r_per_episode'][-1])).ljust(21) + 
-                ("| Best: " + '{:.0f}'.format(best_episode)).ljust(14) + 
+            print_str = (('{:03.1f}'.format(100.0 * percent_complete) + "% Complete").ljust(16) + 
+                ("| Traj: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(21) + 
+                ("| R/Step: " + '{:.1f}'.format(data['r_per_episode'][-1])).ljust(20) + 
+                ("| Avg_R/Step: " + '{:.1f}'.format(data['r_per_step'][-1])).ljust(24) + 
+                ("| Best R: " + '{:.0f}'.format(best_episode)).ljust(17) + 
+                ("| Avg R: " + '{:.0f}'.format(r_total / curr_episode)).ljust(16) + 
                 "|")
             print(print_str, end="\r", flush=True)
         else:
-            print_str = (('{:03.2f}'.format(100.0 * percent_complete) + "% Complete").ljust(17) + 
-                ("| Episode: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(24) + 
-                ("| Reward: " + '{:.0f}'.format(r_total)).ljust(22) + 
-                ("| R/Step: " + '{:.2f}'.format(0.0)).ljust(17) + 
-                ("| R/Episode: " + '{:.0f}'.format(0.0)).ljust(21) + 
-                ("| Best: " + '{:.0f}'.format(best_episode)).ljust(14) + 
+            print_str = (('{:03.1f}'.format(100.0 * percent_complete) + "% Complete").ljust(16) + 
+                ("| Traj: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(21) + 
+                ("| R/Step: " + '{:.1f}'.format(0.0)).ljust(20) + 
+                ("| Avg_R/Step: " + '{:.1f}'.format(0.0)).ljust(24) + 
+                ("| Best R: " + '{:.0f}'.format(best_episode)).ljust(17) + 
+                ("| Avg R: " + '{:.0f}'.format(0.0)).ljust(16) + 
                 "|")
             print(print_str, end="\r", flush=True)
         
@@ -90,9 +90,10 @@ def main(env, agent, total_trajectories, execution_rate):
             (s2, r, done) = env.step(np.array([pos_rate_action, mag_rate_action]))
             if step_in_episode % execution_rate == 0:
                 agent.update_agent(s, np.array([pos_rate_action, mag_rate_action]), r)
+                r_total = r_total + r
+                curr_step = curr_step + 1
             
             # Update logs
-            r_total = r_total + r
             trajectory['input_location'].append(env.input_location)
             trajectory['temperature_field'].append(env.temperature_grid)
             trajectory['input_magnitude'].append(env.input_magnitude)
@@ -103,7 +104,6 @@ def main(env, agent, total_trajectories, execution_rate):
             
             # Update state and step
             s = s2
-            curr_step = curr_step + 1
             step_in_episode = step_in_episode + 1
     
         # Calculate reward per epoch
@@ -120,7 +120,7 @@ def main(env, agent, total_trajectories, execution_rate):
             data['best_episode'] = episode_reward
         
         # Update the logs
-        data['r_per_episode'].append(episode_reward)
+        data['r_per_episode'].append(episode_reward / agent.steps_per_trajectory)
         data['pos_rate_stdev'].append(pos_rate_stdev)
         data['mag_rate_stdev'].append(mag_rate_stdev)
         data['r_per_step'].append(r_total / (curr_step+1))
@@ -137,12 +137,12 @@ def main(env, agent, total_trajectories, execution_rate):
         
     # User readout
     percent_complete = 1.0
-    print_str = (("100.00% Complete").ljust(17) + 
-        ("| Episode: " + str(total_trajectories) + "/" + str(total_trajectories)).ljust(24) + 
-        ("| Reward: " + '{:.0f}'.format(r_total)).ljust(22) + 
-        ("| R/Step: " + '{:.2f}'.format(data['r_per_step'][-1])).ljust(17) + 
-        ("| R/Episode: " + '{:.0f}'.format(data['r_per_episode'][-1])).ljust(21) + 
-        ("| Best: " + '{:.0f}'.format(best_episode)).ljust(14) + 
+    print_str = (("100.0% Complete").ljust(16) + 
+        ("| Traj: " + str(total_trajectories) + "/" + str(total_trajectories)).ljust(21) + 
+        ("| R/Step: " + '{:.1f}'.format(data['r_per_episode'][-1])).ljust(20) + 
+        ("| Avg_R/Step: " + '{:.1f}'.format(data['r_per_step'][-1])).ljust(24) + 
+        ("| Best R: " + '{:.0f}'.format(best_episode)).ljust(17) + 
+        ("| Avg R: " + '{:.0f}'.format(r_total / curr_episode)).ljust(16) + 
         "|")
     print(print_str, end="\n", flush=True)
     
@@ -156,9 +156,9 @@ if __name__ == '__main__':
     num_states = int(env.spacial_precision/10 + 5)
         
     # Set agent parameters
-    total_trajectories = 1000
+    total_trajectories = 100
     steps_per_trajecotry = 240
-    trajectories_per_batch = 20
+    trajectories_per_batch = 5
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95
@@ -175,7 +175,7 @@ if __name__ == '__main__':
         raise RuntimeError("Agent execution rate is not multiple of simulation rate")
         
     # Simulation parameters
-    num_agents = 1
+    num_agents = 50
     logbook = {
         'data': [],
         'agents': [],
@@ -195,12 +195,20 @@ if __name__ == '__main__':
     
     # Average results from all agents
     print('Processing...')
+    if num_agents > 1:
+        r_per_step_stdev = np.zeros((num_agents, len(logbook['data'][curr_agent]['r_per_step'])))
+        r_per_episode_stdev = np.zeros((num_agents, len(logbook['data'][curr_agent]['r_per_episode'])))
+        value_learning_stdev = np.zeros((num_agents, len(logbook['data'][curr_agent]['value_error'][0])))
     average_r_per_step = np.array([0.0]*len(logbook['data'][curr_agent]['r_per_step']))
     average_r_per_episode = np.array([0.0]*len(logbook['data'][curr_agent]['r_per_episode']))
     average_value_learning = np.array([0.0]*len(logbook['data'][curr_agent]['value_error'][0]))
     average_pos_rate_stdev = np.array([0.0]*len(logbook['data'][curr_agent]['pos_rate_stdev']))
     average_mag_rate_stdev = np.array([0.0]*len(logbook['data'][curr_agent]['mag_rate_stdev']))
     for curr_agent in range(num_agents):
+        if num_agents > 1:
+            r_per_step_stdev[curr_agent,:] = logbook['data'][curr_agent]['r_per_step']
+            r_per_episode_stdev[curr_agent,:] = logbook['data'][curr_agent]['r_per_episode']
+            value_learning_stdev[curr_agent,:] = logbook['data'][curr_agent]['value_error'][0]
         average_r_per_step = average_r_per_step + np.array(logbook['data'][curr_agent]['r_per_step'])
         average_r_per_episode = average_r_per_episode + np.array(logbook['data'][curr_agent]['r_per_episode'])
         average_value_learning = average_value_learning + np.array(logbook['data'][curr_agent]['value_error'][0])
@@ -209,6 +217,10 @@ if __name__ == '__main__':
         if logbook['data'][curr_agent]['best_episode'] >= best_overall_episode:
             best_overall_episode = logbook['data'][curr_agent]['best_episode']
             best_overall_agent = curr_agent
+    if num_agents > 1:
+        r_per_step_stdev = np.std(r_per_step_stdev,axis=0)
+        r_per_episode_stdev = np.std(r_per_episode_stdev,axis=0)
+        value_learning_stdev = np.std(value_learning_stdev,axis=0)
     average_r_per_step = average_r_per_step / float(num_agents)
     average_r_per_episode = average_r_per_episode / float(num_agents)
     average_value_learning = average_value_learning / float(num_agents)
@@ -249,11 +261,15 @@ if __name__ == '__main__':
         
     # Plot learning curve 1
     plt.clf()
-    title_str = "Actor Learning Curve, Simulation Step Normalized"
+    title_str = "Actor Learning Curve, Simulation Normalized"
     plt.title(title_str)
     plt.xlabel("Episode")
-    plt.ylabel("Reward per Simulation Step")
-    plt.plot([*range(len(average_r_per_step))],average_r_per_step)
+    plt.ylabel("Average Reward per Simulation Step")
+    if num_agents==1:
+        plt.plot([*range(len(average_r_per_step))],average_r_per_step)
+    else:
+        plt.plot([*range(len(average_r_per_step))],average_r_per_step)
+        plt.fill_between([*range(len(average_r_per_step))],average_r_per_step+r_per_step_stdev,average_r_per_step-r_per_step_stdev,alpha=0.6)
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/actor_learning_1.png', dpi = 500)
     plt.close()
@@ -263,8 +279,12 @@ if __name__ == '__main__':
     title_str = "Actor Learning Curve, Episode Normalized"
     plt.title(title_str)
     plt.xlabel("Episode")
-    plt.ylabel("Reward per Episode")
-    plt.plot([*range(len(average_r_per_episode))],average_r_per_episode)
+    plt.ylabel("Average Reward per Simulation Step")
+    if num_agents==1:
+        plt.plot([*range(len(average_r_per_episode))],average_r_per_episode)
+    else:
+        plt.plot([*range(len(average_r_per_episode))],average_r_per_episode)
+        plt.fill_between([*range(len(average_r_per_episode))],average_r_per_episode+r_per_episode_stdev,average_r_per_episode-r_per_episode_stdev,alpha=0.6)
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/actor_learning_2.png', dpi = 500)
     plt.close()
@@ -274,8 +294,13 @@ if __name__ == '__main__':
     title_str = "Critic Learning Curve"
     plt.title(title_str)
     plt.xlabel("Optimization Step")
-    plt.ylabel("Value Target to Estimated Value % Error")
-    plt.plot([*range(len(average_value_learning))],average_value_learning)
+    plt.ylabel("MSE Loss")
+    if num_agents==1:
+        plt.plot([*range(len(average_value_learning))],average_value_learning)
+    else:
+        plt.plot([*range(len(average_value_learning))],average_value_learning)
+        plt.fill_between([*range(len(average_value_learning))],average_value_learning+value_learning_stdev,average_value_learning-value_learning_stdev,alpha=0.6)
+    plt.yscale("log")
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/critic_learning.png', dpi = 500)
     plt.close()

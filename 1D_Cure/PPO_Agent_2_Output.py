@@ -30,7 +30,7 @@ class PPO_Agent:
         # Input is the state
         # Output is the estimated value of that state
         self.critic =  NN.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=2, num_neurons_in_layer=128)
-        self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=0.75*alpha)
+        self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=alpha)
         
         # Trajectory memory
         self.num_states = num_states
@@ -256,8 +256,6 @@ class PPO_Agent:
         
         actor_loss = 0.0
         critic_loss = 0.0
-        total_target = 0.0
-        total_value = 0.0
                                 
         for curr_epoch in range(self.num_epochs):
             # Apply the clipped surrogate objective algorithm
@@ -274,10 +272,7 @@ class PPO_Agent:
             actor_loss = actor_loss - (clipped_surrogate_objective).mean()
             critic_loss = critic_loss + (squared_error_loss).mean()
             
-            total_target = total_target + value_target_minibatches[curr_epoch].mean().item()
-            total_value = total_value + value_estimate_minibatches[curr_epoch].mean().item()
-            
-        self.value_estimation_error.append(100.0*(total_target - total_value)/total_target)
+        self.value_estimation_error.append(critic_loss.item())
             
         # Conduct minibatch stochastic gradient descent on actor
         self.actor_optimizer.zero_grad()

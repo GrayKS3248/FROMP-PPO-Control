@@ -20,7 +20,7 @@ class FES():
         
         # Initial conditions
         self.initial_temperature = 278.15
-        self.initial_temp_perturbation = 0.005 * self.initial_temperature
+        self.initial_temp_perturbation = 0.01 * self.initial_temperature
         self.initial_cure = 0.10
         self.initial_cure_perturbation = 0.01 * self.initial_cure
         
@@ -77,7 +77,8 @@ class FES():
         
         # Reward constants
         self.max_reward = 2.0
-
+        self.input_punishment_const = 0.05
+        
         # Simulation limits
         self.stable_temperature_limit = 10.0 * self.maximum_temperature
 
@@ -85,13 +86,13 @@ class FES():
         
         # Clip the action and use it to update the input's position and magnitude
         ok_action = True
-        next_input_location = self.input_location + np.clip(0.001*action[0], -self.max_movement_rate, self.max_movement_rate)
-        next_magnitude = self.input_magnitude + np.clip(0.020*action[1], -self.max_magnitude_rate, self.max_magnitude_rate)
+        next_input_location = self.input_location + np.clip(0.0006*action[0], -self.max_movement_rate, self.max_movement_rate)
+        next_magnitude = np.clip(self.input_magnitude + np.clip(0.06*action[1], -self.max_magnitude_rate, self.max_magnitude_rate), 0.0, self.peak_thermal_rate)
         if (next_input_location > self.field_length+self.radius_of_input) or (next_input_location < self.radius_of_input):
             ok_action = False
         else:
             self.input_location = next_input_location
-            self.input_magnitude = np.clip(next_magnitude, 0.0, self.peak_thermal_rate)
+        self.input_magnitude = next_magnitude
             
         # Update the input grid to reflet the current action
         self.input_grid = self.input_magnitude * self.front_const * np.exp((self.spacial_grid - self.input_location)**2 * self.exponential_const)
@@ -169,51 +170,26 @@ class FES():
     
     def get_reward(self, ok_action):
         
+        # If the action taken was illegal, return the smallest reward
         if not ok_action:
             return -0.25*self.max_reward
         
+        # Calculate the punishments based on the temperature field, input strength, action, and overage
+        input_punishment = self.input_punishment_const*self.max_reward * (self.input_magnitude / -self.peak_thermal_rate)
+        overage_punishment = (max(self.temperature_grid) >= self.maximum_temperature) * -0.25*self.max_reward
+        punishment = input_punishment + overage_punishment
+        
+        # Calculate the reward based on the punishments and the front rate error
+        if abs(self.front_rate - self.desired_front_rate) / (self.desired_front_rate) <= 0.075:
+            front_rate_reward = self.max_reward
+        elif abs(self.front_rate - self.desired_front_rate) / (self.desired_front_rate) <= 0.25:
+            front_rate_reward = 0.25*self.max_reward
         else:
-            
-            # If the maximum temperature is below the maximum allowed temperature, return a positive reward
-            if (self.temperature_grid <= self.maximum_temperature).all():
-                
-                # Calculate error between current state and desired state
-                error = abs(self.front_rate - self.desired_front_rate)
-                
-                # Determine the reward based on the error
-                if error/self.desired_front_rate > 0.25:
-                    reward = -0.05*self.max_reward
-                elif error/self.desired_front_rate <= 0.25 and error/self.desired_front_rate > 0.15:
-                    reward = 0.0
-                elif error/self.desired_front_rate <= 0.15 and error/self.desired_front_rate > 0.10:
-                    reward = 0.05*self.max_reward
-                elif error/self.desired_front_rate <= 0.10 and error/self.desired_front_rate > 0.05:
-                    reward = 0.10*self.max_reward
-                elif error/self.desired_front_rate <= 0.05 and error/self.desired_front_rate > 0.01:
-                    reward = 0.75*self.max_reward
-                elif error/self.desired_front_rate <= 0.01:
-                    reward = self.max_reward
-                
-            # If the maximum temperature is above the maximum allowed temperature, return a negative reward
-            else:
-                # Calculate overage between current temperature and maximum temperature
-                overage = np.max(self.temperature_grid) - self.maximum_temperature
-                
-                # Determine the reward based on the overage
-                if overage/self.maximum_temperature > 0.100:
-                    reward = -self.max_reward
-                elif overage/self.maximum_temperature <= 0.100 and overage/self.maximum_temperature > 0.075:
-                    reward = -0.75*self.max_reward
-                elif overage/self.maximum_temperature <= 0.075 and overage/self.maximum_temperature > 0.050:
-                    reward = -0.50*self.max_reward
-                elif overage/self.maximum_temperature <= 0.050 and overage/self.maximum_temperature > 0.010:
-                    reward = -0.25*self.max_reward
-                elif overage/self.maximum_temperature <= 0.010 and overage/self.maximum_temperature > 0.005:
-                    reward = -0.10*self.max_reward
-                elif overage/self.maximum_temperature <= 0.005:
-                    reward = -0.05*self.max_reward
-            
-            return reward
+            front_rate_reward = -0.10*self.max_reward
+        reward = front_rate_reward + punishment
+
+        # Return the calculated reward
+        return reward
     
     def reset(self):
         # Reset time
@@ -231,5 +207,5 @@ class FES():
         self.front_rate = 0.0
         self.previous_front_move = 0.0
         
-        # Return the temperature field
+        # Return the initial temperature field
         return np.concatenate((self.temperature_grid[0::10], [self.temperature_grid[-1]], [self.front_position], [self.front_rate], [self.input_location], [self.input_magnitude]))
