@@ -166,7 +166,7 @@ if __name__ == '__main__':
         raise RuntimeError("Agent execution rate is not multiple of simulation rate")
         
     # Simulation parameters
-    num_agents = 50
+    num_agents = 20
     logbook = {
         'data': [],
         'agents': [],

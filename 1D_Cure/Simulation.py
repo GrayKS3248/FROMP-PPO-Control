@@ -17,8 +17,8 @@ def main(env, agent, total_trajectories, execution_rate):
         'r_per_step' : [],
         'r_per_episode' : [],
         'value_error' : [],
-        'pos_rate_stdev': [],
-        'mag_rate_stdev': [],
+        'loc_rate_stdev': [],
+        'mag_stdev': [],
         'input_location': [],
         'input_magnitude':[],
         'temperature_field': [],
@@ -73,10 +73,10 @@ def main(env, agent, total_trajectories, execution_rate):
         
         # Initialize simulation
         s = env.reset()
-        pos_rate_action = 0.0
-        pos_rate_stdev = 0.0
-        mag_rate_action = 0.0
-        mag_rate_stdev = 0.0
+        loc_rate_action = 0.0
+        loc_rate_stdev = 0.0
+        mag_action = 0.0
+        mag_stdev = 0.0
         episode_reward = r_total
                 
         # Simulate until episode is done
@@ -86,20 +86,20 @@ def main(env, agent, total_trajectories, execution_rate):
             
             # Get action, do action, learn
             if step_in_episode % execution_rate == 0:
-                pos_rate_action, pos_rate_stdev, mag_rate_action, mag_rate_stdev = agent.get_action(s)
-            (s2, r, done) = env.step(np.array([pos_rate_action, mag_rate_action]))
+                loc_rate_action, loc_rate_stdev, mag_action, mag_stdev = agent.get_action(s)
+            (s2, r, done) = env.step(np.array([loc_rate_action, mag_action]))
             if step_in_episode % execution_rate == 0:
-                agent.update_agent(s, np.array([pos_rate_action, mag_rate_action]), r)
+                agent.update_agent(s, np.array([loc_rate_action, mag_action]), r)
                 r_total = r_total + r
                 curr_step = curr_step + 1
             
             # Update logs
             trajectory['input_location'].append(env.input_location)
-            trajectory['temperature_field'].append(env.temperature_grid)
+            trajectory['temperature_field'].append(env.temp_panels)
             trajectory['input_magnitude'].append(env.input_magnitude)
-            trajectory['cure_field'].append(env.cure_grid)
-            trajectory['front_location'].append(env.front_position)
-            trajectory['front_velocity'].append(env.front_rate)
+            trajectory['cure_field'].append(env.cure_panels)
+            trajectory['front_location'].append(env.front_loc)
+            trajectory['front_velocity'].append(env.front_vel)
             trajectory['time'].append(env.current_time)
             
             # Update state and step
@@ -121,8 +121,8 @@ def main(env, agent, total_trajectories, execution_rate):
         
         # Update the logs
         data['r_per_episode'].append(episode_reward / agent.steps_per_trajectory)
-        data['pos_rate_stdev'].append(pos_rate_stdev)
-        data['mag_rate_stdev'].append(mag_rate_stdev)
+        data['loc_rate_stdev'].append(loc_rate_stdev)
+        data['mag_stdev'].append(mag_stdev)
         data['r_per_step'].append(r_total / (curr_step+1))
         trajectory['input_location'] = []
         trajectory['temperature_field'] = []
@@ -153,26 +153,27 @@ if __name__ == '__main__':
     
     # Create environment
     env = fes.FES()
-    num_states = int(env.spacial_precision/10 + 5)
+    num_states = int(env.num_panels/10 + 5)
         
     # Set agent parameters
-    total_trajectories = 1000
+    total_trajectories = 2500
     steps_per_trajecotry = 240
-    trajectories_per_batch = 5
+    trajectories_per_batch = 10
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    alpha = 1.0e-3
-    decay_rate = 0.985
+    start_alpha = 1.0e-3
+    end_alpha = 1.0e-4
     
     # Calculated agent parameters
-    agent_temporal_precision = (env.simulation_time / float(steps_per_trajecotry))
-    execution_rate = int(agent_temporal_precision / env.temporal_precision)
+    decay_rate = (end_alpha/start_alpha)**(trajectories_per_batch/total_trajectories)
+    agent_temporal_precision = (env.sim_duration / float(steps_per_trajecotry))
+    execution_rate = int(agent_temporal_precision / env.time_step)
     minibatch_size = (trajectories_per_batch * steps_per_trajecotry) // num_epochs
 
     # Check inputs
-    if ((int(agent_temporal_precision / env.temporal_precision) - (agent_temporal_precision / env.temporal_precision))!=0):
+    if ((int(agent_temporal_precision / env.time_step) - (agent_temporal_precision / env.time_step))!=0):
         raise RuntimeError("Agent execution rate is not multiple of simulation rate")
         
     # Simulation parameters
@@ -188,7 +189,7 @@ if __name__ == '__main__':
     # Create agents, run simulations, save results
     for curr_agent in range(num_agents):
         print("Agent " + str(curr_agent+1) + " / " + str(num_agents))
-        agent = ppo.PPO_Agent(num_states, steps_per_trajecotry, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, alpha, decay_rate)
+        agent = ppo.PPO_Agent(num_states, steps_per_trajecotry, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, start_alpha, decay_rate)
         data, agent, env = main(env, agent, total_trajectories, execution_rate)
         logbook['data'].append(data)
         logbook['agents'].append(agent)
@@ -203,8 +204,8 @@ if __name__ == '__main__':
     average_r_per_step = np.array([0.0]*len(logbook['data'][curr_agent]['r_per_step']))
     average_r_per_episode = np.array([0.0]*len(logbook['data'][curr_agent]['r_per_episode']))
     average_value_learning = np.array([0.0]*len(logbook['data'][curr_agent]['value_error'][0]))
-    average_pos_rate_stdev = np.array([0.0]*len(logbook['data'][curr_agent]['pos_rate_stdev']))
-    average_mag_rate_stdev = np.array([0.0]*len(logbook['data'][curr_agent]['mag_rate_stdev']))
+    average_loc_rate_stdev = np.array([0.0]*len(logbook['data'][curr_agent]['loc_rate_stdev']))
+    average_mag_stdev = np.array([0.0]*len(logbook['data'][curr_agent]['mag_stdev']))
     for curr_agent in range(num_agents):
         if num_agents > 1:
             r_per_step_stdev[curr_agent,:] = logbook['data'][curr_agent]['r_per_step']
@@ -213,8 +214,8 @@ if __name__ == '__main__':
         average_r_per_step = average_r_per_step + np.array(logbook['data'][curr_agent]['r_per_step'])
         average_r_per_episode = average_r_per_episode + np.array(logbook['data'][curr_agent]['r_per_episode'])
         average_value_learning = average_value_learning + np.array(logbook['data'][curr_agent]['value_error'][0])
-        average_pos_rate_stdev = average_pos_rate_stdev + np.array(logbook['data'][curr_agent]['pos_rate_stdev'])
-        average_mag_rate_stdev = average_mag_rate_stdev + np.array(logbook['data'][curr_agent]['mag_rate_stdev'])
+        average_loc_rate_stdev = average_loc_rate_stdev + np.array(logbook['data'][curr_agent]['loc_rate_stdev'])
+        average_mag_stdev = average_mag_stdev + np.array(logbook['data'][curr_agent]['mag_stdev'])
         if logbook['data'][curr_agent]['best_episode'] >= best_overall_episode:
             best_overall_episode = logbook['data'][curr_agent]['best_episode']
             best_overall_agent = curr_agent
@@ -225,8 +226,8 @@ if __name__ == '__main__':
     average_r_per_step = average_r_per_step / float(num_agents)
     average_r_per_episode = average_r_per_episode / float(num_agents)
     average_value_learning = average_value_learning / float(num_agents)
-    average_pos_rate_stdev = average_pos_rate_stdev / float(num_agents)
-    average_mag_rate_stdev = average_mag_rate_stdev / float(num_agents)
+    average_loc_rate_stdev = average_loc_rate_stdev / float(num_agents)
+    average_mag_stdev = average_mag_stdev / float(num_agents)
 
     # Pickle all important outputs
     print("Saving...")
@@ -238,7 +239,7 @@ if __name__ == '__main__':
     'gamma' : gamma,
     'lambda' : lamb,
     'epsilon' : epsilon,
-    'alpha' : alpha,
+    'alpha' : start_alpha,
     'decay_rate': decay_rate,
     'logbook' : logbook
     }
@@ -253,10 +254,10 @@ if __name__ == '__main__':
     plt.xlabel("Simulation Time [s]")
     plt.ylabel("Front Velocity [mm/s]")
     plt.plot(logbook['data'][best_overall_agent]['time'], 1000.0*np.array(logbook['data'][best_overall_agent]['front_velocity']), c='k')
-    plt.axhline(y=1000.0*env.desired_front_rate, c='b', ls='--')
+    plt.axhline(y=1000.0*env.target_front_vel, c='b', ls='--')
     plt.legend(('Actual','Target'),loc='lower right')
-    plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.desired_front_rate))
-    plt.xlim(0.0, env.simulation_time)
+    plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.target_front_vel))
+    plt.xlim(0.0, env.sim_duration)
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/front_velocity.png', dpi = 500)
     plt.close()
@@ -309,61 +310,61 @@ if __name__ == '__main__':
    
     # Plot stdev curve
     plt.clf()
-    title_str = "Laser Velocity Stdev"
+    title_str = "Laser Position Rate Stdev"
     plt.title(title_str)
     plt.xlabel("Episode")
-    plt.ylabel("Laser Velocity Stdev [m/s]")
-    plt.plot([*range(len(average_pos_rate_stdev))],average_pos_rate_stdev)
+    plt.ylabel("Laser Position Rate Stdev [m/s]")
+    plt.plot([*range(len(average_loc_rate_stdev))],env.loc_rate_scale*average_loc_rate_stdev)
     plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('results/pos_rate_stdev.png', dpi = 500)
+    plt.savefig('results/loc_rate_stdev.png', dpi = 500)
     plt.close()
     
     # Plot stdev curve
     plt.clf()
-    title_str = "Laser Mag Rate Stdev"
+    title_str = "Laser Magnitude Stdev"
     plt.title(title_str)
     plt.xlabel("Episode")
-    plt.ylabel('Laser Magnitude Rate Stdev [' + '$d^2$' + 'T/' + '$dt^2$' + ']')
-    plt.plot([*range(len(average_mag_rate_stdev))],average_mag_rate_stdev)
+    plt.ylabel('Laser Magnitude Stdev [K/s]')
+    plt.plot([*range(len(average_mag_stdev))],env.mag_scale*average_mag_stdev)
     plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('results/mag_rate_stdev.png', dpi = 500)
+    plt.savefig('results/mag_stdev.png', dpi = 500)
     plt.close()
     
     # Make video of the best temperature field trajecotry as function of time
     print("Rendering...")
     y_min_temperature = 0.99*np.min(logbook['data'][best_overall_agent]['temperature_field'])
-    y_max_temperature = max(1.05*np.max(logbook['data'][best_overall_agent]['temperature_field']), 1.05*env.maximum_temperature)
+    y_max_temperature = max(1.05*np.max(logbook['data'][best_overall_agent]['temperature_field']), 1.05*env.temperature_limit)
     for curr_step in range(len(logbook['data'][best_overall_agent]['temperature_field'])):
         if curr_step % 5 == 0 or curr_step == len(logbook['data'][best_overall_agent]['temperature_field']) - 1:
             plt.clf()
             fig, ax1 = plt.subplots()
             ax2 = ax1.twinx()
-            title_str = "Temperature and Cure: t = "+'{:.2f}'.format(curr_step*env.temporal_precision)+'s'
+            title_str = "Temperature and Cure: t = "+'{:.2f}'.format(curr_step*env.time_step)+'s'
             plt.title(title_str)
             color = 'k'
             ax1.set_xlabel('Position [m]')
             ax1.set_ylabel('Temperature [K]', color=color)
-            temp = ax1.plot(env.spacial_grid, logbook['data'][best_overall_agent]['temperature_field'][curr_step], color=color,label='Temp')
-            max_temp = ax1.axhline(y=env.maximum_temperature,c='k',ls=':',label='Limit')
+            temp = ax1.plot(env.panels, logbook['data'][best_overall_agent]['temperature_field'][curr_step], color=color,label='Temp')
+            max_temp = ax1.axhline(y=env.temperature_limit,c='k',ls=':',label='Limit')
             ax1.tick_params(axis='y', labelcolor=color)
-            ax1.set_xlim(0.0, env.field_length)
+            ax1.set_xlim(0.0, env.length)
             ax1.set_ylim(y_min_temperature, y_max_temperature)
             color = 'b'
             ax2.set_ylabel('Degree Cure [-]', color=color)
-            cure = ax2.plot(env.spacial_grid, logbook['data'][best_overall_agent]['cure_field'][curr_step], color=color, label = 'Cure')
+            cure = ax2.plot(env.panels, logbook['data'][best_overall_agent]['cure_field'][curr_step], color=color, label = 'Cure')
             front = plt.axvline(x=logbook['data'][best_overall_agent]['front_location'][curr_step],c='b',ls=':',label='Front')
             ax2.tick_params(axis='y', labelcolor=color)
             ax2.set_ylim(0.0, 1.01)
             input_location = logbook['data'][best_overall_agent]['input_location'][curr_step]
             input_magnitude = logbook['data'][best_overall_agent]['input_magnitude'][curr_step]
-            input_center = ax2.axvline(x=input_location,c='r',alpha=input_magnitude/env.peak_thermal_rate,label='Center')
-            input_edge = ax2.axvline(x=input_location+env.radius_of_input,c='r',ls=':',alpha=input_magnitude/env.peak_thermal_rate, label='Edge')
-            plt.axvline(x=input_location-env.radius_of_input,c='r',ls=':',alpha=input_magnitude/env.peak_thermal_rate)
+            input_center = ax2.axvline(x=input_location,c='r',alpha=input_magnitude/env.max_input_mag,label='Center')
+            input_edge = ax2.axvline(x=input_location+env.radius_of_input,c='r',ls=':',alpha=input_magnitude/env.max_input_mag, label='Edge')
+            plt.axvline(x=input_location-env.radius_of_input,c='r',ls=':',alpha=input_magnitude/env.max_input_mag)
             lns=(temp[0],max_temp,cure[0],front,input_center,input_edge)
             labs=(temp[0].get_label(),max_temp.get_label(),cure[0].get_label(),front.get_label(),input_center.get_label(),input_edge.get_label())
             ax1.legend(lns, labs, loc=1)
             plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig('results/fields/fields_'+'{:.2f}'.format(curr_step*env.temporal_precision)+'.png', dpi = 100)
+            plt.savefig('results/fields/fields_'+'{:.2f}'.format(curr_step*env.time_step)+'.png', dpi = 100)
             plt.close()
     
     print("Done!")

@@ -31,7 +31,7 @@ class PPO_Agent:
         # Input is the state
         # Output is the estimated value of that state
         self.critic =  NN.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=2, num_neurons_in_layer=128)
-        self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=alpha)
+        self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=5.0*alpha)
         self.critic_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.critic_optimizer, gamma=decay_rate)
         
         # Trajectory memory
