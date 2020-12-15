@@ -77,7 +77,13 @@ class FES():
         
         # Reward constants
         self.max_reward = 2.0
-        self.input_punishment_const = 0.05
+        self.bad_action_punishment_const = 0.25
+        self.input_punishment_const = 0.10
+        self.overage_punishment_const = 0.25
+        self.integral_punishment_const = 0.10
+        self.int_min = np.trapz(self.initial_temperature*np.ones(len(self.temperature_grid)),x=self.spacial_grid)
+        self.int_max = np.trapz(self.maximum_temperature*np.ones(len(self.temperature_grid)),x=self.spacial_grid)
+        self.int_delta = self.int_max - self.int_min
         
         # Simulation limits
         self.stable_temperature_limit = 10.0 * self.maximum_temperature
@@ -176,12 +182,13 @@ class FES():
         
         # If the action taken was illegal, return the smallest reward
         if not ok_action:
-            return -0.25*self.max_reward
+            return -self.bad_action_punishment_const*self.max_reward
         
         # Calculate the punishments based on the temperature field, input strength, action, and overage
-        input_punishment = self.input_punishment_const*self.max_reward * (self.input_magnitude / -self.peak_thermal_rate)
-        overage_punishment = (max(self.temperature_grid) >= self.maximum_temperature) * -0.25*self.max_reward
-        punishment = input_punishment + overage_punishment
+        input_punishment = -self.input_punishment_const * self.max_reward * (self.input_magnitude / self.peak_thermal_rate)
+        overage_punishment =  -self.overage_punishment_const * self.max_reward * (max(self.temperature_grid) >= self.maximum_temperature)
+        integral_punishment = -self.integral_punishment_const * self.max_reward * (1.0 - (self.int_max - np.trapz(self.temperature_grid,x=self.spacial_grid)) / (self.int_delta))
+        punishment = input_punishment + overage_punishment + integral_punishment
         
         # Calculate the reward based on the punishments and the front rate error
         if abs(self.front_rate - self.desired_front_rate) / (self.desired_front_rate) <= 0.075:
