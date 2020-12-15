@@ -12,13 +12,14 @@ import NN
 
 class PPO_Agent:
     
-    def __init__(self, num_states, steps_per_trajectory, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, alpha):
+    def __init__(self, num_states, steps_per_trajectory, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, alpha, decay_rate):
 
         # Policy and value estimation network
         # Input is the state
         # Output is the mean of the gaussian distribution from which actions are sampled
         self.actor = NN_Stdev_2_Output.Neural_Network(num_inputs=num_states, num_outputs=2, num_hidden_layers=2, num_neurons_in_layer=128)
         self.actor_optimizer =  torch.optim.Adam(self.actor.parameters() , lr=alpha)
+        self.actor_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.actor_optimizer, gamma=decay_rate)
         
         # Old policy and value estimation network used to calculate clipped surrogate objective
         # Input is the state
@@ -30,7 +31,8 @@ class PPO_Agent:
         # Input is the state
         # Output is the estimated value of that state
         self.critic =  NN.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=2, num_neurons_in_layer=128)
-        self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=10.0*alpha)
+        self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=alpha)
+        self.critic_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.critic_optimizer, gamma=decay_rate)
         
         # Trajectory memory
         self.num_states = num_states
@@ -278,10 +280,12 @@ class PPO_Agent:
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
         self.actor_optimizer.step()
+        self.actor_lr_scheduler.step()
         
         # Conduct minibatch stochastic gradient descent on critic
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
+        self.critic_lr_scheduler.step()
 
         

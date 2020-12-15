@@ -156,14 +156,15 @@ if __name__ == '__main__':
     num_states = int(env.spacial_precision/10 + 5)
         
     # Set agent parameters
-    total_trajectories = 5000
+    total_trajectories = 1000
     steps_per_trajecotry = 240
     trajectories_per_batch = 5
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    alpha = 2.5e-4
+    alpha = 1.0e-3
+    decay_rate = 0.985
     
     # Calculated agent parameters
     agent_temporal_precision = (env.simulation_time / float(steps_per_trajecotry))
@@ -187,7 +188,7 @@ if __name__ == '__main__':
     # Create agents, run simulations, save results
     for curr_agent in range(num_agents):
         print("Agent " + str(curr_agent+1) + " / " + str(num_agents))
-        agent = ppo.PPO_Agent(num_states, steps_per_trajecotry, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, alpha)
+        agent = ppo.PPO_Agent(num_states, steps_per_trajecotry, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, alpha, decay_rate)
         data, agent, env = main(env, agent, total_trajectories, execution_rate)
         logbook['data'].append(data)
         logbook['agents'].append(agent)
@@ -238,6 +239,7 @@ if __name__ == '__main__':
     'lambda' : lamb,
     'epsilon' : epsilon,
     'alpha' : alpha,
+    'decay_rate': decay_rate,
     'logbook' : logbook
     }
     with open("results/output", 'wb') as file:
