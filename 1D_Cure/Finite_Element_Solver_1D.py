@@ -12,7 +12,7 @@ class FES():
     def __init__(self):
     
         # Environment spatial parameters 
-        self.num_panels = 300 # Must be multiple of 5
+        self.num_panels = 400 # Must be multiple of 5
         self.length = 0.060
         
         # Environment time parameters
@@ -194,6 +194,25 @@ class FES():
         # Return next state, reward for previous action, and whether simulation is complete or not
         return state, reward, done
     
+    def get_state(self):
+        # Get the average temperature of self.num_panels/10 even segments across entire length
+        average_temps = np.mean(np.resize(self.temp_panels,(10,self.num_panels//10)),axis=0)
+        
+        # Get the average temperature of 10 even segments across laser's area of effect
+        laser_view = self.temp_panels[(np.argmin(abs(self.panels-self.input_location+self.radius_of_input))):(np.argmin(abs(self.panels-self.input_location-self.radius_of_input)) + 1)]
+        laser_view = np.mean(np.resize(laser_view[0:-(len(laser_view)%10)],(10,len(laser_view)//10)),axis=1)
+        
+        # Normalize and concatenate all substates
+        state = np.concatenate((average_temps/self.temperature_limit, 
+                                laser_view/self.temperature_limit,
+                                [self.front_loc/self.length], 
+                                [self.front_vel/self.target_front_vel], 
+                                [self.input_location/self.length], 
+                                [self.input_magnitude]))
+        
+        # Return the state
+        return state
+    
     def get_reward(self):
         
         # Calculate the punishments based on the temperature field, input strength, action, and overage
@@ -213,25 +232,6 @@ class FES():
 
         # Return the calculated reward
         return reward
-    
-    def get_state(self):
-        # Get the average temperature of self.num_panels/10 even segments across entire length
-        average_temps = np.mean(np.resize(self.temp_panels,(10,self.num_panels//10)),axis=0)
-        
-        # Get the average temperature of 10 even segments across laser's area of effect
-        laser_view = self.temp_panels[(np.argmin(abs(self.panels-self.input_location+self.radius_of_input))):(np.argmin(abs(self.panels-self.input_location-self.radius_of_input)) + 1)]
-        laser_view = np.mean(np.resize(laser_view[0:-(len(laser_view)%10)],(10,len(laser_view)//10)),axis=1)
-        
-        # Normalize and concatenate all substates
-        state = np.concatenate((average_temps/self.temperature_limit, 
-                                laser_view/self.temperature_limit,
-                                [self.front_loc/self.length], 
-                                [self.front_vel/self.target_front_vel], 
-                                [self.input_location/self.length], 
-                                [self.input_magnitude]))
-        
-        # Return the state
-        return state
     
     def reset(self):
         # Reset time
