@@ -153,12 +153,12 @@ if __name__ == '__main__':
     
     # Create environment
     env = fes.FES()
-    num_states = int(env.num_panels/10 + 4)
+    num_states = int(env.num_panels/10 + 14)
         
     # Set agent parameters
-    total_trajectories = 2000
+    total_trajectories = 2500
     steps_per_trajecotry = 240
-    trajectories_per_batch = 20
+    trajectories_per_batch = 10
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95

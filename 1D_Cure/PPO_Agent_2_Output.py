@@ -49,13 +49,31 @@ class PPO_Agent:
         self.gamma = gamma
         self.lamb = lamb
         self.epsilon = epsilon
+        self.alpha = alpha
+        self.decay_rate = decay_rate
         self.gamma_lamb_reduction_array= np.zeros(steps_per_trajectory)
         for curr_step in range(steps_per_trajectory):
             self.gamma_lamb_reduction_array[curr_step] = (self.gamma * self.lamb) ** (curr_step)
         
         # Training memory
         self.value_estimation_error = []
+    
+    # Copies the actor and critic NNs from another agent to this agent
+    # @param agent - the agent from which the NNs are copied
+    def copy(self, agent):
+        # Copy the actor NN
+        self.actor.load_state_dict(agent.actor.state_dict())
+        self.actor_optimizer =  torch.optim.Adam(self.actor.parameters() , lr=self.alpha)
+        self.actor_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.actor_optimizer, gamma=self.decay_rate)
         
+        # Copy the old actor NN
+        self.old_actor.load_state_dict(self.actor.state_dict())
+        
+        # Copy the critic NN
+        self.critic.load_state_dict(agent.critic.state_dict())
+        self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=self.alpha)
+        self.critic_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.critic_optimizer, gamma=self.decay_rate)
+    
     # Clips an input float to the range [min_val, max_val]
     # @ param num - the float to be clipped
     # @ param min_val - the minimal inclusive value num can take
