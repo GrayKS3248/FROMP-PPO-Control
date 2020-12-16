@@ -6,7 +6,7 @@ Created on Sat Dec 12 18:36:06 2020
 """
 import numpy as np
 
-class Simple_Controller:
+class PD_Controller:
     
     def __init__(self, field_length, spacial_field, kp_m, kd_m, kp_p, kd_p):
         
