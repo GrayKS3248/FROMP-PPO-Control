@@ -242,11 +242,11 @@ class FES():
         self.input_magnitude = np.random.rand()
         
         # Reset temperature panels
-        perturbation = self.initial_temp_delta * np.sin((np.random.randint(1,6) * np.pi * self.panels) / (self.length))
+        perturbation = self.initial_temp_delta * np.sin((np.random.randint(1,10) * np.pi * self.panels) / (self.length))
         self.temp_panels = self.initial_temperature + perturbation
         
         # Reset cure panels
-        perturbation = self.initial_cure_delta * np.sin((np.random.randint(1,6) * np.pi * self.panels) / (self.length))
+        perturbation = self.initial_cure_delta * np.sin((np.random.randint(1,10) * np.pi * self.panels) / (self.length))
         self.cure_panels = self.initial_cure + perturbation
         
         # Reset input panels
