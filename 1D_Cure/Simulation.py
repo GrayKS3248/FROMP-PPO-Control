@@ -153,12 +153,12 @@ if __name__ == '__main__':
     
     # Create environment
     env = fes.FES()
-    num_states = int(env.num_panels/10 + 5)
+    num_states = int(env.num_panels/5 + 4)
         
     # Set agent parameters
-    total_trajectories = 2500
+    total_trajectories = 1000
     steps_per_trajecotry = 240
-    trajectories_per_batch = 10
+    trajectories_per_batch = 5
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95
@@ -325,7 +325,7 @@ if __name__ == '__main__':
     plt.title(title_str)
     plt.xlabel("Episode")
     plt.ylabel('Laser Magnitude Stdev [K/s]')
-    plt.plot([*range(len(average_mag_stdev))],env.mag_scale*average_mag_stdev)
+    plt.plot([*range(len(average_mag_stdev))],env.mag_scale*env.max_input_mag*average_mag_stdev)
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/mag_stdev.png', dpi = 500)
     plt.close()

@@ -12,7 +12,7 @@ class FES():
     def __init__(self):
     
         # Environment spatial parameters 
-        self.num_panels = 400 # Must be multiple of 10
+        self.num_panels = 300 # Must be multiple of 5
         self.length = 0.060
         
         # Environment time parameters
@@ -53,16 +53,15 @@ class FES():
         
         # Spatial panels
         self.panels = np.linspace(0.0,self.length,self.num_panels)
+        self.step_size = self.panels[1] - self.panels[0]
         
         # Temperature panels
-        coarse_perturbation = np.random.rand(self.num_panels)*self.initial_temp_delta
-        fine_perturbation = self.initial_temp_delta * np.sin((np.random.randint(1,6) * np.pi * self.panels) / (self.length))
-        self.temp_panels = self.initial_temperature + coarse_perturbation + fine_perturbation
+        perturbation = self.initial_temp_delta * np.sin((np.random.randint(1,6) * np.pi * self.panels) / (self.length))
+        self.temp_panels = self.initial_temperature + perturbation
         
         # Cure panels
-        coarse_perturbation = np.random.rand(self.num_panels)*self.initial_cure_delta
-        fine_perturbation = self.initial_cure_delta * np.sin((np.random.randint(1,6) * np.pi * self.panels) / (self.length))
-        self.cure_panels = self.initial_cure + coarse_perturbation + fine_perturbation
+        perturbation = self.initial_cure_delta * np.sin((np.random.randint(1,6) * np.pi * self.panels) / (self.length))
+        self.cure_panels = self.initial_cure + perturbation
         
         # Front parameters
         self.front_loc = 0.0
@@ -73,9 +72,9 @@ class FES():
         # Input magnitude parameters
         self.max_input_mag = 3.0
         self.max_input_mag_rate = self.max_input_mag * self.time_step
-        self.input_magnitude = np.random.rand() * self.max_input_mag
-        self.mag_scale = 0.25
-        self.mag_offset = 1.5
+        self.input_magnitude = np.random.rand()
+        self.mag_scale = 0.083333333
+        self.mag_offset = 0.5
         
         # Input distribution parameters
         self.radius_of_input = self.length / 10.0
@@ -112,16 +111,16 @@ class FES():
         # Update the input's position
         location_rate_command = np.clip(self.loc_rate_offset + self.loc_rate_scale * action[0], -self.max_input_loc_rate, self.max_input_loc_rate)
         self.input_location = np.clip(self.input_location + location_rate_command * self.time_step, self.min_input_loc, self.max_input_loc)
-            
+        
         # Update the input's magnitude
         magnitude_command = self.mag_offset + self.mag_scale * action[1]
         if magnitude_command > self.input_magnitude:
-            self.input_magnitude = np.clip(min(self.input_magnitude + self.max_input_mag_rate, magnitude_command), 0.0, self.max_input_mag)
+            self.input_magnitude = np.clip(min(self.input_magnitude + self.max_input_mag_rate, magnitude_command), 0.0, 1.0)
         elif magnitude_command < self.input_magnitude:
-            self.input_magnitude = np.clip(max(self.input_magnitude - self.max_input_mag_rate, magnitude_command), 0.0, self.max_input_mag)
+            self.input_magnitude = np.clip(max(self.input_magnitude - self.max_input_mag_rate, magnitude_command), 0.0, 1.0)
         else:
             self.input_magnitude = np.clip(self.input_magnitude, 0.0, self.max_input_mag)
-            
+        
         # Use the actions to define input thermal rate across entire spacial field
         self.input_panels = self.input_magnitude * self.front_const * np.exp((self.panels - self.input_location)**2 * self.exp_const)
         self.input_panels[self.input_panels<0.01*self.max_input_mag] = 0.0
@@ -150,9 +149,8 @@ class FES():
         self.front_loc = new_front_loc
         
         # Get the second spacial derivative of the temperature field
-        x_step_size = self.panels[1] - self.panels[0]
-        diff_x_grid = np.insert(self.panels, 0, np.array([-2.0*x_step_size, -x_step_size]))
-        diff_x_grid = np.insert(diff_x_grid, len(diff_x_grid), np.array([self.panels[-1]+x_step_size, self.panels[-1]+2.0*x_step_size]))
+        diff_x_grid = np.insert(self.panels, 0, np.array([-2.0*self.step_size, -self.step_size]))
+        diff_x_grid = np.insert(diff_x_grid, len(diff_x_grid), np.array([self.panels[-1]+self.step_size, self.panels[-1]+2.0*self.step_size]))
         diff_y_grid = np.insert(self.temp_panels, 0, np.array([self.ambient_temperature, self.ambient_temperature]))
         diff_y_grid = np.insert(diff_y_grid, len(diff_y_grid), np.array([self.ambient_temperature, self.ambient_temperature]))
         first_diff_grid = np.zeros(diff_y_grid.shape)
@@ -185,7 +183,8 @@ class FES():
             raise RuntimeError('Unstable growth detected. Increase temporal precision, decrease spatial precision, or lower thermal conductivity')
         
         # Return the current state (reduced temperature field, front pos, front rate, input pos, input mag), and get reward
-        state = np.concatenate((self.temp_panels[0::10], [self.temp_panels[-1]], [self.front_loc], [self.front_vel], [self.input_location], [self.input_magnitude]))
+        average_temps = np.mean(np.resize(self.temp_panels,(5,self.num_panels//5)),axis=0)
+        state = np.concatenate((average_temps/self.temperature_limit, [self.front_loc/self.length], [self.front_vel/self.target_front_vel], [self.input_location/self.length], [self.input_magnitude]))
         reward = self.get_reward()
         
         # Update the current time and check for simulation completion
@@ -222,17 +221,15 @@ class FES():
         
         # Reset input
         self.input_location = np.random.choice(self.panels)
-        self.input_magnitude = np.random.rand() * self.max_input_mag
+        self.input_magnitude = np.random.rand()
         
         # Reset temperature panels
-        coarse_perturbation = np.random.rand(self.num_panels)*self.initial_temp_delta
-        fine_perturbation = self.initial_temp_delta * np.sin((np.random.randint(1,6) * np.pi * self.panels) / (self.length))
-        self.temp_panels = self.initial_temperature + coarse_perturbation + fine_perturbation
+        perturbation = self.initial_temp_delta * np.sin((np.random.randint(1,6) * np.pi * self.panels) / (self.length))
+        self.temp_panels = self.initial_temperature + perturbation
         
         # Reset cure panels
-        coarse_perturbation = np.random.rand(self.num_panels)*self.initial_cure_delta
-        fine_perturbation = self.initial_cure_delta * np.sin((np.random.randint(1,6) * np.pi * self.panels) / (self.length))
-        self.cure_panels = self.initial_cure + coarse_perturbation + fine_perturbation
+        perturbation = self.initial_cure_delta * np.sin((np.random.randint(1,6) * np.pi * self.panels) / (self.length))
+        self.cure_panels = self.initial_cure + perturbation
         
         # Reset input panels
         self.input_panels = self.input_magnitude * self.front_const * np.exp((self.panels - self.input_location)**2 * self.exp_const)
@@ -245,4 +242,6 @@ class FES():
         self.front_has_started=False
         
         # Return the initial temperature field
-        return np.concatenate((self.temp_panels[0::10], [self.temp_panels[-1]], [self.front_loc], [self.front_vel], [self.input_location], [self.input_magnitude]))
+        average_temps = np.mean(np.resize(self.temp_panels,(5,self.num_panels//5)),axis=0)
+        state = np.concatenate((average_temps/self.temperature_limit, [self.front_loc/self.length], [self.front_vel/self.target_front_vel], [self.input_location/self.length], [self.input_magnitude]))
+        return state
