@@ -4,7 +4,7 @@ Created on Wed Nov 25 11:50:34 2020
 
 @author: Grayson Schaer
 """
-import Finite_Element_Solver_1D_PD_Controller as fes 
+import Finite_Element_Solver_1D as fes 
 import PD_Controller as pdc
 import numpy as np
 import matplotlib.pyplot as plt
@@ -89,11 +89,11 @@ def main(env, agent, total_trajectories, execution_rate, steps_per_trajectory):
             
             # Update logs
             trajectory['input_location'].append(env.input_location)
-            trajectory['temperature_field'].append(env.temperature_grid)
+            trajectory['temperature_field'].append(env.temp_panels)
             trajectory['input_magnitude'].append(env.input_magnitude)
-            trajectory['cure_field'].append(env.cure_grid)
-            trajectory['front_location'].append(env.front_position)
-            trajectory['front_velocity'].append(env.front_rate)
+            trajectory['cure_field'].append(env.cure_panels)
+            trajectory['front_location'].append(env.front_loc)
+            trajectory['front_velocity'].append(env.front_vel)
             trajectory['time'].append(env.current_time)
             
             # Update state and step
@@ -150,23 +150,23 @@ def main(env, agent, total_trajectories, execution_rate, steps_per_trajectory):
 if __name__ == '__main__':
     
     # Create environment
-    env = fes.FES()
-    num_states = int(env.spacial_precision/10 + 5)
+    env = fes.FES(for_pd=True)
+    num_states = int(env.num_panels/10 + 5)
         
     # Set agent parameters
     total_trajectories = 100
     steps_per_trajecotry = 240
     
     # Calculated agent parameters
-    agent_temporal_precision = (env.simulation_time / float(steps_per_trajecotry))
-    execution_rate = int(agent_temporal_precision / env.temporal_precision)
+    agent_temporal_precision = (env.sim_duration / float(steps_per_trajecotry))
+    execution_rate = int(agent_temporal_precision / env.time_step)
 
     # Check inputs
-    if ((int(agent_temporal_precision / env.temporal_precision) - (agent_temporal_precision / env.temporal_precision))!=0):
+    if ((int(agent_temporal_precision / env.time_step) - (agent_temporal_precision / env.time_step))!=0):
         raise RuntimeError("Agent execution rate is not multiple of simulation rate")
         
     # Simulation parameters
-    num_agents = 20
+    num_agents = 50
     logbook = {
         'data': [],
         'agents': [],
@@ -178,7 +178,7 @@ if __name__ == '__main__':
     # Create agents, run simulations, save results
     for curr_agent in range(num_agents):
         print("Agent " + str(curr_agent+1) + " / " + str(num_agents))
-        agent = pdc.PD_Controller(env.field_length, env.spacial_grid, -0.1, -0.01, -0.075, -0.025)
+        agent = pdc.PD_Controller(env.length, env.panels, -0.05, -0.5, -0.5, -0.05)
         data, agent, env = main(env, agent, total_trajectories, execution_rate, steps_per_trajecotry)
         logbook['data'].append(data)
         logbook['agents'].append(agent)
@@ -224,10 +224,10 @@ if __name__ == '__main__':
     plt.xlabel("Simulation Time [s]")
     plt.ylabel("Front Velocity [mm/s]")
     plt.plot(logbook['data'][best_overall_agent]['time'], 1000.0*np.array(logbook['data'][best_overall_agent]['front_velocity']), c='k')
-    plt.axhline(y=1000.0*env.desired_front_rate, c='b', ls='--')
+    plt.axhline(y=1000.0*env.target_front_vel, c='b', ls='--')
     plt.legend(('Actual','Target'),loc='lower right')
-    plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.desired_front_rate))
-    plt.xlim(0.0, env.simulation_time)
+    plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.target_front_vel))
+    plt.xlim(0.0, env.sim_duration)
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/PD-Controller/front_velocity.png', dpi = 500)
     plt.close()
@@ -265,38 +265,38 @@ if __name__ == '__main__':
     # Make video of the best temperature field trajecotry as function of time
     print("Rendering...")
     y_min_temperature = 0.99*np.min(logbook['data'][best_overall_agent]['temperature_field'])
-    y_max_temperature = max(1.05*np.max(logbook['data'][best_overall_agent]['temperature_field']), 1.05*env.maximum_temperature)
+    y_max_temperature = max(1.05*np.max(logbook['data'][best_overall_agent]['temperature_field']), 1.05*env.temperature_limit)
     for curr_step in range(len(logbook['data'][best_overall_agent]['temperature_field'])):
         if curr_step % 5 == 0 or curr_step == len(logbook['data'][best_overall_agent]['temperature_field']) - 1:
             plt.clf()
             fig, ax1 = plt.subplots()
             ax2 = ax1.twinx()
-            title_str = "Temperature and Cure: t = "+'{:.2f}'.format(curr_step*env.temporal_precision)+'s'
+            title_str = "Temperature and Cure: t = "+'{:.2f}'.format(curr_step*env.time_step)+'s'
             plt.title(title_str)
             color = 'k'
             ax1.set_xlabel('Position [m]')
             ax1.set_ylabel('Temperature [K]', color=color)
-            temp = ax1.plot(env.spacial_grid, logbook['data'][best_overall_agent]['temperature_field'][curr_step], color=color,label='Temp')
-            max_temp = ax1.axhline(y=env.maximum_temperature,c='k',ls=':',label='Limit')
+            temp = ax1.plot(env.panels, logbook['data'][best_overall_agent]['temperature_field'][curr_step], color=color,label='Temp')
+            max_temp = ax1.axhline(y=env.temperature_limit,c='k',ls=':',label='Limit')
             ax1.tick_params(axis='y', labelcolor=color)
-            ax1.set_xlim(0.0, env.field_length)
+            ax1.set_xlim(0.0, env.length)
             ax1.set_ylim(y_min_temperature, y_max_temperature)
             color = 'b'
             ax2.set_ylabel('Degree Cure [-]', color=color)
-            cure = ax2.plot(env.spacial_grid, logbook['data'][best_overall_agent]['cure_field'][curr_step], color=color, label = 'Cure')
+            cure = ax2.plot(env.panels, logbook['data'][best_overall_agent]['cure_field'][curr_step], color=color, label = 'Cure')
             front = plt.axvline(x=logbook['data'][best_overall_agent]['front_location'][curr_step],c='b',ls=':',label='Front')
             ax2.tick_params(axis='y', labelcolor=color)
             ax2.set_ylim(0.0, 1.01)
             input_location = logbook['data'][best_overall_agent]['input_location'][curr_step]
             input_magnitude = logbook['data'][best_overall_agent]['input_magnitude'][curr_step]
-            input_center = ax2.axvline(x=input_location,c='r',alpha=input_magnitude/env.peak_thermal_rate,label='Center')
-            input_edge = ax2.axvline(x=input_location+env.radius_of_input,c='r',ls=':',alpha=input_magnitude/env.peak_thermal_rate, label='Edge')
-            plt.axvline(x=input_location-env.radius_of_input,c='r',ls=':',alpha=input_magnitude/env.peak_thermal_rate)
+            input_center = ax2.axvline(x=input_location,c='r',alpha=input_magnitude,label='Center')
+            input_edge = ax2.axvline(x=input_location+env.radius_of_input,c='r',ls=':',alpha=input_magnitude, label='Edge')
+            plt.axvline(x=input_location-env.radius_of_input,c='r',ls=':',alpha=input_magnitude)
             lns=(temp[0],max_temp,cure[0],front,input_center,input_edge)
             labs=(temp[0].get_label(),max_temp.get_label(),cure[0].get_label(),front.get_label(),input_center.get_label(),input_edge.get_label())
             ax1.legend(lns, labs, loc=1)
             plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig('results/PD-Controller/fields/fields_'+'{:.2f}'.format(curr_step*env.temporal_precision)+'.png', dpi = 100)
+            plt.savefig('results/PD-Controller/fields/fields_'+'{:.2f}'.format(curr_step*env.time_step)+'.png', dpi = 100)
             plt.close()
     
     print("Done!")

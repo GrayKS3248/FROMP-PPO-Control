@@ -9,8 +9,7 @@ import numpy as np
 
 class FES():
     
-    def __init__(self):
-    
+    def __init__(self, for_pd=False):
         # Environment spatial parameters 
         self.num_panels = 400 # Must be multiple of 5
         self.length = 0.060
@@ -105,26 +104,38 @@ class FES():
         
         # Simulation limits
         self.stab_lim = 10.0 * self.temperature_limit
+        self.for_pd = for_pd
 
-    def step(self, action):
+    def step_input(self, action):
+        # Check if the finite element solver is set up for a ppo or pd controller
+        if self.for_pd:
+            # Update input's position
+            location_rate_command = np.clip(action[0], -self.max_input_loc_rate, self.max_input_loc_rate)
+            self.input_location = np.clip(self.input_location + location_rate_command * self.time_step, self.min_input_loc, self.max_input_loc)
+            
+            # Update input's magnitude
+            magnitude_rate_command = np.clip(action[1], -self.max_input_mag_rate, self.max_input_mag_rate)
+            self.input_magnitude = np.clip(self.input_magnitude + magnitude_rate_command * self.time_step, 0.0, 1.0)
         
-        # Update the input's position
-        location_rate_command = np.clip(self.loc_rate_offset + self.loc_rate_scale * action[0], -self.max_input_loc_rate, self.max_input_loc_rate)
-        self.input_location = np.clip(self.input_location + location_rate_command * self.time_step, self.min_input_loc, self.max_input_loc)
-        
-        # Update the input's magnitude
-        magnitude_command = self.mag_offset + self.mag_scale * action[1]
-        if magnitude_command > self.input_magnitude:
-            self.input_magnitude = np.clip(min(self.input_magnitude + self.max_input_mag_rate, magnitude_command), 0.0, 1.0)
-        elif magnitude_command < self.input_magnitude:
-            self.input_magnitude = np.clip(max(self.input_magnitude - self.max_input_mag_rate, magnitude_command), 0.0, 1.0)
         else:
-            self.input_magnitude = np.clip(self.input_magnitude, 0.0, self.max_input_mag)
-        
+            # Update the input's position
+            location_rate_command = np.clip(self.loc_rate_offset + self.loc_rate_scale * action[0], -self.max_input_loc_rate, self.max_input_loc_rate)
+            self.input_location = np.clip(self.input_location + location_rate_command * self.time_step, self.min_input_loc, self.max_input_loc)
+            
+            # Update the input's magnitude
+            magnitude_command = self.mag_offset + self.mag_scale * action[1]
+            if magnitude_command > self.input_magnitude:
+                self.input_magnitude = np.clip(min(self.input_magnitude + self.max_input_mag_rate, magnitude_command), 0.0, 1.0)
+            elif magnitude_command < self.input_magnitude:
+                self.input_magnitude = np.clip(max(self.input_magnitude - self.max_input_mag_rate, magnitude_command), 0.0, 1.0)
+            else:
+                self.input_magnitude = np.clip(self.input_magnitude, 0.0, self.max_input_mag)
+
         # Use the actions to define input thermal rate across entire spacial field
         self.input_panels = self.input_magnitude * self.front_const * np.exp((self.panels - self.input_location)**2 * self.exp_const)
         self.input_panels[self.input_panels<0.01*self.max_input_mag] = 0.0
-        
+
+    def step_cure(self):
         # Get the cure rate across the entire field based on the cure kinetics
         cure_rate = ((self.pre_exponential*np.exp(-self.activiation_energy / (self.temp_panels*self.gas_const))) * 
                      ((1 - self.cure_panels)**self.model_fit_order) * 
@@ -133,6 +144,10 @@ class FES():
         # Update the cure field using forward Euler method
         self.cure_panels = self.cure_panels + cure_rate * self.time_step
         
+        # Return the cure rate
+        return cure_rate
+
+    def step_front(self):
         # Calculate the front position and rate
         cure_diff = -1.0*np.diff(self.cure_panels)/np.diff(self.panels)
         if (cure_diff>=100.0).any():
@@ -147,7 +162,8 @@ class FES():
             new_front_loc = 0.0
             self.front_vel = 0.0
         self.front_loc = new_front_loc
-        
+
+    def step_temperature(self, cure_rate):
         # Get the second spacial derivative of the temperature field
         diff_x_grid = np.insert(self.panels, 0, np.array([-2.0*self.step_size, -self.step_size]))
         diff_x_grid = np.insert(diff_x_grid, len(diff_x_grid), np.array([self.panels[-1]+self.step_size, self.panels[-1]+2.0*self.step_size]))
@@ -177,44 +193,50 @@ class FES():
         # Apply trigger thermal input
         if self.current_time >= self.trigger_time and self.current_time < self.trigger_time + self.trigger_duration:
             self.temp_panels[0] = self.trigger_temperature
-        
+            
         # Check for unstable growth
         if((self.temp_panels >= self.stab_lim).any() or (self.temp_panels <= -self.stab_lim).any()):
             raise RuntimeError('Unstable growth detected. Increase temporal precision, decrease spatial precision, or lower thermal conductivity')
-        
-        # Return the current state (reduced temperature field, front pos, front rate, input pos, input mag), and get reward
-        state = self.get_state()
-        reward = self.get_reward()
-        
-        # Update the current time and check for simulation completion
-        done = (self.current_time + 2.0*self.time_step >= self.sim_duration)
-        if not done:
-            self.current_time = self.current_time + self.time_step
+
+        return temp_panels_rate
+
+    def get_state(self, temp_rate, action):
+        # Check if the finite element solver is set up for a ppo or pd controller
+        if self.for_pd:
+            # Get the average temperature and temperature rates of self.num_panels/10 even segments across entire length
+            average_temps = np.mean(np.resize(self.temp_panels,(self.num_panels//10, 10)),axis=1)
+            average_temp_rates = np.mean(np.resize(temp_rate,(self.num_panels//10, 10)),axis=1)
             
-        # Return next state, reward for previous action, and whether simulation is complete or not
-        return state, reward, done
-    
-    def get_state(self):
-        # Get the average temperature of self.num_panels/10 even segments across entire length
-        average_temps = np.mean(np.resize(self.temp_panels,(10,self.num_panels//10)),axis=0)
-        
-        # Get the average temperature of 10 even segments across laser's area of effect
-        laser_view = self.temp_panels[(np.argmin(abs(self.panels-self.input_location+self.radius_of_input))):(np.argmin(abs(self.panels-self.input_location-self.radius_of_input)) + 1)]
-        laser_view = np.mean(np.resize(laser_view[0:-(len(laser_view)%10)],(10,len(laser_view)//10)),axis=1)
-        
-        # Normalize and concatenate all substates
-        state = np.concatenate((average_temps/self.temperature_limit, 
-                                laser_view/self.temperature_limit,
-                                [self.front_loc/self.length], 
-                                [self.front_vel/self.target_front_vel], 
-                                [self.input_location/self.length], 
-                                [self.input_magnitude]))
-        
+            # Get the input location and magnitude rates
+            input_location_rate = np.clip(action[0], -self.max_input_loc_rate, self.max_input_loc_rate)
+            input_magnitude_rate = np.clip(action[1], -self.max_input_mag_rate, self.max_input_mag_rate)
+            
+            # Normalize and concatenate all substates
+            state = np.concatenate((average_temps, average_temp_rates,
+                                    [self.front_loc], [self.front_vel], 
+                                    [self.input_location], [input_location_rate],
+                                    [input_magnitude_rate]))  
+            
+        else:
+            # Get the average temperature of self.num_panels/10 even segments across entire length
+            average_temps = np.mean(np.resize(self.temp_panels,(self.num_panels//10, 10)),axis=1)
+            
+            # Get the average temperature of 10 even segments across laser's area of effect
+            laser_view = self.temp_panels[(np.argmin(abs(self.panels-self.input_location+self.radius_of_input))):(np.argmin(abs(self.panels-self.input_location-self.radius_of_input)) + 1)]
+            laser_view = np.mean(np.resize(laser_view[0:-(len(laser_view)%10)],(10,len(laser_view)//10)),axis=1)
+            
+            # Normalize and concatenate all substates
+            state = np.concatenate((average_temps/self.temperature_limit, 
+                                    laser_view/self.temperature_limit,
+                                    [self.front_loc/self.length], 
+                                    [self.front_vel/self.target_front_vel], 
+                                    [self.input_location/self.length], 
+                                    [self.input_magnitude]))
+            
         # Return the state
         return state
-    
+
     def get_reward(self):
-        
         # Calculate the punishments based on the temperature field, input strength, action, and overage
         input_punishment = -self.input_punishment_const * self.max_reward * (self.input_magnitude / self.max_input_mag)
         overage_punishment =  -self.overage_punishment_const * self.max_reward * (max(self.temp_panels) >= self.temperature_limit)
@@ -225,13 +247,40 @@ class FES():
         if abs(self.front_vel - self.target_front_vel) / (self.target_front_vel) <= 0.075:
             front_rate_reward = self.max_reward
         elif abs(self.front_vel - self.target_front_vel) / (self.target_front_vel) <= 0.25:
-            front_rate_reward = 0.25*self.max_reward
+            front_rate_reward = 0.50*self.max_reward
+        elif abs(self.front_vel - self.target_front_vel) / (self.target_front_vel) <= 0.35:
+            front_rate_reward = 0.10*self.max_reward
         else:
             front_rate_reward = -0.10*self.max_reward
         reward = front_rate_reward + punishment
 
         # Return the calculated reward
         return reward
+
+    def step_time(self):
+        # Update the current time and check for simulation completion
+        done = (self.current_time + 2.0*self.time_step >= self.sim_duration)
+        if not done:
+            self.current_time = self.current_time + self.time_step
+            
+        return done
+
+    def step(self, action):
+        # Step the input, cure, front, and temperature
+        self.step_input(action)
+        cure_rate = self.step_cure()
+        self.step_front()
+        temp_panels_rate = self.step_temperature(cure_rate)
+        
+        # Get state and reward
+        state = self.get_state(temp_panels_rate, action)
+        reward = self.get_reward()
+        
+        # Step time
+        done = self.step_time()
+            
+        # Return next state, reward for previous action, and whether simulation is complete or not
+        return state, reward, done
     
     def reset(self):
         # Reset time
@@ -260,4 +309,6 @@ class FES():
         self.front_has_started=False
         
         # Return the initial state
-        return self.get_state()
+        temp_rate = np.zeros(len(self.temp_panels))
+        action = np.array([0.0, 0.0])
+        return self.get_state(temp_rate, action)

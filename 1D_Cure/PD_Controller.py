@@ -8,16 +8,17 @@ import numpy as np
 
 class PD_Controller:
     
-    def __init__(self, field_length, spacial_field, kp_m, kd_m, kp_p, kd_p):
+    def __init__(self, length, panels, kp_m, kd_m, kp_p, kd_p):
         
         # Environment data
-        self.field_length = field_length
-        self.spacial_field = spacial_field
+        self.length = length
+        self.panels = panels
+        self.contracted_panels = np.mean(np.resize(self.panels,(len(self.panels)//10,10)),axis=1)
         
         # Desired state information
-        self.desired_temperature = 300.0
+        self.desired_temperature = 302.0
         self.desired_temperature_rate = 0.0
-        self.lead_distance = 0.10*field_length
+        self.lead_distance = 0.10*length
         
         # Control gains
         self.kp_m = kp_m
@@ -41,8 +42,7 @@ class PD_Controller:
         desired_input_rate = front_rate
         
         # Determine the part of the temperature state that corresponds to the desired input location
-        contracted_spacial_field = np.concatenate((self.spacial_field[0::10], [self.spacial_field[-1]]))
-        desired_location_index = np.argmin(abs(desired_input_location - contracted_spacial_field))
+        desired_location_index = np.argmin(abs(desired_input_location - self.contracted_panels))
         
         # Calculate the state error
         temperature_error = temperature_state[desired_location_index] - self.desired_temperature
@@ -55,7 +55,7 @@ class PD_Controller:
         new_input_magnitude_rate = (self.kp_m * temperature_error + self.kd_m * temperature_rate_error)
         
         # If the front is done propogating, turn off laser
-        if front_location >= 0.85 * self.field_length:
+        if front_location >= 0.85 * self.length:
             new_input_magnitude_rate = -100.0
         
         # Return the calculated action
