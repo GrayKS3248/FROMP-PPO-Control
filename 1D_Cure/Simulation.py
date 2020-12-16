@@ -153,17 +153,17 @@ if __name__ == '__main__':
     
     # Create environment
     env = fes.FES()
-    num_states = int(env.num_panels/5 + 4)
+    num_states = int(env.num_panels/10 + 4)
         
     # Set agent parameters
-    total_trajectories = 1000
+    total_trajectories = 2000
     steps_per_trajecotry = 240
-    trajectories_per_batch = 5
+    trajectories_per_batch = 20
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    start_alpha = 1.0e-3
+    start_alpha = 7.5e-4
     end_alpha = 1.0e-4
     
     # Calculated agent parameters
@@ -357,9 +357,9 @@ if __name__ == '__main__':
             ax2.set_ylim(0.0, 1.01)
             input_location = logbook['data'][best_overall_agent]['input_location'][curr_step]
             input_magnitude = logbook['data'][best_overall_agent]['input_magnitude'][curr_step]
-            input_center = ax2.axvline(x=input_location,c='r',alpha=input_magnitude/env.max_input_mag,label='Center')
-            input_edge = ax2.axvline(x=input_location+env.radius_of_input,c='r',ls=':',alpha=input_magnitude/env.max_input_mag, label='Edge')
-            plt.axvline(x=input_location-env.radius_of_input,c='r',ls=':',alpha=input_magnitude/env.max_input_mag)
+            input_center = ax2.axvline(x=input_location,c='r',alpha=input_magnitude,label='Center')
+            input_edge = ax2.axvline(x=input_location+env.radius_of_input,c='r',ls=':',alpha=input_magnitude, label='Edge')
+            plt.axvline(x=input_location-env.radius_of_input,c='r',ls=':',alpha=input_magnitude)
             lns=(temp[0],max_temp,cure[0],front,input_center,input_edge)
             labs=(temp[0].get_label(),max_temp.get_label(),cure[0].get_label(),front.get_label(),input_center.get_label(),input_edge.get_label())
             ax1.legend(lns, labs, loc=1)

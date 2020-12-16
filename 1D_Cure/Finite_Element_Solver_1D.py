@@ -70,8 +70,8 @@ class FES():
         self.front_has_started=False
         
         # Input magnitude parameters
-        self.max_input_mag = 3.0
-        self.max_input_mag_rate = self.max_input_mag * self.time_step
+        self.max_input_mag = 10.0
+        self.max_input_mag_rate = self.time_step
         self.input_magnitude = np.random.rand()
         self.mag_scale = 0.083333333
         self.mag_offset = 0.5
@@ -84,8 +84,8 @@ class FES():
         self.exp_const = -1.0 / (2.0 * sigma * sigma)
         
         # Input location parameters
-        self.min_input_loc = -self.radius_of_input
-        self.max_input_loc = self.length+self.radius_of_input
+        self.min_input_loc = 0.0
+        self.max_input_loc = self.length
         self.max_input_loc_rate = self.length * self.time_step
         self.input_location = np.random.choice(self.panels)
         self.loc_rate_scale = 0.0006
@@ -183,8 +183,7 @@ class FES():
             raise RuntimeError('Unstable growth detected. Increase temporal precision, decrease spatial precision, or lower thermal conductivity')
         
         # Return the current state (reduced temperature field, front pos, front rate, input pos, input mag), and get reward
-        average_temps = np.mean(np.resize(self.temp_panels,(5,self.num_panels//5)),axis=0)
-        state = np.concatenate((average_temps/self.temperature_limit, [self.front_loc/self.length], [self.front_vel/self.target_front_vel], [self.input_location/self.length], [self.input_magnitude]))
+        state = self.get_state()
         reward = self.get_reward()
         
         # Update the current time and check for simulation completion
@@ -215,6 +214,25 @@ class FES():
         # Return the calculated reward
         return reward
     
+    def get_state(self):
+        # Get the average temperature of self.num_panels/10 even segments across entire length
+        average_temps = np.mean(np.resize(self.temp_panels,(10,self.num_panels//10)),axis=0)
+        
+        # Get the average temperature of 10 even segments across laser's area of effect
+        laser_view = self.temp_panels[(np.argmin(abs(self.panels-self.input_location+self.radius_of_input))):(np.argmin(abs(self.panels-self.input_location-self.radius_of_input)) + 1)]
+        laser_view = np.mean(np.resize(laser_view[0:-(len(laser_view)%10)],(10,len(laser_view)//10)),axis=1)
+        
+        # Normalize and concatenate all substates
+        state = np.concatenate((average_temps/self.temperature_limit, 
+                                laser_view/self.temperature_limit,
+                                [self.front_loc/self.length], 
+                                [self.front_vel/self.target_front_vel], 
+                                [self.input_location/self.length], 
+                                [self.input_magnitude]))
+        
+        # Return the state
+        return state
+    
     def reset(self):
         # Reset time
         self.current_time = 0.0
@@ -241,7 +259,5 @@ class FES():
         self.time_front_last_moved = 0.0
         self.front_has_started=False
         
-        # Return the initial temperature field
-        average_temps = np.mean(np.resize(self.temp_panels,(5,self.num_panels//5)),axis=0)
-        state = np.concatenate((average_temps/self.temperature_limit, [self.front_loc/self.length], [self.front_vel/self.target_front_vel], [self.input_location/self.length], [self.input_magnitude]))
-        return state
+        # Return the initial state
+        return self.get_state()

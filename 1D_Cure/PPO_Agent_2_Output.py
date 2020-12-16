@@ -287,5 +287,3 @@ class PPO_Agent:
         critic_loss.backward()
         self.critic_optimizer.step()
         self.critic_lr_scheduler.step()
-
-        
