@@ -47,8 +47,8 @@ class Neural_Network(nn.Module):
             else:
                 exec("self." + hidden_layer_name + "= nn.Linear(self.num_neurons_in_layer, self.num_outputs)")
                 
-        self.stdev_1 = torch.nn.Parameter(1.0 * torch.ones(1, dtype=torch.double).double())
-        self.stdev_2 = torch.nn.Parameter(1.0 * torch.ones(1, dtype=torch.double).double())
+        self.stdev_1 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
+        self.stdev_2 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
 
     # Feed-forward function
     # @param x - set of inputs

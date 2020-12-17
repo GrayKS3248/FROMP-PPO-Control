@@ -247,8 +247,6 @@ class FES():
         if abs(self.front_vel - self.target_front_vel) / (self.target_front_vel) <= 0.075:
             front_rate_reward = self.max_reward
         elif abs(self.front_vel - self.target_front_vel) / (self.target_front_vel) <= 0.25:
-            front_rate_reward = 0.50*self.max_reward
-        elif abs(self.front_vel - self.target_front_vel) / (self.target_front_vel) <= 0.35:
             front_rate_reward = 0.10*self.max_reward
         else:
             front_rate_reward = -0.10*self.max_reward
