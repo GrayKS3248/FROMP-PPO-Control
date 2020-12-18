@@ -55,19 +55,19 @@ def main(env, agent, total_trajectories, execution_rate):
         if curr_episode >= 1:
             print_str = (('{:03.1f}'.format(100.0 * percent_complete) + "% Complete").ljust(16) + 
                 ("| Traj: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(21) + 
-                ("| R/Step: " + '{:.1f}'.format(data['r_per_episode'][-1])).ljust(20) + 
-                ("| Avg_R/Step: " + '{:.1f}'.format(data['r_per_step'][-1])).ljust(24) + 
-                ("| Best R: " + '{:.0f}'.format(best_episode)).ljust(17) + 
-                ("| Avg R: " + '{:.0f}'.format(r_total / curr_episode)).ljust(16) + 
+                ("| R/Step: " + '{:.2f}'.format(data['r_per_episode'][-1])).ljust(20) + 
+                ("| Avg_R/Step: " + '{:.2f}'.format(data['r_per_step'][-1])).ljust(24) + 
+                ("| Best R: " + '{:.1f}'.format(best_episode)).ljust(17) + 
+                ("| Avg R: " + '{:.1f}'.format(r_total / curr_episode)).ljust(16) + 
                 "|")
             print(print_str, end="\r", flush=True)
         else:
             print_str = (('{:03.1f}'.format(100.0 * percent_complete) + "% Complete").ljust(16) + 
                 ("| Traj: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(21) + 
-                ("| R/Step: " + '{:.1f}'.format(0.0)).ljust(20) + 
-                ("| Avg_R/Step: " + '{:.1f}'.format(0.0)).ljust(24) + 
-                ("| Best R: " + '{:.0f}'.format(best_episode)).ljust(17) + 
-                ("| Avg R: " + '{:.0f}'.format(0.0)).ljust(16) + 
+                ("| R/Step: " + '{:.2f}'.format(0.0)).ljust(20) + 
+                ("| Avg_R/Step: " + '{:.2f}'.format(0.0)).ljust(24) + 
+                ("| Best R: " + '{:.1f}'.format(best_episode)).ljust(17) + 
+                ("| Avg R: " + '{:.1f}'.format(0.0)).ljust(16) + 
                 "|")
             print(print_str, end="\r", flush=True)
         
@@ -137,13 +137,22 @@ def main(env, agent, total_trajectories, execution_rate):
         
     # User readout
     percent_complete = 1.0
-    print_str = (("100.0% Complete").ljust(16) + 
-        ("| Traj: " + str(total_trajectories) + "/" + str(total_trajectories)).ljust(21) + 
-        ("| R/Step: " + '{:.1f}'.format(data['r_per_episode'][-1])).ljust(20) + 
-        ("| Avg_R/Step: " + '{:.1f}'.format(data['r_per_step'][-1])).ljust(24) + 
-        ("| Best R: " + '{:.0f}'.format(best_episode)).ljust(17) + 
-        ("| Avg R: " + '{:.0f}'.format(r_total / curr_episode)).ljust(16) + 
-        "|")
+    if curr_episode > 0:
+        print_str = (("100.0% Complete").ljust(16) + 
+            ("| Traj: " + str(total_trajectories) + "/" + str(total_trajectories)).ljust(21) + 
+            ("| R/Step: " + '{:.2f}'.format(data['r_per_episode'][-1])).ljust(20) + 
+            ("| Avg_R/Step: " + '{:.2f}'.format(data['r_per_step'][-1])).ljust(24) + 
+            ("| Best R: " + '{:.1f}'.format(best_episode)).ljust(17) + 
+            ("| Avg R: " + '{:.1f}'.format(r_total / curr_episode)).ljust(16) + 
+            "|")
+    else:
+        print_str = (("100.0% Complete").ljust(16) + 
+            ("| Traj: " + str(total_trajectories) + "/" + str(total_trajectories)).ljust(21) + 
+            ("| R/Step: " + '{:.2f}'.format(data['r_per_episode'][-1])).ljust(20) + 
+            ("| Avg_R/Step: " + '{:.2f}'.format(data['r_per_step'][-1])).ljust(24) + 
+            ("| Best R: " + '{:.1f}'.format(best_episode)).ljust(17) + 
+            ("| Avg R: " + '{:.1f}'.format(r_total)).ljust(16) + 
+            "|")     
     print(print_str, end="\n", flush=True)
     
     return data, agent, env
@@ -158,12 +167,12 @@ if __name__ == '__main__':
     # Set agent parameters
     total_trajectories = 5000
     steps_per_trajecotry = 240
-    trajectories_per_batch = 20
+    trajectories_per_batch = 10
     num_epochs = 10
-    gamma = 0.999
-    lamb = 0.995
+    gamma = 0.99
+    lamb = 0.95
     epsilon = 0.20
-    start_alpha = 7.5e-4
+    start_alpha = 1.0e-3
     end_alpha = 1.0e-4
     
     # Calculated agent parameters
