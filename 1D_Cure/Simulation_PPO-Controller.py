@@ -25,6 +25,7 @@ def main(env, agent, total_trajectories, execution_rate):
         'cure_field': [],
         'front_location': [],
         'front_velocity': [],
+        'target_velocity': [],
         'time': [],
         'best_episode': [],
     }
@@ -35,6 +36,7 @@ def main(env, agent, total_trajectories, execution_rate):
         'cure_field': [],
         'front_location': [],
         'front_velocity': [],
+        'target_velocity': [],
         'time': [],
         }
     
@@ -100,6 +102,7 @@ def main(env, agent, total_trajectories, execution_rate):
             trajectory['cure_field'].append(env.cure_panels)
             trajectory['front_location'].append(env.front_loc)
             trajectory['front_velocity'].append(env.front_vel)
+            trajectory['target_velocity'].append(env.current_target_front_vel)
             trajectory['time'].append(env.current_time)
             
             # Update state and step
@@ -116,6 +119,7 @@ def main(env, agent, total_trajectories, execution_rate):
             data['cure_field'] = trajectory['cure_field']
             data['front_location'] = trajectory['front_location']
             data['front_velocity'] = trajectory['front_velocity']
+            data['target_velocity'] = trajectory['target_velocity']
             data['time'] = trajectory['time']
             data['best_episode'] = episode_reward
         
@@ -130,6 +134,7 @@ def main(env, agent, total_trajectories, execution_rate):
         trajectory['cure_field'] = []
         trajectory['front_location'] = []
         trajectory['front_velocity'] = []
+        trajectory['target_velocity'] = []
         trajectory['time'] = []
    
     # Store the training data
@@ -172,8 +177,8 @@ if __name__ == '__main__':
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    start_alpha = 1.0e-3
-    end_alpha = 1.0e-4
+    start_alpha = 7.5e-4
+    end_alpha = 3.0e-4
     
     # Calculated agent parameters
     decay_rate = (end_alpha/start_alpha)**(trajectories_per_batch/total_trajectories)
@@ -263,7 +268,7 @@ if __name__ == '__main__':
     plt.xlabel("Simulation Time [s]")
     plt.ylabel("Front Velocity [mm/s]")
     plt.plot(logbook['data'][best_overall_agent]['time'], 1000.0*np.array(logbook['data'][best_overall_agent]['front_velocity']), c='k')
-    plt.axhline(y=1000.0*env.target_front_vel, c='b', ls='--')
+    plt.plot(logbook['data'][best_overall_agent]['time'], 1000.0*np.array(logbook['data'][best_overall_agent]['target_velocity']), c='b', ls='--')
     plt.legend(('Actual','Target'),loc='lower right')
     plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.target_front_vel))
     plt.xlim(0.0, env.sim_duration)

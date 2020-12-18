@@ -9,7 +9,11 @@ import numpy as np
 
 class FES():
     
-    def __init__(self, for_pd=False):
+    def __init__(self, for_pd=False, random_target=False):
+        # Check for bad input parameters
+        if(for_pd and random_target):
+            raise RuntimeError('PD controller cannot be run with random target condition.')
+        
         # Environment spatial parameters 
         self.num_panels = 400 # Must be multiple of 5
         self.length = 0.060
@@ -18,6 +22,7 @@ class FES():
         self.sim_duration = 360.0
         self.current_time = 0.0
         self.time_step = 0.05
+        self.current_index = 0
         
         # Initial conditions
         self.initial_temperature = 278.15
@@ -32,7 +37,16 @@ class FES():
         
         # Problem definition constants
         self.temperature_limit = 563.15
-        self.target_front_vel = 0.00015
+        self.target = 0.00015
+        self.purturbation_scale = 0.000025
+        self.random_target = random_target
+        
+        # Calculate the target vectors
+        self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target
+        if self.random_target:
+            self.perturbation_loc = 0.5*(np.sin(np.random.randint(1,3)*np.pi*np.array([*range(int(self.sim_duration / self.time_step))])/int(self.sim_duration / self.time_step)) - 1.0)
+            self.target_front_vel = self.target_front_vel + self.purturbation_scale * self.perturbation_loc
+        self.current_target_front_vel = self.target_front_vel[self.current_index]
         
         # Trigger conditions
         self.trigger_temperature = 458.15
@@ -229,7 +243,7 @@ class FES():
             state = np.concatenate((average_temps/self.temperature_limit, 
                                     laser_view/self.temperature_limit,
                                     [self.front_loc/self.length], 
-                                    [self.front_vel/self.target_front_vel], 
+                                    [(self.front_vel-self.current_target_front_vel)/self.current_target_front_vel], 
                                     [self.input_location/self.length], 
                                     [self.input_magnitude]))
             
@@ -244,9 +258,9 @@ class FES():
         punishment = input_punishment + overage_punishment + integral_punishment
         
         # Calculate the reward based on the punishments and the front rate error
-        if abs(self.front_vel - self.target_front_vel) / (self.target_front_vel) <= 0.075:
+        if abs(self.front_vel - self.current_target_front_vel) / (self.current_target_front_vel) <= 0.075:
             front_rate_reward = self.max_reward
-        elif abs(self.front_vel - self.target_front_vel) / (self.target_front_vel) <= 0.25:
+        elif abs(self.front_vel - self.current_target_front_vel) / (self.current_target_front_vel) <= 0.25:
             front_rate_reward = 0.10*self.max_reward
         else:
             front_rate_reward = -0.10*self.max_reward
@@ -257,10 +271,12 @@ class FES():
 
     def step_time(self):
         # Update the current time and check for simulation completion
-        done = (self.current_time + 2.0*self.time_step >= self.sim_duration)
+        done = (self.current_time + self.time_step >= self.sim_duration)
         if not done:
             self.current_time = self.current_time + self.time_step
-            
+            self.current_index = self.current_index + 1
+            self.current_target_front_vel = self.target_front_vel[self.current_index]
+        
         return done
 
     def step(self, action):
@@ -283,6 +299,14 @@ class FES():
     def reset(self):
         # Reset time
         self.current_time = 0.0
+        self.current_index = 0
+        
+        # Reset the target definition
+        self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target
+        if self.random_target:
+            self.perturbation_loc = 0.5*(np.sin(np.random.randint(1,3)*np.pi*np.array([*range(int(self.sim_duration / self.time_step))])/int(self.sim_duration / self.time_step)) - 1.0)
+            self.target_front_vel = self.target_front_vel + self.purturbation_scale * self.perturbation_loc
+        self.current_target_front_vel = self.target_front_vel[self.current_index]
         
         # Reset input
         self.input_location = np.random.choice(self.panels)
