@@ -240,12 +240,20 @@ class FES():
             laser_view = np.mean(np.resize(laser_view[0:-(len(laser_view)%10)],(10,len(laser_view)//10)),axis=1)
             
             # Normalize and concatenate all substates
-            state = np.concatenate((average_temps/self.temperature_limit, 
-                                    laser_view/self.temperature_limit,
-                                    [self.front_loc/self.length], 
-                                    [(self.front_vel-self.current_target_front_vel)/self.current_target_front_vel], 
-                                    [self.input_location/self.length], 
-                                    [self.input_magnitude]))
+            if self.random_target:
+                state = np.concatenate((average_temps/self.temperature_limit, 
+                                        laser_view/self.temperature_limit,
+                                        [self.front_loc/self.length], 
+                                        [(self.front_vel-self.current_target_front_vel)/self.current_target_front_vel], 
+                                        [self.input_location/self.length], 
+                                        [self.input_magnitude]))
+            else:
+                state = np.concatenate((average_temps/self.temperature_limit, 
+                                        laser_view/self.temperature_limit,
+                                        [self.front_loc/self.length], 
+                                        [self.front_vel/self.current_target_front_vel], 
+                                        [self.input_location/self.length], 
+                                        [self.input_magnitude]))
             
         # Return the state
         return state
