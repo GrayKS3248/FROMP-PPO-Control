@@ -1,3 +1,5 @@
+1D_Cure/validation/
+
 1D_Cure/results/Control/fields/
 1D_Cure/results/PD-Controller/fields/
 1D_Cure/results/ppo_1/fields/
@@ -7,7 +9,15 @@
 1D_Cure/results/PPO-Controller/fields/
 1D_Cure/results/PPO-Controller_Rerun/fields/
 
-1D_Cure/results/PD-Controller/
+1D_Cure/results/Control/output
+1D_Cure/results/PD-Controller/output
+1D_Cure/results/ppo_1/output
+1D_Cure/results/ppo_2/output
+1D_Cure/results/ppo_3/output
+1D_Cure/results/ppo_4/output
+1D_Cure/results/PPO-Controller/output
+1D_Cure/results/PPO-Controller_Rerun/output
+
 1D_Cure/results/ppo_1/
 1D_Cure/results/ppo_2/
 1D_Cure/results/ppo_3/
