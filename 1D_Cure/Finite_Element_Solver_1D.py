@@ -44,7 +44,7 @@ class FES():
         # Calculate the target vectors
         self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target
         if self.random_target:
-            self.perturbation_loc = 0.5*(np.sin(np.random.randint(1,3)*np.pi*np.array([*range(int(self.sim_duration / self.time_step))])/int(self.sim_duration / self.time_step)) - 1.0)
+            self.perturbation_loc = 0.5*(np.sin(np.random.randint(1,5)*np.pi*np.array([*range(int(self.sim_duration / self.time_step))])/int(self.sim_duration / self.time_step)) - 1.0)
             self.target_front_vel = self.target_front_vel + self.purturbation_scale * self.perturbation_loc
         self.current_target_front_vel = self.target_front_vel[self.current_index]
         
@@ -304,7 +304,7 @@ class FES():
         # Reset the target definition
         self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target
         if self.random_target:
-            self.perturbation_loc = 0.5*(np.sin(np.random.randint(1,3)*np.pi*np.array([*range(int(self.sim_duration / self.time_step))])/int(self.sim_duration / self.time_step)) - 1.0)
+            self.perturbation_loc = 0.5*(np.sin(np.random.randint(1,5)*np.pi*np.array([*range(int(self.sim_duration / self.time_step))])/int(self.sim_duration / self.time_step)) - 1.0)
             self.target_front_vel = self.target_front_vel + self.purturbation_scale * self.perturbation_loc
         self.current_target_front_vel = self.target_front_vel[self.current_index]
         

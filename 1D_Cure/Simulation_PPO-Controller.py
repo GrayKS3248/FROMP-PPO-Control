@@ -166,7 +166,7 @@ def main(env, agent, total_trajectories, execution_rate):
 if __name__ == '__main__':
     
     # Create environment
-    env = fes.FES()
+    env = fes.FES(random_target=True)
     num_states = int(env.num_panels/10 + 14)
         
     # Set agent parameters
@@ -270,7 +270,7 @@ if __name__ == '__main__':
     plt.plot(logbook['data'][best_overall_agent]['time'], 1000.0*np.array(logbook['data'][best_overall_agent]['front_velocity']), c='k')
     plt.plot(logbook['data'][best_overall_agent]['time'], 1000.0*np.array(logbook['data'][best_overall_agent]['target_velocity']), c='b', ls='--')
     plt.legend(('Actual','Target'),loc='lower right')
-    plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.target_front_vel))
+    plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.target))
     plt.xlim(0.0, env.sim_duration)
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/PPO-Controller/front_velocity.png', dpi = 500)

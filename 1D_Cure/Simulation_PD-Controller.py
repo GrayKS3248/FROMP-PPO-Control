@@ -154,7 +154,7 @@ if __name__ == '__main__':
     num_states = int(env.num_panels/10 + 5)
         
     # Set agent parameters
-    total_trajectories = 100
+    total_trajectories = 1
     steps_per_trajecotry = 240
     
     # Calculated agent parameters
@@ -166,7 +166,7 @@ if __name__ == '__main__':
         raise RuntimeError("Agent execution rate is not multiple of simulation rate")
         
     # Simulation parameters
-    num_agents = 50
+    num_agents = 1
     logbook = {
         'data': [],
         'agents': [],
@@ -224,9 +224,9 @@ if __name__ == '__main__':
     plt.xlabel("Simulation Time [s]")
     plt.ylabel("Front Velocity [mm/s]")
     plt.plot(logbook['data'][best_overall_agent]['time'], 1000.0*np.array(logbook['data'][best_overall_agent]['front_velocity']), c='k')
-    plt.axhline(y=1000.0*env.target_front_vel, c='b', ls='--')
+    plt.axhline(y=1000.0*env.target, c='b', ls='--')
     plt.legend(('Actual','Target'),loc='lower right')
-    plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.target_front_vel))
+    plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.target))
     plt.xlim(0.0, env.sim_duration)
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/PD-Controller/front_velocity.png', dpi = 500)
