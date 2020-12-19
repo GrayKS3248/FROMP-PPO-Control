@@ -82,10 +82,23 @@ class PPO_Agent:
     def clip_float(self, num, min_val, max_val):
         return max(min(num, max_val), min_val)
     
-    
-    # Calcuates action given state and policy.
+    # Calcuates determinisitc action given state and policy.
     # @ param state - The state in which the policy is applied to calculate the action
-    # @ return action - The calculated action based on the state and policy
+    # @ return action - The calculated deterministic action based on the state and policy
+    def get_greedy_action(self, state):
+        
+        # Get the gaussian distribution parameters used to sample the action for the old and new policy
+        with torch.no_grad():
+            means, stdev_1, stdev_2 = self.actor.forward(torch.tensor(state, dtype=torch.float))
+        
+        # Return the means
+        action_1 = float(means[0])
+        action_2 = float(means[1])
+        return action_1, action_2
+    
+    # Calcuates stochastic action given state and policy.
+    # @ param state - The state in which the policy is applied to calculate the action
+    # @ return action - The calculated stochastic action based on the state and policy
     # @ return stdev - The calculated stdev based on the policy
     def get_action(self, state):
         
