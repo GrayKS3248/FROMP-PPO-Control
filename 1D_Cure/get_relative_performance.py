@@ -10,11 +10,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load data
-with open("const_vel/ppo_results/output", 'rb') as file:
+with open("results/ppo_results/output", 'rb') as file:
     ppo = pickle.load(file)
-with open("const_vel/pd_1/output", 'rb') as file:
+with open("results/pd_1/output", 'rb') as file:
     pd = pickle.load(file)
-with open("const_vel/control/output", 'rb') as file:
+with open("results/control/output", 'rb') as file:
     con = pickle.load(file)
     
 # Process data
@@ -45,5 +45,5 @@ plt.yticks(y_pos, objects)
 plt.xlabel('Average Reward per Simulation Step')
 plt.title('Controller Relative Performance with Constant Target Front Velocity, N=10000')
 plt.gcf().set_size_inches(8.5, 5.5)
-plt.savefig('const_vel/ppo_results/relative_performance.png', dpi = 500)
+plt.savefig('results/ppo_results/relative_performance.png', dpi = 500)
 plt.close()
