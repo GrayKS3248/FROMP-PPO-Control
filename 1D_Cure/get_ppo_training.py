@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 
-# Load actor data
+# Load data
 with open("results/ppo_1/output", 'rb') as file:
     data_1 = pickle.load(file)  
 set_1=data_1['logbook']['data'][0]['r_per_episode']
