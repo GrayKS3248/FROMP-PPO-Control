@@ -166,8 +166,9 @@ def main(env, agent, total_trajectories, execution_rate):
 if __name__ == '__main__':
     
     # Create environment
-    env = fes.FES(random_target=True)
-    num_states = int(env.num_panels/10 + 16)
+    random_target = True
+    env = fes.FES(random_target=random_target)
+    num_states = int(env.num_panels/10 + 14)
         
     # Set agent parameters
     total_trajectories = 5000
@@ -177,7 +178,7 @@ if __name__ == '__main__':
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    start_alpha = 1.0e-3
+    start_alpha = 2.0e-4
     end_alpha = 1.0e-4
     
     # Calculated agent parameters

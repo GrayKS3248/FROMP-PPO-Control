@@ -30,20 +30,20 @@ with open("results/ppo_5/output", 'rb') as file:
     data_5 = pickle.load(file)  
 set_5=data_5['logbook']['data'][0]['r_per_episode']
 
-with open("results/ppo_6/output", 'rb') as file:
-    data_6 = pickle.load(file)  
-set_6=data_6['logbook']['data'][0]['r_per_episode']
+# with open("results/ppo_6/output", 'rb') as file:
+#     data_6 = pickle.load(file)  
+# set_6=data_6['logbook']['data'][0]['r_per_episode']
 
-with open("results/ppo_7/output", 'rb') as file:
-    data_7 = pickle.load(file)  
-set_7=data_7['logbook']['data'][0]['r_per_episode']
+# with open("results/ppo_7/output", 'rb') as file:
+#     data_7 = pickle.load(file)  
+# set_7=data_7['logbook']['data'][0]['r_per_episode']
 
-with open("results/ppo_8/output", 'rb') as file:
-    data_8 = pickle.load(file)  
-set_8=data_8['logbook']['data'][0]['r_per_episode']
+# with open("results/ppo_8/output", 'rb') as file:
+#     data_8 = pickle.load(file)  
+# set_8=data_8['logbook']['data'][0]['r_per_episode']
 
 # Combine actor data
-total_set = np.concatenate((set_1, set_2, set_3, set_4, set_5, set_6, set_7, set_8))
+total_set = np.concatenate((set_1, set_2, set_3, set_4, set_5))#, set_6, set_7, set_8))
 
 # Process actor data
 ts = pd.Series(total_set)
@@ -199,12 +199,12 @@ set_2=data_2['logbook']['data'][0]['value_error'][0]
 set_3=data_3['logbook']['data'][0]['value_error'][0]
 set_4=data_4['logbook']['data'][0]['value_error'][0]
 set_5=data_5['logbook']['data'][0]['value_error'][0]
-set_6=data_6['logbook']['data'][0]['value_error'][0]
-set_7=data_7['logbook']['data'][0]['value_error'][0]
-set_8=data_8['logbook']['data'][0]['value_error'][0]
+# set_6=data_6['logbook']['data'][0]['value_error'][0]
+# set_7=data_7['logbook']['data'][0]['value_error'][0]
+# set_8=data_8['logbook']['data'][0]['value_error'][0]
 
 # Combine critic data
-total_set = np.concatenate((set_1, set_2, set_3, set_4, set_5, set_6, set_7, set_8))
+total_set = np.concatenate((set_1, set_2, set_3, set_4, set_5))#, set_6, set_7, set_8))
 
 # Plot critic data
 plt.clf()
@@ -234,12 +234,12 @@ set_2=data_2['logbook']['data'][0]['loc_rate_stdev']
 set_3=data_3['logbook']['data'][0]['loc_rate_stdev']
 set_4=data_4['logbook']['data'][0]['loc_rate_stdev']
 set_5=data_5['logbook']['data'][0]['loc_rate_stdev']
-set_6=data_6['logbook']['data'][0]['loc_rate_stdev']
-set_7=data_7['logbook']['data'][0]['loc_rate_stdev']
-set_8=data_8['logbook']['data'][0]['loc_rate_stdev']
+# set_6=data_6['logbook']['data'][0]['loc_rate_stdev']
+# set_7=data_7['logbook']['data'][0]['loc_rate_stdev']
+# set_8=data_8['logbook']['data'][0]['loc_rate_stdev']
 
 # Combine loc stdev data
-total_set = np.concatenate((set_1, set_2, set_3, set_4, set_5, set_6, set_7, set_8))
+total_set = np.concatenate((set_1, set_2, set_3, set_4, set_5))#, set_6, set_7, set_8))
 
 # Plot loc stdev data
 plt.clf()
@@ -258,12 +258,12 @@ set_2=data_2['logbook']['data'][0]['mag_stdev']
 set_3=data_3['logbook']['data'][0]['mag_stdev']
 set_4=data_4['logbook']['data'][0]['mag_stdev']
 set_5=data_5['logbook']['data'][0]['mag_stdev']
-set_6=data_6['logbook']['data'][0]['mag_stdev']
-set_7=data_7['logbook']['data'][0]['mag_stdev']
-set_8=data_8['logbook']['data'][0]['mag_stdev']
+# set_6=data_6['logbook']['data'][0]['mag_stdev']
+# set_7=data_7['logbook']['data'][0]['mag_stdev']
+# set_8=data_8['logbook']['data'][0]['mag_stdev']
 
 # Combine mag stdev data
-total_set = np.concatenate((set_1, set_2, set_3, set_4, set_5, set_6, set_7, set_8))
+total_set = np.concatenate((set_1, set_2, set_3, set_4, set_5))#, set_6, set_7, set_8))
 
 # Plot mag stdev data
 plt.clf()

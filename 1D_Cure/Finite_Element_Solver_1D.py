@@ -43,18 +43,9 @@ class FES():
         
         # Calculate the target vectors
         self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target
-        self.target_front_vel_derivative = np.zeros(self.target_front_vel.shape)
-        self.derivative_scale = 1.0
         if self.random_target:
-            frequency = np.random.randint(1,5)
-            total_steps = int(self.sim_duration / self.time_step)
-            x_coords = np.array([*range(int(self.sim_duration / self.time_step))])
-            self.perturbation_loc = 0.5*(np.sin(frequency*np.pi*x_coords/total_steps) - 1.0)
-            self.target_front_vel = self.target_front_vel + self.purturbation_scale * self.perturbation_loc
-            self.target_front_vel_derivative = (frequency*self.purturbation_scale*np.pi*np.cos((frequency*np.pi*x_coords)/(total_steps)))/(2.0*total_steps)
-            self.derivative_scale = max(self.target_front_vel_derivative)
+                self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target - 2.0*(np.random.rand()-0.5)*self.purturbation_scale
         self.current_target_front_vel = self.target_front_vel[self.current_index]
-        self.current_target_front_vel_der = self.target_front_vel_derivative[self.current_index]
         
         # Trigger conditions
         self.trigger_temperature = 458.15
@@ -248,22 +239,12 @@ class FES():
             laser_view = np.mean(np.resize(laser_view[0:-(len(laser_view)%10)],(10,len(laser_view)//10)),axis=1)
             
             # Normalize and concatenate all substates
-            if self.random_target:
-                state = np.concatenate((average_temps/self.temperature_limit, 
-                                        laser_view/self.temperature_limit,
-                                        [self.front_loc/self.length], 
-                                        [self.front_vel/self.target], 
-                                        [self.current_target_front_vel/self.target],
-                                        [self.current_target_front_vel_der/self.derivative_scale],
-                                        [self.input_location/self.length], 
-                                        [self.input_magnitude]))
-            else:
-                state = np.concatenate((average_temps/self.temperature_limit, 
-                                        laser_view/self.temperature_limit,
-                                        [self.front_loc/self.length], 
-                                        [self.front_vel/self.current_target_front_vel], 
-                                        [self.input_location/self.length], 
-                                        [self.input_magnitude]))
+            state = np.concatenate((average_temps/self.temperature_limit, 
+                                    laser_view/self.temperature_limit,
+                                    [self.front_loc/self.length], 
+                                    [self.front_vel/self.current_target_front_vel], 
+                                    [self.input_location/self.length], 
+                                    [self.input_magnitude]))
             
         # Return the state
         return state
@@ -294,7 +275,6 @@ class FES():
             self.current_time = self.current_time + self.time_step
             self.current_index = self.current_index + 1
             self.current_target_front_vel = self.target_front_vel[self.current_index]
-            self.current_target_front_vel_der = self.target_front_vel_derivative[self.current_index]
         
         return done
 
@@ -322,18 +302,9 @@ class FES():
         
         # Reset the target definition
         self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target
-        self.target_front_vel_derivative = np.zeros(self.target_front_vel.shape)
-        self.derivative_scale = 1.0
         if self.random_target:
-            frequency = np.random.randint(1,5)
-            total_steps = int(self.sim_duration / self.time_step)
-            x_coords = np.array([*range(int(self.sim_duration / self.time_step))])
-            self.perturbation_loc = 0.5*(np.sin(frequency*np.pi*x_coords/total_steps) - 1.0)
-            self.target_front_vel = self.target_front_vel + self.purturbation_scale * self.perturbation_loc
-            self.target_front_vel_derivative = (frequency*self.purturbation_scale*np.pi*np.cos((frequency*np.pi*x_coords)/(total_steps)))/(2.0*total_steps)
-            self.derivative_scale = max(self.target_front_vel_derivative)
+                self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target - 2.0*(np.random.rand()-0.5)*self.purturbation_scale
         self.current_target_front_vel = self.target_front_vel[self.current_index]
-        self.current_target_front_vel_der = self.target_front_vel_derivative[self.current_index]
         
         # Reset input
         self.input_location = np.random.choice(self.panels)

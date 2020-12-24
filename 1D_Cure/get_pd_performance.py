@@ -149,6 +149,9 @@ def main(env, agent, total_trajectories, execution_rate, steps_per_trajectory):
 
 if __name__ == '__main__':
     
+    # Save parameters
+    path = 'PD-Controller'
+    
     # Create environment
     env = fes.FES(for_pd=True)
     num_states = int(env.num_panels/10 + 5)
@@ -178,7 +181,7 @@ if __name__ == '__main__':
     # Create agents, run simulations, save results
     for curr_agent in range(num_agents):
         print("Agent " + str(curr_agent+1) + " / " + str(num_agents))
-        agent = pdc.PD_Controller(env.length, env.panels, -0.05, -0.5, -0.5, -0.05)
+        agent = pdc.PD_Controller(env.length, env.panels, -0.04, -0.5, -0.4, -0.01)
         data, agent, env = main(env, agent, total_trajectories, execution_rate, steps_per_trajecotry)
         logbook['data'].append(data)
         logbook['agents'].append(agent)
@@ -213,7 +216,7 @@ if __name__ == '__main__':
     'steps_per_trajecotry' : steps_per_trajecotry,
     'logbook' : logbook
     }
-    with open("results/PD-Controller/output", 'wb') as file:
+    with open("results/"+path+"/output", 'wb') as file:
         pickle.dump(outputs, file)  
 
     print("Plotting...")
@@ -229,7 +232,7 @@ if __name__ == '__main__':
     plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.target))
     plt.xlim(0.0, env.sim_duration)
     plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('results/PD-Controller/front_velocity.png', dpi = 500)
+    plt.savefig('results/'+path+'/front_velocity.png', dpi = 500)
     plt.close()
         
     # Plot learning curve 1
@@ -244,7 +247,7 @@ if __name__ == '__main__':
         plt.plot([*range(len(average_r_per_step))],average_r_per_step)
         plt.fill_between([*range(len(average_r_per_step))],average_r_per_step+r_per_step_stdev,average_r_per_step-r_per_step_stdev,alpha=0.6)
     plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('results/PD-Controller/r_per_sim.png', dpi = 500)
+    plt.savefig('results/'+path+'/r_per_sim.png', dpi = 500)
     plt.close()
     
     # Plot learning curve 2
@@ -259,7 +262,7 @@ if __name__ == '__main__':
         plt.plot([*range(len(average_r_per_episode))],average_r_per_episode)
         plt.fill_between([*range(len(average_r_per_episode))],average_r_per_episode+r_per_episode_stdev,average_r_per_episode-r_per_episode_stdev,alpha=0.6)
     plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('results/PD-Controller/r_per_epi.png', dpi = 500)
+    plt.savefig('results/'+path+'/r_per_epi.png', dpi = 500)
     plt.close()
     
     # Make video of the best temperature field trajecotry as function of time
@@ -296,7 +299,7 @@ if __name__ == '__main__':
             labs=(temp[0].get_label(),max_temp.get_label(),cure[0].get_label(),front.get_label(),input_center.get_label(),input_edge.get_label())
             ax1.legend(lns, labs, loc=1)
             plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig('results/PD-Controller/fields/fields_'+'{:.2f}'.format(curr_step*env.time_step)+'.png', dpi = 100)
+            plt.savefig('results/'+path+'/fields/fields_'+'{:.2f}'.format(curr_step*env.time_step)+'.png', dpi = 100)
             plt.close()
     
     print("Done!")

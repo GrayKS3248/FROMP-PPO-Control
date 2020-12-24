@@ -16,9 +16,9 @@ class PD_Controller:
         self.contracted_panels = np.mean(np.resize(self.panels,(len(self.panels)//10,10)),axis=1)
         
         # Desired state information
-        self.desired_temperature = 302.0
+        self.desired_temperature = 306.0
         self.desired_temperature_rate = 0.0
-        self.lead_distance = 0.10*length
+        self.lead_distance = 0.09*length
         
         # Control gains
         self.kp_m = kp_m
