@@ -8,12 +8,13 @@ import numpy as np
 
 class PD_Controller:
     
-    def __init__(self, length, panels, kp_m, kd_m, kp_p, kd_p):
+    def __init__(self, length, panels, kp_m, kd_m, kp_p, kd_p, kp_t=0.01, random_vel=False):
         
         # Environment data
         self.length = length
         self.panels = panels
         self.contracted_panels = np.mean(np.resize(self.panels,(len(self.panels)//10,10)),axis=1)
+        self.random_vel = random_vel
         
         # Desired state information
         self.desired_temperature = 306.0
@@ -25,6 +26,7 @@ class PD_Controller:
         self.kd_m = kd_m
         self.kp_p = kp_p
         self.kd_p = kd_p
+        self.kp_t = kp_t
         
     def get_action(self, state):
         
@@ -36,6 +38,7 @@ class PD_Controller:
         front_rate = state[-4]
         input_location = state[-3]
         input_location_rate = state[-2]
+        target_front_rate = state[-1]
         
         # Calculate the desired input location
         desired_input_location = front_location + self.lead_distance
@@ -57,6 +60,11 @@ class PD_Controller:
         # If the front is done propogating, turn off laser
         if front_location >= 0.85 * self.length:
             new_input_magnitude_rate = -100.0
+        
+        # Adjust the desired temperature if the front speed is not good
+        if self.random_vel and abs(front_rate - target_front_rate)/target_front_rate >= 0.10:
+            delta = self.kp_t*(target_front_rate - front_rate)/target_front_rate
+            self.desired_temperature = self.desired_temperature + delta
         
         # Return the calculated action
         return new_input_location_rate, new_input_magnitude_rate

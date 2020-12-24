@@ -222,13 +222,12 @@ class FES():
             
             # Get the input location and magnitude rates
             input_location_rate = np.clip(action[0], -self.max_input_loc_rate, self.max_input_loc_rate)
-            input_magnitude_rate = np.clip(action[1], -self.max_input_mag_rate, self.max_input_mag_rate)
             
             # Normalize and concatenate all substates
             state = np.concatenate((average_temps, average_temp_rates,
                                     [self.front_loc], [self.front_vel], 
                                     [self.input_location], [input_location_rate],
-                                    [input_magnitude_rate]))  
+                                    [self.current_target_front_vel]))  
             
         else:
             # Get the average temperature of self.num_panels/10 even segments across entire length

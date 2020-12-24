@@ -181,7 +181,7 @@ if __name__ == '__main__':
     # Create agents, run simulations, save results
     for curr_agent in range(num_agents):
         print("Agent " + str(curr_agent+1) + " / " + str(num_agents))
-        agent = pdc.PD_Controller(env.length, env.panels, -0.04, -0.5, -0.4, -0.01)
+        agent = pdc.PD_Controller(env.length, env.panels, -0.04, -0.5, -0.4, -0.01, kp_t=0.01, random_vel=True)
         data, agent, env = main(env, agent, total_trajectories, execution_rate, steps_per_trajecotry)
         logbook['data'].append(data)
         logbook['agents'].append(agent)
