@@ -145,6 +145,9 @@ def main(env, agent, total_trajectories, execution_rate):
 
 if __name__ == '__main__':
     
+    # Save parameters
+    path = 'PPO-Results'
+    
     # Create environment
     random_target = True
     target_switch = True
@@ -154,7 +157,7 @@ if __name__ == '__main__':
     num_states = int(env.num_panels/10 + 14)
         
     # Set agent parameters
-    total_trajectories = 100
+    total_trajectories = 2
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
@@ -175,7 +178,7 @@ if __name__ == '__main__':
         raise RuntimeError("Agent execution rate is not multiple of simulation rate")
         
     # Simulation parameters
-    num_agents = 100
+    num_agents = 2
     logbook = {
         'data': [],
         'agents': [],
@@ -198,28 +201,6 @@ if __name__ == '__main__':
         logbook['data'].append(data)
         logbook['agents'].append(agent)
         logbook['envs'].append(env)
-    
-    # Average results from all agents
-    print('Processing...')
-    if num_agents > 1:
-        r_per_step_stdev = np.zeros((num_agents, len(logbook['data'][curr_agent]['r_per_step'])))
-        r_per_episode_stdev = np.zeros((num_agents, len(logbook['data'][curr_agent]['r_per_episode'])))
-    average_r_per_step = np.array([0.0]*len(logbook['data'][curr_agent]['r_per_step']))
-    average_r_per_episode = np.array([0.0]*len(logbook['data'][curr_agent]['r_per_episode']))
-    for curr_agent in range(num_agents):
-        if num_agents > 1:
-            r_per_step_stdev[curr_agent,:] = logbook['data'][curr_agent]['r_per_step']
-            r_per_episode_stdev[curr_agent,:] = logbook['data'][curr_agent]['r_per_episode']
-        average_r_per_step = average_r_per_step + np.array(logbook['data'][curr_agent]['r_per_step'])
-        average_r_per_episode = average_r_per_episode + np.array(logbook['data'][curr_agent]['r_per_episode'])
-        if logbook['data'][curr_agent]['best_episode'] >= best_overall_episode:
-            best_overall_episode = logbook['data'][curr_agent]['best_episode']
-            best_overall_agent = curr_agent
-    if num_agents > 1:
-        r_per_step_stdev = np.std(r_per_step_stdev,axis=0)
-        r_per_episode_stdev = np.std(r_per_episode_stdev,axis=0)
-    average_r_per_step = average_r_per_step / float(num_agents)
-    average_r_per_episode = average_r_per_episode / float(num_agents)
 
     # Pickle all important outputs
     print("Saving...")
@@ -235,7 +216,7 @@ if __name__ == '__main__':
     'decay_rate': decay_rate,
     'logbook' : logbook
     }
-    with open("results/PPO-Controller_Rerun/output", 'wb') as file:
+    with open("results/"+path+"/output", 'wb') as file:
         pickle.dump(outputs, file)  
 
     print("Plotting...")
@@ -251,37 +232,7 @@ if __name__ == '__main__':
     plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.target))
     plt.xlim(0.0, env.sim_duration)
     plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('results/PPO-Controller_Rerun/front_velocity.png', dpi = 500)
-    plt.close()
-        
-    # Plot learning curve 1
-    plt.clf()
-    title_str = "Actor Learning Curve, Simulation Normalized"
-    plt.title(title_str)
-    plt.xlabel("Episode")
-    plt.ylabel("Average Reward per Simulation Step")
-    if num_agents==1:
-        plt.plot([*range(len(average_r_per_step))],average_r_per_step)
-    else:
-        plt.plot([*range(len(average_r_per_step))],average_r_per_step)
-        plt.fill_between([*range(len(average_r_per_step))],average_r_per_step+r_per_step_stdev,average_r_per_step-r_per_step_stdev,alpha=0.6)
-    plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('results/PPO-Controller_Rerun/actor_learning_1.png', dpi = 500)
-    plt.close()
-    
-    # Plot learning curve 2
-    plt.clf()
-    title_str = "Actor Learning Curve, Episode Normalized"
-    plt.title(title_str)
-    plt.xlabel("Episode")
-    plt.ylabel("Average Reward per Simulation Step")
-    if num_agents==1:
-        plt.plot([*range(len(average_r_per_episode))],average_r_per_episode)
-    else:
-        plt.plot([*range(len(average_r_per_episode))],average_r_per_episode)
-        plt.fill_between([*range(len(average_r_per_episode))],average_r_per_episode+r_per_episode_stdev,average_r_per_episode-r_per_episode_stdev,alpha=0.6)
-    plt.gcf().set_size_inches(8.5, 5.5)
-    plt.savefig('results/PPO-Controller_Rerun/actor_learning_2.png', dpi = 500)
+    plt.savefig('results/'+path+'/front_velocity.png', dpi = 500)
     plt.close()
     
     # Make video of the best temperature field trajecotry as function of time
@@ -318,7 +269,7 @@ if __name__ == '__main__':
             labs=(temp[0].get_label(),max_temp.get_label(),cure[0].get_label(),front.get_label(),input_center.get_label(),input_edge.get_label())
             ax1.legend(lns, labs, loc=1)
             plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig('results/PPO-Controller_Rerun/fields/fields_'+'{:.2f}'.format(curr_step*env.time_step)+'.png', dpi = 100)
+            plt.savefig('results/'+path+'/fields/fields_'+'{:.2f}'.format(curr_step*env.time_step)+'.png', dpi = 100)
             plt.close()
     
     print("Done!")
