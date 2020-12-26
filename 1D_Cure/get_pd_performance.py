@@ -22,6 +22,7 @@ def main(env, agent, total_trajectories, execution_rate, steps_per_trajectory):
         'cure_field': [],
         'front_location': [],
         'front_velocity': [],
+        'target_velocity': [],
         'time': [],
         'best_episode': [],
     }
@@ -32,6 +33,7 @@ def main(env, agent, total_trajectories, execution_rate, steps_per_trajectory):
         'cure_field': [],
         'front_location': [],
         'front_velocity': [],
+        'target_velocity': [],
         'time': [],
         }
     
@@ -70,6 +72,7 @@ def main(env, agent, total_trajectories, execution_rate, steps_per_trajectory):
         
         # Initialize simulation
         s = env.reset()
+        agent.reset()
         pos_rate_action = 0.0
         mag_rate_action = 0.0
         episode_reward = r_total
@@ -94,6 +97,7 @@ def main(env, agent, total_trajectories, execution_rate, steps_per_trajectory):
             trajectory['cure_field'].append(env.cure_panels)
             trajectory['front_location'].append(env.front_loc)
             trajectory['front_velocity'].append(env.front_vel)
+            trajectory['target_velocity'].append(env.current_target_front_vel)
             trajectory['time'].append(env.current_time)
             
             # Update state and step
@@ -110,6 +114,7 @@ def main(env, agent, total_trajectories, execution_rate, steps_per_trajectory):
             data['cure_field'] = trajectory['cure_field']
             data['front_location'] = trajectory['front_location']
             data['front_velocity'] = trajectory['front_velocity']
+            data['target_velocity'] = trajectory['target_velocity']
             data['time'] = trajectory['time']
             data['best_episode'] = episode_reward
         
@@ -122,6 +127,7 @@ def main(env, agent, total_trajectories, execution_rate, steps_per_trajectory):
         trajectory['cure_field'] = []
         trajectory['front_location'] = []
         trajectory['front_velocity'] = []
+        trajectory['target_velocity'] = []
         trajectory['time'] = []
         
     # User readout
@@ -153,7 +159,11 @@ if __name__ == '__main__':
     path = 'PD-Controller'
     
     # Create environment
-    env = fes.FES(for_pd=True)
+    random_target = True
+    target_switch = True
+    control = False
+    for_pd = True
+    env = fes.FES(random_target=random_target, target_switch=target_switch, control=control, for_pd=for_pd)
     num_states = int(env.num_panels/10 + 5)
         
     # Set agent parameters
@@ -181,7 +191,7 @@ if __name__ == '__main__':
     # Create agents, run simulations, save results
     for curr_agent in range(num_agents):
         print("Agent " + str(curr_agent+1) + " / " + str(num_agents))
-        agent = pdc.PD_Controller(env.length, env.panels, -0.04, -0.5, -0.4, -0.01, kp_t=0.01, random_vel=True)
+        agent = pdc.PD_Controller(env.length, env.panels, -0.04, -0.5, -0.4, -0.01, kp_t=2.5, kd_t=-5.0e4, random_vel=True)
         data, agent, env = main(env, agent, total_trajectories, execution_rate, steps_per_trajecotry)
         logbook['data'].append(data)
         logbook['agents'].append(agent)
@@ -227,9 +237,9 @@ if __name__ == '__main__':
     plt.xlabel("Simulation Time [s]")
     plt.ylabel("Front Velocity [mm/s]")
     plt.plot(logbook['data'][best_overall_agent]['time'], 1000.0*np.array(logbook['data'][best_overall_agent]['front_velocity']), c='k')
-    plt.axhline(y=1000.0*env.target, c='b', ls='--')
+    plt.plot(logbook['data'][best_overall_agent]['time'], 1000.0*np.array(logbook['data'][best_overall_agent]['target_velocity']), c='b', ls='--')
     plt.legend(('Actual','Target'),loc='lower right')
-    plt.ylim(0.0, max(1.1*1000.0*max(np.array(logbook['data'][best_overall_agent]['front_velocity'])),1.1*1000.0*env.target))
+    plt.ylim(0.0, max(1.25*1000.0*np.array(logbook['data'][best_overall_agent]['target_velocity'])))
     plt.xlim(0.0, env.sim_duration)
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/'+path+'/front_velocity.png', dpi = 500)

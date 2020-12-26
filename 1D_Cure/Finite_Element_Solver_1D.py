@@ -9,13 +9,10 @@ import numpy as np
 
 class FES():
     
-    def __init__(self, for_pd=False, random_target=False):
-        # Check for bad input parameters
-        if(for_pd and random_target):
-            raise RuntimeError('PD controller cannot be run with random target condition.')
+    def __init__(self, for_pd=False, random_target=False, target_switch=False, control=False):
         
         # Environment spatial parameters 
-        self.num_panels = 400 # Must be multiple of 5
+        self.num_panels = 400 # Must be multiple of 10
         self.length = 0.060
         
         # Environment time parameters
@@ -40,11 +37,17 @@ class FES():
         self.target = 0.00015
         self.purturbation_scale = 0.000025
         self.random_target = random_target
+        self.target_switch = target_switch
+        self.control = control
         
         # Calculate the target vectors
         self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target
         if self.random_target:
-                self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target - 2.0*(np.random.rand()-0.5)*self.purturbation_scale
+            self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target - 2.0*(np.random.rand()-0.5)*self.purturbation_scale
+        if self.target_switch:
+            switch_location = int((0.20*np.random.rand()+0.40) * (len(self.target_front_vel)-1))
+            switch_vel = self.target_front_vel[switch_location] + 2.0*(np.random.rand()-0.5)*self.purturbation_scale
+            self.target_front_vel[switch_location:]=switch_vel
         self.current_target_front_vel = self.target_front_vel[self.current_index]
         
         # Trigger conditions
@@ -82,7 +85,10 @@ class FES():
         self.front_has_started=False
         
         # Input magnitude parameters
-        self.max_input_mag = 10.0
+        if self.control:
+            self.max_input_mag = 0.0
+        else:
+            self.max_input_mag = 10.0
         self.max_input_mag_rate = self.time_step
         self.input_magnitude = np.random.rand()
         self.mag_scale = 0.083333333
@@ -250,7 +256,10 @@ class FES():
 
     def get_reward(self):
         # Calculate the punishments based on the temperature field, input strength, action, and overage
-        input_punishment = -self.input_punishment_const * self.max_reward * (self.input_magnitude / self.max_input_mag)
+        if self.control:
+            input_punishment = 0.0
+        else:
+            input_punishment = -self.input_punishment_const * self.max_reward * (self.input_magnitude / self.max_input_mag)
         overage_punishment =  -self.overage_punishment_const * self.max_reward * (max(self.temp_panels) >= self.temperature_limit)
         integral_punishment = -self.integral_punishment_const * self.max_reward * (1.0 - (self.max_integral - np.trapz(self.temp_panels,x=self.panels)) / (self.integral_delta))
         punishment = input_punishment + overage_punishment + integral_punishment
@@ -302,7 +311,11 @@ class FES():
         # Reset the target definition
         self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target
         if self.random_target:
-                self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target - 2.0*(np.random.rand()-0.5)*self.purturbation_scale
+            self.target_front_vel = np.ones(int(self.sim_duration / self.time_step))*self.target - 2.0*(np.random.rand()-0.5)*self.purturbation_scale
+        if self.target_switch:
+            switch_location = int((0.20*np.random.rand()+0.40) * (len(self.target_front_vel)-1))
+            switch_vel = self.target_front_vel[switch_location] + 2.0*(np.random.rand()-0.5)*self.purturbation_scale
+            self.target_front_vel[switch_location:]=switch_vel
         self.current_target_front_vel = self.target_front_vel[self.current_index]
         
         # Reset input

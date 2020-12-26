@@ -8,7 +8,7 @@ import numpy as np
 
 class PD_Controller:
     
-    def __init__(self, length, panels, kp_m, kd_m, kp_p, kd_p, kp_t=0.01, random_vel=False):
+    def __init__(self, length, panels, kp_m, kd_m, kp_p, kd_p, kp_t=0.75, kd_t=-0.1, random_vel=False):
         
         # Environment data
         self.length = length
@@ -17,7 +17,8 @@ class PD_Controller:
         self.random_vel = random_vel
         
         # Desired state information
-        self.desired_temperature = 306.0
+        self.initial_temperature = 306.0
+        self.desired_temperature = self.initial_temperature
         self.desired_temperature_rate = 0.0
         self.lead_distance = 0.09*length
         
@@ -27,6 +28,10 @@ class PD_Controller:
         self.kp_p = kp_p
         self.kd_p = kd_p
         self.kp_t = kp_t
+        self.kd_t = kd_t
+        
+        # Memory
+        self.previous_front_rate = 0.0
         
     def get_action(self, state):
         
@@ -62,9 +67,15 @@ class PD_Controller:
             new_input_magnitude_rate = -100.0
         
         # Adjust the desired temperature if the front speed is not good
-        if self.random_vel and abs(front_rate - target_front_rate)/target_front_rate >= 0.10:
-            delta = self.kp_t*(target_front_rate - front_rate)/target_front_rate
+        if self.random_vel and abs(front_rate - target_front_rate)/target_front_rate >= 0.075:
+            delta = self.kp_t*(target_front_rate - front_rate)/target_front_rate + self.kd_t*(front_rate - self.previous_front_rate)
             self.desired_temperature = self.desired_temperature + delta
+            
+        # Update the memory
+        self.previous_front_rate = front_rate
         
         # Return the calculated action
         return new_input_location_rate, new_input_magnitude_rate
+    
+    def reset(self):
+        self.desired_temperature = self.initial_temperature

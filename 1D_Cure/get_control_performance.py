@@ -156,7 +156,11 @@ def main(env, agent, total_trajectories, execution_rate):
 if __name__ == '__main__':
     
     # Create environment
-    env = fes.FES(random_target=False)
+    random_target = True
+    target_switch = True
+    control = True
+    for_pd = False
+    env = fes.FES(random_target=random_target, target_switch=target_switch, control=control, for_pd=for_pd)
     num_states = int(env.num_panels/10 + 14)
         
     # Set agent parameters
