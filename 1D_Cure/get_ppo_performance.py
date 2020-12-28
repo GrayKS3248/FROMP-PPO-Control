@@ -157,7 +157,7 @@ if __name__ == '__main__':
     num_states = int(env.num_panels/10 + 14)
         
     # Set agent parameters
-    total_trajectories = 2
+    total_trajectories = 100
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
@@ -178,7 +178,7 @@ if __name__ == '__main__':
         raise RuntimeError("Agent execution rate is not multiple of simulation rate")
         
     # Simulation parameters
-    num_agents = 2
+    num_agents = 100
     logbook = {
         'data': [],
         'agents': [],

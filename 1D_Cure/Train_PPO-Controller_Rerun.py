@@ -181,8 +181,8 @@ if __name__ == '__main__':
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    start_alpha = 1.5e-4
-    end_alpha = 7.5e-5
+    start_alpha = 1.0e-4
+    end_alpha = 1.0e-5
     
     # Calculated agent parameters
     decay_rate = (end_alpha/start_alpha)**(trajectories_per_batch/total_trajectories)
