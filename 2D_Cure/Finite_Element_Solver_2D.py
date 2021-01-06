@@ -70,9 +70,9 @@ class FES():
         self.autocatalysis_const = 0.365
         
         # Spatial panels
-        self.panels_x, self.panels_y = np.meshgrid(np.linspace(0.0,self.length,self.num_panels_length), np.linspace(0.0,self.width,self.num_panels_width))
-        self.step_size_x = self.panels_x[0][1]-self.panels_x[0][0]
-        self.step_size_y = self.panels_y[0][1]-self.panels_y[0][0]
+        self.panels_y, self.panels_x = np.meshgrid(np.linspace(0.0,self.width,self.num_panels_width), np.linspace(0.0,self.length,self.num_panels_length))
+        self.step_size_x = self.panels_x[1][0]
+        self.step_size_y = self.panels_y[0][1]
         
         # Temperature panels
         self.temp_panels = np.ones((self.num_panels_length,self.num_panels_width))*self.initial_temperature
@@ -112,7 +112,7 @@ class FES():
         self.min_input_y_loc = 0.0
         self.max_input_y_loc = self.width
         self.max_input_y_loc_rate = self.length * self.time_step
-        self.input_location = np.array([np.random.choice(self.panels_x[0]), np.random.choice(self.panels_y[:,0])])
+        self.input_location = np.array([np.random.choice(self.panels_x[:,0]), np.random.choice(self.panels_y[0])])
         self.loc_rate_scale = 0.0006
         self.loc_rate_offset = 0.0
         
@@ -208,7 +208,6 @@ class FES():
         # Return the cure rate
         return cure_rate
 
-    # TODO
     def step_front(self):
         # Calculate the spatial cure derivative
         cure_diff = -1.0*np.diff(self.cure_panels,axis=0)/self.step_size_x
@@ -251,6 +250,15 @@ class FES():
 
     # TODO
     def step_temperature(self, cure_rate):
+        
+        # Pad the left sides of the temperature field with ambient temperature
+        temperature_grid = np.insert(self.temp_panels,0,self.ambient_temperature,axis=0)
+        temperature_grid = np.insert(temperature_grid,0,self.ambient_temperature,axis=0)
+        
+        # Pad the left sides of the x spatial field with 2 equal left steps
+        x_spatial_grid = np.insert(self.panels_x,0,-self.step_size_x,axis=0)
+        x_spatial_grid = np.insert(x_spatial_grid,0,-2.0*self.step_size_x,axis=0)
+        
         # Get the second spacial derivative of the temperature field
         diff_x_grid = np.insert(self.panels, 0, np.array([-2.0*self.step_size, -self.step_size]))
         diff_x_grid = np.insert(diff_x_grid, len(diff_x_grid), np.array([self.panels[-1]+self.step_size, self.panels[-1]+2.0*self.step_size]))
@@ -320,7 +328,7 @@ class FES():
             
         else:
             # Get the average temperature in even areas across entire field
-            average_temps = np.mean(self.blockshaped(self.temp_panels,self.num_panels_length//20,self.num_panels_width//20),axis=0)
+            average_temps = np.mean(self.blockshaped(self.temp_panels,self.num_panels_length//5,self.num_panels_width//5),axis=0)
             average_temps = average_temps.reshape(np.size(average_temps))
             
             # Find the area over which the laser can see
@@ -419,7 +427,7 @@ class FES():
         
         # Reset input
         self.input_magnitude = np.random.rand()
-        self.input_location = np.array([np.random.choice(self.panels_x[0]), np.random.choice(self.panels_y[:,0])])
+        self.input_location = np.array([np.random.choice(self.panels_x[:,0]), np.random.choice(self.panels_y[0])])
         
         # Temperature panels
         self.temp_panels = np.ones((self.num_panels_length,self.num_panels_width))*self.initial_temperature
