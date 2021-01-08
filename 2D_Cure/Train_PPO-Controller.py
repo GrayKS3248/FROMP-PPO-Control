@@ -100,14 +100,14 @@ def main(env, agent, total_trajectories, execution_rate, frame_multiplier):
             
             # Update logs
             if step_in_episode % (frame_multiplier*execution_rate) == 0 or done:
-                trajectory['input_location'].append(env.input_location)
-                trajectory['temperature_field'].append(env.temp_panels)
-                trajectory['input_magnitude'].append(env.input_magnitude)
-                trajectory['cure_field'].append(env.cure_panels)
-                trajectory['front_location'].append(env.front_loc)
-                trajectory['front_velocity'].append(env.front_vel)
-                trajectory['target_velocity'].append(env.current_target_front_vel)
-                trajectory['time'].append(env.current_time)
+                trajectory['input_location'].append(np.copy(env.input_location))
+                trajectory['temperature_field'].append(np.copy(env.temp_panels))
+                trajectory['input_magnitude'].append(np.copy(env.input_magnitude))
+                trajectory['cure_field'].append(np.copy(env.cure_panels))
+                trajectory['front_location'].append(np.copy(env.front_loc))
+                trajectory['front_velocity'].append(np.copy(env.front_vel))
+                trajectory['target_velocity'].append(np.copy(env.current_target_front_vel))
+                trajectory['time'].append(np.copy(env.current_time))
             
             # Update state and step
             s = s2
@@ -407,7 +407,8 @@ if __name__ == '__main__':
         ax1.set_aspect('equal', adjustable='box')
         
         # Plot input
-        c2 = ax2.pcolor(100.0*env.panels_x, 100.0*env.panels_y, 1.0e-6*input_panels, shading='auto', cmap='jet', vmin=0.0, vmax=1.0e-6*env.max_input_mag)
+        c2 = ax2.pcolor(100.0*env.panels_x, 100.0*env.panels_y, 1.0e-6*input_panels, shading='auto', cmap='coolwarm', vmin=0.0, vmax=1.0e-6*env.max_input_mag)
+        ax2.plot(100.0*logbook['data'][best_overall_agent]['front_location'][curr_step].reshape(env.num_panels_width,1), 100.0*env.panels_y[0,:], 'k-', lw=1.5)
         cbar2 = fig.colorbar(c2, ax=ax2)
         cbar2.set_label('Input Heat Rate Density [MW/m^3]', labelpad=20)
         ax2.set_xlabel('X Position [cm]')
@@ -417,7 +418,7 @@ if __name__ == '__main__':
         # Set title and save
         title_str = "Time from Trigger: "+'{:.2f}'.format(logbook['data'][best_overall_agent]['time'][curr_step])+'s'
         fig.suptitle(title_str)
-        plt.savefig('results/PPO-Controller/videos/time_'+'{:.2f}'.format(logbook['data'][best_overall_agent]['time'][curr_step])+'.png', dpi=dpi)
+        plt.savefig('results/PPO-Controller/video/time_'+'{:.2f}'.format(logbook['data'][best_overall_agent]['time'][curr_step])+'.png', dpi=dpi)
         plt.close()
     
     print("Done!")

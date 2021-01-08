@@ -205,7 +205,6 @@ class FES():
         # Return the cure rate
         return cure_rate
     
-    # TODO Cure velocity is not properly reported
     def step_front(self):
         # Calculate the spatial cure derivative
         cure_diff = -1.0*np.diff(self.cure_panels,axis=0)/self.step_size_x
@@ -214,7 +213,7 @@ class FES():
         for curr_row in range(self.num_panels_width):
             
             # Find the indices which meet front definitions
-            front_indices = np.flatnonzero(cure_diff[:,curr_row]>=100.0)
+            front_indices = np.flatnonzero(cure_diff[:,curr_row]>=400.0)
             if len(front_indices) > 0: 
                 new_front_loc = self.panels_x[front_indices[-1], curr_row]
                     
