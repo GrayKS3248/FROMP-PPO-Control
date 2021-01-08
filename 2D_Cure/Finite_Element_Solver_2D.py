@@ -14,9 +14,8 @@ class FES():
         # Environment spatial parameters 
         self.num_panels_length = 400 # Must be multiple of 10
         self.num_panels_width = 60 # Must be multiple of 10
-        self.num_panels = self.num_panels_length * self.num_panels_width
-        self.length = 0.060
-        self.width = 0.010
+        self.length = 0.06
+        self.width = 0.01
         
         # Environment time parameters
         self.sim_duration = 360.0
@@ -26,14 +25,13 @@ class FES():
         
         # Initial conditions
         self.initial_temperature = 278.15
-        self.initial_temp_delta = 0.01 * self.initial_temperature
+        self.initial_temp_delta = 0.05 * self.initial_temperature
         self.initial_cure = 0.10
-        self.initial_cure_delta = 0.01 * self.initial_cure
+        self.initial_cure_delta = 0.05 * self.initial_cure
         
         # Boundary conditions
-        self.bc_tc= 0.152
-        self.bc_htc = 0.0
-        self.ambient_temperature = self.initial_temperature
+        self.htc = 8.0
+        self.ambient_temperature = 278.15
         
         # Problem definition constants
         self.temperature_limit = 563.15
@@ -54,9 +52,9 @@ class FES():
         self.current_target_front_vel = self.target_front_vel[self.current_index]
         
         # Trigger conditions
-        self.trigger_temperature = 528.15
+        self.trigger_heat_rate_flux = 9000.0
         self.trigger_time = 0.0
-        self.trigger_duration = 60.0
+        self.trigger_duration = 40.0
         
         # Monomer physical parameters
         self.thermal_conductivity = 0.152
@@ -68,6 +66,7 @@ class FES():
         self.gas_const = 8.3144
         self.model_fit_order = 1.927
         self.autocatalysis_const = 0.365
+        self.thermal_diffusivity = self.thermal_conductivity / (self.specific_heat * self.density)
         
         # Spatial panels
         self.panels_y, self.panels_x = np.meshgrid(np.linspace(0.0,self.width,self.num_panels_width), np.linspace(0.0,self.length,self.num_panels_length))
@@ -92,7 +91,7 @@ class FES():
         if self.control:
             self.max_input_mag = 0.0
         else:
-            self.max_input_mag = 10.0
+            self.max_input_mag = 2.5e7
         self.max_input_mag_rate = self.time_step
         self.input_magnitude = np.random.rand()
         self.mag_scale = 0.083333333
@@ -100,9 +99,7 @@ class FES():
         
         # Input distribution parameters
         self.radius_of_input = self.length / 10.0
-        K = (self.max_input_mag * self.radius_of_input * np.sqrt(2.0*np.pi)) / (2.0*np.sqrt(np.log(10.0)))
         sigma = self.radius_of_input / (2.0*np.sqrt(np.log(10.0)))
-        self.front_const = K / (sigma * np.sqrt(2.0 * np.pi))
         self.exp_const = -1.0 / (2.0 * sigma * sigma)
         
         # Input location parameters
@@ -117,7 +114,7 @@ class FES():
         self.loc_rate_offset = 0.0
         
         # Input panels
-        self.input_panels = self.input_magnitude * self.front_const * np.exp(((self.panels_x - self.input_location[0])**2 * self.exp_const) + 
+        self.input_panels = self.input_magnitude * self.max_input_mag * np.exp(((self.panels_x - self.input_location[0])**2 * self.exp_const) + 
                                                                               (self.panels_y - self.input_location[1])**2 * self.exp_const)
         self.input_panels[self.input_panels<0.01*self.max_input_mag] = 0.0
         
@@ -192,89 +189,92 @@ class FES():
                 self.input_magnitude = np.clip(self.input_magnitude, 0.0, self.max_input_mag)
 
         # Use the actions to define input thermal rate across entire spacial field
-        self.input_panels = self.input_magnitude * self.front_const * np.exp(((self.panels_x - self.input_location[0])**2 * self.exp_const) + 
+        self.input_panels = self.input_magnitude * self.max_input_mag * np.exp(((self.panels_x - self.input_location[0])**2 * self.exp_const) + 
                                                                               (self.panels_y - self.input_location[1])**2 * self.exp_const)
         self.input_panels[self.input_panels<0.01*self.max_input_mag] = 0.0
         
     def step_cure(self):
         # Get the cure rate across the entire field based on the cure kinetics
-        cure_rate = ((self.pre_exponential*np.exp(-self.activiation_energy / (self.temp_panels*self.gas_const))) * 
-                     ((1 - self.cure_panels)**self.model_fit_order) * 
-                     (1 + self.autocatalysis_const * self.cure_panels))
+        cure_rate = ((self.pre_exponential * np.exp( (-self.activiation_energy) / (self.gas_const * self.temp_panels) )) *
+                    ((1 - self.cure_panels) ** self.model_fit_order) *
+                    (1 + self.autocatalysis_const * self.cure_panels))
         
         # Update the cure field using forward Euler method
         self.cure_panels = self.cure_panels + cure_rate * self.time_step
         
         # Return the cure rate
         return cure_rate
-
+    
+    # TODO Cure velocity is not properly reported
     def step_front(self):
         # Calculate the spatial cure derivative
         cure_diff = -1.0*np.diff(self.cure_panels,axis=0)/self.step_size_x
             
         # Find the furthest right points in each row that meet the spatial cure derivative threshold
-        new_front_loc = self.front_loc
         for curr_row in range(self.num_panels_width):
             
             # Find the indices which meet front definitions
             front_indices = np.flatnonzero(cure_diff[:,curr_row]>=100.0)
-            if len(front_indices) > 0:
-                new_front_loc[curr_row] = self.panels_x[front_indices[-1], curr_row]
+            if len(front_indices) > 0: 
+                new_front_loc = self.panels_x[front_indices[-1], curr_row]
                     
                 # Only update front rows that have moved
-                if new_front_loc[curr_row] != self.front_loc[curr_row]:
+                if new_front_loc != self.front_loc[curr_row]:
                     
                     # If the front has already began, update the recorded front velocity
                     if self.front_has_started[curr_row] != 0.0:
-                        self.front_vel[curr_row] = (new_front_loc[curr_row] - self.front_loc[curr_row]) / (self.current_time - self.time_front_last_moved[curr_row])
-                        self.front_loc = new_front_loc
+                        self.front_vel[curr_row] = (new_front_loc - self.front_loc[curr_row]) / (self.current_time - self.time_front_last_moved[curr_row])
+                        self.front_loc[curr_row] = new_front_loc
                         self.time_front_last_moved[curr_row] = self.current_time
                     
                     # If the front has not already started, mark the front as started
                     else:
                         self.front_has_started[curr_row] = 1.0
-                        self.front_loc = new_front_loc
+                        self.front_loc[curr_row] = new_front_loc
                         self.time_front_last_moved[curr_row] = self.current_time
 
     def step_temperature(self, cure_rate):
        
-        # Calculate the first and second spatial derivative of the temperature field with respect to x
-        first_diff_x_grid = np.diff(self.temp_panels,axis=0)/self.step_size_x
-        second_diff_x_grid = np.diff(first_diff_x_grid,axis=0)/self.step_size_x
+        # Calculate the trigger boundary condition
+        trigger_q = np.zeros(self.temp_panels[0,:].shape)
+        if self.current_time >= self.trigger_time and self.current_time < self.trigger_time + self.trigger_duration:
+            trigger_q[:] = self.trigger_heat_rate_flux
         
-        # Extrapolate both top and bottom of second derivative with respect to x
-        top = second_diff_x_grid[0] - (second_diff_x_grid[1,:] - second_diff_x_grid[0,:])
-        bottom = second_diff_x_grid[-1] - (second_diff_x_grid[-2,:] - second_diff_x_grid[-1,:])
-        second_diff_x_grid = np.insert(second_diff_x_grid, 0, top, axis=0)
-        second_diff_x_grid = np.insert(second_diff_x_grid, len(second_diff_x_grid[:,0]), bottom, axis=0)
+        # Calculate the heat transfer boundaray condition [W/m^3]
+        left_dT_dx = -(self.htc / self.thermal_conductivity) * (self.ambient_temperature - self.temp_panels[0,:]) - (trigger_q / self.thermal_conductivity)
+        right_dT_dx = (self.htc / self.thermal_conductivity) * (self.ambient_temperature - self.temp_panels[-1,:])
+        top_dT_dy = (self.htc / self.thermal_conductivity) * (self.ambient_temperature - self.temp_panels[:,-1])
+        bottom_dT_dy = -(self.htc / self.thermal_conductivity) * (self.ambient_temperature - self.temp_panels[:,0])
         
-        # Calculate the first and second spatial derivative of the temperature field with respect to y
-        first_diff_y_grid = np.diff(self.temp_panels,axis=1)/self.step_size_y
-        second_diff_y_grid = np.diff(first_diff_y_grid,axis=1)/self.step_size_y
+        # Calculate the first derivative of the temperature field with respect to x and append the boundary conditions
+        dT_dx = np.diff(self.temp_panels,axis=0)/self.step_size_x
+        dT_dx = np.insert(dT_dx, 0, left_dT_dx, axis=0)
+        dT_dx = np.insert(dT_dx, len(dT_dx[:,0]), right_dT_dx, axis=0)
         
-        # Extrapolate both top and bottom of second derivative with respect to y
-        top = second_diff_y_grid[:,0] - (second_diff_y_grid[:,1] - second_diff_y_grid[:,0])
-        bottom = second_diff_y_grid[:,-1] - (second_diff_y_grid[:,-2] - second_diff_y_grid[:,-1])
-        second_diff_y_grid = np.insert(second_diff_y_grid, 0, top, axis=1)
-        second_diff_y_grid = np.insert(second_diff_y_grid, len(second_diff_y_grid[0,:]), bottom, axis=1)
+        # Calculate the second derivative of the temperature field with respect to x
+        dT2_dx2 = np.diff(dT_dx,axis=0)/self.step_size_x
+        
+        # Calculate the first derivative of the temperature field with respect to y and append the boundary conditions
+        dT_dy = np.diff(self.temp_panels,axis=1)/self.step_size_y
+        dT_dy = np.insert(dT_dy, 0, bottom_dT_dy, axis=1)
+        dT_dy = np.insert(dT_dy, len(dT_dy[0,:]), top_dT_dy, axis=1)
+        
+        # Calculate the second derivative of the temperature field with respect to y
+        dT2_dy2 = np.diff(dT_dy,axis=1)/self.step_size_y
+       
+        # Calculate the temperature laplacian 
+        del_sq_T = dT2_dx2 + dT2_dy2
 
-        # Use the second spacial derivative of the temperature field, input field, and cure rate to calculate the temperature field rate
-        temp_panels_rate = ((self.thermal_conductivity/(self.density*self.specific_heat))*(second_diff_x_grid+second_diff_y_grid) + 
-                            (self.enthalpy_of_reaction/self.specific_heat)*cure_rate + 
-                            (self.input_panels))
+        # Calculate the total interal heat rate density [W/m^3]
+        cure_q = self.enthalpy_of_reaction * self.density * cure_rate
+        input_q = self.input_panels
+        total_q = cure_q + input_q
         
-        # Appy the boundary conditions
-        temp_panels_rate[:,0] = self.bc_htc * (self.temp_panels[:,0] - self.ambient_temperature) / (-1.0 * self.bc_tc)
-        temp_panels_rate[:,-1] = self.bc_htc * (self.temp_panels[:,-1] - self.ambient_temperature) / (-1.0 * self.bc_tc)
-        temp_panels_rate[0,:] = self.bc_htc * (self.temp_panels[0,:] - self.ambient_temperature) / (-1.0 * self.bc_tc)
-        temp_panels_rate[-1,:] = self.bc_htc * (self.temp_panels[-1,:] - self.ambient_temperature) / (-1.0 * self.bc_tc)
+        # Calculate the temperature rate field
+        temp_panels_rate = self.thermal_diffusivity*del_sq_T + (self.thermal_diffusivity/self.thermal_conductivity)*total_q
         
         # Update the temperature field using forward Euler method
         self.temp_panels = self.temp_panels + temp_panels_rate * self.time_step
-        
-        # Apply trigger thermal input
-        if self.current_time >= self.trigger_time and self.current_time < self.trigger_time + self.trigger_duration:
-            self.temp_panels[0,:] = self.trigger_temperature
             
         # Check for unstable growth
         if((self.temp_panels >= self.stab_lim).any() or (self.temp_panels <= -self.stab_lim).any()):
@@ -318,10 +318,13 @@ class FES():
             average_temps = np.mean(self.blockshaped(self.temp_panels,self.num_panels_length//20,self.num_panels_width//20),axis=0)
             average_temps = average_temps.reshape(np.size(average_temps))
             
+            # TODO Does not work when laser is close to edges
             # Find the area over which the laser can see
             x_min = np.argmin(abs(self.panels_x[:,0] - self.input_location[0] + self.radius_of_input))
             x_max = np.argmin(abs(self.panels_x[:,0] - self.input_location[0] - self.radius_of_input))
             x_max = x_max - (x_max-x_min)%5
+            if x_max == x_min:
+                print("")
             y_min = np.argmin(abs(self.panels_y[0,:] - self.input_location[1] + self.radius_of_input))
             y_max = np.argmin(abs(self.panels_y[0,:] - self.input_location[1] - self.radius_of_input))
             y_max = y_max - (y_max-y_min)%5
@@ -429,7 +432,7 @@ class FES():
         self.cure_panels = self.cure_panels + self.get_perturbation(self.cure_panels, self.initial_cure_delta)
         
         # Reset input panels
-        self.input_panels = self.input_magnitude * self.front_const * np.exp(((self.panels_x - self.input_location[0])**2 * self.exp_const) + 
+        self.input_panels = self.input_magnitude * self.max_input_mag * np.exp(((self.panels_x - self.input_location[0])**2 * self.exp_const) + 
                                                                               (self.panels_y - self.input_location[1])**2 * self.exp_const)
         self.input_panels[self.input_panels<0.01*self.max_input_mag] = 0.0
         

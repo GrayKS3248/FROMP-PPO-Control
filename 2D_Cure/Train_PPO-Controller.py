@@ -372,27 +372,48 @@ if __name__ == '__main__':
     min_temp = 0.99*np.min(logbook['data'][best_overall_agent]['temperature_field'])
     max_temp = max(1.05*np.max(logbook['data'][best_overall_agent]['temperature_field']), 1.05*env.temperature_limit)
     for curr_step in range(len(logbook['data'][best_overall_agent]['time'])):
-        if curr_step % 720 == 0 or curr_step == len(logbook['data'][best_overall_agent]['time']) - 1:
-            plt.clf()
-            c = plt.pcolor(env.panels_x, env.panels_y, logbook['data'][best_overall_agent]['temperature_field'][curr_step], shading='auto', cmap='jet', vmin=min_temp, vmax=max_temp)
-            cbar = plt.gcf().colorbar(c)
-            cbar.set_label('Temperature K', labelpad=20)
-            title_str = "Temperature: t = "+'{:.2f}'.format(curr_step*env.time_step)+'s'
-            plt.title(title_str)
-            plt.xlabel('X Position [m]')
-            plt.ylabel('Y Position [m]')
-            plt.savefig('results/PPO-Controller/videos/temp_'+'{:.2f}'.format(curr_step*env.time_step)+'.png', dpi = 100)
-            plt.close()
+        if curr_step % 5 == 0 or curr_step == len(logbook['data'][best_overall_agent]['time']) - 1:
+           
+            # Calculate input field
+            input_magnitude = logbook['data'][best_overall_agent]['input_magnitude'][curr_step]
+            input_location = logbook['data'][best_overall_agent]['input_location'][curr_step]
+            input_panels = input_magnitude * env.max_input_mag * np.exp(((env.panels_x - input_location[0])**2 * env.exp_const) + 
+                                                                         (env.panels_y - input_location[1])**2 * env.exp_const)
+            input_panels[input_panels<0.01*env.max_input_mag] = 0.0
             
+            # Make fig for temperature, cure, and input
             plt.clf()
-            c = plt.pcolor(env.panels_x, env.panels_y, logbook['data'][best_overall_agent]['cure_field'][curr_step], shading='auto', cmap='jet', vmin=0.0, vmax=1.0)
-            cbar = plt.gcf().colorbar(c)
-            cbar.set_label('Degree Cure', labelpad=20)
-            title_str = "Degree Cure: t = "+'{:.2f}'.format(curr_step*env.time_step)+'s'
-            plt.title(title_str)
-            plt.xlabel('X Position [m]')
-            plt.ylabel('Y Position [m]')
-            plt.savefig('results/PPO-Controller/videos/cure_'+'{:.2f}'.format(curr_step*env.time_step)+'.png', dpi = 100)
+            fig, (ax0, ax1, ax2) = plt.subplots(3, 1)
+            fig.set_size_inches(11,8.5)
+            
+            # Plot temperature
+            c0 = ax0.pcolor(100.0*env.panels_x, 100.0*env.panels_y, logbook['data'][best_overall_agent]['temperature_field'][curr_step], shading='auto', cmap='jet', vmin=min_temp, vmax=max_temp)
+            cbar0 = fig.colorbar(c0, ax=ax0)
+            cbar0.set_label('Temperature [K]', labelpad=20)
+            ax0.set_xlabel('X Position [cm]')
+            ax0.set_ylabel('Y Position [cm]')
+            ax0.set_aspect('equal', adjustable='box')
+            
+            # Plot cure
+            c1 = ax1.pcolor(100.0*env.panels_x, 100.0*env.panels_y, logbook['data'][best_overall_agent]['cure_field'][curr_step], shading='auto', cmap='YlOrBr', vmin=0.0, vmax=1.0)
+            cbar1 = fig.colorbar(c1, ax=ax1)
+            cbar1.set_label('Degree Cure [-]', labelpad=20)
+            ax1.set_xlabel('X Position [cm]')
+            ax1.set_ylabel('Y Position [cm]')
+            ax1.set_aspect('equal', adjustable='box')
+            
+            # Plot input
+            c2 = ax2.pcolor(100.0*env.panels_x, 100.0*env.panels_y, 1.0e-6*input_panels, shading='auto', cmap='jet', vmin=0.0, vmax=1.0e-6*env.max_input_mag)
+            cbar2 = fig.colorbar(c2, ax=ax2)
+            cbar2.set_label('Input Heat Rate Density [MW/m^3]', labelpad=20)
+            ax2.set_xlabel('X Position [cm]')
+            ax2.set_ylabel('Y Position [cm]')
+            ax2.set_aspect('equal', adjustable='box')
+            
+            # Set title and save
+            title_str = "Time from Trigger: "+'{:.2f}'.format(curr_step*env.time_step)+'s'
+            fig.suptitle(title_str)
+            plt.savefig('results/PPO-Controller/videos/time_'+'{:.2f}'.format(curr_step*env.time_step)+'.png', dpi = 100)
             plt.close()
     
     print("Done!")
