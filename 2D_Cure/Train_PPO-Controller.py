@@ -9,6 +9,7 @@ import PPO_Agent_3_Output as ppo
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
+import gc
 
 def main(env, agent, total_trajectories, execution_rate, frame_multiplier):
 
@@ -99,11 +100,11 @@ def main(env, agent, total_trajectories, execution_rate, frame_multiplier):
                 curr_step = curr_step + 1
             
             # Update logs
-            if step_in_episode % (frame_multiplier*execution_rate) == 0 or done:
+            if step_in_episode % int(frame_multiplier*execution_rate) == 0 or done:
                 trajectory['input_location'].append(np.copy(env.input_location))
-                trajectory['temperature_field'].append(np.copy(env.temp_panels))
+                trajectory['temperature_field'].append(np.copy(env.temp_mesh))
                 trajectory['input_magnitude'].append(np.copy(env.input_magnitude))
-                trajectory['cure_field'].append(np.copy(env.cure_panels))
+                trajectory['cure_field'].append(np.copy(env.cure_mesh))
                 trajectory['front_location'].append(np.copy(env.front_loc))
                 trajectory['front_velocity'].append(np.copy(env.front_vel))
                 trajectory['target_velocity'].append(np.copy(env.current_target_front_vel))
@@ -173,13 +174,13 @@ if __name__ == '__main__':
     # Create environment
     random_target = False
     target_switch = False
-    control = True
+    control = False
     for_pd = False
     env = fes.FES(random_target=random_target, target_switch=target_switch, control=control, for_pd=for_pd)
-    num_states = int((env.num_panels_length//20) * (env.num_panels_width//20) + 2*env.num_panels_width//10 + 28)
+    num_states = ((env.num_vert_length-1)//9)*((env.num_vert_width-1)//5) + 25 + 2*((env.num_vert_width-1)//5) + 3
         
     # Set agent parameters
-    total_trajectories = 1
+    total_trajectories = 5000
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
@@ -187,10 +188,10 @@ if __name__ == '__main__':
     lamb = 0.95
     epsilon = 0.20
     start_alpha = 1.0e-3
-    end_alpha = 1.0e-4
+    end_alpha = 5.0e-4
     
     # Set rendering parameters
-    frame_multiplier = 20
+    frame_multiplier = 1.0/6.0
     dpi = 100
     
     # Calculated agent parameters
@@ -381,17 +382,18 @@ if __name__ == '__main__':
         # Calculate input field
         input_magnitude = logbook['data'][best_overall_agent]['input_magnitude'][curr_step]
         input_location = logbook['data'][best_overall_agent]['input_location'][curr_step]
-        input_panels = input_magnitude * env.max_input_mag * np.exp(((env.panels_x - input_location[0])**2 * env.exp_const) + 
-                                                                     (env.panels_y - input_location[1])**2 * env.exp_const)
-        input_panels[input_panels<0.01*env.max_input_mag] = 0.0
+        input_mesh = input_magnitude * env.max_input_mag * np.exp(((env.mesh_cens_x_cords - input_location[0])**2 * env.exp_const) + 
+                                                                      (env.mesh_cens_y_cords - input_location[1])**2 * env.exp_const)
+        input_mesh[input_mesh<0.01*env.max_input_mag] = 0.0
         
         # Make fig for temperature, cure, and input
+        plt.cla()
         plt.clf()
         fig, (ax0, ax1, ax2) = plt.subplots(3, 1)
         fig.set_size_inches(11,8.5)
         
         # Plot temperature
-        c0 = ax0.pcolor(100.0*env.panels_x, 100.0*env.panels_y, logbook['data'][best_overall_agent]['temperature_field'][curr_step], shading='auto', cmap='jet', vmin=min_temp, vmax=max_temp)
+        c0 = ax0.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, logbook['data'][best_overall_agent]['temperature_field'][curr_step], shading='auto', cmap='jet', vmin=min_temp, vmax=max_temp)
         cbar0 = fig.colorbar(c0, ax=ax0)
         cbar0.set_label('Temperature [K]', labelpad=20)
         ax0.set_xlabel('X Position [cm]')
@@ -399,7 +401,7 @@ if __name__ == '__main__':
         ax0.set_aspect('equal', adjustable='box')
         
         # Plot cure
-        c1 = ax1.pcolor(100.0*env.panels_x, 100.0*env.panels_y, logbook['data'][best_overall_agent]['cure_field'][curr_step], shading='auto', cmap='YlOrBr', vmin=0.0, vmax=1.0)
+        c1 = ax1.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, logbook['data'][best_overall_agent]['cure_field'][curr_step], shading='auto', cmap='YlOrBr', vmin=0.0, vmax=1.0)
         cbar1 = fig.colorbar(c1, ax=ax1)
         cbar1.set_label('Degree Cure [-]', labelpad=20)
         ax1.set_xlabel('X Position [cm]')
@@ -407,8 +409,8 @@ if __name__ == '__main__':
         ax1.set_aspect('equal', adjustable='box')
         
         # Plot input
-        c2 = ax2.pcolor(100.0*env.panels_x, 100.0*env.panels_y, 1.0e-6*input_panels, shading='auto', cmap='coolwarm', vmin=0.0, vmax=1.0e-6*env.max_input_mag)
-        ax2.plot(100.0*logbook['data'][best_overall_agent]['front_location'][curr_step].reshape(env.num_panels_width,1), 100.0*env.panels_y[0,:], 'k-', lw=1.5)
+        c2 = ax2.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, 1.0e-6*input_mesh, shading='auto', cmap='coolwarm', vmin=0.0, vmax=1.0e-6*env.max_input_mag)
+        ax2.plot(100.0*logbook['data'][best_overall_agent]['front_location'][curr_step].reshape(env.num_vert_width-1,1), 100.0*env.mesh_cens_y_cords[0,:], 'k-', lw=1.5)
         cbar2 = fig.colorbar(c2, ax=ax2)
         cbar2.set_label('Input Heat Rate Density [MW/m^3]', labelpad=20)
         ax2.set_xlabel('X Position [cm]')
@@ -420,5 +422,9 @@ if __name__ == '__main__':
         fig.suptitle(title_str)
         plt.savefig('results/PPO-Controller/video/time_'+'{:.2f}'.format(logbook['data'][best_overall_agent]['time'][curr_step])+'.png', dpi=dpi)
         plt.close()
+        
+        # Collect garbage
+        del input_magnitude, input_location, input_mesh, fig, ax0, ax1, ax2, c0, c1, c2, cbar0, cbar1, cbar2, title_str
+        gc.collect()
     
     print("Done!")

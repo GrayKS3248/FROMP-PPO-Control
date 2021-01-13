@@ -12,15 +12,15 @@ class FES():
     def __init__(self, for_pd=False, random_target=False, target_switch=False, control=False):
         
         # Environment spatial parameters 
-        self.num_panels_length = 400 # Must be multiple of 10
-        self.num_panels_width = 60 # Must be multiple of 10
+        self.num_vert_length = 181
+        self.num_vert_width = 31
         self.length = 0.06
         self.width = 0.01
         
         # Environment time parameters
         self.sim_duration = 360.0
         self.current_time = 0.0
-        self.time_step = 0.05
+        self.time_step = 0.1
         self.current_index = 0
         
         # Initial conditions
@@ -30,8 +30,8 @@ class FES():
         self.initial_cure_delta = 0.05 * self.initial_cure
         
         # Boundary conditions
-        self.htc = 8.0
-        self.ambient_temperature = 278.15
+        self.htc = 6.0
+        self.ambient_temperature = 294.15
         
         # Problem definition constants
         self.temperature_limit = 563.15
@@ -68,24 +68,32 @@ class FES():
         self.autocatalysis_const = 0.365
         self.thermal_diffusivity = self.thermal_conductivity / (self.specific_heat * self.density)
         
-        # Spatial panels
-        self.panels_y, self.panels_x = np.meshgrid(np.linspace(0.0,self.width,self.num_panels_width), np.linspace(0.0,self.length,self.num_panels_length))
-        self.step_size_x = self.panels_x[1][0]
-        self.step_size_y = self.panels_y[0][1]
+        # Create vertices of mesh
+        self.mesh_verts_y_coords, self.mesh_verts_x_coords = np.meshgrid(np.linspace(0.0,self.width,self.num_vert_width), np.linspace(0.0,self.length,self.num_vert_length))
         
-        # Temperature panels
-        self.temp_panels = np.ones((self.num_panels_length,self.num_panels_width))*self.initial_temperature
-        self.temp_panels = self.temp_panels + self.get_perturbation(self.temp_panels, self.initial_temp_delta)
+        # Define coordinates for center of each mesh panel
+        width_start = self.mesh_verts_y_coords[0,1] / 2.0
+        width_end = (self.width + self.mesh_verts_y_coords[0,-2]) / 2.0
+        num_cen_width = self.num_vert_width - 1
+        length_start = self.mesh_verts_x_coords[1,0] / 2.0
+        length_end = (self.length + self.mesh_verts_x_coords[-2,0]) / 2.0
+        num_cen_length = self.num_vert_length - 1
+        self.mesh_cens_y_cords, self.mesh_cens_x_cords = np.meshgrid(np.linspace(width_start, width_end, num_cen_width), np.linspace(length_start, length_end, num_cen_length))
+        self.x_step = self.mesh_cens_x_cords[1][0]
+        self.y_step = self.mesh_cens_y_cords[0][1]
         
-        # Cure panels
-        self.cure_panels = np.ones((self.num_panels_length,self.num_panels_width))*self.initial_cure
-        self.cure_panels = self.cure_panels + self.get_perturbation(self.cure_panels, self.initial_cure_delta)
+        # Init and perturb temperature and cure meshes
+        self.temp_mesh = np.ones(self.mesh_cens_x_cords.shape) * self.initial_temperature
+        self.temp_mesh = self.temp_mesh + self.get_perturbation(self.temp_mesh, self.initial_cure_delta)
+        self.cure_mesh = np.ones(self.mesh_cens_x_cords.shape) * self.initial_cure
+        self.cure_mesh = self.cure_mesh + self.get_perturbation(self.cure_mesh, self.initial_cure_delta)
         
         # Front parameters
-        self.front_loc = np.zeros(self.num_panels_width)
-        self.front_vel = np.zeros(self.num_panels_width)
-        self.time_front_last_moved = np.zeros(self.num_panels_width)
-        self.front_has_started = np.zeros(self.num_panels_width)
+        self.front_indices_y, self.front_indices_x = np.meshgrid(np.linspace(0,self.num_vert_width-2,self.num_vert_width-1), np.linspace(0,self.num_vert_length-3,self.num_vert_length-2))
+        self.front_loc = np.zeros(self.num_vert_width-1)
+        self.front_vel = np.zeros(self.num_vert_width-1)
+        self.time_front_last_moved = np.zeros(self.num_vert_width-1)
+        self.front_has_started = np.zeros(self.num_vert_width-1)
         
         # Input magnitude parameters
         if self.control:
@@ -94,7 +102,7 @@ class FES():
             self.max_input_mag = 2.5e7
         self.max_input_mag_rate = self.time_step
         self.input_magnitude = np.random.rand()
-        self.mag_scale = 0.083333333
+        self.mag_scale = 0.0227
         self.mag_offset = 0.5
         
         # Input distribution parameters
@@ -103,20 +111,20 @@ class FES():
         self.exp_const = -1.0 / (2.0 * sigma * sigma)
         
         # Input location parameters
-        self.min_input_x_loc = 0.0
-        self.max_input_x_loc = self.length
+        self.min_input_x_loc = self.mesh_cens_x_cords[0,0]
+        self.max_input_x_loc = self.mesh_cens_x_cords[-1,0]
         self.max_input_x_loc_rate = self.length * self.time_step
-        self.min_input_y_loc = 0.0
-        self.max_input_y_loc = self.width
+        self.min_input_y_loc = self.mesh_cens_y_cords[0,0]
+        self.max_input_y_loc = self.mesh_cens_y_cords[0,-1]
         self.max_input_y_loc_rate = self.length * self.time_step
-        self.input_location = np.array([np.random.choice(self.panels_x[:,0]), np.random.choice(self.panels_y[0,:])])
-        self.loc_rate_scale = 0.0006
+        self.input_location = np.array([np.random.choice(self.mesh_cens_x_cords[:,0]), np.random.choice(self.mesh_cens_y_cords[0,:])])
+        self.loc_rate_scale = 2.70e-4
         self.loc_rate_offset = 0.0
         
         # Input panels
-        self.input_panels = self.input_magnitude * self.max_input_mag * np.exp(((self.panels_x - self.input_location[0])**2 * self.exp_const) + 
-                                                                              (self.panels_y - self.input_location[1])**2 * self.exp_const)
-        self.input_panels[self.input_panels<0.01*self.max_input_mag] = 0.0
+        self.input_mesh = self.input_magnitude * self.max_input_mag * np.exp(((self.mesh_cens_x_cords - self.input_location[0])**2 * self.exp_const) + 
+                                                                                (self.mesh_cens_y_cords - self.input_location[1])**2 * self.exp_const)
+        self.input_mesh[self.input_mesh<0.01*self.max_input_mag] = 0.0
         
         # Reward constants
         self.max_reward = 2.0
@@ -165,19 +173,21 @@ class FES():
             input_x_location = np.clip(self.input_location[0] + x_location_rate_command * self.time_step, self.min_input_x_loc, self.max_input_x_loc)
             y_location_rate_command = np.clip(action[1], -self.max_input_y_loc_rate, self.max_input_y_loc_rate)
             input_y_location = np.clip(self.input_location[1] + y_location_rate_command * self.time_step, self.min_input_y_loc, self.max_input_y_loc)
-            self.input_location = np.array([input_x_location, input_y_location])
+            self.input_location[0] = input_x_location
+            self.input_location[1] = input_y_location
             
             # Update input's magnitude
             magnitude_rate_command = np.clip(action[2], -self.max_input_mag_rate, self.max_input_mag_rate)
             self.input_magnitude = np.clip(self.input_magnitude + magnitude_rate_command * self.time_step, 0.0, 1.0)
         
-        else:
+        elif not self.control:
             # Update the input's position
             x_location_rate_command = np.clip(self.loc_rate_offset + self.loc_rate_scale * action[0], -self.max_input_x_loc_rate, self.max_input_x_loc_rate)
             input_x_location = np.clip(self.input_location[0] + x_location_rate_command * self.time_step, self.min_input_x_loc, self.max_input_x_loc)
             y_location_rate_command = np.clip(self.loc_rate_offset + self.loc_rate_scale * action[1], -self.max_input_y_loc_rate, self.max_input_y_loc_rate)
             input_y_location = np.clip(self.input_location[1] + y_location_rate_command * self.time_step, self.min_input_y_loc, self.max_input_y_loc)
-            self.input_location = np.array([input_x_location, input_y_location])
+            self.input_location[0] = input_x_location
+            self.input_location[1] = input_y_location
             
             # Update the input's magnitude
             magnitude_command = self.mag_offset + self.mag_scale * action[2]
@@ -189,33 +199,31 @@ class FES():
                 self.input_magnitude = np.clip(self.input_magnitude, 0.0, self.max_input_mag)
 
         # Use the actions to define input thermal rate across entire spacial field
-        self.input_panels = self.input_magnitude * self.max_input_mag * np.exp(((self.panels_x - self.input_location[0])**2 * self.exp_const) + 
-                                                                              (self.panels_y - self.input_location[1])**2 * self.exp_const)
-        self.input_panels[self.input_panels<0.01*self.max_input_mag] = 0.0
+        self.input_mesh = self.input_magnitude * self.max_input_mag * np.exp(((self.mesh_cens_x_cords - self.input_location[0])**2 * self.exp_const) + 
+                                                                                (self.mesh_cens_y_cords - self.input_location[1])**2 * self.exp_const)
+        self.input_mesh[self.input_mesh<0.01*self.max_input_mag] = 0.0
         
     def step_cure(self):
         # Get the cure rate across the entire field based on the cure kinetics
-        cure_rate = ((self.pre_exponential * np.exp( (-self.activiation_energy) / (self.gas_const * self.temp_panels) )) *
-                    ((1 - self.cure_panels) ** self.model_fit_order) *
-                    (1 + self.autocatalysis_const * self.cure_panels))
+        cure_rate = ((self.pre_exponential * np.exp( (-self.activiation_energy) / (self.gas_const * self.temp_mesh) )) *
+                    ((1 - self.cure_mesh) ** self.model_fit_order) *
+                    (1 + self.autocatalysis_const * self.cure_mesh))
         
         # Update the cure field using forward Euler method
-        self.cure_panels = self.cure_panels + cure_rate * self.time_step
+        self.cure_mesh = self.cure_mesh + cure_rate * self.time_step
         
         # Return the cure rate
         return cure_rate
     
     def step_front(self):
         # Calculate the spatial cure derivative
-        cure_diff = -1.0*np.diff(self.cure_panels,axis=0)/self.step_size_x
-            
+        front_mesh = self.cure_mesh[0:-1,:]>=0.80
+        
         # Find the furthest right points in each row that meet the spatial cure derivative threshold
-        for curr_row in range(self.num_panels_width):
-            
-            # Find the indices which meet front definitions
-            front_indices = np.flatnonzero(cure_diff[:,curr_row]>=400.0)
+        for curr_row in range(self.num_vert_width-1):
+            front_indices = self.front_indices_x[:,curr_row][front_mesh[:,curr_row]]
             if len(front_indices) > 0: 
-                new_front_loc = self.panels_x[front_indices[-1], curr_row]
+                new_front_loc = self.mesh_cens_x_cords[int(front_indices[-1]), curr_row]
                     
                 # Only update front rows that have moved
                 if new_front_loc != self.front_loc[curr_row]:
@@ -235,51 +243,52 @@ class FES():
     def step_temperature(self, cure_rate):
        
         # Calculate the trigger boundary condition
-        trigger_q = np.zeros(self.temp_panels[0,:].shape)
+        trigger_q = np.zeros(self.temp_mesh[0,:].shape)
         if self.current_time >= self.trigger_time and self.current_time < self.trigger_time + self.trigger_duration:
             trigger_q[:] = self.trigger_heat_rate_flux
         
         # Calculate the heat transfer boundaray condition [W/m^3]
-        left_dT_dx = -(self.htc / self.thermal_conductivity) * (self.ambient_temperature - self.temp_panels[0,:]) - (trigger_q / self.thermal_conductivity)
-        right_dT_dx = (self.htc / self.thermal_conductivity) * (self.ambient_temperature - self.temp_panels[-1,:])
-        top_dT_dy = (self.htc / self.thermal_conductivity) * (self.ambient_temperature - self.temp_panels[:,-1])
-        bottom_dT_dy = -(self.htc / self.thermal_conductivity) * (self.ambient_temperature - self.temp_panels[:,0])
+        left_dT_dx = -(self.htc / self.thermal_conductivity) * (self.ambient_temperature - self.temp_mesh[0,:]) - (trigger_q / self.thermal_conductivity)
+        right_dT_dx = (self.htc / self.thermal_conductivity) * (self.ambient_temperature - self.temp_mesh[-1,:])
+        top_dT_dy = (self.htc / self.thermal_conductivity) * (self.ambient_temperature - self.temp_mesh[:,-1])
+        bottom_dT_dy = -(self.htc / self.thermal_conductivity) * (self.ambient_temperature - self.temp_mesh[:,0])
         
         # Calculate the first derivative of the temperature field with respect to x and append the boundary conditions
-        dT_dx = np.diff(self.temp_panels,axis=0)/self.step_size_x
-        dT_dx = np.insert(dT_dx, 0, left_dT_dx, axis=0)
-        dT_dx = np.insert(dT_dx, len(dT_dx[:,0]), right_dT_dx, axis=0)
+        dT_dx = np.zeros((self.num_vert_length,self.num_vert_width-1))
+        dT_dx[0,:] = left_dT_dx
+        dT_dx[-1,:] = right_dT_dx
+        dT_dx[1:-1,:] = np.diff(self.temp_mesh,axis=0)/self.x_step
         
         # Calculate the second derivative of the temperature field with respect to x
-        dT2_dx2 = np.diff(dT_dx,axis=0)/self.step_size_x
+        dT2_dx2 = np.diff(dT_dx,axis=0)/self.x_step
         
         # Calculate the first derivative of the temperature field with respect to y and append the boundary conditions
-        dT_dy = np.diff(self.temp_panels,axis=1)/self.step_size_y
-        dT_dy = np.insert(dT_dy, 0, bottom_dT_dy, axis=1)
-        dT_dy = np.insert(dT_dy, len(dT_dy[0,:]), top_dT_dy, axis=1)
+        dT_dy = np.zeros((self.num_vert_length-1,self.num_vert_width))
+        dT_dy[:,0] = bottom_dT_dy
+        dT_dy[:,-1] = top_dT_dy
+        dT_dy[:,1:-1] = np.diff(self.temp_mesh,axis=1)/self.y_step
         
         # Calculate the second derivative of the temperature field with respect to y
-        dT2_dy2 = np.diff(dT_dy,axis=1)/self.step_size_y
+        dT2_dy2 = np.diff(dT_dy,axis=1)/self.y_step
        
         # Calculate the temperature laplacian 
         del_sq_T = dT2_dx2 + dT2_dy2
 
         # Calculate the total interal heat rate density [W/m^3]
         cure_q = self.enthalpy_of_reaction * self.density * cure_rate
-        input_q = self.input_panels
-        total_q = cure_q + input_q
+        total_q = cure_q + self.input_mesh
         
         # Calculate the temperature rate field
-        temp_panels_rate = self.thermal_diffusivity*del_sq_T + (self.thermal_diffusivity/self.thermal_conductivity)*total_q
+        temp_rate = self.thermal_diffusivity*del_sq_T + (self.thermal_diffusivity/self.thermal_conductivity)*total_q
         
         # Update the temperature field using forward Euler method
-        self.temp_panels = self.temp_panels + temp_panels_rate * self.time_step
+        self.temp_mesh = self.temp_mesh + temp_rate * self.time_step
             
         # Check for unstable growth
-        if((self.temp_panels >= self.stab_lim).any() or (self.temp_panels <= -self.stab_lim).any()):
-            raise RuntimeError('Unstable growth detected. Increase temporal precision, decrease spatial precision, or lower thermal conductivity')
+        if((self.temp_mesh >= self.stab_lim).any() or (self.temp_mesh <= -self.stab_lim).any()):
+            raise RuntimeError('Unstable growth detected.')
 
-        return temp_panels_rate
+        return temp_rate
 
     def blockshaped(self, arr, nrows, ncols):
         h, w = arr.shape
@@ -293,14 +302,14 @@ class FES():
         # Check if the finite element solver is set up for a ppo or pd controller
         if self.for_pd:
             # Get the average temperature and temperature rates of self.num_panels/10 even segments across entire length
-            average_temps = np.mean(self.blockshaped(self.temp_panels,self.num_panels_length//20,self.num_panels_width//20),axis=0)
+            average_temps = np.mean(self.blockshaped(self.temp_mesh,(self.num_vert_length-1)//9,(self.num_vert_width-1)//5),axis=0)
             average_temps = average_temps.reshape(np.size(average_temps))
-            average_temp_rates = np.mean(self.blockshaped(temp_rate,self.num_panels_length//20,self.num_panels_width//20),axis=0)
+            average_temp_rates = np.mean(self.blockshaped(temp_rate,(self.num_vert_length-1)//9,(self.num_vert_width-1)//5),axis=0)
             average_temp_rates = average_temp_rates.reshape(np.size(average_temp_rates))
             
             # Compress front location and velocity data
-            average_front_loc = np.mean(self.front_loc.reshape(self.num_panels_width//10,10),axis=1)
-            average_front_vel = np.mean(self.front_vel.reshape(self.num_panels_width//10,10),axis=1)
+            average_front_loc = np.mean(self.front_loc.reshape((self.num_vert_width-1)//5,5),axis=1)
+            average_front_vel = np.mean(self.front_vel.reshape((self.num_vert_width-1)//5,5),axis=1)
             
             # Get the input location and magnitude rates
             input_x_location_rate = np.clip(action[0], -self.max_input_x_loc_rate, self.max_input_x_loc_rate)
@@ -314,27 +323,34 @@ class FES():
             
         else:
             # Get the average temperature in even areas across entire field
-            average_temps = np.mean(self.blockshaped(self.temp_panels,self.num_panels_length//20,self.num_panels_width//20),axis=0)
+            average_temps = np.mean(self.blockshaped(self.temp_mesh,(self.num_vert_length-1)//9,(self.num_vert_width-1)//5),axis=0)
             average_temps = average_temps.reshape(np.size(average_temps))
             
-            # TODO Does not work when laser is close to edges
             # Find the area over which the laser can see
-            x_min = np.argmin(abs(self.panels_x[:,0] - self.input_location[0] + self.radius_of_input))
-            x_max = np.argmin(abs(self.panels_x[:,0] - self.input_location[0] - self.radius_of_input))
+            x_min = np.argmin(abs(self.mesh_cens_x_cords[:,0] - self.input_location[0] + self.radius_of_input))
+            x_max = np.argmin(abs(self.mesh_cens_x_cords[:,0] - self.input_location[0] - self.radius_of_input))
             x_max = x_max - (x_max-x_min)%5
             if x_max == x_min:
-                print("")
-            y_min = np.argmin(abs(self.panels_y[0,:] - self.input_location[1] + self.radius_of_input))
-            y_max = np.argmin(abs(self.panels_y[0,:] - self.input_location[1] - self.radius_of_input))
+                if x_max - 5 >= 0 :
+                    x_min = x_max - 5
+                else:
+                    x_max = x_min + 5
+            y_min = np.argmin(abs(self.mesh_cens_y_cords[0,:] - self.input_location[1] + self.radius_of_input))
+            y_max = np.argmin(abs(self.mesh_cens_y_cords[0,:] - self.input_location[1] - self.radius_of_input))
             y_max = y_max - (y_max-y_min)%5
-    
+            if y_max == y_min:
+                if y_max - 5 >= 0 :
+                    y_min = y_max - 5
+                else:
+                    y_max = y_min + 5
+                    
             # Calculate average temperature blocks (5X5) in laser view
-            laser_view = np.mean(self.blockshaped(self.temp_panels[x_min:x_max,y_min:y_max],5,5),axis=0)
+            laser_view = np.mean(self.blockshaped(self.temp_mesh[x_min:x_max,y_min:y_max],5,5),axis=0)
             laser_view = laser_view.reshape(np.size(laser_view))
             
             # Compress front location and velocity data
-            average_front_loc = np.mean(self.front_loc.reshape(self.num_panels_width//10,10),axis=1)
-            average_front_vel = np.mean(self.front_vel.reshape(self.num_panels_width//10,10),axis=1)
+            average_front_loc = np.mean(self.front_loc.reshape((self.num_vert_width-1)//5,5),axis=1)
+            average_front_vel = np.mean(self.front_vel.reshape((self.num_vert_width-1)//5,5),axis=1)
             
             # Normalize and concatenate all substates
             state = np.concatenate((average_temps/self.temperature_limit, 
@@ -353,9 +369,9 @@ class FES():
             input_punishment = 0.0
         else:
             input_punishment = -self.input_punishment_const * self.max_reward * (self.input_magnitude / self.max_input_mag)
-        overage_punishment =  -self.overage_punishment_const * self.max_reward * (np.max(self.temp_panels) >= self.temperature_limit)
-        integral = np.trapz(self.temp_panels, x=self.panels_x, axis=0)
-        integral = np.trapz(integral, x=self.panels_y[0,:])
+        overage_punishment =  -self.overage_punishment_const * self.max_reward * (np.max(self.temp_mesh) >= self.temperature_limit)
+        integral = np.trapz(self.temp_mesh, x=self.mesh_cens_x_cords, axis=0)
+        integral = np.trapz(integral, x=self.mesh_cens_y_cords[0,:])
         integral_punishment = -self.integral_punishment_const * self.max_reward * (1.0 - (self.max_integral - integral) / (self.integral_delta))
         punishment = input_punishment + overage_punishment + integral_punishment
         
@@ -391,10 +407,10 @@ class FES():
         self.step_input(action)
         cure_rate = self.step_cure()
         self.step_front()
-        temp_panels_rate = self.step_temperature(cure_rate)
+        temp_rate = self.step_temperature(cure_rate)
         
         # Get state and reward
-        state = self.get_state(temp_panels_rate, action)
+        state = self.get_state(temp_rate, action)
         reward = self.get_reward()
         
         # Step time
@@ -420,28 +436,26 @@ class FES():
         
         # Reset input
         self.input_magnitude = np.random.rand()
-        self.input_location = np.array([np.random.choice(self.panels_x[:,0]), np.random.choice(self.panels_y[0])])
+        self.input_location = np.array([np.random.choice(self.mesh_cens_x_cords[:,0]), np.random.choice(self.mesh_cens_y_cords[0,:])])
         
-        # Temperature panels
-        self.temp_panels = np.ones((self.num_panels_length,self.num_panels_width))*self.initial_temperature
-        self.temp_panels = self.temp_panels + self.get_perturbation(self.temp_panels, self.initial_temp_delta)
-        
-        # Cure panels
-        self.cure_panels = np.ones((self.num_panels_length,self.num_panels_width))*self.initial_cure
-        self.cure_panels = self.cure_panels + self.get_perturbation(self.cure_panels, self.initial_cure_delta)
+        # Temperature and cure mesh
+        self.temp_mesh = np.ones(self.mesh_cens_x_cords.shape) * self.initial_temperature
+        self.temp_mesh = self.temp_mesh + self.get_perturbation(self.temp_mesh, self.initial_cure_delta)
+        self.cure_mesh = np.ones(self.mesh_cens_x_cords.shape) * self.initial_cure
+        self.cure_mesh = self.cure_mesh + self.get_perturbation(self.cure_mesh, self.initial_cure_delta)
         
         # Reset input panels
-        self.input_panels = self.input_magnitude * self.max_input_mag * np.exp(((self.panels_x - self.input_location[0])**2 * self.exp_const) + 
-                                                                              (self.panels_y - self.input_location[1])**2 * self.exp_const)
-        self.input_panels[self.input_panels<0.01*self.max_input_mag] = 0.0
+        self.input_mesh = self.input_magnitude * self.max_input_mag * np.exp(((self.mesh_cens_x_cords - self.input_location[0])**2 * self.exp_const) + 
+                                                                                (self.mesh_cens_y_cords - self.input_location[1])**2 * self.exp_const)
+        self.input_mesh[self.input_mesh<0.01*self.max_input_mag] = 0.0
         
         # Front parameters
-        self.front_loc = np.zeros(self.num_panels_width)
-        self.front_vel = np.zeros(self.num_panels_width)
-        self.time_front_last_moved = np.zeros(self.num_panels_width)
-        self.front_has_started = np.zeros(self.num_panels_width)
+        self.front_loc = np.zeros(self.num_vert_width-1)
+        self.front_vel = np.zeros(self.num_vert_width-1)
+        self.time_front_last_moved = np.zeros(self.num_vert_width-1)
+        self.front_has_started = np.zeros(self.num_vert_width-1)
         
         # Return the initial state
-        temp_rate = np.zeros((len(self.temp_panels), len(self.temp_panels[0])))
+        temp_rate = np.zeros((len(self.temp_mesh), len(self.temp_mesh[0])))
         action = np.array([0.0, 0.0, 0.0])
         return self.get_state(temp_rate, action)
