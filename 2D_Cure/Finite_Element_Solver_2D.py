@@ -128,10 +128,10 @@ class FES():
         
         # Reward constants
         self.max_reward = 2.0
-        self.input_punishment_const = 0.10
-        self.overage_punishment_const = 0.25
-        self.integral_punishment_const = 0.10
-        self.front_shape_const = 0.50 / self.width
+        self.input_punishment_const = 0.075
+        self.overage_punishment_const = 0.20
+        self.integral_punishment_const = 0.075
+        self.front_shape_const = 0.25 / self.width
         self.max_integral = self.length * self.width * self.temperature_limit
         self.integral_delta = self.max_integral - self.length * self.width * self.initial_temperature
         
