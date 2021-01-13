@@ -131,6 +131,7 @@ class FES():
         self.input_punishment_const = 0.10
         self.overage_punishment_const = 0.25
         self.integral_punishment_const = 0.10
+        self.front_shape_const = 0.50 / self.width
         self.max_integral = self.length * self.width * self.temperature_limit
         self.integral_delta = self.max_integral - self.length * self.width * self.initial_temperature
         
@@ -368,23 +369,20 @@ class FES():
         if self.control:
             input_punishment = 0.0
         else:
-            input_punishment = -self.input_punishment_const * self.max_reward * (self.input_magnitude / self.max_input_mag)
+            input_punishment = -self.input_punishment_const * self.max_reward * self.input_magnitude
         overage_punishment =  -self.overage_punishment_const * self.max_reward * (np.max(self.temp_mesh) >= self.temperature_limit)
         integral = np.trapz(self.temp_mesh, x=self.mesh_cens_x_cords, axis=0)
         integral = np.trapz(integral, x=self.mesh_cens_y_cords[0,:])
         integral_punishment = -self.integral_punishment_const * self.max_reward * (1.0 - (self.max_integral - integral) / (self.integral_delta))
-        punishment = input_punishment + overage_punishment + integral_punishment
+        front_shape_punishment = -self.front_shape_const * np.mean(abs(self.front_loc-np.mean(self.front_loc)))
+        punishment = input_punishment + overage_punishment + integral_punishment + front_shape_punishment
         
         # Calculate the reward based on the punishments and the front rate error
         mean_front_vel = np.mean(abs(self.front_vel - self.current_target_front_vel) / (self.current_target_front_vel))
         if mean_front_vel <= 0.05:
             front_rate_reward = self.max_reward
         elif mean_front_vel <= 0.10:
-            front_rate_reward = 0.25*self.max_reward
-        elif mean_front_vel <= 0.25:
-            front_rate_reward = 0.10*self.max_reward
-        elif mean_front_vel <= 0.50:
-            front_rate_reward = 0.01*self.max_reward
+            front_rate_reward = 0.50*self.max_reward
         else:
             front_rate_reward = -0.10*self.max_reward
         reward = front_rate_reward + punishment

@@ -180,7 +180,7 @@ if __name__ == '__main__':
     num_states = ((env.num_vert_length-1)//9)*((env.num_vert_width-1)//5) + 25 + 2*((env.num_vert_width-1)//5) + 3
         
     # Set agent parameters
-    total_trajectories = 5000
+    total_trajectories = 1000
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
@@ -188,7 +188,7 @@ if __name__ == '__main__':
     lamb = 0.95
     epsilon = 0.20
     start_alpha = 1.0e-3
-    end_alpha = 5.0e-4
+    end_alpha = 1.0e-3
     
     # Set rendering parameters
     frame_multiplier = 1.0/6.0
