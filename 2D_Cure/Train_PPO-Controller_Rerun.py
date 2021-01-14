@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import pickle
 import gc
 
-def main(env, agent, total_trajectories, execution_rate, frame_multiplier):
+def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
 
     # Create dict to store data from simulation
     data = {
@@ -58,18 +58,18 @@ def main(env, agent, total_trajectories, execution_rate, frame_multiplier):
         # User readout
         if curr_episode >= 1:
             print_str = (('{:03.1f}'.format(100.0 * percent_complete) + "% Complete").ljust(16) + 
-                ("| Traj: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(21) + 
-                ("| R/Step: " + '{:.2f}'.format(data['r_per_episode'][-1])).ljust(20) + 
-                ("| Avg_R/Step: " + '{:.2f}'.format(data['r_per_step'][-1])).ljust(24) + 
+                ("| Traj: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(20) + 
+                ("| R/Step: " + '{:.2f}'.format(data['r_per_episode'][-1])).ljust(16) + 
+                ("| Avg_R/Step: " + '{:.2f}'.format(np.mean(data['r_per_episode'][-100:]))).ljust(20) + 
                 ("| Best R: " + '{:.1f}'.format(best_episode)).ljust(17) + 
-                ("| Avg R: " + '{:.1f}'.format(r_total / curr_episode)).ljust(16) + 
+                ("| Avg R: " + '{:.1f}'.format(np.mean(data['r_per_episode'][-100:])*agent.steps_per_trajectory)).ljust(16) + 
                 "|")
             print(print_str, end="\r", flush=True)
         else:
             print_str = (('{:03.1f}'.format(100.0 * percent_complete) + "% Complete").ljust(16) + 
-                ("| Traj: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(21) + 
-                ("| R/Step: " + '{:.2f}'.format(0.0)).ljust(20) + 
-                ("| Avg_R/Step: " + '{:.2f}'.format(0.0)).ljust(24) + 
+                ("| Traj: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(20) + 
+                ("| R/Step: " + '{:.2f}'.format(0.0)).ljust(16) + 
+                ("| Avg_R/Step: " + '{:.2f}'.format(0.0)).ljust(20) + 
                 ("| Best R: " + '{:.1f}'.format(best_episode)).ljust(17) + 
                 ("| Avg R: " + '{:.1f}'.format(0.0)).ljust(16) + 
                 "|")
@@ -148,22 +148,13 @@ def main(env, agent, total_trajectories, execution_rate, frame_multiplier):
         
     # User readout
     percent_complete = 1.0
-    if curr_episode > 0:
-        print_str = (("100.0% Complete").ljust(16) + 
-            ("| Traj: " + str(total_trajectories) + "/" + str(total_trajectories)).ljust(21) + 
-            ("| R/Step: " + '{:.2f}'.format(data['r_per_episode'][-1])).ljust(20) + 
-            ("| Avg_R/Step: " + '{:.2f}'.format(data['r_per_step'][-1])).ljust(24) + 
-            ("| Best R: " + '{:.1f}'.format(best_episode)).ljust(17) + 
-            ("| Avg R: " + '{:.1f}'.format(r_total / curr_episode)).ljust(16) + 
-            "|")
-    else:
-        print_str = (("100.0% Complete").ljust(16) + 
-            ("| Traj: " + str(total_trajectories) + "/" + str(total_trajectories)).ljust(21) + 
-            ("| R/Step: " + '{:.2f}'.format(data['r_per_episode'][-1])).ljust(20) + 
-            ("| Avg_R/Step: " + '{:.2f}'.format(data['r_per_step'][-1])).ljust(24) + 
-            ("| Best R: " + '{:.1f}'.format(best_episode)).ljust(17) + 
-            ("| Avg R: " + '{:.1f}'.format(r_total)).ljust(16) + 
-            "|")     
+    print_str = (('{:03.1f}'.format(100.0 * percent_complete) + "% Complete").ljust(16) + 
+        ("| Traj: " + str(curr_episode+1) + "/" + str(total_trajectories)).ljust(20) + 
+        ("| R/Step: " + '{:.2f}'.format(data['r_per_episode'][-1])).ljust(16) + 
+        ("| Avg_R/Step: " + '{:.2f}'.format(np.mean(data['r_per_episode'][-100:]))).ljust(20) + 
+        ("| Best R: " + '{:.1f}'.format(best_episode)).ljust(17) + 
+        ("| Avg R: " + '{:.1f}'.format(np.mean(data['r_per_episode'][-100:])*agent.steps_per_trajectory)).ljust(16) + 
+        "|")
     print(print_str, end="\n", flush=True)
     
     return data, agent, env
@@ -179,15 +170,15 @@ if __name__ == '__main__':
         
     # Agent parameters
     num_agents = 1
-    total_trajectories = 50000
+    total_trajectories = 5000
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    start_alpha = 1.0e-3
-    end_alpha = 1.0e-5
+    start_alpha = 7.5e-4
+    end_alpha = 5.0e-4
     
     # Rendering parameters
     frame_multiplier = 1.0/6.0
@@ -224,7 +215,7 @@ if __name__ == '__main__':
         print("Agent " + str(curr_agent+1) + " / " + str(num_agents))
         agent = ppo.PPO_Agent(num_states, steps_per_trajecotry, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, start_alpha, decay_rate)
         agent.copy(old_agent)
-        data, agent, env = main(env, agent, total_trajectories, execution_rate, frame_multiplier)
+        data, agent, env = run(env, agent, total_trajectories, execution_rate, frame_multiplier)
         logbook['data'].append(data)
         logbook['agents'].append(agent)
         logbook['envs'].append(env)
