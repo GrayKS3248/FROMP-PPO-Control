@@ -171,16 +171,15 @@ def main(env, agent, total_trajectories, execution_rate, frame_multiplier):
 
 if __name__ == '__main__':
     
-    # Create environment
+    # Environment parameters
     random_target = False
     target_switch = False
     control = False
     for_pd = False
-    env = fes.FES(random_target=random_target, target_switch=target_switch, control=control, for_pd=for_pd)
-    num_states = ((env.num_vert_length-1)//9)*((env.num_vert_width-1)//5) + 25 + 2*((env.num_vert_width-1)//5) + 3
         
-    # Set agent parameters
-    total_trajectories = 1000
+    # Agent parameters
+    num_agents = 1
+    total_trajectories = 50000
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
@@ -188,13 +187,15 @@ if __name__ == '__main__':
     lamb = 0.95
     epsilon = 0.20
     start_alpha = 1.0e-3
-    end_alpha = 1.0e-3
+    end_alpha = 1.0e-5
     
-    # Set rendering parameters
+    # Rendering parameters
     frame_multiplier = 1.0/6.0
     dpi = 100
     
-    # Calculated agent parameters
+    # Calculated env and agent parameters
+    env = fes.FES(random_target=random_target, target_switch=target_switch, control=control, for_pd=for_pd)
+    num_states = ((env.num_vert_length-1)//9)*((env.num_vert_width-1)//5) + 25 + 2*((env.num_vert_width-1)//5) + 3
     decay_rate = (end_alpha/start_alpha)**(trajectories_per_batch/total_trajectories)
     agent_temporal_precision = (env.sim_duration / float(steps_per_trajecotry))
     execution_rate = int(agent_temporal_precision / env.time_step)
@@ -205,7 +206,6 @@ if __name__ == '__main__':
         raise RuntimeError("Agent execution rate is not multiple of simulation rate")
         
     # Simulation parameters
-    num_agents = 1
     logbook = {
         'data': [],
         'agents': [],

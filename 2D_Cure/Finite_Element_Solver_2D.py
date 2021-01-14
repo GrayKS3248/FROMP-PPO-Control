@@ -113,10 +113,9 @@ class FES():
         # Input location parameters
         self.min_input_x_loc = self.mesh_cens_x_cords[0,0]
         self.max_input_x_loc = self.mesh_cens_x_cords[-1,0]
-        self.max_input_x_loc_rate = self.length * self.time_step
         self.min_input_y_loc = self.mesh_cens_y_cords[0,0]
         self.max_input_y_loc = self.mesh_cens_y_cords[0,-1]
-        self.max_input_y_loc_rate = self.length * self.time_step
+        self.max_input_loc_rate = self.length * self.time_step
         self.input_location = np.array([np.random.choice(self.mesh_cens_x_cords[:,0]), np.random.choice(self.mesh_cens_y_cords[0,:])])
         self.loc_rate_scale = 2.70e-4
         self.loc_rate_offset = 0.0
@@ -128,10 +127,11 @@ class FES():
         
         # Reward constants
         self.max_reward = 2.0
-        self.input_punishment_const = 0.075
-        self.overage_punishment_const = 0.20
-        self.integral_punishment_const = 0.075
-        self.front_shape_const = 0.25 / self.width
+        self.front_rate_reward_const = 10.0*self.max_reward**(1.0/3.0)/(6.82985986)
+        self.input_punishment_const = 0.10
+        self.overage_punishment_const = 0.10
+        self.integral_punishment_const = 0.10
+        self.front_shape_const = 0.10 / self.width
         self.max_integral = self.length * self.width * self.temperature_limit
         self.integral_delta = self.max_integral - self.length * self.width * self.initial_temperature
         
@@ -183,12 +183,10 @@ class FES():
         
         elif not self.control:
             # Update the input's position
-            x_location_rate_command = np.clip(self.loc_rate_offset + self.loc_rate_scale * action[0], -self.max_input_x_loc_rate, self.max_input_x_loc_rate)
-            input_x_location = np.clip(self.input_location[0] + x_location_rate_command * self.time_step, self.min_input_x_loc, self.max_input_x_loc)
-            y_location_rate_command = np.clip(self.loc_rate_offset + self.loc_rate_scale * action[1], -self.max_input_y_loc_rate, self.max_input_y_loc_rate)
-            input_y_location = np.clip(self.input_location[1] + y_location_rate_command * self.time_step, self.min_input_y_loc, self.max_input_y_loc)
-            self.input_location[0] = input_x_location
-            self.input_location[1] = input_y_location
+            cmd = self.loc_rate_offset + self.loc_rate_scale * action[0:2]
+            cmd.clip(-self.max_input_loc_rate, self.max_input_loc_rate, out=cmd)
+            self.input_location = self.input_location + cmd * self.time_step
+            self.input_location.clip(np.array([0.0, 0.0]), np.array([self.length, self.width]), out=self.input_location)
             
             # Update the input's magnitude
             magnitude_command = self.mag_offset + self.mag_scale * action[2]
@@ -196,12 +194,11 @@ class FES():
                 self.input_magnitude = np.clip(min(self.input_magnitude + self.max_input_mag_rate, magnitude_command), 0.0, 1.0)
             elif magnitude_command < self.input_magnitude:
                 self.input_magnitude = np.clip(max(self.input_magnitude - self.max_input_mag_rate, magnitude_command), 0.0, 1.0)
-            else:
-                self.input_magnitude = np.clip(self.input_magnitude, 0.0, self.max_input_mag)
-
+                
         # Use the actions to define input thermal rate across entire spacial field
-        self.input_mesh = self.input_magnitude * self.max_input_mag * np.exp(((self.mesh_cens_x_cords - self.input_location[0])**2 * self.exp_const) + 
-                                                                                (self.mesh_cens_y_cords - self.input_location[1])**2 * self.exp_const)
+        x=(self.mesh_cens_x_cords-self.input_location[0])
+        y=(self.mesh_cens_y_cords-self.input_location[1])
+        self.input_mesh = self.input_magnitude*self.max_input_mag * np.exp( self.exp_const*(x*x + y*y) )
         self.input_mesh[self.input_mesh<0.01*self.max_input_mag] = 0.0
         
     def step_cure(self):
@@ -313,8 +310,8 @@ class FES():
             average_front_vel = np.mean(self.front_vel.reshape((self.num_vert_width-1)//5,5),axis=1)
             
             # Get the input location and magnitude rates
-            input_x_location_rate = np.clip(action[0], -self.max_input_x_loc_rate, self.max_input_x_loc_rate)
-            input_y_location_rate = np.clip(action[1], -self.max_input_y_loc_rate, self.max_input_y_loc_rate)
+            input_x_location_rate = np.clip(action[0], -self.max_input_loc_rate, self.max_input_loc_rate)
+            input_y_location_rate = np.clip(action[1], -self.max_input_loc_rate, self.max_input_loc_rate)
             
             # Normalize and concatenate all substates
             state = np.concatenate((average_temps, average_temp_rates,
@@ -327,17 +324,21 @@ class FES():
             average_temps = np.mean(self.blockshaped(self.temp_mesh,(self.num_vert_length-1)//9,(self.num_vert_width-1)//5),axis=0)
             average_temps = average_temps.reshape(np.size(average_temps))
             
-            # Find the area over which the laser can see
-            x_min = np.argmin(abs(self.mesh_cens_x_cords[:,0] - self.input_location[0] + self.radius_of_input))
-            x_max = np.argmin(abs(self.mesh_cens_x_cords[:,0] - self.input_location[0] - self.radius_of_input))
+            # Find the x coords over which the laser can see
+            x_loc = self.mesh_cens_x_cords[:,0] - self.input_location[0]
+            x_min = np.argmin(abs(x_loc + self.radius_of_input))
+            x_max = np.argmin(abs(x_loc - self.radius_of_input))
             x_max = x_max - (x_max-x_min)%5
             if x_max == x_min:
                 if x_max - 5 >= 0 :
                     x_min = x_max - 5
                 else:
                     x_max = x_min + 5
-            y_min = np.argmin(abs(self.mesh_cens_y_cords[0,:] - self.input_location[1] + self.radius_of_input))
-            y_max = np.argmin(abs(self.mesh_cens_y_cords[0,:] - self.input_location[1] - self.radius_of_input))
+                    
+            # Find the x coords over which the laser can see
+            y_loc = self.mesh_cens_y_cords[0,:] - self.input_location[1]
+            y_min = np.argmin(abs(y_loc + self.radius_of_input))
+            y_max = np.argmin(abs(y_loc - self.radius_of_input))
             y_max = y_max - (y_max-y_min)%5
             if y_max == y_min:
                 if y_max - 5 >= 0 :
@@ -375,16 +376,13 @@ class FES():
         integral = np.trapz(integral, x=self.mesh_cens_y_cords[0,:])
         integral_punishment = -self.integral_punishment_const * self.max_reward * (1.0 - (self.max_integral - integral) / (self.integral_delta))
         front_shape_punishment = -self.front_shape_const * np.mean(abs(self.front_loc-np.mean(self.front_loc)))
-        punishment = input_punishment + overage_punishment + integral_punishment + front_shape_punishment
+        punishment = max(input_punishment + overage_punishment + integral_punishment + front_shape_punishment, -self.max_reward)
         
-        # Calculate the reward based on the punishments and the front rate error
-        mean_front_vel = np.mean(abs(self.front_vel - self.current_target_front_vel) / (self.current_target_front_vel))
-        if mean_front_vel <= 0.05:
-            front_rate_reward = self.max_reward
-        elif mean_front_vel <= 0.10:
-            front_rate_reward = 0.50*self.max_reward
-        else:
-            front_rate_reward = -0.10*self.max_reward
+        # Calculate the reward
+        mean_front_vel_error = min(np.mean(abs(self.front_vel - self.current_target_front_vel) / (self.current_target_front_vel)), 1.0)
+        front_rate_reward = ((0.682985986 - mean_front_vel_error) * self.front_rate_reward_const)**3.0
+        
+        # Sum reward and punishment
         reward = front_rate_reward + punishment
 
         # Return the calculated reward
