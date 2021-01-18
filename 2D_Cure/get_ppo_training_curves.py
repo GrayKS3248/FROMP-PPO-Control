@@ -11,18 +11,18 @@ import pickle
 
 # Save path
 path = 'PPO-Results'
-n_trainings = 3
+n_trainings = 4
 
 # Load actor data
-data_set = []
+data_set = np.array([])
 for current_training_session in range(n_trainings):
     current_folder = "ppo_" + str(current_training_session+1)
     with open("results/"+current_folder+"/output", 'rb') as file:
         data = pickle.load(file)  
-    data_set.append(data['logbook']['data'][0]['r_per_episode'])
+    data_set = np.append(data_set, data['logbook']['data'][0]['r_per_episode'])
     
 # Format data
-data_set = np.array(data_set).reshape(1,np.array(data_set).size).squeeze()
+data_set = data_set.squeeze()
 
 # Process actor data
 ts = pd.Series(data_set)
@@ -173,15 +173,15 @@ plt.savefig('results/'+path+'/actor_mean_std_100.png', dpi = 500)
 plt.close()
 
 # Load critic data
-data_set = []
+data_set = np.array([])
 for current_training_session in range(n_trainings):
     current_folder = "ppo_" + str(current_training_session+1)
     with open("results/"+current_folder+"/output", 'rb') as file:
         data = pickle.load(file)  
-    data_set.append(data['logbook']['data'][0]['value_error'][0])
+    data_set = np.append(data_set, data['logbook']['data'][0]['value_error'])
     
 # Format data
-data_set = np.array(data_set).reshape(1,np.array(data_set).size).squeeze()
+data_set = data_set.squeeze()
 
 # Plot critic data
 plt.clf()
@@ -206,15 +206,15 @@ plt.savefig('results/'+path+'/critic_log.png', dpi = 500)
 plt.close()
 
 # Load location stdev data data
-data_set = []
+data_set = np.array([])
 for current_training_session in range(n_trainings):
     current_folder = "ppo_" + str(current_training_session+1)
     with open("results/"+current_folder+"/output", 'rb') as file:
         data = pickle.load(file)  
-    data_set.append(data['logbook']['data'][0]['x_loc_rate_stdev'])
+    data_set = np.append(data_set, data['logbook']['data'][0]['x_loc_rate_stdev'])
     
 # Format data
-data_set = np.array(data_set).reshape(1,np.array(data_set).size).squeeze()
+data_set = data_set.squeeze()
 
 # Plot loc stdev data
 plt.clf()
@@ -228,15 +228,15 @@ plt.savefig('results/'+path+'/x_loc_rate_stdev.png', dpi = 500)
 plt.close()
 
 # Load location stdev data data
-data_set = []
+data_set = np.array([])
 for current_training_session in range(n_trainings):
     current_folder = "ppo_" + str(current_training_session+1)
     with open("results/"+current_folder+"/output", 'rb') as file:
         data = pickle.load(file)  
-    data_set.append(data['logbook']['data'][0]['y_loc_rate_stdev'])
+    data_set = np.append(data_set, data['logbook']['data'][0]['y_loc_rate_stdev'])
     
 # Format data
-data_set = np.array(data_set).reshape(1,np.array(data_set).size).squeeze()
+data_set = data_set.squeeze()
 
 # Plot loc stdev data
 plt.clf()
@@ -250,15 +250,15 @@ plt.savefig('results/'+path+'/y_loc_rate_stdev.png', dpi = 500)
 plt.close()
 
 # Load magnitude stdev data data
-data_set = []
+data_set = np.array([])
 for current_training_session in range(n_trainings):
     current_folder = "ppo_" + str(current_training_session+1)
     with open("results/"+current_folder+"/output", 'rb') as file:
         data = pickle.load(file)  
-    data_set.append(data['logbook']['data'][0]['mag_stdev'])
+    data_set = np.append(data_set, data['logbook']['data'][0]['mag_stdev'])
     
 # Format data
-data_set = np.array(data_set).reshape(1,np.array(data_set).size).squeeze()
+data_set = data_set.squeeze()
 
 # Plot mag stdev data
 plt.clf()

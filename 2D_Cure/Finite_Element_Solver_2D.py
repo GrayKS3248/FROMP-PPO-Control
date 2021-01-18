@@ -129,11 +129,13 @@ class FES():
         self.max_reward = 2.0
         self.front_rate_reward_const = 10.0*self.max_reward**(1.0/3.0)/(6.82985986)
         self.input_punishment_const = 0.10
-        self.overage_punishment_const = 0.10
+        self.overage_punishment_const = 10.0
         self.integral_punishment_const = 0.10
-        self.front_shape_const = 0.10 / self.width
-        self.max_integral = self.length * self.width * self.temperature_limit
-        self.integral_delta = self.max_integral - self.length * self.width * self.initial_temperature
+        self.front_shape_const = 2.0 / self.width
+        mesh_len = self.mesh_cens_x_cords[-1,0] - self.mesh_cens_x_cords[0,0]
+        mesh_wid = self.mesh_cens_y_cords[0,-1] - self.mesh_cens_y_cords[0,0]
+        self.max_integral = mesh_len * mesh_wid * self.temperature_limit
+        self.integral_delta = self.max_integral - mesh_len * mesh_wid * self.initial_temperature
         
         # Simulation limits
         self.stab_lim = 10.0 * self.temperature_limit
