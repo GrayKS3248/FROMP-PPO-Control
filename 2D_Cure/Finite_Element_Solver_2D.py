@@ -129,9 +129,9 @@ class FES():
         self.max_reward = 2.0
         self.front_rate_reward_const = 10.0*self.max_reward**(1.0/3.0)/(6.82985986)
         self.input_punishment_const = 0.10
-        self.overage_punishment_const = 10.0
+        self.overage_punishment_const = 25.0
         self.integral_punishment_const = 0.10
-        self.front_shape_const = 2.0 / self.width
+        self.front_shape_const = 10.0 / self.width
         mesh_len = self.mesh_cens_x_cords[-1,0] - self.mesh_cens_x_cords[0,0]
         mesh_wid = self.mesh_cens_y_cords[0,-1] - self.mesh_cens_y_cords[0,0]
         self.max_integral = mesh_len * mesh_wid * self.temperature_limit

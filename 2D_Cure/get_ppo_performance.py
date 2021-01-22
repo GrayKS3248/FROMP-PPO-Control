@@ -156,15 +156,15 @@ if __name__ == '__main__':
         
     # Agent parameters
     num_agents = 1
-    total_trajectories = 100
+    total_trajectories = 10
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    start_alpha = 1.0e-3
-    end_alpha = 5.0e-4
+    start_alpha = 2.0e-4
+    end_alpha = 1.0e-4
     
     # Rendering parameters
     frame_multiplier = 1.0/6.0
