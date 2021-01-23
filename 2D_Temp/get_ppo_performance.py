@@ -156,7 +156,7 @@ if __name__ == '__main__':
         
     # Agent parameters
     num_agents = 1
-    total_trajectories = 1000
+    total_trajectories = 10
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10

@@ -17,20 +17,20 @@ class PPO_Agent:
         # Policy and value estimation network
         # Input is the state
         # Output is the mean of the gaussian distribution from which actions are sampled
-        self.actor = NN_Stdev_3_Output.Neural_Network(num_inputs=num_states, num_outputs=3, num_hidden_layers=2, num_neurons_in_layer=160)
+        self.actor = NN_Stdev_3_Output.Neural_Network(num_inputs=num_states, num_outputs=3, num_hidden_layers=2, num_neurons_in_layer=128)
         self.actor_optimizer =  torch.optim.Adam(self.actor.parameters() , lr=alpha)
         self.actor_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.actor_optimizer, gamma=decay_rate)
         
         # Old policy and value estimation network used to calculate clipped surrogate objective
         # Input is the state
         # Output is the mean of the gaussian distribution from which actions are sampled
-        self.old_actor = NN_Stdev_3_Output.Neural_Network(num_inputs=num_states, num_outputs=3, num_hidden_layers=2, num_neurons_in_layer=160)
+        self.old_actor = NN_Stdev_3_Output.Neural_Network(num_inputs=num_states, num_outputs=3, num_hidden_layers=2, num_neurons_in_layer=128)
         self.old_actor.load_state_dict(self.actor.state_dict())
                 
         # Critic NN that estimates the value function
         # Input is the state
         # Output is the estimated value of that state
-        self.critic =  NN.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=2, num_neurons_in_layer=160)
+        self.critic =  NN.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=2, num_neurons_in_layer=128)
         self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=alpha)
         self.critic_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.critic_optimizer, gamma=decay_rate)
         
@@ -60,18 +60,9 @@ class PPO_Agent:
     
     # Copies the actor and critic NNs from another agent to this agent
     # @param agent - the agent from which the NNs are copied
-    # @param reset_stdev - boolean that determines if the stdev of the agent is reset or not
-    def copy(self, agent, reset_stdev):
+    def copy(self, agent):
         # Copy the actor NN
         self.actor.load_state_dict(agent.actor.state_dict())
-        
-        # Reset the stdev
-        if reset_stdev:
-            self.actor.stdev_1 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
-            self.actor.stdev_2 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
-            self.actor.stdev_3 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
-        
-        # Build the optimizer
         self.actor_optimizer =  torch.optim.Adam(self.actor.parameters() , lr=self.alpha)
         self.actor_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.actor_optimizer, gamma=self.decay_rate)
         

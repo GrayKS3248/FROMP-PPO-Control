@@ -129,7 +129,7 @@ class FES():
         self.max_reward = 2.0
         self.front_rate_reward_const = 10.0*self.max_reward**(1.0/3.0)/(6.82985986)
         self.input_punishment_const = 0.10
-        self.overage_punishment_const = 25.0
+        self.overage_punishment_const = 1.75
         self.integral_punishment_const = 0.10
         self.front_shape_const = 10.0 / self.width
         mesh_len = self.mesh_cens_x_cords[-1,0] - self.mesh_cens_x_cords[0,0]
@@ -378,7 +378,7 @@ class FES():
         integral = np.trapz(integral, x=self.mesh_cens_y_cords[0,:])
         integral_punishment = -self.integral_punishment_const * self.max_reward * (1.0 - (self.max_integral - integral) / (self.integral_delta))
         front_shape_punishment = -self.front_shape_const * np.mean(abs(self.front_loc-np.mean(self.front_loc)))
-        punishment = max(input_punishment + overage_punishment + integral_punishment + front_shape_punishment, -self.max_reward)
+        punishment = max(input_punishment + integral_punishment + front_shape_punishment, -self.max_reward) + overage_punishment
         
         # Calculate the reward
         mean_front_vel_error = min(np.mean(abs(self.front_vel - self.current_target_front_vel) / (self.current_target_front_vel)), 1.0)
