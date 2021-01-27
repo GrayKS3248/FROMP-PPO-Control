@@ -166,7 +166,7 @@ if __name__ == '__main__':
     
     # Calculated env and agent parameters
     env = fes.FES()
-    num_states = ((env.num_vert_length-1)//9)*((env.num_vert_width-1)//5) + 28
+    num_states = ((env.num_vert_length-1)//8)*((env.num_vert_width-1)//8) + 28
     decay_rate = (end_alpha/start_alpha)**(trajectories_per_batch/total_trajectories)
     agent_temporal_precision = (env.sim_duration / float(steps_per_trajecotry))
     execution_rate = int(agent_temporal_precision / env.time_step)

@@ -12,8 +12,8 @@ class FES():
     def __init__(self):
         
         # Environment spatial parameters 
-        self.num_vert_length = 181
-        self.num_vert_width = 31
+        self.num_vert_length = 241
+        self.num_vert_width = 41
         self.length = 0.06
         self.width = 0.01
         
@@ -192,7 +192,7 @@ class FES():
 
     def get_state(self):
         # Get the average temperature in even areas across entire field
-        average_temps = np.mean(self.blockshaped(self.temp_mesh,(self.num_vert_length-1)//9,(self.num_vert_width-1)//5),axis=0)
+        average_temps = np.mean(self.blockshaped(self.temp_mesh,(self.num_vert_length-1)//8,(self.num_vert_width-1)//8),axis=0)
         average_temps = average_temps.reshape(np.size(average_temps))
         
         # Find the x coords over which the laser can see
