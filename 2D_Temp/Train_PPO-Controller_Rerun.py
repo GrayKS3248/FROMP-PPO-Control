@@ -159,7 +159,7 @@ if __name__ == '__main__':
     epsilon = 0.20
     start_alpha = 1.0e-4
     end_alpha = 5.0e-5
-    reset_stdev = False
+    reset_stdev = True
     
     # Rendering parameters
     frame_multiplier = 1.0/6.0

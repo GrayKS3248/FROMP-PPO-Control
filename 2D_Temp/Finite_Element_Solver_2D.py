@@ -56,7 +56,8 @@ class FES():
         self.temp_mesh = self.temp_mesh + self.get_perturbation(self.temp_mesh, self.initial_temp_delta)
         
         # Problem definition constants
-        self.target_temp = (325.0 + (2.0*(np.random.rand()) - 1.0) * 25.0)
+        self.target_ref = 325.0
+        self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 25.0)
         self.target_temp_mesh = self.target_temp * np.ones(self.temp_mesh.shape)
         
         # Input magnitude parameters
@@ -89,6 +90,9 @@ class FES():
         # Reward constants
         self.max_reward = 2.0
         self.input_punishment_const = 0.01
+        self.overage_punishment_const = 0.10
+        self.reward_scale = 1.0 / (1.0 - self.initial_temperature / self.target_ref)
+        self.reward_offset = self.initial_temperature / self.target_ref
         
         # Simulation limits
         self.stab_lim = 10.0 * self.ambient_temperature
@@ -227,15 +231,19 @@ class FES():
         return state
 
     def get_reward(self):
-        # Calculate the punishments based on the temperature field, input strength, action, and overage
+        # Calculate the punishments based on the temperature field and input strength
         input_punishment = -self.input_punishment_const * self.max_reward * self.input_magnitude
+        overage = (np.max(self.temp_mesh) / self.target_temp)
+        overage_punishment = 0.0
+        if overage >= 1.0:
+            overage_punishment = -self.overage_punishment_const * self.max_reward * overage
         
         # Calculate the reward based on the temperature field
-        temperature_adherence = 1.0-np.sum(abs(self.temp_mesh-self.target_temp))/(abs(self.target_temp-self.initial_temperature)*((self.num_vert_length-1)*(self.num_vert_width-1)))
-        temperature_reward = self.max_reward*temperature_adherence*temperature_adherence*temperature_adherence
+        temperature_adherence = np.clip(self.reward_scale * ((1.0 - np.mean(abs(1.0 - (self.temp_mesh / self.target_temp)))) - self.reward_offset), 0.0, 1.0)**2.0
+        temperature_reward = self.max_reward*temperature_adherence
         
         # Sum reward and punishment
-        reward = temperature_reward + input_punishment
+        reward = temperature_reward + input_punishment + overage_punishment
 
         # Return the calculated reward
         return reward
