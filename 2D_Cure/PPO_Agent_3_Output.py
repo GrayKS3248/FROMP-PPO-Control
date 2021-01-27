@@ -2,7 +2,7 @@
 """
 Created on Wed Nov 11 10:41:07 2020
 
-@author: Grayson Schaer, gschaer2
+@author: Grayson Schaer
 """
 
 import numpy as np

@@ -88,7 +88,7 @@ class FES():
         
         # Reward constants
         self.max_reward = 2.0
-        self.input_punishment_const = 0.10
+        self.input_punishment_const = 0.01
         
         # Simulation limits
         self.stab_lim = 10.0 * self.ambient_temperature
@@ -228,13 +228,14 @@ class FES():
 
     def get_reward(self):
         # Calculate the punishments based on the temperature field, input strength, action, and overage
-        punishment = -self.input_punishment_const * self.max_reward * self.input_magnitude
+        input_punishment = -self.input_punishment_const * self.max_reward * self.input_magnitude
         
         # Calculate the reward based on the temperature field
-        temperature_reward = self.max_reward * (1.0 - np.mean(abs(self.target_temp_mesh-self.temp_mesh))/(self.target_temp-self.initial_temperature))
+        temperature_adherence = 1.0-np.sum(abs(self.temp_mesh-self.target_temp))/(abs(self.target_temp-self.initial_temperature)*((self.num_vert_length-1)*(self.num_vert_width-1)))
+        temperature_reward = self.max_reward*temperature_adherence*temperature_adherence*temperature_adherence
         
         # Sum reward and punishment
-        reward = temperature_reward + punishment
+        reward = temperature_reward + input_punishment
 
         # Return the calculated reward
         return reward

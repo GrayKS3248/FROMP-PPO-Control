@@ -34,7 +34,7 @@ class FES():
         self.ambient_temperature = 294.15
         
         # Problem definition constants
-        self.temperature_limit = 563.15
+        self.temperature_limit = 573.15
         self.target = 0.00015
         self.purturbation_scale = 0.000025
         self.random_target = random_target
@@ -127,9 +127,9 @@ class FES():
         
         # Reward constants
         self.max_reward = 2.0
-        self.front_rate_reward_const = 10.0*self.max_reward**(1.0/3.0)/(6.82985986)
+        self.front_rate_reward_const = 10.0*self.max_reward**(1.0/3.0)/(10.0)
         self.input_punishment_const = 0.10
-        self.overage_punishment_const = 1.75
+        self.overage_punishment_const = 0.25
         self.integral_punishment_const = 0.10
         self.front_shape_const = 10.0 / self.width
         mesh_len = self.mesh_cens_x_cords[-1,0] - self.mesh_cens_x_cords[0,0]
@@ -382,7 +382,7 @@ class FES():
         
         # Calculate the reward
         mean_front_vel_error = min(np.mean(abs(self.front_vel - self.current_target_front_vel) / (self.current_target_front_vel)), 1.0)
-        front_rate_reward = ((0.682985986 - mean_front_vel_error) * self.front_rate_reward_const)**3.0
+        front_rate_reward = ((1.0 - mean_front_vel_error) * self.front_rate_reward_const)**3.0
         
         # Sum reward and punishment
         reward = front_rate_reward + punishment

@@ -2,7 +2,7 @@
 """
 Created on Wed Nov 11 10:41:07 2020
 
-@author: Grayson Schaer, gschaer2
+@author: Grayson Schaer
 """
 
 import numpy as np
@@ -60,9 +60,18 @@ class PPO_Agent:
     
     # Copies the actor and critic NNs from another agent to this agent
     # @param agent - the agent from which the NNs are copied
-    def copy(self, agent):
+    # @param reset_stdev - boolean that determines if the stdev of the agent is reset or not
+    def copy(self, agent, reset_stdev):
         # Copy the actor NN
         self.actor.load_state_dict(agent.actor.state_dict())
+        
+        # Reset the stdev
+        if reset_stdev:
+            self.actor.stdev_1 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
+            self.actor.stdev_2 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
+            self.actor.stdev_3 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
+        
+        # Build the optimizer
         self.actor_optimizer =  torch.optim.Adam(self.actor.parameters() , lr=self.alpha)
         self.actor_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.actor_optimizer, gamma=self.decay_rate)
         

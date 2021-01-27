@@ -1,12 +1,12 @@
+# -*- coding: utf-8 -*-
 """
 Created on Tue Sep 22 14:34:46 CST 2020
 
-@author: GKSch
+@author: Grayson Schaer
 """
 
 import torch
 import torch.nn as nn
-import math
 
 # Dynamically coded class definition for Q learning neural network
 # It was dynamically coded to allow user to select number of neurons and layers
