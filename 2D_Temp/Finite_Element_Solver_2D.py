@@ -235,8 +235,8 @@ class FES():
         input_punishment = -self.input_punishment_const * self.max_reward * self.input_magnitude
         overage = (np.max(self.temp_mesh) / self.target_temp)
         overage_punishment = 0.0
-        if overage >= 1.0:
-            overage_punishment = -self.overage_punishment_const * self.max_reward * overage
+        if overage >= 1.1:
+            overage_punishment = -self.overage_punishment_const * self.max_reward * (overage-0.10)
         
         # Calculate the reward based on the temperature field
         temperature_adherence = np.clip(self.reward_scale * ((1.0 - np.mean(abs(1.0 - (self.temp_mesh / self.target_temp)))) - self.reward_offset), 0.0, 1.0)**2.0
