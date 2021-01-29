@@ -56,7 +56,7 @@ class FES():
         self.temp_mesh = self.temp_mesh + self.get_perturbation(self.temp_mesh, self.initial_temp_delta)
         
         # Problem definition constants
-        self.target_ref = 325.0
+        self.target_ref = 400.0
         self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 25.0)
         self.target_temp_mesh = self.target_temp * np.ones(self.temp_mesh.shape)
         
@@ -199,26 +199,26 @@ class FES():
         x_loc = self.mesh_cens_x_cords[:,0] - self.input_location[0]
         x_min = np.argmin(abs(x_loc + self.radius_of_input))
         x_max = np.argmin(abs(x_loc - self.radius_of_input))
-        x_max = x_max - (x_max-x_min)%5
+        x_max = x_max - (x_max-x_min)%7
         if x_max == x_min:
-            if x_max - 5 >= 0 :
-                x_min = x_max - 5
+            if x_max - 7 >= 0 :
+                x_min = x_max - 7
             else:
-                x_max = x_min + 5
+                x_max = x_min + 7
                 
         # Find the x coords over which the laser can see
         y_loc = self.mesh_cens_y_cords[0,:] - self.input_location[1]
         y_min = np.argmin(abs(y_loc + self.radius_of_input))
         y_max = np.argmin(abs(y_loc - self.radius_of_input))
-        y_max = y_max - (y_max-y_min)%5
+        y_max = y_max - (y_max-y_min)%7
         if y_max == y_min:
-            if y_max - 5 >= 0 :
-                y_min = y_max - 5
+            if y_max - 7 >= 0 :
+                y_min = y_max - 7
             else:
-                y_max = y_min + 5
+                y_max = y_min + 7
                 
         # Calculate average temperature blocks (5X5) in laser view
-        laser_view = np.mean(self.blockshaped(self.temp_mesh[x_min:x_max,y_min:y_max],5,5),axis=0)
+        laser_view = np.mean(self.blockshaped(self.temp_mesh[x_min:x_max,y_min:y_max],7,7),axis=0)
         laser_view = laser_view.reshape(np.size(laser_view))
         
         # Normalize and concatenate all substates
@@ -235,11 +235,11 @@ class FES():
         input_punishment = -self.input_punishment_const * self.max_reward * self.input_magnitude
         overage = (np.max(self.temp_mesh) / self.target_temp)
         overage_punishment = 0.0
-        if overage >= 1.1:
-            overage_punishment = -self.overage_punishment_const * self.max_reward * (overage-0.10)
+        if overage >= 1.05:
+            overage_punishment = -self.overage_punishment_const * self.max_reward * (overage-0.05)
         
         # Calculate the reward based on the temperature field
-        temperature_adherence = np.clip(self.reward_scale * ((1.0 - np.mean(abs(1.0 - (self.temp_mesh / self.target_temp)))) - self.reward_offset), 0.0, 1.0)**2.0
+        temperature_adherence = np.clip(self.reward_scale * ((1.0 - np.mean(abs(1.0 - (self.temp_mesh / self.target_temp)))) - self.reward_offset), 0.0, 1.0)**4.0
         temperature_reward = self.max_reward*temperature_adherence
         
         # Sum reward and punishment
@@ -278,7 +278,7 @@ class FES():
         self.current_index = 0
         
         # Calculate the target vectors
-        self.target_temp = (325.0 + (2.0*(np.random.rand()) - 1.0) * 25.0)
+        self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 25.0)
         self.target_temp_mesh = self.target_temp * np.ones(self.temp_mesh.shape)
         
         # Init and perturb temperature and cure meshes

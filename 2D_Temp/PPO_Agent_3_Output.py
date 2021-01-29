@@ -17,20 +17,20 @@ class PPO_Agent:
         # Policy and value estimation network
         # Input is the state
         # Output is the mean of the gaussian distribution from which actions are sampled
-        self.actor = NN_Stdev_3_Output.Neural_Network(num_inputs=num_states, num_outputs=3, num_hidden_layers=2, num_neurons_in_layer=178)
+        self.actor = NN_Stdev_3_Output.Neural_Network(num_inputs=num_states, num_outputs=3, num_hidden_layers=3, num_neurons_in_layer=202)
         self.actor_optimizer =  torch.optim.Adam(self.actor.parameters() , lr=alpha)
         self.actor_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.actor_optimizer, gamma=decay_rate)
         
         # Old policy and value estimation network used to calculate clipped surrogate objective
         # Input is the state
         # Output is the mean of the gaussian distribution from which actions are sampled
-        self.old_actor = NN_Stdev_3_Output.Neural_Network(num_inputs=num_states, num_outputs=3, num_hidden_layers=2, num_neurons_in_layer=178)
+        self.old_actor = NN_Stdev_3_Output.Neural_Network(num_inputs=num_states, num_outputs=3, num_hidden_layers=3, num_neurons_in_layer=202)
         self.old_actor.load_state_dict(self.actor.state_dict())
                 
         # Critic NN that estimates the value function
         # Input is the state
         # Output is the estimated value of that state
-        self.critic =  NN.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=2, num_neurons_in_layer=178)
+        self.critic =  NN.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=3, num_neurons_in_layer=202)
         self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=alpha)
         self.critic_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.critic_optimizer, gamma=decay_rate)
         

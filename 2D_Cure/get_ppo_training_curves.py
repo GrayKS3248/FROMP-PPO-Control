@@ -11,7 +11,7 @@ import pickle
 
 # Save path
 path = 'PPO-Results'
-n_trainings = 10
+n_trainings = 7
 
 # Load actor data
 data_set = np.array([])

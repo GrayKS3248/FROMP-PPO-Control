@@ -163,8 +163,8 @@ if __name__ == '__main__':
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    start_alpha = 2.0e-4
-    end_alpha = 1.0e-4
+    start_alpha = 5.0e-5
+    end_alpha = 1.0e-5
     
     # Rendering parameters
     frame_multiplier = 1.0/6.0
@@ -201,7 +201,7 @@ if __name__ == '__main__':
     for curr_agent in range(num_agents):
         print("Agent " + str(curr_agent+1) + " / " + str(num_agents))
         agent = ppo.PPO_Agent(num_states, steps_per_trajecotry, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, start_alpha, decay_rate)
-        agent.copy(old_agent)
+        agent.copy(old_agent, False)
         data, agent, env = run(env, agent, total_trajectories, execution_rate, frame_multiplier)
         logbook['data'].append(data)
         logbook['agents'].append(agent)

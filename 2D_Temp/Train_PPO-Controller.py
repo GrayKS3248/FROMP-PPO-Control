@@ -150,15 +150,15 @@ if __name__ == '__main__':
         
     # Agent parameters
     num_agents = 1
-    total_trajectories = 20000
+    total_trajectories = 5000
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    start_alpha = 1.0e-3
-    end_alpha = 1.0e-4
+    start_alpha = 1.0e-4
+    end_alpha = 5.0e-5
     
     # Rendering parameters
     frame_multiplier = 1.0/6.0
@@ -166,7 +166,7 @@ if __name__ == '__main__':
     
     # Calculated env and agent parameters
     env = fes.FES()
-    num_states = ((env.num_vert_length-1)//8)*((env.num_vert_width-1)//8) + 28
+    num_states = ((env.num_vert_length-1)//8)*((env.num_vert_width-1)//8) + 52
     decay_rate = (end_alpha/start_alpha)**(trajectories_per_batch/total_trajectories)
     agent_temporal_precision = (env.sim_duration / float(steps_per_trajecotry))
     execution_rate = int(agent_temporal_precision / env.time_step)
