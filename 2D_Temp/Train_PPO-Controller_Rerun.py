@@ -8,6 +8,7 @@ import Finite_Element_Solver_2D as fes
 import PPO_Agent_3_Output as ppo
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as clr
 import pickle
 import gc
 
@@ -24,9 +25,11 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
         'input_location': [],
         'input_magnitude':[],
         'temperature_field': [],
-        'front_location': [],
-        'front_velocity': [],
-        'target_velocity': [],
+        'temperature_target': [],
+        'temperature_rel_error': [],
+        'temperature_rms_error': [],
+        'temperature_max_error': [],
+        'temperature_min_error': [],
         'time': [],
         'best_episode': [],
     }
@@ -34,9 +37,11 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
         'input_location': [],
         'input_magnitude':[],
         'temperature_field': [],
-        'front_location': [],
-        'front_velocity': [],
-        'target_velocity': [],
+        'temperature_target': [],
+        'temperature_rel_error': [],
+        'temperature_rms_error': [],
+        'temperature_max_error': [],
+        'temperature_min_error': [],
         'time': [],
         }
     
@@ -100,8 +105,13 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
             # Update logs
             if step_in_episode % int(frame_multiplier*execution_rate) == 0 or done:
                 trajectory['input_location'].append(np.copy(env.input_location))
-                trajectory['temperature_field'].append(np.copy(env.temp_mesh))
                 trajectory['input_magnitude'].append(np.copy(env.input_magnitude))
+                trajectory['temperature_field'].append(np.copy(env.temp_mesh))
+                trajectory['temperature_target'].append(np.copy(env.target_temp_mesh))
+                trajectory['temperature_rel_error'].append(np.copy(env.temp_error))
+                trajectory['temperature_rms_error'].append(np.copy(env.temp_RMS_error))
+                trajectory['temperature_max_error'].append(np.copy(env.temp_error_max))
+                trajectory['temperature_min_error'].append(np.copy(env.temp_error_min))
                 trajectory['time'].append(np.copy(env.current_time))
             
             # Update state and step
@@ -113,8 +123,13 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
         if episode_reward > best_episode or curr_episode == 0:
             best_episode = episode_reward
             data['input_location'] = trajectory['input_location']
-            data['temperature_field'] = trajectory['temperature_field']
             data['input_magnitude'] = trajectory['input_magnitude']
+            data['temperature_field'] = trajectory['temperature_field']
+            data['temperature_target'] = trajectory['temperature_target']
+            data['temperature_rel_error'] = trajectory['temperature_rel_error']
+            data['temperature_rms_error'] = trajectory['temperature_rms_error']
+            data['temperature_max_error'] = trajectory['temperature_max_error']
+            data['temperature_min_error'] = trajectory['temperature_min_error']
             data['time'] = trajectory['time']
             data['best_episode'] = episode_reward
         
@@ -124,10 +139,16 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
         data['y_loc_rate_stdev'].append(y_loc_rate_stdev)
         data['mag_stdev'].append(mag_stdev)
         data['r_per_step'].append(r_total / (curr_step+1))
+        
+        # Reset trajecotry memory
         trajectory['input_location'] = []
-        trajectory['temperature_field'] = []
         trajectory['input_magnitude'] = []
-        trajectory['cure_field'] = []
+        trajectory['temperature_field'] = []
+        trajectory['temperature_target'] = []
+        trajectory['temperature_rel_error'] = []
+        trajectory['temperature_rms_error'] = []
+        trajectory['temperature_max_error'] = []
+        trajectory['temperature_min_error'] = []
         trajectory['time'] = []
    
     # Store the training data
@@ -150,16 +171,16 @@ if __name__ == '__main__':
         
     # Agent parameters
     num_agents = 1
-    total_trajectories = 10
+    total_trajectories = 10000
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    start_alpha = 1.0e-4
-    end_alpha = 5.0e-5
-    reset_stdev = True
+    start_alpha = 1.0e-3
+    end_alpha = 5.0e-4
+    reset_stdev = False
     
     # Rendering parameters
     frame_multiplier = 1.0/6.0
@@ -256,32 +277,50 @@ if __name__ == '__main__':
         pickle.dump(outputs, file)  
 
     print("Plotting...")  
+    # Plot the trajectory
+    plt.clf()
+    plt.title("Relative Difference Trajectory",fontsize='xx-large')
+    plt.xlabel("Time [s]",fontsize='large')
+    plt.ylabel("Relative Difference from Target Temperature [%]",fontsize='large')
+    plt.plot(logbook['data'][best_overall_agent]['time'],100.0*np.array(logbook['data'][best_overall_agent]['temperature_rel_error']),c='k',lw=2.0)
+    plt.plot(logbook['data'][best_overall_agent]['time'],100.0*np.array(logbook['data'][best_overall_agent]['temperature_max_error']),c='r',ls='--',lw=2.0)
+    plt.plot(logbook['data'][best_overall_agent]['time'],100.0*np.array(logbook['data'][best_overall_agent]['temperature_min_error']),c='b',ls='--',lw=2.0)
+    plt.legend(('Average', 'Maximum', 'Minimum'),loc='upper left',fontsize='large')
+    plt.grid(which='major',axis='y')
+    plt.xticks(fontsize='large')
+    plt.yticks(fontsize='large')
+    plt.gcf().set_size_inches(8.5, 5.5)
+    plt.savefig('results/PPO-Controller_Rerun/trajectory.png', dpi = 500)
+    plt.close()
+    
     # Plot learning curve 1
     plt.clf()
-    title_str = "Actor Learning Curve, Simulation Normalized"
-    plt.title(title_str)
-    plt.xlabel("Episode")
-    plt.ylabel("Average Reward per Simulation Step")
+    plt.title("Actor Learning Curve, Simulation Normalized",fontsize='xx-large')
+    plt.xlabel("Episode",fontsize='large')
+    plt.ylabel("Average Reward per Simulation Step",fontsize='large')
     if num_agents==1:
-        plt.plot([*range(len(average_r_per_step))],average_r_per_step)
+        plt.plot([*range(len(average_r_per_step))],average_r_per_step,lw=2.0)
     else:
         plt.plot([*range(len(average_r_per_step))],average_r_per_step)
         plt.fill_between([*range(len(average_r_per_step))],average_r_per_step+r_per_step_stdev,average_r_per_step-r_per_step_stdev,alpha=0.6)
+    plt.xticks(fontsize='large')
+    plt.yticks(fontsize='large')
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/PPO-Controller_Rerun/actor_learning_1.png', dpi = 500)
     plt.close()
     
     # Plot learning curve 2
     plt.clf()
-    title_str = "Actor Learning Curve, Episode Normalized"
-    plt.title(title_str)
-    plt.xlabel("Episode")
-    plt.ylabel("Average Reward per Simulation Step")
+    plt.title("Actor Learning Curve, Episode Normalized",fontsize='xx-large')
+    plt.xlabel("Episode",fontsize='large')
+    plt.ylabel("Average Reward per Simulation Step",fontsize='large')
     if num_agents==1:
-        plt.plot([*range(len(average_r_per_episode))],average_r_per_episode)
+        plt.plot([*range(len(average_r_per_episode))],average_r_per_episode,lw=2.0)
     else:
         plt.plot([*range(len(average_r_per_episode))],average_r_per_episode)
         plt.fill_between([*range(len(average_r_per_episode))],average_r_per_episode+r_per_episode_stdev,average_r_per_episode-r_per_episode_stdev,alpha=0.6)
+    plt.xticks(fontsize='large')
+    plt.yticks(fontsize='large')
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/PPO-Controller_Rerun/actor_learning_2.png', dpi = 500)
     plt.close()
@@ -289,48 +328,53 @@ if __name__ == '__main__':
     # Plot value learning curve
     plt.clf()
     title_str = "Critic Learning Curve"
-    plt.title(title_str)
-    plt.xlabel("Optimization Step")
-    plt.ylabel("MSE Loss")
+    plt.title(title_str,fontsize='xx-large')
+    plt.xlabel("Optimization Step",fontsize='large')
+    plt.ylabel("MSE Loss",fontsize='large')
     if num_agents==1:
-        plt.plot([*range(len(average_value_learning))],average_value_learning)
+        plt.plot([*range(len(average_value_learning))],average_value_learning,lw=2.0)
     else:
         plt.plot([*range(len(average_value_learning))],average_value_learning)
         plt.fill_between([*range(len(average_value_learning))],average_value_learning+value_learning_stdev,average_value_learning-value_learning_stdev,alpha=0.6)
     plt.yscale("log")
+    plt.xticks(fontsize='large')
+    plt.yticks(fontsize='large')
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/PPO-Controller_Rerun/critic_learning.png', dpi = 500)
     plt.close()
    
     # Plot stdev curve
     plt.clf()
-    title_str = "Laser X Position Rate Stdev"
-    plt.title(title_str)
-    plt.xlabel("Episode")
-    plt.ylabel("Laser X Position Rate Stdev [m/s]")
-    plt.plot([*range(len(average_x_loc_rate_stdev))],env.loc_rate_scale*average_x_loc_rate_stdev)
+    plt.title("Laser X Position Rate Stdev",fontsize='xx-large')
+    plt.xlabel("Episode",fontsize='large')
+    plt.ylabel("Laser X Position Rate Stdev [m/s]",fontsize='large')
+    plt.plot([*range(len(average_x_loc_rate_stdev))],env.loc_rate_scale*average_x_loc_rate_stdev,lw=2.0)
+    plt.xticks(fontsize='large')
+    plt.yticks(fontsize='large')
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/PPO-Controller_Rerun/x_loc_rate_stdev.png', dpi = 500)
     plt.close()
     
     # Plot stdev curve
     plt.clf()
-    title_str = "Laser Y Position Rate Stdev"
-    plt.title(title_str)
-    plt.xlabel("Episode")
-    plt.ylabel("Laser Y Position Rate Stdev [m/s]")
-    plt.plot([*range(len(average_y_loc_rate_stdev))],env.loc_rate_scale*average_y_loc_rate_stdev)
+    plt.title("Laser Y Position Rate Stdev",fontsize='xx-large')
+    plt.xlabel("Episode",fontsize='large')
+    plt.ylabel("Laser Y Position Rate Stdev [m/s]",fontsize='large')
+    plt.plot([*range(len(average_y_loc_rate_stdev))],env.loc_rate_scale*average_y_loc_rate_stdev,lw=2.0)
+    plt.xticks(fontsize='large')
+    plt.yticks(fontsize='large')
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/PPO-Controller_Rerun/y_loc_rate_stdev.png', dpi = 500)
     plt.close()
     
     # Plot stdev curve
     plt.clf()
-    title_str = "Laser Magnitude Stdev"
-    plt.title(title_str)
-    plt.xlabel("Episode")
-    plt.ylabel('Laser Magnitude Stdev [K/s]')
-    plt.plot([*range(len(average_mag_stdev))],env.mag_scale*env.max_input_mag*average_mag_stdev)
+    plt.title("Laser Magnitude Stdev",fontsize='xx-large')
+    plt.xlabel("Episode",fontsize='large')
+    plt.ylabel('Laser Magnitude Stdev [K/s]',fontsize='large')
+    plt.plot([*range(len(average_mag_stdev))],env.mag_scale*env.max_input_mag*average_mag_stdev,lw=2.0)
+    plt.xticks(fontsize='large')
+    plt.yticks(fontsize='large')
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig('results/PPO-Controller_Rerun/mag_stdev.png', dpi = 500)
     plt.close()
@@ -338,7 +382,27 @@ if __name__ == '__main__':
     # Make videos of the best temperature field trajecotry and cure field trajectories as function of time
     print("Rendering...")
     min_temp = 0.99*np.min(logbook['data'][best_overall_agent]['temperature_field'])
-    max_temp = max(1.05*np.max(logbook['data'][best_overall_agent]['temperature_field']), 1.05*np.max(env.target_temp_mesh))
+    max_temp = max(1.01*np.max(logbook['data'][best_overall_agent]['temperature_field']), 1.05*np.max(env.target_temp_mesh))
+    normalized_temperature = 100.0*np.array(logbook['data'][best_overall_agent]['temperature_field'])/np.array(logbook['data'][best_overall_agent]['temperature_target'])
+    min_normalized_temp = np.min(0.99*normalized_temperature)
+    max_normalized_temp = np.max(1.01*normalized_temperature)
+    
+    # Make custom color map for normalized data
+    lower = min(5.0*round(min_normalized_temp//5.0), 90.0)
+    mid_lower = 95.0
+    mid_upper = 105.0
+    upper = max(5.0*round(max_normalized_temp/5.0), 110.0)
+    lower_delta = mid_lower - lower
+    upper_delta = upper - mid_upper
+    n_colors_in_lower = round((lower_delta / (lower_delta + upper_delta)) * 10.0)
+    n_color_in_upper = round((upper_delta / (lower_delta + upper_delta)) * 10.0)
+    lower_ticks = np.round(np.linspace(lower,mid_lower,n_colors_in_lower+1))
+    upper_ticks = np.round(np.linspace(mid_upper,upper,n_color_in_upper+1))
+    ticks = np.concatenate((lower_ticks, upper_ticks))
+    norm = clr.BoundaryNorm(ticks, 11)
+    base_color_array = ["navy","blue","deepskyblue","lightseagreen","forestgreen","limegreen","yellow","orange","orangered","firebrick"]
+    base_color_array.insert(n_colors_in_lower, "fuchsia")
+    cmap = clr.ListedColormap(base_color_array)
     for curr_step in range(len(logbook['data'][best_overall_agent]['time'])):
            
         # Calculate input field
@@ -355,24 +419,32 @@ if __name__ == '__main__':
         fig.set_size_inches(7.33,8.5)
         
         # Plot temperature
-        c0 = ax0.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, logbook['data'][best_overall_agent]['temperature_field'][curr_step], shading='auto', cmap='jet', vmin=min_temp, vmax=max_temp)
+        
+        c0 = ax0.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, normalized_temperature[curr_step], shading='auto', cmap=cmap, norm=norm)
         cbar0 = fig.colorbar(c0, ax=ax0)
-        cbar0.set_label('Temperature [K]', labelpad=20)
-        ax0.set_xlabel('X Position [cm]')
-        ax0.set_ylabel('Y Position [cm]')
+        cbar0.set_label('Relative Temperature [% of Target]', labelpad=20,fontsize='large')
+        cbar0.set_ticks(ticks)
+        cbar0.ax.tick_params(labelsize=12)
+        ax0.set_xlabel('X Position [cm]',fontsize='large')
+        ax0.set_ylabel('Y Position [cm]',fontsize='large')
+        ax0.tick_params(axis='x',labelsize=12)
+        ax0.tick_params(axis='y',labelsize=12)
         ax0.set_aspect('equal', adjustable='box')
         
         # Plot input
         c2 = ax2.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, 1.0e-6*input_mesh, shading='auto', cmap='coolwarm', vmin=0.0, vmax=1.0e-6*env.max_input_mag)
         cbar2 = fig.colorbar(c2, ax=ax2)
-        cbar2.set_label('Input Heat Rate Density [MW/m^3]', labelpad=20)
-        ax2.set_xlabel('X Position [cm]')
-        ax2.set_ylabel('Y Position [cm]')
+        cbar2.set_label('Input Heat Rate Density [MW/m^3]', labelpad=20,fontsize='large')
+        cbar2.ax.tick_params(labelsize=12)
+        ax2.set_xlabel('X Position [cm]',fontsize='large')
+        ax2.set_ylabel('Y Position [cm]',fontsize='large')
+        ax2.tick_params(axis='x',labelsize=12)
+        ax2.tick_params(axis='y',labelsize=12)
         ax2.set_aspect('equal', adjustable='box')
         
         # Set title and save
         title_str = "Time from Trigger: "+'{:.2f}'.format(logbook['data'][best_overall_agent]['time'][curr_step])+'s'
-        fig.suptitle(title_str)
+        fig.suptitle(title_str,fontsize='x-large')
         plt.savefig('results/PPO-Controller_Rerun/video/time_'+'{:.2f}'.format(logbook['data'][best_overall_agent]['time'][curr_step])+'.png', dpi=dpi)
         plt.close()
         

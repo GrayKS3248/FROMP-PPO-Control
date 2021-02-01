@@ -56,9 +56,13 @@ class FES():
         self.temp_mesh = self.temp_mesh + self.get_perturbation(self.temp_mesh, self.initial_temp_delta)
         
         # Problem definition constants
-        self.target_ref = 400.0
+        self.target_ref = 325.0
         self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 25.0)
         self.target_temp_mesh = self.target_temp * np.ones(self.temp_mesh.shape)
+        self.temp_error = 0.0
+        self.temp_RMS_error = 0.0
+        self.temp_error_max = 0.0
+        self.temp_error_min = 0.0
         
         # Input magnitude parameters
         self.max_input_mag = 2.5e7
@@ -90,7 +94,8 @@ class FES():
         # Reward constants
         self.max_reward = 2.0
         self.input_punishment_const = 0.01
-        self.overage_punishment_const = 0.10
+        self.overage_punishment_const = 0.25
+        self.spread_punishment_const = 0.10
         self.reward_scale = 1.0 / (1.0 - self.initial_temperature / self.target_ref)
         self.reward_offset = self.initial_temperature / self.target_ref
         
@@ -231,19 +236,29 @@ class FES():
         return state
 
     def get_reward(self):
-        # Calculate the punishments based on the temperature field and input strength
-        input_punishment = -self.input_punishment_const * self.max_reward * self.input_magnitude
+        # Calculate the input punishment/reward
+        input_return = -self.input_punishment_const * self.max_reward * self.input_magnitude
+        
+        # Calculate the temperature overage punishment
         overage = (np.max(self.temp_mesh) / self.target_temp)
         overage_punishment = 0.0
-        if overage >= 1.05:
-            overage_punishment = -self.overage_punishment_const * self.max_reward * (overage-0.05)
+        if overage >= 1.10:
+            overage_punishment = -self.overage_punishment_const * self.max_reward * (overage-0.10)
         
         # Calculate the reward based on the temperature field
-        temperature_adherence = np.clip(self.reward_scale * ((1.0 - np.mean(abs(1.0 - (self.temp_mesh / self.target_temp)))) - self.reward_offset), 0.0, 1.0)**4.0
+        temporary = (self.temp_mesh / self.target_temp) - 1.0
+        self.temp_error = np.mean(temporary)
+        self.temp_RMS_error = np.mean(abs(temporary))
+        self.temp_error_max = np.max(temporary)
+        self.temp_error_min = np.min(temporary)
+        temperature_adherence = np.clip(self.reward_scale * ((1.0 - self.temp_RMS_error) - self.reward_offset), 0.0, 1.0)**2.0
         temperature_reward = self.max_reward*temperature_adherence
         
+        # Calculate temperature spread punishment
+        spread_punishment = -self.spread_punishment_const*self.max_reward*(self.temp_error_max  - self.temp_error_min)
+        
         # Sum reward and punishment
-        reward = temperature_reward + input_punishment + overage_punishment
+        reward = temperature_reward + input_return + overage_punishment
 
         # Return the calculated reward
         return reward
@@ -280,6 +295,10 @@ class FES():
         # Calculate the target vectors
         self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 25.0)
         self.target_temp_mesh = self.target_temp * np.ones(self.temp_mesh.shape)
+        self.temp_error = 0.0
+        self.temp_RMS_error = 0.0
+        self.temp_error_max = 0.0
+        self.temp_error_min = 0.0
         
         # Init and perturb temperature and cure meshes
         self.temp_mesh = np.ones(self.mesh_cens_x_cords.shape) * self.initial_temperature

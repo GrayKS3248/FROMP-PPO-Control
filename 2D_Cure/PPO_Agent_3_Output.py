@@ -106,6 +106,33 @@ class PPO_Agent:
         action_3 = float(means[2])
         return action_1, action_2, action_3
     
+    # Calcuates determinisitc action given state and policy, but action just a ping pong back and forth weeeeee
+    # @ param state - The state in which the policy is applied to calculate the action
+    # @ param y_loc_rate_action - The y rate of the input
+    # @ return action - The calculated deterministic action based on the state and policy
+    def get_greedy_pingpong(self, state, y_loc_rate_action):
+        
+        # Get the gaussian distribution parameters used to sample the action for the old and new policy
+        with torch.no_grad():
+            means, stdev_1, stdev_2, stdev_3 = self.actor.forward(torch.tensor(state, dtype=torch.float))
+        
+        # Return the means
+        action_1 = float(means[0])
+        action_3 = float(means[2])
+        
+        # Ping pong weeeee
+        if state[-2] >= 0.95:
+            action_2 = -50.0
+        elif state[-2] <= 0.05:
+            action_2 = 50.0
+        else:
+            if y_loc_rate_action == 0.0:
+                action_2 = -50.0
+            else:
+                action_2 = y_loc_rate_action
+            
+        return action_1, action_2, action_3
+    
     # Calcuates stochastic action given state and policy.
     # @ param state - The state in which the policy is applied to calculate the action
     # @ return action - The calculated stochastic action based on the state and policy
