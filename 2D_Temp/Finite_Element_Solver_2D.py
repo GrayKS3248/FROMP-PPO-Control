@@ -236,8 +236,8 @@ class FES():
         return state
 
     def get_reward(self):
-        # Calculate the input punishment/reward
-        input_return = -self.input_punishment_const * self.max_reward * self.input_magnitude
+        # Calculate the input punishment
+        input_punishment = -self.input_punishment_const * self.max_reward * self.input_magnitude
         
         # Calculate the temperature overage punishment
         overage = (np.max(self.temp_mesh) / self.target_temp)
@@ -245,20 +245,19 @@ class FES():
         if overage >= 1.10:
             overage_punishment = -self.overage_punishment_const * self.max_reward * (overage-0.10)
         
-        # Calculate the reward based on the temperature field
-        temporary = (self.temp_mesh / self.target_temp) - 1.0
-        self.temp_error = np.mean(temporary)
-        self.temp_RMS_error = np.mean(abs(temporary))
-        self.temp_error_max = np.max(temporary)
-        self.temp_error_min = np.min(temporary)
-        temperature_adherence = np.clip(self.reward_scale * ((1.0 - self.temp_RMS_error) - self.reward_offset), 0.0, 1.0)**2.0
-        temperature_reward = self.max_reward*temperature_adherence
-        
-        # Calculate temperature spread punishment
-        spread_punishment = -self.spread_punishment_const*self.max_reward*(self.temp_error_max  - self.temp_error_min)
+        # Calculate the temperature field reward and punishment
+        size = (self.num_vert_length-1)*(self.num_vert_width-1)
+        on_target = np.sum(((((self.temp_mesh > 0.99 * self.target_temp) * 1.0 + (self.temp_mesh < 1.01 * self.target_temp) * 1.0) == 2.0) * 1.0))
+        close_target = np.sum(((((self.temp_mesh > 0.95 * self.target_temp) * 1.0 + (self.temp_mesh < 1.05 * self.target_temp) * 1.0) == 2.0) * 1.0)) - on_target
+        near_target = np.sum(((((self.temp_mesh > 0.90 * self.target_temp) * 1.0 + (self.temp_mesh < 1.10 * self.target_temp) * 1.0) == 2.0) * 1.0)) - close_target - on_target
+        off_target = size - near_target - close_target - on_target
+        on_target_reward = self.max_reward * (on_target / size)
+        close_target_reward = 0.75 * self.max_reward * (close_target / size)
+        near_target_reward = 0.25 * self.max_reward * (near_target / size)
+        off_target_punishment = -0.25 * self.max_reward * (off_target / size)
         
         # Sum reward and punishment
-        reward = temperature_reward + input_return + overage_punishment
+        reward = on_target_reward + close_target_reward + near_target_reward + off_target_punishment + overage_punishment + input_punishment
 
         # Return the calculated reward
         return reward
