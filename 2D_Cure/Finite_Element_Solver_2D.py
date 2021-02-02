@@ -9,7 +9,7 @@ import numpy as np
 
 class FES():
     
-    def __init__(self, for_pd=False, random_target=False, target_switch=False, control=False):
+    def __init__(self, random_target=False, target_switch=False, control=False):
         
         # Environment spatial parameters 
         self.num_vert_length = 181
@@ -139,7 +139,6 @@ class FES():
         
         # Simulation limits
         self.stab_lim = 10.0 * self.temperature_limit
-        self.for_pd = for_pd
 
     # Get smooth 2D perturbation for temperature and cure fields
     def get_perturbation(self, size_array, delta):
@@ -169,21 +168,8 @@ class FES():
         return perturbation
 
     def step_input(self, action):
-        # Check if the finite element solver is set up for a ppo or pd controller
-        if self.for_pd:
-            # Update input's position
-            x_location_rate_command = np.clip(action[0], -self.max_input_x_loc_rate, self.max_input_x_loc_rate)
-            input_x_location = np.clip(self.input_location[0] + x_location_rate_command * self.time_step, self.min_input_x_loc, self.max_input_x_loc)
-            y_location_rate_command = np.clip(action[1], -self.max_input_y_loc_rate, self.max_input_y_loc_rate)
-            input_y_location = np.clip(self.input_location[1] + y_location_rate_command * self.time_step, self.min_input_y_loc, self.max_input_y_loc)
-            self.input_location[0] = input_x_location
-            self.input_location[1] = input_y_location
-            
-            # Update input's magnitude
-            magnitude_rate_command = np.clip(action[2], -self.max_input_mag_rate, self.max_input_mag_rate)
-            self.input_magnitude = np.clip(self.input_magnitude + magnitude_rate_command * self.time_step, 0.0, 1.0)
-        
-        elif not self.control:
+        # Check if the finite element solver is set up for a control run or PPO run
+        if not self.control:
             # Update the input's position
             cmd = self.loc_rate_offset + self.loc_rate_scale * action[0:2]
             cmd.clip(-self.max_input_loc_rate, self.max_input_loc_rate, out=cmd)
@@ -299,70 +285,47 @@ class FES():
                    .reshape(-1, nrows, ncols))
 
     def get_state(self, temp_rate, action):
-        # Check if the finite element solver is set up for a ppo or pd controller
-        if self.for_pd:
-            # Get the average temperature and temperature rates of self.num_panels/10 even segments across entire length
-            average_temps = np.mean(self.blockshaped(self.temp_mesh,(self.num_vert_length-1)//9,(self.num_vert_width-1)//5),axis=0)
-            average_temps = average_temps.reshape(np.size(average_temps))
-            average_temp_rates = np.mean(self.blockshaped(temp_rate,(self.num_vert_length-1)//9,(self.num_vert_width-1)//5),axis=0)
-            average_temp_rates = average_temp_rates.reshape(np.size(average_temp_rates))
-            
-            # Compress front location and velocity data
-            average_front_loc = np.mean(self.front_loc.reshape((self.num_vert_width-1)//5,5),axis=1)
-            average_front_vel = np.mean(self.front_vel.reshape((self.num_vert_width-1)//5,5),axis=1)
-            
-            # Get the input location and magnitude rates
-            input_x_location_rate = np.clip(action[0], -self.max_input_loc_rate, self.max_input_loc_rate)
-            input_y_location_rate = np.clip(action[1], -self.max_input_loc_rate, self.max_input_loc_rate)
-            
-            # Normalize and concatenate all substates
-            state = np.concatenate((average_temps, average_temp_rates,
-                                    average_front_loc, average_front_vel, 
-                                    self.input_location, [input_x_location_rate], [input_y_location_rate],
-                                    [self.current_target_front_vel]))  
-            
-        else:
-            # Get the average temperature in even areas across entire field
-            average_temps = np.mean(self.blockshaped(self.temp_mesh,(self.num_vert_length-1)//9,(self.num_vert_width-1)//5),axis=0)
-            average_temps = average_temps.reshape(np.size(average_temps))
-            
-            # Find the x coords over which the laser can see
-            x_loc = self.mesh_cens_x_cords[:,0] - self.input_location[0]
-            x_min = np.argmin(abs(x_loc + self.radius_of_input))
-            x_max = np.argmin(abs(x_loc - self.radius_of_input))
-            x_max = x_max - (x_max-x_min)%5
-            if x_max == x_min:
-                if x_max - 5 >= 0 :
-                    x_min = x_max - 5
-                else:
-                    x_max = x_min + 5
-                    
-            # Find the x coords over which the laser can see
-            y_loc = self.mesh_cens_y_cords[0,:] - self.input_location[1]
-            y_min = np.argmin(abs(y_loc + self.radius_of_input))
-            y_max = np.argmin(abs(y_loc - self.radius_of_input))
-            y_max = y_max - (y_max-y_min)%5
-            if y_max == y_min:
-                if y_max - 5 >= 0 :
-                    y_min = y_max - 5
-                else:
-                    y_max = y_min + 5
-                    
-            # Calculate average temperature blocks (5X5) in laser view
-            laser_view = np.mean(self.blockshaped(self.temp_mesh[x_min:x_max,y_min:y_max],5,5),axis=0)
-            laser_view = laser_view.reshape(np.size(laser_view))
-            
-            # Compress front location and velocity data
-            average_front_loc = np.mean(self.front_loc.reshape((self.num_vert_width-1)//5,5),axis=1)
-            average_front_vel = np.mean(self.front_vel.reshape((self.num_vert_width-1)//5,5),axis=1)
-            
-            # Normalize and concatenate all substates
-            state = np.concatenate((average_temps/self.temperature_limit, 
-                                    laser_view/self.temperature_limit,
-                                    average_front_loc/self.length, 
-                                    average_front_vel/self.current_target_front_vel, 
-                                    [self.input_location[0]/self.length], [self.input_location[1]/self.width],
-                                    [self.input_magnitude]))
+        # Get the average temperature in even areas across entire field
+        average_temps = np.mean(self.blockshaped(self.temp_mesh,(self.num_vert_length-1)//9,(self.num_vert_width-1)//5),axis=0)
+        average_temps = average_temps.reshape(np.size(average_temps))
+        
+        # Find the x coords over which the laser can see
+        x_loc = self.mesh_cens_x_cords[:,0] - self.input_location[0]
+        x_min = np.argmin(abs(x_loc + self.radius_of_input))
+        x_max = np.argmin(abs(x_loc - self.radius_of_input))
+        x_max = x_max - (x_max-x_min)%5
+        if x_max == x_min:
+            if x_max - 5 >= 0 :
+                x_min = x_max - 5
+            else:
+                x_max = x_min + 5
+                
+        # Find the x coords over which the laser can see
+        y_loc = self.mesh_cens_y_cords[0,:] - self.input_location[1]
+        y_min = np.argmin(abs(y_loc + self.radius_of_input))
+        y_max = np.argmin(abs(y_loc - self.radius_of_input))
+        y_max = y_max - (y_max-y_min)%5
+        if y_max == y_min:
+            if y_max - 5 >= 0 :
+                y_min = y_max - 5
+            else:
+                y_max = y_min + 5
+                
+        # Calculate average temperature blocks (5X5) in laser view
+        laser_view = np.mean(self.blockshaped(self.temp_mesh[x_min:x_max,y_min:y_max],5,5),axis=0)
+        laser_view = laser_view.reshape(np.size(laser_view))
+        
+        # Compress front location and velocity data
+        average_front_loc = np.mean(self.front_loc.reshape((self.num_vert_width-1)//5,5),axis=1)
+        average_front_vel = np.mean(self.front_vel.reshape((self.num_vert_width-1)//5,5),axis=1)
+        
+        # Normalize and concatenate all substates
+        state = np.concatenate((average_temps/self.temperature_limit, 
+                                laser_view/self.temperature_limit,
+                                average_front_loc/self.length, 
+                                average_front_vel/self.current_target_front_vel, 
+                                [self.input_location[0]/self.length], [self.input_location[1]/self.width],
+                                [self.input_magnitude]))
             
         # Return the state
         return state
