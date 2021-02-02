@@ -9,7 +9,7 @@ import numpy as np
 
 class FES():
     
-    def __init__(self, random_target=False, target_switch=False, control=False):
+    def __init__(self, random_target=False, target_switch=False, control=False, trigger=True):
         
         # Environment spatial parameters 
         self.num_vert_length = 181
@@ -52,10 +52,15 @@ class FES():
         self.current_target_front_vel = self.target_front_vel[self.current_index]
         
         # Trigger conditions
-        self.trigger_heat_rate_flux = 9000.0
-        self.trigger_time = 0.0
-        self.trigger_duration = 40.0
-        
+        if trigger:
+            self.trigger_heat_rate_flux = 9000.0
+            self.trigger_time = 0.0
+            self.trigger_duration = 40.0
+        else:
+            self.trigger_heat_rate_flux = 0.0
+            self.trigger_time = 0.0
+            self.trigger_duration = 0.0
+            
         # Monomer physical parameters
         self.thermal_conductivity = 0.152
         self.density = 980.0

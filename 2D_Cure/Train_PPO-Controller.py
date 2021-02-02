@@ -159,15 +159,16 @@ if __name__ == '__main__':
     reset_stdev = False
     
     # Environment parameters
+    trigger = False
     random_target = False
     target_switch = False
     control = False
         
     # Agent parameters
-    total_trajectories = 20000
+    total_trajectories = 1
     steps_per_trajecotry = 240
-    trajectories_per_batch = 10
-    num_epochs = 10
+    trajectories_per_batch = 1
+    num_epochs = 1
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
@@ -179,7 +180,7 @@ if __name__ == '__main__':
     dpi = 100
     
     # Calculated env and agent parameters
-    env = fes.FES(random_target=random_target, target_switch=target_switch, control=control)
+    env = fes.FES(random_target=random_target, target_switch=target_switch, control=control, trigger=trigger)
     num_states = ((env.num_vert_length-1)//9)*((env.num_vert_width-1)//5) + 25 + 2*((env.num_vert_width-1)//5) + 3
     decay_rate = (end_alpha/start_alpha)**(trajectories_per_batch/total_trajectories)
     agent_temporal_precision = (env.sim_duration / float(steps_per_trajecotry))
@@ -322,6 +323,22 @@ if __name__ == '__main__':
     print("Rendering...")
     min_temp = 0.99*np.min(data['temperature_field'])
     max_temp = max(1.05*np.max(data['temperature_field']), 1.05*env.temperature_limit)
+    
+    # Make custom color map for normalized data
+    min_round = 10.0*round(min_temp//10.0)
+    max_round = 10.0*round(max_temp/10.0)
+    limit_round = 10.0*round(env.temperature_limit/10.0)
+    if max_round < limit_round:
+        ticks = np.round(np.linspace(min_round, max_round, 12))
+        color_array = ["navy","blue","deepskyblue","paleturquoise","mediumspringgreen","forestgreen","lawngreen","yellow","orange","orangered","maroon"]
+        norm = clr.BoundaryNorm(ticks, 11)
+        cmap = clr.ListedColormap(color_array)
+    else:
+        ticks = np.linspace(min_round, limit_round, 12)
+        ticks = np.round(np.concatenate((ticks, np.array([max_round]))))
+        color_array = ["navy","blue","deepskyblue","paleturquoise","mediumspringgreen","forestgreen","lawngreen","yellow","orange","orangered","maroon","fuchsia"]
+        norm = clr.BoundaryNorm(ticks, 12)
+        cmap = clr.ListedColormap(color_array)
     for curr_step in range(len(data['time'])):
            
         # Calculate input field
@@ -338,9 +355,10 @@ if __name__ == '__main__':
         fig.set_size_inches(11,8.5)
         
         # Plot temperature
-        c0 = ax0.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, data['temperature_field'][curr_step], shading='auto', cmap='jet', vmin=min_temp, vmax=max_temp)
+        c0 = ax0.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, data['temperature_field'][curr_step], shading='auto', cmap=cmap, norm=norm)
         cbar0 = fig.colorbar(c0, ax=ax0)
         cbar0.set_label('Temperature [K]',labelpad=20,fontsize='large')
+        cbar0.set_ticks(ticks)
         cbar0.ax.tick_params(labelsize=12)
         ax0.set_xlabel('X Position [cm]',fontsize='large')
         ax0.set_ylabel('Y Position [cm]',fontsize='large')

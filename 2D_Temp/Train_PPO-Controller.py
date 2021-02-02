@@ -310,7 +310,7 @@ if __name__ == '__main__':
     plt.savefig(save_file, dpi = 500)
     plt.close()
 
-    # Make videos of the best temperature field trajecotry and cure field trajectories as function of time
+    # Make videos of the best temperature field trajecotry as function of time
     print("Rendering...")
     min_temp = 0.99*np.min(data['temperature_field'])
     max_temp = max(1.01*np.max(data['temperature_field']), 1.05*np.max(env.target_temp_mesh))
