@@ -60,7 +60,6 @@ class FES():
         self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 25.0)
         self.target_temp_mesh = self.target_temp * np.ones(self.temp_mesh.shape)
         self.temp_error = 0.0
-        self.temp_RMS_error = 0.0
         self.temp_error_max = 0.0
         self.temp_error_min = 0.0
         
@@ -95,7 +94,6 @@ class FES():
         self.max_reward = 2.0
         self.input_punishment_const = 0.01
         self.overage_punishment_const = 0.25
-        self.spread_punishment_const = 0.10
         self.reward_scale = 1.0 / (1.0 - self.initial_temperature / self.target_ref)
         self.reward_offset = self.initial_temperature / self.target_ref
         
@@ -259,6 +257,12 @@ class FES():
         # Sum reward and punishment
         reward = on_target_reward + close_target_reward + near_target_reward + off_target_punishment + overage_punishment + input_punishment
 
+        # Calculate the errors
+        difference = self.temp_mesh/self.target_temp - 1.0
+        self.temp_error = np.mean(difference)
+        self.temp_error_max = np.max(difference)
+        self.temp_error_min = np.min(difference)
+        
         # Return the calculated reward
         return reward
 
@@ -295,7 +299,6 @@ class FES():
         self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 25.0)
         self.target_temp_mesh = self.target_temp * np.ones(self.temp_mesh.shape)
         self.temp_error = 0.0
-        self.temp_RMS_error = 0.0
         self.temp_error_max = 0.0
         self.temp_error_min = 0.0
         
