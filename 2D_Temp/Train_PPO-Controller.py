@@ -5,7 +5,7 @@ Created on Wed Nov 25 11:50:34 2020
 @author: Grayson Schaer
 """
 import Finite_Element_Solver_2D as fes
-import PPO_Agent_3_Output as ppo
+import PPO_Agent as ppo
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as clr
@@ -18,8 +18,6 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
     data = {
         'r_per_episode' : [],
         'value_error' : [],
-        'x_rate_stdev': [],
-        'y_rate_stdev': [],
         'mag_stdev': [],
         'input_location': [],
         'input_magnitude':[],
@@ -84,10 +82,10 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
 
             # Get action, do action, learn
             if step_in_episode % execution_rate == 0:
-                x_loc_rate_action, x_loc_rate_stdev, y_loc_rate_action, y_loc_rate_stdev, mag_action, mag_stdev = agent.get_action(s)
-            (s2, r, done) = env.step(np.array([x_loc_rate_action, y_loc_rate_action, mag_action]))
+                mag_action, mag_stdev = agent.get_action(s)
+            (s2, r, done) = env.step(np.array([mag_action]))
             if step_in_episode % execution_rate == 0:
-                agent.update_agent(s, np.array([x_loc_rate_action, y_loc_rate_action, mag_action]), r)
+                agent.update_agent(s, mag_action, r)
                 r_total = r_total + r
                 curr_step = curr_step + 1
 
@@ -122,8 +120,6 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
 
         # Update the logs
         data['r_per_episode'].append(episode_reward / agent.steps_per_trajectory)
-        data['x_rate_stdev'].append(x_loc_rate_stdev)
-        data['y_rate_stdev'].append(y_loc_rate_stdev)
         data['mag_stdev'].append(mag_stdev)
 
         # Reset trajectory memory
@@ -155,19 +151,19 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
 if __name__ == '__main__':
 
     # Simulation parameters
-    load_previous_agent = True
+    load_previous_agent = False
     reset_stdev = False
 
     # Agent hyperparameters
-    total_trajectories = 20000
+    total_trajectories = 1
     steps_per_trajecotry = 240
-    trajectories_per_batch = 10
-    num_epochs = 10
+    trajectories_per_batch = 1
+    num_epochs = 1
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    start_alpha = 5.0e-4
-    end_alpha = 1.0e-4
+    start_alpha = 1.0e-3
+    end_alpha = 5.0e-4
 
     # Rendering parameters
     frame_multiplier = 1.0/6.0
@@ -175,7 +171,7 @@ if __name__ == '__main__':
 
     # Calculated env and agent parameters
     env = fes.FES()
-    num_states = ((env.num_vert_length-1)//8)*((env.num_vert_width-1)//8) + 52
+    num_states = env.coarseness*env.coarseness + 1
     decay_rate = (end_alpha/start_alpha)**(trajectories_per_batch/total_trajectories)
     agent_temporal_precision = (env.sim_duration / float(steps_per_trajecotry))
     execution_rate = int(agent_temporal_precision / env.time_step)
@@ -268,32 +264,6 @@ if __name__ == '__main__':
     plt.yticks(fontsize='large')
     plt.gcf().set_size_inches(8.5, 5.5)
     save_file = path + "/critic_learning.png"
-    plt.savefig(save_file, dpi = 500)
-    plt.close()
-
-    # Plot x rate stdev curve
-    plt.clf()
-    plt.title("Laser X Position Rate Stdev",fontsize='xx-large')
-    plt.xlabel("Episode",fontsize='large')
-    plt.ylabel("Laser X Position Rate Stdev [m/s]",fontsize='large')
-    plt.plot([*range(len(data['x_rate_stdev']))],env.loc_rate_scale*np.array(data['x_rate_stdev']),lw=2.0,c='r')
-    plt.xticks(fontsize='large')
-    plt.yticks(fontsize='large')
-    plt.gcf().set_size_inches(8.5, 5.5)
-    save_file = path + "/x_rate_stdev.png"
-    plt.savefig(save_file, dpi = 500)
-    plt.close()
-
-    # Plot y rate stdev curve
-    plt.clf()
-    plt.title("Laser Y Position Rate Stdev",fontsize='xx-large')
-    plt.xlabel("Episode",fontsize='large')
-    plt.ylabel("Laser Y Position Rate Stdev [m/s]",fontsize='large')
-    plt.plot([*range(len(data['y_rate_stdev']))],env.loc_rate_scale*np.array(data['y_rate_stdev']),lw=2.0,c='r')
-    plt.xticks(fontsize='large')
-    plt.yticks(fontsize='large')
-    plt.gcf().set_size_inches(8.5, 5.5)
-    save_file = path + "/y_rate_stdev.png"
     plt.savefig(save_file, dpi = 500)
     plt.close()
 

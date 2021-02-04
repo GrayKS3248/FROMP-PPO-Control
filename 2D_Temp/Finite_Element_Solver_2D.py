@@ -12,8 +12,8 @@ class FES():
     def __init__(self):
         
         # Environment spatial parameters 
-        self.num_vert_length = 241
-        self.num_vert_width = 41
+        self.num_vert_length = 181
+        self.num_vert_width = 31
         self.length = 0.06
         self.width = 0.01
         
@@ -24,17 +24,17 @@ class FES():
         self.current_index = 0
         
         # Initial conditions
-        self.initial_temperature = 278.15
-        self.initial_temp_delta = 0.05 * self.initial_temperature
+        self.initial_temperature = 294.15
+        self.initial_temp_delta = 0.02 * self.initial_temperature
         
         # Boundary conditions
         self.htc = 9.0
         self.ambient_temperature = 294.15
         
-        # Monomer physical parameters
-        self.thermal_conductivity = 0.152
-        self.density = 980.0
-        self.specific_heat = 1440.0
+        # Substrate physical parameters
+        self.thermal_conductivity = 0.6
+        self.density = 997.0
+        self.specific_heat = 4182.0
         self.thermal_diffusivity = self.thermal_conductivity / (self.specific_heat * self.density)
         
         # Create vertices of mesh
@@ -56,8 +56,8 @@ class FES():
         self.temp_mesh = self.temp_mesh + self.get_perturbation(self.temp_mesh, self.initial_temp_delta)
         
         # Problem definition constants
-        self.target_ref = 340.0
-        self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 25.0)
+        self.target_ref = 313.15
+        self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 5.0)
         self.target_temp_mesh = self.target_temp * np.ones(self.temp_mesh.shape)
         self.temp_error = 0.0
         self.temp_error_max = 0.0
@@ -74,16 +74,14 @@ class FES():
         self.radius_of_input = self.length / 10.0
         sigma = self.radius_of_input / (2.0*np.sqrt(np.log(10.0)))
         self.exp_const = -1.0 / (2.0 * sigma * sigma)
+        self.coarseness = 10
         
         # Input location parameters
-        self.min_input_x_loc = self.mesh_cens_x_cords[0,0]
-        self.max_input_x_loc = self.mesh_cens_x_cords[-1,0]
-        self.min_input_y_loc = self.mesh_cens_y_cords[0,0]
-        self.max_input_y_loc = self.mesh_cens_y_cords[0,-1]
+        self.movement_dirn = np.array([0.0, 1.0])
+        self.x_dirn_movement = 1.0
+        self.length_wise_dist = 0.0
         self.max_input_loc_rate = self.length * self.time_step
         self.input_location = np.array([np.random.choice(self.mesh_cens_x_cords[:,0]), np.random.choice(self.mesh_cens_y_cords[0,:])])
-        self.loc_rate_scale = 2.70e-4
-        self.loc_rate_offset = 0.0
         
         # Input panels
         self.input_mesh = self.input_magnitude * self.max_input_mag * np.exp(((self.mesh_cens_x_cords - self.input_location[0])**2 * self.exp_const) + 
@@ -125,15 +123,46 @@ class FES():
         
         return perturbation
 
-    def step_input(self, action):
-        # Update the input's position
-        cmd = self.loc_rate_offset + self.loc_rate_scale * action[0:2]
-        cmd.clip(-self.max_input_loc_rate, self.max_input_loc_rate, out=cmd)
-        self.input_location = self.input_location + cmd * self.time_step
+    def step_input(self, action):        
+        # Determine the movement state
+        at_top_edge = self.input_location[1] >= 0.98*self.width
+        at_bottom_edge = self.input_location[1] <= 0.02*self.width
+        at_right_edge = self.input_location[0] >= 0.98*self.length
+        at_left_edge = self.input_location[0] <= 0.02*self.length
+        going_up = self.movement_dirn[1] == 1.0
+        going_down = self.movement_dirn[1] == -1.0
+        going_right = self.movement_dirn[0] == 1.0
+        going_left = self.movement_dirn[0] == -1.0
+        time_to_switch = False
+        
+        # Update how long the input has been traversing lengthwise
+        if going_right or going_left:
+            self.length_wise_dist = self.length_wise_dist + self.max_input_loc_rate*self.time_step
+            if self.length_wise_dist >= 2.0 * self.radius_of_input:
+                time_to_switch = True
+        else :
+            self.length_wise_dist = 0.0
+        
+        # Determine the movement direction
+        if (going_up and at_top_edge) or (going_down and at_bottom_edge):
+            self.movement_dirn = np.array([self.x_dirn_movement, 0.0])
+        elif (going_right and at_right_edge and at_top_edge) or (going_left and at_left_edge and at_top_edge):
+            self.movement_dirn = np.array([0.0, -1.0])
+            self.x_dirn_movement = -1.0 * self.x_dirn_movement
+        elif (going_right and at_right_edge and at_bottom_edge) or (going_left and at_left_edge and at_bottom_edge):
+            self.movement_dirn = np.array([0.0, 1.0])
+            self.x_dirn_movement = -1.0 * self.x_dirn_movement
+        elif (going_right and at_top_edge and time_to_switch) or (going_left and at_top_edge and time_to_switch):
+            self.movement_dirn = np.array([0.0, -1.0])
+        elif (going_right and at_bottom_edge and time_to_switch) or (going_left and at_bottom_edge and time_to_switch):
+            self.movement_dirn = np.array([0.0, 1.0])
+        
+        # Update the input location based on the movement direction
+        self.input_location = self.input_location + self.movement_dirn*self.max_input_loc_rate*self.time_step
         self.input_location.clip(np.array([0.0, 0.0]), np.array([self.length, self.width]), out=self.input_location)
         
         # Update the input's magnitude
-        magnitude_command = self.mag_offset + self.mag_scale * action[2]
+        magnitude_command = self.mag_offset + self.mag_scale * action[0]
         if magnitude_command > self.input_magnitude:
             self.input_magnitude = np.clip(min(self.input_magnitude + self.max_input_mag_rate, magnitude_command), 0.0, 1.0)
         elif magnitude_command < self.input_magnitude:
@@ -192,41 +221,36 @@ class FES():
                    .reshape(-1, nrows, ncols))
 
     def get_state(self):
-        # Get the average temperature in even areas across entire field
-        average_temps = np.mean(self.blockshaped(self.temp_mesh,(self.num_vert_length-1)//8,(self.num_vert_width-1)//8),axis=0)
-        average_temps = average_temps.reshape(np.size(average_temps))
         
         # Find the x coords over which the laser can see
         x_loc = self.mesh_cens_x_cords[:,0] - self.input_location[0]
         x_min = np.argmin(abs(x_loc + self.radius_of_input))
         x_max = np.argmin(abs(x_loc - self.radius_of_input))
-        x_max = x_max - (x_max-x_min)%7
+        x_max = x_max - (x_max-x_min)%self.coarseness
         if x_max == x_min:
-            if x_max - 7 >= 0 :
-                x_min = x_max - 7
+            if x_max - self.coarseness >= 0 :
+                x_min = x_max - self.coarseness
             else:
-                x_max = x_min + 7
+                x_max = x_min + self.coarseness
                 
         # Find the x coords over which the laser can see
         y_loc = self.mesh_cens_y_cords[0,:] - self.input_location[1]
         y_min = np.argmin(abs(y_loc + self.radius_of_input))
         y_max = np.argmin(abs(y_loc - self.radius_of_input))
-        y_max = y_max - (y_max-y_min)%7
+        y_max = y_max - (y_max-y_min)%self.coarseness
         if y_max == y_min:
-            if y_max - 7 >= 0 :
-                y_min = y_max - 7
+            if y_max - self.coarseness >= 0 :
+                y_min = y_max - self.coarseness
             else:
-                y_max = y_min + 7
+                y_max = y_min + self.coarseness
                 
         # Calculate average temperature blocks (5X5) in laser view
-        laser_view = np.mean(self.blockshaped(self.temp_mesh[x_min:x_max,y_min:y_max],7,7),axis=0)
+        laser_view = np.mean(self.blockshaped(self.temp_mesh[x_min:x_max,y_min:y_max],self.coarseness,self.coarseness),axis=0)
         laser_view = laser_view.reshape(np.size(laser_view))
         
         # Normalize and concatenate all substates
-        state = np.concatenate((average_temps/self.target_temp, 
-                                laser_view/self.target_temp,
-                                [self.input_location[0]/self.length], [self.input_location[1]/self.width],
-                                [self.input_magnitude]))
+        state = np.concatenate((laser_view/self.target_temp,
+                                np.array([self.input_magnitude])))
             
         # Return the state
         return state
@@ -307,6 +331,9 @@ class FES():
         # Reset input
         self.input_magnitude = np.random.rand()
         self.input_location = np.array([np.random.choice(self.mesh_cens_x_cords[:,0]), np.random.choice(self.mesh_cens_y_cords[0,:])])
+        self.movement_dirn = np.array([0.0, 1.0])
+        self.x_dirn_movement = 1.0
+        self.length_wise_dist = 0.0
         
         # Reset input panels
         self.input_mesh = self.input_magnitude * self.max_input_mag * np.exp(((self.mesh_cens_x_cords - self.input_location[0])**2 * self.exp_const) + 

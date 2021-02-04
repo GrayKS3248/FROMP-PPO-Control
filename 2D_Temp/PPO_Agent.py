@@ -40,7 +40,7 @@ class PPO_Agent:
         self.trajectory_index  = 0
         self.trajectories_per_batch = trajectories_per_batch
         self.trajectory_states = np.zeros((trajectories_per_batch*steps_per_trajectory, num_states))
-        self.trajectory_actions = np.zeros((3, trajectories_per_batch*steps_per_trajectory))
+        self.trajectory_actions = np.zeros((1, trajectories_per_batch*steps_per_trajectory))
         self.trajectory_rewards = np.zeros(trajectories_per_batch*steps_per_trajectory)
         
         # Hyperparameters
@@ -273,7 +273,7 @@ class PPO_Agent:
             # After learning, reset the memory
             self.trajectory_index  = 0
             self.trajectory_states = np.zeros((self.trajectories_per_batch*self.steps_per_trajectory, self.num_states))
-            self.trajectory_actions = np.zeros((3, self.trajectories_per_batch*self.steps_per_trajectory))
+            self.trajectory_actions = np.zeros((1, self.trajectories_per_batch*self.steps_per_trajectory))
             self.trajectory_rewards = np.zeros(self.trajectories_per_batch*self.steps_per_trajectory)
         
         
