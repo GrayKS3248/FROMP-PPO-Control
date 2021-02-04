@@ -56,7 +56,7 @@ class FES():
         self.temp_mesh = self.temp_mesh + self.get_perturbation(self.temp_mesh, self.initial_temp_delta)
         
         # Problem definition constants
-        self.target_ref = 325.0
+        self.target_ref = 340.0
         self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 25.0)
         self.target_temp_mesh = self.target_temp * np.ones(self.temp_mesh.shape)
         self.temp_error = 0.0
@@ -93,9 +93,7 @@ class FES():
         # Reward constants
         self.max_reward = 2.0
         self.input_punishment_const = 0.01
-        self.overage_punishment_const = 0.25
-        self.reward_scale = 1.0 / (1.0 - self.initial_temperature / self.target_ref)
-        self.reward_offset = self.initial_temperature / self.target_ref
+        self.overage_punishment_const = 0.10
         
         # Simulation limits
         self.stab_lim = 10.0 * self.ambient_temperature
@@ -240,8 +238,8 @@ class FES():
         # Calculate the temperature overage punishment
         overage = (np.max(self.temp_mesh) / self.target_temp)
         overage_punishment = 0.0
-        if overage >= 1.10:
-            overage_punishment = -self.overage_punishment_const * self.max_reward * (overage-0.10)
+        if overage >= 1.15:
+            overage_punishment = -self.overage_punishment_const * self.max_reward * (overage-0.15)
         
         # Calculate the temperature field reward and punishment
         size = (self.num_vert_length-1)*(self.num_vert_width-1)
