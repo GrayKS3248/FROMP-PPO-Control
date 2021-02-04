@@ -262,17 +262,18 @@ class FES():
         # Calculate the temperature overage punishment
         overage = (np.max(self.temp_mesh) / self.target_temp)
         overage_punishment = 0.0
-        if overage >= 1.15:
-            overage_punishment = -self.overage_punishment_const * self.max_reward * (overage-0.15)
+        if overage >= 1.10:
+            overage_punishment = -self.overage_punishment_const * self.max_reward * (overage-0.10)
         
         # Calculate the temperature field reward and punishment
         size = (self.num_vert_length-1)*(self.num_vert_width-1)
-        on_target = np.sum(((((self.temp_mesh > 0.99 * self.target_temp) * 1.0 + (self.temp_mesh < 1.01 * self.target_temp) * 1.0) == 2.0) * 1.0))
-        close_target = np.sum(((((self.temp_mesh > 0.95 * self.target_temp) * 1.0 + (self.temp_mesh < 1.05 * self.target_temp) * 1.0) == 2.0) * 1.0)) - on_target
-        near_target = np.sum(((((self.temp_mesh > 0.90 * self.target_temp) * 1.0 + (self.temp_mesh < 1.10 * self.target_temp) * 1.0) == 2.0) * 1.0)) - close_target - on_target
+        ratio = self.temp_mesh / self.target_temp
+        on_target = np.sum(np.logical_and((ratio>=0.995),(ratio<=1.005)))
+        close_target = np.sum(np.logical_and((ratio>=0.99),(ratio<=1.01))) - on_target
+        near_target = np.sum(np.logical_and((ratio>=0.975),(ratio<=1.025))) - close_target - on_target
         off_target = size - near_target - close_target - on_target
         on_target_reward = self.max_reward * (on_target / size)
-        close_target_reward = 0.75 * self.max_reward * (close_target / size)
+        close_target_reward = 0.667 * self.max_reward * (close_target / size)
         near_target_reward = 0.25 * self.max_reward * (near_target / size)
         off_target_punishment = -0.25 * self.max_reward * (off_target / size)
         
@@ -318,7 +319,7 @@ class FES():
         self.current_index = 0
         
         # Calculate the target vectors
-        self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 25.0)
+        self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 5.0)
         self.target_temp_mesh = self.target_temp * np.ones(self.temp_mesh.shape)
         self.temp_error = 0.0
         self.temp_error_max = 0.0
