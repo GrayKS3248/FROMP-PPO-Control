@@ -7,7 +7,7 @@ Created on Wed Nov 11 10:41:07 2020
 
 import numpy as np
 import torch
-import NN_Stdev_3_Output
+import NN_Stdev
 import NN
 
 class PPO_Agent:
@@ -17,20 +17,20 @@ class PPO_Agent:
         # Policy and value estimation network
         # Input is the state
         # Output is the mean of the gaussian distribution from which actions are sampled
-        self.actor = NN_Stdev_3_Output.Neural_Network(num_inputs=num_states, num_outputs=3, num_hidden_layers=2, num_neurons_in_layer=202)
+        self.actor = NN_Stdev.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=2, num_neurons_in_layer=160)
         self.actor_optimizer =  torch.optim.Adam(self.actor.parameters() , lr=alpha)
         self.actor_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.actor_optimizer, gamma=decay_rate)
         
         # Old policy and value estimation network used to calculate clipped surrogate objective
         # Input is the state
         # Output is the mean of the gaussian distribution from which actions are sampled
-        self.old_actor = NN_Stdev_3_Output.Neural_Network(num_inputs=num_states, num_outputs=3, num_hidden_layers=2, num_neurons_in_layer=202)
+        self.old_actor = NN_Stdev.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=2, num_neurons_in_layer=160)
         self.old_actor.load_state_dict(self.actor.state_dict())
                 
         # Critic NN that estimates the value function
         # Input is the state
         # Output is the estimated value of that state
-        self.critic =  NN.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=2, num_neurons_in_layer=202)
+        self.critic =  NN.Neural_Network(num_inputs=num_states, num_outputs=1, num_hidden_layers=2, num_neurons_in_layer=160)
         self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=alpha)
         self.critic_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.critic_optimizer, gamma=decay_rate)
         
@@ -67,9 +67,7 @@ class PPO_Agent:
         
         # Reset the stdev
         if reset_stdev:
-            self.actor.stdev_1 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
-            self.actor.stdev_2 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
-            self.actor.stdev_3 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
+            self.actor.stdev = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
         
         # Build the optimizer
         self.actor_optimizer =  torch.optim.Adam(self.actor.parameters() , lr=self.alpha)
@@ -98,13 +96,11 @@ class PPO_Agent:
         
         # Get the gaussian distribution parameters used to sample the action for the old and new policy
         with torch.no_grad():
-            means, stdev_1, stdev_2, stdev_3 = self.actor.forward(torch.tensor(state, dtype=torch.float))
+            mean, stdev = self.actor.forward(torch.tensor(state, dtype=torch.float))
         
         # Return the means
-        action_1 = float(means[0])
-        action_2 = float(means[1])
-        action_3 = float(means[2])
-        return action_1, action_2, action_3
+        action = float(mean)
+        return action
     
     # Calcuates stochastic action given state and policy.
     # @ param state - The state in which the policy is applied to calculate the action
@@ -113,24 +109,14 @@ class PPO_Agent:
     def get_action(self, state):
         
         # Get the gaussian distribution parameters used to sample the action for the old and new policy
-        means, stdev_1, stdev_2, stdev_3 = self.actor.forward(torch.tensor(state, dtype=torch.float))
+        mean, stdev = self.actor.forward(torch.tensor(state, dtype=torch.float))
         
         # Sample the first action
-        dist_1 = torch.distributions.normal.Normal(means[0], stdev_1)
-        action_1 = dist_1.sample().item()
-        stdev_1 = stdev_1.detach().item()
+        dist = torch.distributions.normal.Normal(mean, stdev)
+        action = dist.sample().item()
+        stdev = stdev.detach().item()
         
-        # Sample the second action
-        dist_2 = torch.distributions.normal.Normal(means[1], stdev_2)
-        action_2 = dist_2.sample().item()
-        stdev_2 = stdev_2.detach().item()
-        
-        # Sample the second action
-        dist_3 = torch.distributions.normal.Normal(means[2], stdev_3)
-        action_3 = dist_3.sample().item()
-        stdev_3 = stdev_3.detach().item()
-        
-        return action_1, stdev_1, action_2, stdev_2, action_3, stdev_3
+        return action, stdev
   
     
     # Gets the autodifferentiable probability ratios for the given trajectory
@@ -143,27 +129,19 @@ class PPO_Agent:
         for curr_epoch in range(self.num_epochs):
             # Get the current and old action distribution parameters
             state_minibatch = torch.tensor(self.trajectory_states[minibatch_indices[curr_epoch,:], :], dtype=torch.float)
-            means_minibatch, stdev_1, stdev_2, stdev_3 = self.actor.forward(state_minibatch)
+            mean_minibatch, stdev = self.actor.forward(state_minibatch)
             with torch.no_grad():
-                old_means_minibatch, old_stdev_1, old_stdev_2, old_stdev_3 = self.old_actor.forward(state_minibatch)
+                old_mean_minibatch, old_stdev = self.old_actor.forward(state_minibatch)
             
             # Set the distributions based on the parameters above
-            dist_1 = torch.distributions.normal.Normal(means_minibatch[:,0], stdev_1)
-            dist_2 = torch.distributions.normal.Normal(means_minibatch[:,1], stdev_2)
-            dist_3 = torch.distributions.normal.Normal(means_minibatch[:,2], stdev_3)
-            old_dist_1 = torch.distributions.normal.Normal(old_means_minibatch[:,0], old_stdev_1)
-            old_dist_2 = torch.distributions.normal.Normal(old_means_minibatch[:,1], old_stdev_2)
-            old_dist_3 = torch.distributions.normal.Normal(old_means_minibatch[:,2], old_stdev_3)
+            dist = torch.distributions.normal.Normal(mean_minibatch, stdev)
+            old_dist = torch.distributions.normal.Normal(old_mean_minibatch, old_stdev)
             
             # Get the probability ratios
             action_minibatch = torch.tensor(self.trajectory_actions[:,minibatch_indices[curr_epoch,:]], dtype=torch.float)
-            numerator_1 = torch.exp(dist_1.log_prob(action_minibatch[0,:])).double()
-            numerator_2 = torch.exp(dist_2.log_prob(action_minibatch[1,:])).double()
-            numerator_3 = torch.exp(dist_3.log_prob(action_minibatch[2,:])).double()
-            denominator_1 =  torch.exp(old_dist_1.log_prob(action_minibatch[0,:])).double()
-            denominator_2 =  torch.exp(old_dist_2.log_prob(action_minibatch[1,:])).double()
-            denominator_3 =  torch.exp(old_dist_3.log_prob(action_minibatch[2,:])).double()
-            probability_ratio = (numerator_1 * numerator_2 * numerator_3) / (denominator_1 * denominator_2 * denominator_3)
+            numerator = torch.exp(dist.log_prob(action_minibatch)).double()
+            denominator =  torch.exp(old_dist.log_prob(action_minibatch)).double()
+            probability_ratio = numerator / denominator
             
             probability_ratio_minibatches.append(probability_ratio)
             

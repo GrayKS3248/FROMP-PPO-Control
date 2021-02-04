@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 """
 Created on Tue Sep 22 14:34:46 CST 2020
 
-@author: GKSch
+@author: Grayson Schaer
 """
 
 import torch
@@ -47,9 +48,7 @@ class Neural_Network(nn.Module):
             else:
                 exec("self." + hidden_layer_name + "= nn.Linear(self.num_neurons_in_layer, self.num_outputs)")
                 
-        self.stdev_1 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
-        self.stdev_2 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
-        self.stdev_3 = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
+        self.stdev = torch.nn.Parameter(2.0 * torch.ones(1, dtype=torch.double).double())
 
     # Feed-forward function
     # @param x - set of inputs
@@ -65,9 +64,7 @@ class Neural_Network(nn.Module):
         current_layer_name = "fc" + str(self.num_hidden_layers + 1)
         x = eval("self." + current_layer_name + "(x)")
         
-        stdev_1 = torch.exp(self.stdev_1)
-        stdev_2 = torch.exp(self.stdev_2)
-        stdev_3 = torch.exp(self.stdev_3)
+        stdev = torch.exp(self.stdev)
         
         # Return the permuted x_copy (now in output form)
-        return x, stdev_1, stdev_2, stdev_3
+        return x, stdev
