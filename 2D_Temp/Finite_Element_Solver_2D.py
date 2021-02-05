@@ -9,8 +9,18 @@ import numpy as np
 
 class FES():
     
-    def __init__(self, loc_multiplier):
+    def __init__(self, loc_multiplier=0.15, uniform_target=True, split_target=False, random_target=False):
         
+        # Ensure inputs are ok
+        if loc_multiplier <= 0.0:
+            raise RuntimeError('Location multiplier must be greater than or equal to 0.0')
+        if uniform_target and (split_target or random_target):
+            raise RuntimeError('Split and random target mode must be false when uniform target mode is true.')
+        if split_target and (uniform_target or random_target):
+            raise RuntimeError('Uniform and random target mode must be false when split target mode is true.')
+        if random_target and (split_target or uniform_target):
+            raise RuntimeError('Uniform and split target mode must be false when random target mode is true.')
+            
         # Environment spatial parameters 
         self.num_vert_length = 181
         self.num_vert_width = 31
@@ -57,8 +67,25 @@ class FES():
         
         # Problem definition constants
         self.target_ref = 313.15
-        self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 5.0)
-        self.target_temp_mesh = self.target_temp * np.ones(self.temp_mesh.shape)
+        self.uniform_target = uniform_target
+        self.split_target = split_target
+        self.random_target = random_target
+        if self.uniform_target:
+            target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 5.0)
+            self.target_temp_mesh = target_temp * np.ones(self.temp_mesh.shape)
+        elif self.split_target:
+            delta = (0.25*np.random.rand()+0.375) * 15.0
+            target_temp_1 = (self.target_ref - np.random.rand()*5.0)
+            target_temp_2 = target_temp_1 + delta
+            split_point = round((0.25 * np.random.rand() + 0.375)*(self.num_vert_length-1))
+            mesh_1 = np.ones(self.temp_mesh.shape)
+            mesh_1[split_point:len(mesh_1)] = 0.0
+            mesh_2 = np.ones(self.temp_mesh.shape)
+            mesh_2[0:split_point] = 0.0
+            self.target_temp_mesh = target_temp_1 * mesh_1 + target_temp_2 * mesh_2
+        elif self.random_target:
+            self.target_temp_mesh = self.target_ref * np.ones(self.temp_mesh.shape)
+            self.target_temp_mesh = self.target_temp_mesh + self.get_perturbation(self.target_temp_mesh, 10.0)
         self.temp_error = 0.0
         self.temp_error_max = 0.0
         self.temp_error_min = 0.0
@@ -213,16 +240,17 @@ class FES():
 
     def get_state(self):
         # Calculate average temperature of the laser's view
+        normalized_temp_mesh = self.temp_mesh / self.target_temp_mesh
         if np.max(self.input_mesh) > 0.0:
-            laser_view = np.mean(self.temp_mesh[self.input_mesh != 0.0])
+            laser_view = np.mean(normalized_temp_mesh[self.input_mesh != 0.0])
         else:
             mesh = 0.02 * self.max_input_mag * np.exp(((self.mesh_cens_x_cords - self.input_location[0])**2 * self.exp_const) + 
                                                             (self.mesh_cens_y_cords - self.input_location[1])**2 * self.exp_const)
             mesh[mesh<0.01*self.max_input_mag] = 0.0
-            laser_view = np.mean(self.temp_mesh[mesh != 0.0])
+            laser_view = np.mean(normalized_temp_mesh[mesh != 0.0])
         
         # Normalize and concatenate all substates
-        state = np.array([laser_view/self.target_temp, self.input_magnitude])
+        state = np.array([laser_view, self.input_magnitude])
             
         # Return the state
         return state
@@ -232,14 +260,14 @@ class FES():
         input_punishment = -self.input_punishment_const * self.max_reward * self.input_magnitude
         
         # Calculate the temperature overage punishment
-        overage = (np.max(self.temp_mesh) / self.target_temp)
+        overage = np.max(self.temp_mesh / self.target_temp_mesh)
         overage_punishment = 0.0
         if overage >= 1.10:
             overage_punishment = -self.overage_punishment_const * self.max_reward * (overage-0.10)
         
         # Calculate the temperature field reward and punishment
         size = (self.num_vert_length-1)*(self.num_vert_width-1)
-        ratio = self.temp_mesh / self.target_temp
+        ratio = self.temp_mesh / self.target_temp_mesh
         on_target = np.sum(np.logical_and((ratio>=0.995),(ratio<=1.005)))
         close_target = np.sum(np.logical_and((ratio>=0.99),(ratio<=1.01))) - on_target
         near_target = np.sum(np.logical_and((ratio>=0.975),(ratio<=1.025))) - close_target - on_target
@@ -253,7 +281,7 @@ class FES():
         reward = on_target_reward + close_target_reward + near_target_reward + off_target_punishment + overage_punishment + input_punishment
 
         # Calculate the errors
-        difference = self.temp_mesh/self.target_temp - 1.0
+        difference = self.temp_mesh/self.target_temp_mesh - 1.0
         self.temp_error = np.mean(difference)
         self.temp_error_max = np.max(difference)
         self.temp_error_min = np.min(difference)
@@ -291,8 +319,22 @@ class FES():
         self.current_index = 0
         
         # Calculate the target vectors
-        self.target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 5.0)
-        self.target_temp_mesh = self.target_temp * np.ones(self.temp_mesh.shape)
+        if self.uniform_target:
+            target_temp = (self.target_ref + (2.0*(np.random.rand()) - 1.0) * 5.0)
+            self.target_temp_mesh = target_temp * np.ones(self.temp_mesh.shape)
+        elif self.split_target:
+            delta = (0.25*np.random.rand()+0.375) * 15.0
+            target_temp_1 = (self.target_ref - np.random.rand()*5.0)
+            target_temp_2 = target_temp_1 + delta
+            split_point = round((0.25 * np.random.rand() + 0.375)*(self.num_vert_length-1))
+            mesh_1 = np.ones(self.temp_mesh.shape)
+            mesh_1[split_point:len(mesh_1)] = 0.0
+            mesh_2 = np.ones(self.temp_mesh.shape)
+            mesh_2[0:split_point] = 0.0
+            self.target_temp_mesh = target_temp_1 * mesh_1 + target_temp_2 * mesh_2
+        elif self.random_target:
+            self.target_temp_mesh = self.target_ref * np.ones(self.temp_mesh.shape)
+            self.target_temp_mesh = self.target_temp_mesh + self.get_perturbation(self.target_temp_mesh, 10.0)
         self.temp_error = 0.0
         self.temp_error_max = 0.0
         self.temp_error_min = 0.0
