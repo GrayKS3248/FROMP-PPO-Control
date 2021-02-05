@@ -156,7 +156,7 @@ if __name__ == '__main__':
     
     # Simulation parameters
     load_previous_agent = True
-    reset_stdev = False
+    reset_stdev = True
     
     # Environment parameters
     control = False

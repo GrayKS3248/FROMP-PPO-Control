@@ -9,7 +9,7 @@ import numpy as np
 
 class FES():
     
-    def __init__(self):
+    def __init__(self, loc_multiplier):
         
         # Environment spatial parameters 
         self.num_vert_length = 181
@@ -67,14 +67,12 @@ class FES():
         self.max_input_mag = 2.5e7
         self.max_input_mag_rate = self.time_step
         self.input_magnitude = np.random.rand()
-        self.mag_scale = 0.0227
-        self.mag_offset = 0.5
         
         # Input distribution parameters
         self.radius_of_input = self.length / 10.0
         sigma = self.radius_of_input / (2.0*np.sqrt(np.log(10.0)))
         self.exp_const = -1.0 / (2.0 * sigma * sigma)
-        self.coarseness = 10
+        self.coarseness = 1
         
         # Input location parameters
         self.movement_dirn = np.array([0.0, 1.0])
@@ -82,6 +80,7 @@ class FES():
         self.length_wise_dist = 0.0
         self.max_input_loc_rate = self.length * self.time_step
         self.input_location = np.array([np.random.choice(self.mesh_cens_x_cords[:,0]), np.random.choice(self.mesh_cens_y_cords[0,:])])
+        self.loc_multiplier = loc_multiplier
         
         # Input panels
         self.input_mesh = self.input_magnitude * self.max_input_mag * np.exp(((self.mesh_cens_x_cords - self.input_location[0])**2 * self.exp_const) + 
@@ -90,8 +89,8 @@ class FES():
         
         # Reward constants
         self.max_reward = 2.0
-        self.input_punishment_const = 0.01
-        self.overage_punishment_const = 0.10
+        self.input_punishment_const = 0.05
+        self.overage_punishment_const = 0.25
         
         # Simulation limits
         self.stab_lim = 10.0 * self.ambient_temperature
@@ -138,7 +137,7 @@ class FES():
         # Update how long the input has been traversing lengthwise
         if going_right or going_left:
             self.length_wise_dist = self.length_wise_dist + self.max_input_loc_rate*self.time_step
-            if self.length_wise_dist >= 2.0 * self.radius_of_input:
+            if self.length_wise_dist >= self.loc_multiplier * 2.0 * self.radius_of_input:
                 time_to_switch = True
         else :
             self.length_wise_dist = 0.0
@@ -162,7 +161,7 @@ class FES():
         self.input_location.clip(np.array([0.0, 0.0]), np.array([self.length, self.width]), out=self.input_location)
         
         # Update the input's magnitude
-        magnitude_command = self.mag_offset + self.mag_scale * action[0]
+        magnitude_command = action[0]
         if magnitude_command > self.input_magnitude:
             self.input_magnitude = np.clip(min(self.input_magnitude + self.max_input_mag_rate, magnitude_command), 0.0, 1.0)
         elif magnitude_command < self.input_magnitude:
@@ -212,45 +211,18 @@ class FES():
         if((self.temp_mesh >= self.stab_lim).any() or (self.temp_mesh <= -self.stab_lim).any()):
             raise RuntimeError('Unstable growth detected.')
 
-    def blockshaped(self, arr, nrows, ncols):
-        h, w = arr.shape
-        assert h % nrows == 0, "{} rows is not evenly divisble by {}".format(h, nrows)
-        assert w % ncols == 0, "{} cols is not evenly divisble by {}".format(w, ncols)
-        return (arr.reshape(h//nrows, nrows, -1, ncols)
-                   .swapaxes(1,2)
-                   .reshape(-1, nrows, ncols))
-
     def get_state(self):
-        
-        # Find the x coords over which the laser can see
-        x_loc = self.mesh_cens_x_cords[:,0] - self.input_location[0]
-        x_min = np.argmin(abs(x_loc + self.radius_of_input))
-        x_max = np.argmin(abs(x_loc - self.radius_of_input))
-        x_max = x_max - (x_max-x_min)%self.coarseness
-        if x_max == x_min:
-            if x_max - self.coarseness >= 0 :
-                x_min = x_max - self.coarseness
-            else:
-                x_max = x_min + self.coarseness
-                
-        # Find the x coords over which the laser can see
-        y_loc = self.mesh_cens_y_cords[0,:] - self.input_location[1]
-        y_min = np.argmin(abs(y_loc + self.radius_of_input))
-        y_max = np.argmin(abs(y_loc - self.radius_of_input))
-        y_max = y_max - (y_max-y_min)%self.coarseness
-        if y_max == y_min:
-            if y_max - self.coarseness >= 0 :
-                y_min = y_max - self.coarseness
-            else:
-                y_max = y_min + self.coarseness
-                
-        # Calculate average temperature blocks (5X5) in laser view
-        laser_view = np.mean(self.blockshaped(self.temp_mesh[x_min:x_max,y_min:y_max],self.coarseness,self.coarseness),axis=0)
-        laser_view = laser_view.reshape(np.size(laser_view))
+        # Calculate average temperature of the laser's view
+        if np.max(self.input_mesh) > 0.0:
+            laser_view = np.mean(self.temp_mesh[self.input_mesh != 0.0])
+        else:
+            mesh = 0.02 * self.max_input_mag * np.exp(((self.mesh_cens_x_cords - self.input_location[0])**2 * self.exp_const) + 
+                                                            (self.mesh_cens_y_cords - self.input_location[1])**2 * self.exp_const)
+            mesh[mesh<0.01*self.max_input_mag] = 0.0
+            laser_view = np.mean(self.temp_mesh[mesh != 0.0])
         
         # Normalize and concatenate all substates
-        state = np.concatenate((laser_view/self.target_temp,
-                                np.array([self.input_magnitude])))
+        state = np.array([laser_view/self.target_temp, self.input_magnitude])
             
         # Return the state
         return state
@@ -273,9 +245,9 @@ class FES():
         near_target = np.sum(np.logical_and((ratio>=0.975),(ratio<=1.025))) - close_target - on_target
         off_target = size - near_target - close_target - on_target
         on_target_reward = self.max_reward * (on_target / size)
-        close_target_reward = 0.667 * self.max_reward * (close_target / size)
+        close_target_reward = 0.67 * self.max_reward * (close_target / size)
         near_target_reward = 0.25 * self.max_reward * (near_target / size)
-        off_target_punishment = -0.25 * self.max_reward * (off_target / size)
+        off_target_punishment = -0.50 * self.max_reward * (off_target / size)
         
         # Sum reward and punishment
         reward = on_target_reward + close_target_reward + near_target_reward + off_target_punishment + overage_punishment + input_punishment
