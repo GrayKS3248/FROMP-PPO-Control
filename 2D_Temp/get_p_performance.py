@@ -144,24 +144,60 @@ def run(env, total_trajectories, execution_rate, frame_multiplier, denom_const, 
 if __name__ == '__main__':
 
     # Simulation set parameters
-    denom_const_set = np.linspace(0.012, 0.012, 1)
-    loc_multiplier_set = np.linspace(0.16, 0.16, 1)
+    denom_const_set = np.linspace(0.075, 0.1, 1)
+    loc_multiplier_set = np.linspace(0.4, 1.0, 1)
     render = True
     plot = True
     combine = False
     
     # Simulation parameters
-    total_trajectories = 10
-    uniform_target = False
+    total_trajectories = 1
+    uniform_target = True
     split_target = False
-    random_target = True
+    random_target = False
 
     # Agent hyperparameters
-    steps_per_trajectory = 3600
+    steps_per_trajectory = 3000
 
     # Rendering parameters
-    frame_multiplier = 2.0
+    frame_multiplier = 3.0
     dpi = 100
+
+    # Temperature to color fit data (degrees celcius to RGB values [0.0,255.0])
+    ## RED a0 + a1*cos(x*w) + b1*sin(x*w) + a2*cos(2*x*w) + b2*sin(2*x*w)
+    red_a0 = 93.2623114257016
+    red_a1 = -91.7952300495751
+    red_b1 = 64.1447209123587
+    red_a2 = -16.0694110009838
+    red_b2 = 4.57316288955027
+    red_w = 5.66052730376540
+    red_max = 30.88612
+    
+    ## GREEN a0 + a1*cos(x*w) + b1*sin(x*w) + a2*cos(2*x*w) + b2*sin(2*x*w)
+    green_a0 = -49946695415.8790
+    green_a1 = 65679756750.0321
+    green_b1 = 11012692209.8355
+    green_a2 = -15739328854.6773
+    green_b2 = -5430794138.40053
+    green_w = 0.00498479945200859
+    
+    ## BLUE a0 + a1*cos(x*w) + b1*sin(x*w) + a2*cos(2*x*w) + b2*sin(2*x*w) + a3*cos(3*x*w) + b3*sin(3*x*w) + a4*cos(4*x*w) + b4*sin(4*x*w)
+    blue_a0 = -1646803683.40141
+    blue_a1 = -2103838071.25001
+    blue_b1 = 1599042209.40645
+    blue_a2 = -356663759.818923
+    blue_b2 = 1284240517.14124
+    blue_a3 = 143059075.475354
+    blue_b3 = 358939517.750338
+    blue_a4 = 42253994.9805294
+    blue_b4 = 25392119.3307925
+    blue_w = -0.115874317884020
+
+    # Make the colormap for the fit data
+    red_fit = lambda x : red_a0 + red_a1*np.cos(x*red_w) + red_b1*np.sin(x*red_w) + red_a2*np.cos(2*x*red_w) + red_b2*np.sin(2*x*red_w)
+    green_fit = lambda x : green_a0 + green_a1*np.cos(x*green_w) + green_b1*np.sin(x*green_w) + green_a2*np.cos(2*x*green_w) + green_b2*np.sin(2*x*green_w)
+    blue_fit = lambda x : blue_a0 + blue_a1*np.cos(x*blue_w) + blue_b1*np.sin(x*blue_w) + blue_a2*np.cos(2*x*blue_w) + blue_b2*np.sin(2*x*blue_w) + blue_a3*np.cos(3*x*blue_w) + blue_b3*np.sin(3*x*blue_w) + blue_a4*np.cos(4*x*blue_w) + blue_b4*np.sin(4*x*blue_w)
+    rgb = lambda x : (np.maximum(red_fit(x-273.15)/255.0,0.0) if (x<=red_max+273.15 and x>=30.0+273.15) else 0.0, np.maximum(green_fit(x-273.15)/255.0,0.0) if (x<=35.0+273.15 and x>=30.0+273.15) else 0.0, np.maximum(blue_fit(x-273.15)/255.0,0.0) if (x<=35.0+273.15 and x>=30.0+273.15) else 0.0)
 
     # Initialize simulation set
     for i in range(len(denom_const_set)):
@@ -258,6 +294,15 @@ if __name__ == '__main__':
                 base_color_array = ["navy","blue","deepskyblue","lightseagreen","forestgreen","limegreen","yellow","orange","orangered","firebrick"]
                 base_color_array.insert(n_colors_in_lower, "fuchsia")
                 cmap = clr.ListedColormap(base_color_array)
+                
+                # Make a custom colormap for the temperature data
+                vals = np.ones((2000, 4))
+                temps = np.linspace(min_temp, max_temp, 2000)
+                for i in range(2000):
+                    vals[i, 0] = rgb(temps[i])[0]
+                    vals[i, 1] = rgb(temps[i])[1]
+                    vals[i, 2] = rgb(temps[i])[2]
+                cmap_2 = clr.ListedColormap(vals)
                 for curr_step in range(len(data['time'])):
             
                     # Calculate input field
@@ -271,7 +316,7 @@ if __name__ == '__main__':
                     plt.cla()
                     plt.clf()
                     fig, (ax0, ax1, ax2) = plt.subplots(3, 1)
-                    fig.set_size_inches(11,8.5)
+                    fig.set_size_inches(6.0,12.0)
             
                     # Plot temperature
                     c0 = ax0.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, normalized_temperature[curr_step], shading='auto', cmap=cmap, norm=norm)
@@ -286,7 +331,7 @@ if __name__ == '__main__':
                     ax0.set_aspect('equal', adjustable='box')
             
                     # Plot temperature
-                    c1 = ax1.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, data['temperature_field'][curr_step], shading='auto', cmap='jet', vmin=min_temp, vmax=max_temp)
+                    c1 = ax1.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, data['temperature_field'][curr_step], shading='auto', cmap=cmap_2, vmin=min_temp, vmax=max_temp)
                     cbar1 = fig.colorbar(c1, ax=ax1)
                     cbar1.set_label('Temperature [K]',labelpad=20,fontsize='large')
                     cbar1.ax.tick_params(labelsize=12)
@@ -427,6 +472,15 @@ if __name__ == '__main__':
         base_color_array = ["navy","blue","deepskyblue","lightseagreen","forestgreen","limegreen","yellow","orange","orangered","firebrick"]
         base_color_array.insert(n_colors_in_lower, "fuchsia")
         cmap = clr.ListedColormap(base_color_array)
+        
+        # Make a custom colormap for the temperature data
+        vals = np.ones((2000, 4))
+        temps = np.linspace(min_temp, max_temp, 2000)
+        for i in range(2000):
+            vals[i, 0] = rgb(temps[i])[0]
+            vals[i, 1] = rgb(temps[i])[1]
+            vals[i, 2] = rgb(temps[i])[2]
+        cmap_2 = clr.ListedColormap(vals)
         for curr_step in range(len(load_data['data'][best_index]['time'])):
     
             # Calculate input field
@@ -455,7 +509,7 @@ if __name__ == '__main__':
             ax0.set_aspect('equal', adjustable='box')
     
             # Plot temperature
-            c1 = ax1.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, load_data['data'][best_index]['temperature_field'][curr_step], shading='auto', cmap='jet', vmin=min_temp, vmax=max_temp)
+            c1 = ax1.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, load_data['data'][best_index]['temperature_field'][curr_step], shading='auto', cmap=cmap_2, vmin=min_temp, vmax=max_temp)
             cbar1 = fig.colorbar(c1, ax=ax1)
             cbar1.set_label('Temperature [K]',labelpad=20,fontsize='large')
             cbar1.ax.tick_params(labelsize=12)
