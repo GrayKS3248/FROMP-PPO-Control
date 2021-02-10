@@ -144,21 +144,21 @@ def run(env, total_trajectories, execution_rate, frame_multiplier, denom_const, 
 if __name__ == '__main__':
 
     # Simulation set parameters
-    denom_const_set = np.linspace(0.05, 0.05, 1)
-    loc_multiplier_set = np.linspace(0.4, 0.4, 1)
-    render = True
-    plot = True
-    combine = False
+    denom_const_set = np.linspace(0.001, 0.1, 25)
+    loc_multiplier_set = np.linspace(0.01, 1.0, 25)
+    render = False
+    plot = False
+    combine = True
     
     # Simulation parameters
-    total_trajectories = 1
-    control = True
+    total_trajectories = 25
+    control = False
     uniform_target = True
     split_target = False
     random_target = False
 
     # Agent hyperparameters
-    steps_per_trajectory = 500
+    steps_per_trajectory = 3000
 
     # Rendering parameters
     frame_multiplier = 3.0
@@ -342,7 +342,7 @@ if __name__ == '__main__':
                     ax0.set_aspect('equal', adjustable='box')
             
                     # Plot temperature
-                    c1 = ax1.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, data['temperature_field'][curr_step], shading='auto', cmap=cmap_2, vmin=min_temp, vmax=max_temp)
+                    c1 = ax1.pcolormesh(100.0*env.mesh_cens_x_cords, 100.0*env.mesh_cens_y_cords, data['temperature_field'][curr_step], shading='gouraud', cmap=cmap_2, vmin=min_temp, vmax=max_temp)
                     cbar1 = fig.colorbar(c1, ax=ax1)
                     cbar1.set_label('Temperature [K]',labelpad=20,fontsize='large')
                     cbar1.ax.tick_params(labelsize=12)

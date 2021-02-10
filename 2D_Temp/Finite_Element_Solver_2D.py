@@ -22,13 +22,13 @@ class FES():
             raise RuntimeError('Uniform and split target mode must be false when random target mode is true.')
             
         # Environment spatial parameters 
-        self.num_vert_length = 121
-        self.num_vert_width = 121
+        self.num_vert_length = 201
+        self.num_vert_width = 201
         self.length = 0.03
         self.width = 0.03
         
         # Environment time parameters
-        self.sim_duration = 5.0
+        self.sim_duration = 30.0
         self.current_time = 0.0
         self.time_step = 0.01
         self.current_index = 0
@@ -91,7 +91,7 @@ class FES():
         
         # Input magnitude parameters
         self.control = control
-        self.max_input_mag = 5e7
+        self.max_input_mag = 2.0e7
         if self.control:
             self.max_input_mag_rate = 0.0
             self.input_magnitude = 1.0
@@ -100,11 +100,12 @@ class FES():
             self.input_magnitude = np.random.rand()
         
         # Input distribution parameters
-        self.radius_of_input = 0.008
+        self.radius_of_input = 0.013
         sigma = self.radius_of_input / (2.0*np.sqrt(np.log(10.0)))
         self.exp_const = -1.0 / (2.0 * sigma * sigma)
         
         # Input location parameters
+        self.half_dist = False
         self.movement_dirn = np.array([0.0, 1.0])
         self.x_dirn_movement = 1.0
         self.length_wise_dist = 0.0
@@ -113,7 +114,7 @@ class FES():
             self.max_input_loc_rate = 0.0
             self.input_location = np.array([self.mesh_cens_x_cords[(self.num_vert_length-1)//2,0], self.mesh_cens_y_cords[0,(self.num_vert_width-1)//2]])
         else:
-            self.max_input_loc_rate = 0.075
+            self.max_input_loc_rate = 0.05
             self.input_location = np.array([np.random.choice(self.mesh_cens_x_cords[:,0]), np.random.choice(self.mesh_cens_y_cords[0,:])])
         
         # Input panels
@@ -167,13 +168,14 @@ class FES():
         going_right = self.movement_dirn[0] == 1.0
         going_left = self.movement_dirn[0] == -1.0
         time_to_switch = False
-        half_dist = False
         
         # Update how long the input has been traversing lengthwise
         if going_right or going_left:
             self.length_wise_dist = self.length_wise_dist + self.max_input_loc_rate*self.time_step
-            if (self.length_wise_dist>=self.loc_multiplier*2.0*self.radius_of_input) or (half_dist and self.length_wise_dist>=self.loc_multiplier*self.radius_of_input):
+            if (self.length_wise_dist>=self.loc_multiplier*2.0*self.radius_of_input) or (self.half_dist and self.length_wise_dist>=self.loc_multiplier*self.radius_of_input):
                 time_to_switch = True
+                if self.half_dist:
+                    self.half_dist = False
         else :
             self.length_wise_dist = 0.0
         
@@ -184,12 +186,12 @@ class FES():
             self.movement_dirn = np.array([0.0, -1.0])
             self.x_dirn_movement = -1.0 * self.x_dirn_movement
             if going_right:
-                half_dist = True
-            elif going_left:
-                half_dist = False
+                self.half_dist = True
         elif (going_right and at_right_edge and at_bottom_edge) or (going_left and at_left_edge and at_bottom_edge):
             self.movement_dirn = np.array([0.0, 1.0])
             self.x_dirn_movement = -1.0 * self.x_dirn_movement
+            if going_right:
+                self.half_dist = True
         elif (going_right and at_top_edge and time_to_switch) or (going_left and at_top_edge and time_to_switch):
             self.movement_dirn = np.array([0.0, -1.0])
         elif (going_right and at_bottom_edge and time_to_switch) or (going_left and at_bottom_edge and time_to_switch):
@@ -355,6 +357,7 @@ class FES():
         self.temp_mesh = self.temp_mesh + self.get_perturbation(self.temp_mesh, self.initial_temp_delta)
         
         # Reset input
+        self.half_dist = False
         if self.control:
             self.input_magnitude = 1.0
             self.input_location = np.array([self.mesh_cens_x_cords[(self.num_vert_length-1)//2,0], self.mesh_cens_y_cords[0,(self.num_vert_width-1)//2]])
