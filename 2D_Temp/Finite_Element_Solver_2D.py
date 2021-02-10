@@ -9,7 +9,7 @@ import numpy as np
 
 class FES():
     
-    def __init__(self, loc_multiplier=0.15, uniform_target=True, split_target=False, random_target=False):
+    def __init__(self, control=False, loc_multiplier=0.40, uniform_target=True, split_target=False, random_target=False):
         
         # Ensure inputs are ok
         if loc_multiplier <= 0.0:
@@ -28,14 +28,14 @@ class FES():
         self.width = 0.03
         
         # Environment time parameters
-        self.sim_duration = 30.0
+        self.sim_duration = 5.0
         self.current_time = 0.0
         self.time_step = 0.01
         self.current_index = 0
         
         # Initial conditions
         self.initial_temperature = 294.15
-        self.initial_temp_delta = 0.005 * self.initial_temperature
+        self.initial_temp_delta = 0.0025 * self.initial_temperature
         
         # Boundary conditions
         self.htc = 7.0
@@ -66,7 +66,7 @@ class FES():
         self.temp_mesh = self.temp_mesh + self.get_perturbation(self.temp_mesh, self.initial_temp_delta)
         
         # Problem definition constants
-        self.target_ref = 305.15
+        self.target_ref = 304.15
         self.uniform_target = uniform_target
         self.split_target = split_target
         self.random_target = random_target
@@ -74,9 +74,8 @@ class FES():
             target_temp = (self.target_ref + np.random.rand() * 3.0)
             self.target_temp_mesh = target_temp * np.ones(self.temp_mesh.shape)
         elif self.split_target:
-            delta = (0.25*np.random.rand()+0.375) * 15.0
-            target_temp_1 = (self.target_ref - np.random.rand()*5.0)
-            target_temp_2 = target_temp_1 + delta
+            target_temp_1 = self.target_ref + np.random.rand()*3.0
+            target_temp_2 = self.target_ref + np.random.rand()*3.0
             split_point = round((0.25 * np.random.rand() + 0.375)*(self.num_vert_length-1))
             mesh_1 = np.ones(self.temp_mesh.shape)
             mesh_1[split_point:len(mesh_1)] = 0.0
@@ -85,15 +84,20 @@ class FES():
             self.target_temp_mesh = target_temp_1 * mesh_1 + target_temp_2 * mesh_2
         elif self.random_target:
             self.target_temp_mesh = self.target_ref * np.ones(self.temp_mesh.shape)
-            self.target_temp_mesh = self.target_temp_mesh + self.get_perturbation(self.target_temp_mesh, 10.0)
+            self.target_temp_mesh = self.target_temp_mesh + self.get_perturbation(self.target_temp_mesh, 3.0)
         self.temp_error = 0.0
         self.temp_error_max = 0.0
         self.temp_error_min = 0.0
         
         # Input magnitude parameters
-        self.max_input_mag = 6.63e8
-        self.max_input_mag_rate = 1.0
-        self.input_magnitude = np.random.rand()
+        self.control = control
+        self.max_input_mag = 5e7
+        if self.control:
+            self.max_input_mag_rate = 0.0
+            self.input_magnitude = 1.0
+        else:
+            self.max_input_mag_rate = 1.0
+            self.input_magnitude = np.random.rand()
         
         # Input distribution parameters
         self.radius_of_input = 0.008
@@ -104,9 +108,13 @@ class FES():
         self.movement_dirn = np.array([0.0, 1.0])
         self.x_dirn_movement = 1.0
         self.length_wise_dist = 0.0
-        self.max_input_loc_rate = 0.075
-        self.input_location = np.array([np.random.choice(self.mesh_cens_x_cords[:,0]), np.random.choice(self.mesh_cens_y_cords[0,:])])
         self.loc_multiplier = loc_multiplier
+        if self.control:
+            self.max_input_loc_rate = 0.0
+            self.input_location = np.array([self.mesh_cens_x_cords[(self.num_vert_length-1)//2,0], self.mesh_cens_y_cords[0,(self.num_vert_width-1)//2]])
+        else:
+            self.max_input_loc_rate = 0.075
+            self.input_location = np.array([np.random.choice(self.mesh_cens_x_cords[:,0]), np.random.choice(self.mesh_cens_y_cords[0,:])])
         
         # Input panels
         self.input_mesh = self.input_magnitude * self.max_input_mag * np.exp(((self.mesh_cens_x_cords - self.input_location[0])**2 * self.exp_const) + 
@@ -327,9 +335,8 @@ class FES():
             target_temp = self.target_ref + np.random.rand() * 3.0
             self.target_temp_mesh = target_temp * np.ones(self.temp_mesh.shape)
         elif self.split_target:
-            delta = (0.25*np.random.rand()+0.375) * 15.0
-            target_temp_1 = (self.target_ref - np.random.rand()*5.0)
-            target_temp_2 = target_temp_1 + delta
+            target_temp_1 = self.target_ref + np.random.rand()*3.0
+            target_temp_2 = self.target_ref + np.random.rand()*3.0
             split_point = round((0.25 * np.random.rand() + 0.375)*(self.num_vert_length-1))
             mesh_1 = np.ones(self.temp_mesh.shape)
             mesh_1[split_point:len(mesh_1)] = 0.0
@@ -338,7 +345,7 @@ class FES():
             self.target_temp_mesh = target_temp_1 * mesh_1 + target_temp_2 * mesh_2
         elif self.random_target:
             self.target_temp_mesh = self.target_ref * np.ones(self.temp_mesh.shape)
-            self.target_temp_mesh = self.target_temp_mesh + self.get_perturbation(self.target_temp_mesh, 10.0)
+            self.target_temp_mesh = self.target_temp_mesh + self.get_perturbation(self.target_temp_mesh, 3.0)
         self.temp_error = 0.0
         self.temp_error_max = 0.0
         self.temp_error_min = 0.0
@@ -348,8 +355,12 @@ class FES():
         self.temp_mesh = self.temp_mesh + self.get_perturbation(self.temp_mesh, self.initial_temp_delta)
         
         # Reset input
-        self.input_magnitude = np.random.rand()
-        self.input_location = np.array([np.random.choice(self.mesh_cens_x_cords[:,0]), np.random.choice(self.mesh_cens_y_cords[0,:])])
+        if self.control:
+            self.input_magnitude = 1.0
+            self.input_location = np.array([self.mesh_cens_x_cords[(self.num_vert_length-1)//2,0], self.mesh_cens_y_cords[0,(self.num_vert_width-1)//2]])
+        else:
+            self.input_magnitude = np.random.rand()
+            self.input_location = np.array([np.random.choice(self.mesh_cens_x_cords[:,0]), np.random.choice(self.mesh_cens_y_cords[0,:])])
         self.movement_dirn = np.array([0.0, 1.0])
         self.x_dirn_movement = 1.0
         self.length_wise_dist = 0.0

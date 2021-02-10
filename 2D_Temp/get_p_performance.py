@@ -144,60 +144,71 @@ def run(env, total_trajectories, execution_rate, frame_multiplier, denom_const, 
 if __name__ == '__main__':
 
     # Simulation set parameters
-    denom_const_set = np.linspace(0.075, 0.1, 1)
-    loc_multiplier_set = np.linspace(0.4, 1.0, 1)
+    denom_const_set = np.linspace(0.05, 0.05, 1)
+    loc_multiplier_set = np.linspace(0.4, 0.4, 1)
     render = True
     plot = True
     combine = False
     
     # Simulation parameters
     total_trajectories = 1
+    control = True
     uniform_target = True
     split_target = False
     random_target = False
 
     # Agent hyperparameters
-    steps_per_trajectory = 3000
+    steps_per_trajectory = 500
 
     # Rendering parameters
     frame_multiplier = 3.0
     dpi = 100
 
     # Temperature to color fit data (degrees celcius to RGB values [0.0,255.0])
-    ## RED a0 + a1*cos(x*w) + b1*sin(x*w) + a2*cos(2*x*w) + b2*sin(2*x*w)
-    red_a0 = 93.2623114257016
-    red_a1 = -91.7952300495751
-    red_b1 = 64.1447209123587
-    red_a2 = -16.0694110009838
-    red_b2 = 4.57316288955027
-    red_w = 5.66052730376540
-    red_max = 30.88612
+    ## RED_1 a0 + a1*cos(x*w) + b1*sin(x*w)
+    ## RED_2 a0 + a1*cos(x*w) + b1*sin(x*w) + a2*cos(2*x*w) + b2*sin(2*x*w)
+    red_1_max = 30.96
+    red_2_min = 32.89
+    red_1_a0 =  75.7205687988528
+    red_1_a1 = -83.3811961554596
+    red_1_b1 =  2.16921777958013
+    red_1_w =   5.66519794764997
+    red_2_a0 =  13.4423061030970
+    red_2_a1 =  11.4310759961892
+    red_2_b1 = -19.9304438902058
+    red_2_a2 =  1.03633786169181
+    red_2_b2 = -6.91674577098558
+    red_2_w =   1.41780395653457
     
-    ## GREEN a0 + a1*cos(x*w) + b1*sin(x*w) + a2*cos(2*x*w) + b2*sin(2*x*w)
-    green_a0 = -49946695415.8790
-    green_a1 = 65679756750.0321
-    green_b1 = 11012692209.8355
-    green_a2 = -15739328854.6773
-    green_b2 = -5430794138.40053
-    green_w = 0.00498479945200859
+    ## GREEN a0 + a1*cos(x*w) + b1*sin(x*w) + a2*cos(2*x*w) + b2*sin(2*x*w) + a3*cos(3*x*w) + b3*sin(3*x*w)
+
+    green_a0 =  41.8497458579400
+    green_a1 =  50.5337801853276
+    green_b1 =  61.2631767821492
+    green_a2 =  72.4315809903627
+    green_b2 = -14.1293352372328
+    green_a3 =   0.8477446584536
+    green_b3 = -21.8074000100672
+    green_w =    0.8050372098715
     
     ## BLUE a0 + a1*cos(x*w) + b1*sin(x*w) + a2*cos(2*x*w) + b2*sin(2*x*w) + a3*cos(3*x*w) + b3*sin(3*x*w) + a4*cos(4*x*w) + b4*sin(4*x*w)
-    blue_a0 = -1646803683.40141
-    blue_a1 = -2103838071.25001
-    blue_b1 = 1599042209.40645
-    blue_a2 = -356663759.818923
-    blue_b2 = 1284240517.14124
-    blue_a3 = 143059075.475354
-    blue_b3 = 358939517.750338
-    blue_a4 = 42253994.9805294
-    blue_b4 = 25392119.3307925
-    blue_w = -0.115874317884020
+    blue_a0 = -52917511.6179542
+    blue_a1 =  60193891.2132188
+    blue_b1 = -60277928.6140266
+    blue_a2 =  62362.8148054820
+    blue_b2 =  43381416.1414114
+    blue_a3 = -9057653.45279618
+    blue_b3 = -9016664.70251709
+    blue_a4 =  1667857.69952913
+    blue_b4 = -5415.39415551451
+    blue_w =   0.16819988522403
 
     # Make the colormap for the fit data
-    red_fit = lambda x : red_a0 + red_a1*np.cos(x*red_w) + red_b1*np.sin(x*red_w) + red_a2*np.cos(2*x*red_w) + red_b2*np.sin(2*x*red_w)
-    green_fit = lambda x : green_a0 + green_a1*np.cos(x*green_w) + green_b1*np.sin(x*green_w) + green_a2*np.cos(2*x*green_w) + green_b2*np.sin(2*x*green_w)
+    red_1_fit = lambda x : (red_1_a0 + red_1_a1*np.cos(x*red_1_w) + red_1_b1*np.sin(x*red_1_w)) if (x>=30.0 and x<= red_1_max) else 0.0
+    red_2_fit = lambda x : (red_2_a0 + red_2_a1*np.cos(x*red_2_w) + red_2_b1*np.sin(x*red_2_w) + red_2_a2*np.cos(2*x*red_2_w) + red_2_b2*np.sin(2*x*red_2_w)) if (x>=red_2_min and x<=36.0) else 0.0
+    green_fit = lambda x : green_a0 + green_a1*np.cos(x*green_w) + green_b1*np.sin(x*green_w) + green_a2*np.cos(2*x*green_w) + green_b2*np.sin(2*x*green_w) + green_a3*np.cos(2*x*green_w) + green_b3*np.sin(2*x*green_w)
     blue_fit = lambda x : blue_a0 + blue_a1*np.cos(x*blue_w) + blue_b1*np.sin(x*blue_w) + blue_a2*np.cos(2*x*blue_w) + blue_b2*np.sin(2*x*blue_w) + blue_a3*np.cos(3*x*blue_w) + blue_b3*np.sin(3*x*blue_w) + blue_a4*np.cos(4*x*blue_w) + blue_b4*np.sin(4*x*blue_w)
-    rgb = lambda x : (np.maximum(red_fit(x-273.15)/255.0,0.0) if (x<=red_max+273.15 and x>=30.0+273.15) else 0.0, np.maximum(green_fit(x-273.15)/255.0,0.0) if (x<=35.0+273.15 and x>=30.0+273.15) else 0.0, np.maximum(blue_fit(x-273.15)/255.0,0.0) if (x<=35.0+273.15 and x>=30.0+273.15) else 0.0)
+    rgb = lambda x : (max((red_1_fit(x-273.15) + red_2_fit(x-273.15)), 0.0)/255.0, max(green_fit(x-273.15),0.0)/255.0, max(blue_fit(x-273.15),0.0)/255.0)  if (x-273.15>=29.0 and x-273.15<=36.0) else (0.0, 0.0, 0.0)
 
     # Initialize simulation set
     for i in range(len(denom_const_set)):
@@ -206,7 +217,7 @@ if __name__ == '__main__':
             loc_multiplier = loc_multiplier_set[j]
             
             # Calculated env and agent parameters
-            env = fes.FES(loc_multiplier=loc_multiplier, uniform_target=uniform_target, split_target=split_target, random_target=random_target)
+            env = fes.FES(control=control, loc_multiplier=loc_multiplier, uniform_target=uniform_target, split_target=split_target, random_target=random_target)
             agent_temporal_precision = (env.sim_duration / float(steps_per_trajectory))
             execution_rate = int(agent_temporal_precision / env.time_step)
         
@@ -494,7 +505,7 @@ if __name__ == '__main__':
             plt.cla()
             plt.clf()
             fig, (ax0, ax1, ax2) = plt.subplots(3, 1)
-            fig.set_size_inches(11,8.5)
+            fig.set_size_inches(6.0,12.0)
     
             # Plot temperature percent
             c0 = ax0.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, normalized_temperature[curr_step], shading='auto', cmap=cmap, norm=norm)
