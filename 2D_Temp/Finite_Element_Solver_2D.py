@@ -96,7 +96,7 @@ class FES():
             self.max_input_mag_rate = 0.0
             self.input_magnitude = 1.0
         else:
-            self.max_input_mag_rate = 1.0
+            self.max_input_mag_rate = 2.0
             self.input_magnitude = np.random.rand()
         
         # Input distribution parameters
@@ -204,9 +204,9 @@ class FES():
         # Update the input's magnitude
         magnitude_command = action[0]
         if magnitude_command > self.input_magnitude:
-            self.input_magnitude = np.clip(min(self.input_magnitude + self.max_input_mag_rate, magnitude_command), 0.0, 1.0)
+            self.input_magnitude = np.clip(min(self.input_magnitude + self.max_input_mag_rate*self.time_step, magnitude_command), 0.0, 1.0)
         elif magnitude_command < self.input_magnitude:
-            self.input_magnitude = np.clip(max(self.input_magnitude - self.max_input_mag_rate, magnitude_command), 0.0, 1.0)
+            self.input_magnitude = np.clip(max(self.input_magnitude - self.max_input_mag_rate*self.time_step, magnitude_command), 0.0, 1.0)
                 
         # Use the actions to define input thermal rate across entire spacial field
         x=(self.mesh_cens_x_cords-self.input_location[0])

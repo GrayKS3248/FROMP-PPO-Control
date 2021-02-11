@@ -144,14 +144,14 @@ def run(env, total_trajectories, execution_rate, frame_multiplier, denom_const, 
 if __name__ == '__main__':
 
     # Simulation set parameters
-    denom_const_set = np.linspace(0.001, 0.1, 10)
-    loc_multiplier_set = np.linspace(0.01, 1.0, 10)
-    render = False
-    plot = False
-    combine = True
+    denom_const_set = np.linspace(0.003215, 0.003215, 1)
+    loc_multiplier_set = np.linspace(0.3775, 0.3775, 1)
+    render = True
+    plot = True
+    combine = False
     
     # Simulation parameters
-    total_trajectories = 20
+    total_trajectories = 1
     control = False
     uniform_target = True
     split_target = False
@@ -284,7 +284,7 @@ if __name__ == '__main__':
             if render: 
                 print("Rendering...")
                 min_temp = 0.99*np.min(data['temperature_field'])
-                max_temp = max(1.01*np.max(data['temperature_field']), 1.05*np.max(env.target_temp_mesh))
+                max_temp = max(1.01*np.max(data['temperature_field']), 1.01*np.max(env.target_temp_mesh))
                 normalized_temperature = 100.0*np.array(data['temperature_field'])/np.array(data['temperature_target'])
                 min_normalized_temp = np.min(0.99*normalized_temperature)
                 max_normalized_temp = np.max(1.01*normalized_temperature)
@@ -326,8 +326,8 @@ if __name__ == '__main__':
                     # Make fig for temperature, cure, and input
                     plt.cla()
                     plt.clf()
-                    fig, (ax0, ax1, ax2) = plt.subplots(3, 1)
-                    fig.set_size_inches(6.0,12.0)
+                    fig, [[ax0, ax1], [ax2, ax3]] = plt.subplots(2, 2)
+                    fig.set_size_inches(17.0,11.0)
             
                     # Plot temperature
                     c0 = ax0.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, normalized_temperature[curr_step], shading='auto', cmap=cmap, norm=norm)
@@ -362,13 +362,27 @@ if __name__ == '__main__':
                     ax2.tick_params(axis='x',labelsize=12)
                     ax2.tick_params(axis='y',labelsize=12)
                     ax2.set_aspect('equal', adjustable='box')
+                    
+                    # Plot trajectory
+                    p1 = ax3.plot(data['time'][0:curr_step],100.0*np.array(data['temperature_rel_error'][0:curr_step]),c='k',lw=2.0)
+                    p2 = ax3.plot(data['time'][0:curr_step],100.0*np.array(data['temperature_max_error'][0:curr_step]),c='r',ls='--',lw=2.0)
+                    p3 = ax3.plot(data['time'][0:curr_step],100.0*np.array(data['temperature_min_error'][0:curr_step]),c='b',ls='--',lw=2.0)
+                    ax3.set_xlabel("Time [s]",fontsize='large')
+                    ax3.set_ylabel("Relative Difference from Target Temperature [%]",fontsize='large')
+                    ax3.tick_params(axis='x',labelsize=12)
+                    ax3.tick_params(axis='y',labelsize=12)
+                    ax3.set_xlim(0.0, env.sim_duration)
+                    ax3.set_ylim(99.0*min(data['temperature_min_error']), 101.0*max(data['temperature_max_error']))
+                    ax3.legend(('Average', 'Maximum', 'Minimum'),loc='lower right',fontsize='large')
+                    ax3.grid(which='major',axis='y')
             
                     # Set title and save
                     title_str = "Simulation Time: "+'{:.2f}'.format(data['time'][curr_step])+'s'
                     fig.suptitle(title_str,fontsize='xx-large')
                     plt.savefig(video_path+'/time_'+'{:.2f}'.format(data['time'][curr_step])+'.png', dpi=dpi)
                     plt.close()
-            
+                    
+            del data, env
             print(" ")
     
     # Make save paths
@@ -411,7 +425,10 @@ if __name__ == '__main__':
                         best_loc_multiplier = loc_multiplier
                     load_data['avg'][j, i] = mean
                     load_data['std'][j, i] = np.std(load['data']['r_per_episode'])
-                    
+        
+        # Load last environment
+        env = load['env']
+        
         # Plot mean results
         fig = plt.figure()
         im = plt.gca().pcolormesh(denom_const_mesh, loc_multiplier_mesh, load_data['avg'], shading='auto')
@@ -462,7 +479,7 @@ if __name__ == '__main__':
         # Render best trajectory
         print("Rendering...")
         min_temp = 0.99*np.min(load_data['data'][best_index]['temperature_field'])
-        max_temp = max(1.01*np.max(load_data['data'][best_index]['temperature_field']), 1.05*np.max(env.target_temp_mesh))
+        max_temp = 1.01*np.max(load_data['data'][best_index]['temperature_field'])
         normalized_temperature = 100.0*np.array(load_data['data'][best_index]['temperature_field'])/np.array(load_data['data'][best_index]['temperature_target'])
         min_normalized_temp = np.min(0.99*normalized_temperature)
         max_normalized_temp = np.max(1.01*normalized_temperature)
@@ -504,8 +521,8 @@ if __name__ == '__main__':
             # Make fig for temperature, cure, and input
             plt.cla()
             plt.clf()
-            fig, (ax0, ax1, ax2) = plt.subplots(3, 1)
-            fig.set_size_inches(6.0,12.0)
+            fig, [[ax0, ax1], [ax2, ax3]] = plt.subplots(2, 2)
+            fig.set_size_inches(17.0,11.0)
     
             # Plot temperature percent
             c0 = ax0.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, normalized_temperature[curr_step], shading='auto', cmap=cmap, norm=norm)
@@ -540,6 +557,19 @@ if __name__ == '__main__':
             ax2.tick_params(axis='x',labelsize=12)
             ax2.tick_params(axis='y',labelsize=12)
             ax2.set_aspect('equal', adjustable='box')
+    
+            # Plot trajectory
+            p1 = ax3.plot(load_data['data'][best_index]['time'][0:curr_step],100.0*np.array(load_data['data'][best_index]['temperature_rel_error'][0:curr_step]),c='k',lw=2.0)
+            p2 = ax3.plot(load_data['data'][best_index]['time'][0:curr_step],100.0*np.array(load_data['data'][best_index]['temperature_max_error'][0:curr_step]),c='r',ls='--',lw=2.0)
+            p3 = ax3.plot(load_data['data'][best_index]['time'][0:curr_step],100.0*np.array(load_data['data'][best_index]['temperature_min_error'][0:curr_step]),c='b',ls='--',lw=2.0)
+            ax3.set_xlabel("Time [s]",fontsize='large')
+            ax3.set_ylabel("Relative Difference from Target Temperature [%]",fontsize='large')
+            ax3.tick_params(axis='x',labelsize=12)
+            ax3.tick_params(axis='y',labelsize=12)
+            ax3.set_xlim(0.0, env.sim_duration)
+            ax3.set_ylim(99.0*min(data['temperature_min_error']), 101.0*max(data['temperature_max_error']))
+            ax3.legend(('Average', 'Maximum', 'Minimum'),loc='lower right',fontsize='large')
+            ax3.grid(which='major',axis='y')
     
             # Set title and save
             title_str = "Simulation Time: "+'{:.2f}'.format(load_data['data'][best_index]['time'][curr_step])+'s'
