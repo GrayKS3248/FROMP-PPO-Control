@@ -144,14 +144,14 @@ def run(env, total_trajectories, execution_rate, frame_multiplier, denom_const, 
 if __name__ == '__main__':
 
     # Simulation set parameters
-    denom_const_set = np.linspace(0.001, 0.1, 25)
-    loc_multiplier_set = np.linspace(0.01, 1.0, 25)
+    denom_const_set = np.linspace(0.001, 0.1, 10)
+    loc_multiplier_set = np.linspace(0.01, 1.0, 10)
     render = False
     plot = False
     combine = True
     
     # Simulation parameters
-    total_trajectories = 25
+    total_trajectories = 20
     control = False
     uniform_target = True
     split_target = False

@@ -22,8 +22,8 @@ class FES():
             raise RuntimeError('Uniform and split target mode must be false when random target mode is true.')
             
         # Environment spatial parameters 
-        self.num_vert_length = 201
-        self.num_vert_width = 201
+        self.num_vert_length = 181
+        self.num_vert_width = 181
         self.length = 0.03
         self.width = 0.03
         
