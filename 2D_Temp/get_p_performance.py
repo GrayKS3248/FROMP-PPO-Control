@@ -4,7 +4,7 @@ Created on Wed Nov 25 11:50:34 2020
 
 @author: Grayson Schaer
 """
-import Finite_Element_Solver_2D as fes
+import Finite_Element_Solver_2D_New as fes
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as clr
@@ -33,7 +33,7 @@ def run(env, total_trajectories, execution_rate, frame_multiplier, denom_const, 
         'temperature_field': [],
         'temperature_target': [],
         'temperature_rel_error': [],
-        'temperature_max_error': [],
+        'temperature_max_error': [], 
         'temperature_min_error': [],
         'time': [],
         }
@@ -144,8 +144,8 @@ def run(env, total_trajectories, execution_rate, frame_multiplier, denom_const, 
 if __name__ == '__main__':
 
     # Simulation set parameters
-    denom_const_set = np.linspace(0.003215, 0.003215, 1)
-    loc_multiplier_set = np.linspace(0.3775, 0.3775, 1)
+    denom_const_set = np.linspace(0.003214, 0.003214, 1)
+    loc_multiplier_set = np.linspace(0.3928, 0.3928, 1)
     render = True
     plot = True
     combine = False
@@ -226,8 +226,8 @@ if __name__ == '__main__':
                 raise RuntimeError("Agent execution rate is not multiple of simulation rate")
         
             # Make save paths
-            path = "results/P_"+'{:03.3f}'.format(denom_const)+"_"+'{:03.2f}'.format(loc_multiplier)
-            video_path = "results/P_"+'{:03.3f}'.format(denom_const)+"_"+'{:03.2f}'.format(loc_multiplier)+"/video"
+            path = "results/P_"+'{:03.4f}'.format(denom_const)+"_"+'{:03.3f}'.format(loc_multiplier)
+            video_path = "results/P_"+'{:03.4f}'.format(denom_const)+"_"+'{:03.3f}'.format(loc_multiplier)+"/video"
             if not os.path.isdir(path):
                 os.mkdir(path)
                 os.mkdir(video_path)
@@ -237,7 +237,7 @@ if __name__ == '__main__':
                 os.mkdir(video_path)
         
             # Create agents, run simulation, save results
-            print("Denominator Constant = "+'{:03.3f}'.format(denom_const)+", Location Multiplier = "+'{:03.2f}'.format(loc_multiplier)+"...")
+            print("Denominator Constant = "+'{:03.4f}'.format(denom_const)+", Location Multiplier = "+'{:03.3f}'.format(loc_multiplier)+"...")
             data, env = run(env, total_trajectories, execution_rate, frame_multiplier, denom_const, steps_per_trajectory)
         
             # Pickle all important outputs
@@ -290,21 +290,15 @@ if __name__ == '__main__':
                 max_normalized_temp = np.max(1.01*normalized_temperature)
             
                 # Make custom color map for normalized data
-                lower = min(5.0*round(min_normalized_temp//5.0), 90.0)
-                mid_lower = 99.0
-                mid_upper = 101.0
-                upper = max(5.0*round(max_normalized_temp/5.0), 110.0)
-                lower_delta = mid_lower - lower
-                upper_delta = upper - mid_upper
-                n_colors_in_lower = round((lower_delta / (lower_delta + upper_delta)) * 10.0)
-                n_color_in_upper = round((upper_delta / (lower_delta + upper_delta)) * 10.0)
-                lower_ticks = np.round(np.linspace(lower,mid_lower,n_colors_in_lower+1))
-                upper_ticks = np.round(np.linspace(mid_upper,upper,n_color_in_upper+1))
-                ticks = np.concatenate((lower_ticks, upper_ticks))
+                lower_ticks = np.linspace(np.round(min_normalized_temp, 1),99.8,7)
+                upper_ticks = np.linspace(100.2,np.round(max_normalized_temp, 1),5)
+                ticks = np.round(np.concatenate((lower_ticks, upper_ticks)), 1)
                 norm = clr.BoundaryNorm(ticks, 11)
-                base_color_array = ["navy","blue","deepskyblue","lightseagreen","forestgreen","limegreen","yellow","orange","orangered","firebrick"]
-                base_color_array.insert(n_colors_in_lower, "fuchsia")
-                cmap = clr.ListedColormap(base_color_array)
+                vals = np.ones((11, 4))
+                vals[:, 0] = np.array([32.,    0.,   0.,   2.,   0.,   0., 255., 207., 158., 186., 255.]) / 255.0
+                vals[:, 1] = np.array([ 0.,   11.,  38.,  80., 129., 192.,   0., 114.,  66.,  68.,   0.]) / 255.0
+                vals[:, 2] = np.array([92.,  115., 150., 189., 214., 245., 221.,   0.,   0.,   0.,   0.]) / 255.0
+                cmap = clr.ListedColormap(vals)
                 
                 # Make a custom colormap for the temperature data
                 vals = np.ones((2000, 4))
@@ -327,7 +321,7 @@ if __name__ == '__main__':
                     plt.cla()
                     plt.clf()
                     fig, [[ax0, ax1], [ax2, ax3]] = plt.subplots(2, 2)
-                    fig.set_size_inches(17.0,11.0)
+                    fig.set_size_inches(14.0,10.0)
             
                     # Plot temperature
                     c0 = ax0.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, normalized_temperature[curr_step], shading='auto', cmap=cmap, norm=norm)
@@ -368,17 +362,20 @@ if __name__ == '__main__':
                     p2 = ax3.plot(data['time'][0:curr_step],100.0*np.array(data['temperature_max_error'][0:curr_step]),c='r',ls='--',lw=2.0)
                     p3 = ax3.plot(data['time'][0:curr_step],100.0*np.array(data['temperature_min_error'][0:curr_step]),c='b',ls='--',lw=2.0)
                     ax3.set_xlabel("Time [s]",fontsize='large')
-                    ax3.set_ylabel("Relative Difference from Target Temperature [%]",fontsize='large')
+                    ax3.set_ylabel("Relative Difference from Target Temperature [%]",fontsize='large',labelpad=20)
+                    ax3.yaxis.set_label_position("right")
                     ax3.tick_params(axis='x',labelsize=12)
-                    ax3.tick_params(axis='y',labelsize=12)
+                    ax3.tick_params(axis='y',labelsize=12,right=True,labelright=True,left=False,labelleft=False)
                     ax3.set_xlim(0.0, env.sim_duration)
                     ax3.set_ylim(99.0*min(data['temperature_min_error']), 101.0*max(data['temperature_max_error']))
                     ax3.legend(('Average', 'Maximum', 'Minimum'),loc='lower right',fontsize='large')
                     ax3.grid(which='major',axis='y')
             
                     # Set title and save
-                    title_str = "Simulation Time: "+'{:.2f}'.format(data['time'][curr_step])+'s'
-                    fig.suptitle(title_str,fontsize='xx-large')
+                    title_1 = "Target Temperature: "+'{:.2f}'.format(np.mean(data['temperature_target'][curr_step]))+"K"
+                    title_2 = "Simulation Time: "+'{:.2f}'.format(data['time'][curr_step])+'s'
+                    ax0.set_title(title_1,fontsize='xx-large', y=1.0, pad=50)
+                    ax1.set_title(title_2,fontsize='xx-large', y=1.0, pad=50)
                     plt.savefig(video_path+'/time_'+'{:.2f}'.format(data['time'][curr_step])+'.png', dpi=dpi)
                     plt.close()
                     
@@ -413,7 +410,7 @@ if __name__ == '__main__':
             denom_const = denom_const_set[i]
             for j in range(len(loc_multiplier_set)):
                 loc_multiplier = loc_multiplier_set[j]
-                load_path = "results/P_"+'{:03.3f}'.format(denom_const)+"_"+'{:03.2f}'.format(loc_multiplier) + "/output"
+                load_path = "results/P_"+'{:03.4f}'.format(denom_const)+"_"+'{:03.3f}'.format(loc_multiplier) + "/output"
                 with open(load_path, 'rb') as file:
                     load = pickle.load(file)
                     load_data['data'].append(load['data'])
@@ -485,21 +482,15 @@ if __name__ == '__main__':
         max_normalized_temp = np.max(1.01*normalized_temperature)
     
         # Make custom color map for normalized data
-        lower = min(5.0*round(min_normalized_temp//5.0), 90.0)
-        mid_lower = 99.0
-        mid_upper = 101.0
-        upper = max(5.0*round(max_normalized_temp/5.0), 110.0)
-        lower_delta = mid_lower - lower
-        upper_delta = upper - mid_upper
-        n_colors_in_lower = round((lower_delta / (lower_delta + upper_delta)) * 10.0)
-        n_color_in_upper = round((upper_delta / (lower_delta + upper_delta)) * 10.0)
-        lower_ticks = np.round(np.linspace(lower,mid_lower,n_colors_in_lower+1))
-        upper_ticks = np.round(np.linspace(mid_upper,upper,n_color_in_upper+1))
-        ticks = np.concatenate((lower_ticks, upper_ticks))
+        lower_ticks = np.linspace(np.round(min_normalized_temp, 1),99.8,7)
+        upper_ticks = np.linspace(100.2,np.round(max_normalized_temp, 1),5)
+        ticks = np.round(np.concatenate((lower_ticks, upper_ticks)), 1)
         norm = clr.BoundaryNorm(ticks, 11)
-        base_color_array = ["navy","blue","deepskyblue","lightseagreen","forestgreen","limegreen","yellow","orange","orangered","firebrick"]
-        base_color_array.insert(n_colors_in_lower, "fuchsia")
-        cmap = clr.ListedColormap(base_color_array)
+        vals = np.ones((11, 4))
+        vals[:, 0] = np.array([32.,    0.,   0.,   2.,   0.,   0., 255., 207., 158., 186., 255.]) / 255.0
+        vals[:, 1] = np.array([ 0.,   11.,  38.,  80., 129., 192.,   0., 114.,  66.,  68.,   0.]) / 255.0
+        vals[:, 2] = np.array([92.,  115., 150., 189., 214., 245., 221.,   0.,   0.,   0.,   0.]) / 255.0
+        cmap = clr.ListedColormap(vals)
         
         # Make a custom colormap for the temperature data
         vals = np.ones((2000, 4))
@@ -522,7 +513,7 @@ if __name__ == '__main__':
             plt.cla()
             plt.clf()
             fig, [[ax0, ax1], [ax2, ax3]] = plt.subplots(2, 2)
-            fig.set_size_inches(17.0,11.0)
+            fig.set_size_inches(14.0,10.0)
     
             # Plot temperature percent
             c0 = ax0.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, normalized_temperature[curr_step], shading='auto', cmap=cmap, norm=norm)
@@ -563,17 +554,20 @@ if __name__ == '__main__':
             p2 = ax3.plot(load_data['data'][best_index]['time'][0:curr_step],100.0*np.array(load_data['data'][best_index]['temperature_max_error'][0:curr_step]),c='r',ls='--',lw=2.0)
             p3 = ax3.plot(load_data['data'][best_index]['time'][0:curr_step],100.0*np.array(load_data['data'][best_index]['temperature_min_error'][0:curr_step]),c='b',ls='--',lw=2.0)
             ax3.set_xlabel("Time [s]",fontsize='large')
-            ax3.set_ylabel("Relative Difference from Target Temperature [%]",fontsize='large')
+            ax3.set_ylabel("Relative Difference from Target Temperature [%]",fontsize='large',labelpad=20)
+            ax3.yaxis.set_label_position("right")
             ax3.tick_params(axis='x',labelsize=12)
-            ax3.tick_params(axis='y',labelsize=12)
+            ax3.tick_params(axis='y',labelsize=12,right=True,labelright=True,left=False,labelleft=False)
             ax3.set_xlim(0.0, env.sim_duration)
-            ax3.set_ylim(99.0*min(data['temperature_min_error']), 101.0*max(data['temperature_max_error']))
+            ax3.set_ylim(99.0*min(load_data['data'][best_index]['temperature_min_error']), 101.0*max(load_data['data'][best_index]['temperature_max_error']))
             ax3.legend(('Average', 'Maximum', 'Minimum'),loc='lower right',fontsize='large')
             ax3.grid(which='major',axis='y')
     
             # Set title and save
-            title_str = "Simulation Time: "+'{:.2f}'.format(load_data['data'][best_index]['time'][curr_step])+'s'
-            fig.suptitle(title_str,fontsize='xx-large')
+            title_1 = "Target Temperature: "+'{:.2f}'.format(np.mean(load_data['data'][best_index]['temperature_target'][curr_step]))+"K"
+            title_2 = "Simulation Time: "+'{:.2f}'.format(load_data['data'][best_index]['time'][curr_step])+'s'
+            ax0.set_title(title_1,fontsize='xx-large', y=1.0, pad=50)
+            ax1.set_title(title_2,fontsize='xx-large', y=1.0, pad=50)
             plt.savefig(video_path+'/time_'+'{:.2f}'.format(load_data['data'][best_index]['time'][curr_step])+'.png', dpi=dpi)
             plt.close()
         

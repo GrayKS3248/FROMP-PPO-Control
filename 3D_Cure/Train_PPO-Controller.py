@@ -4,7 +4,7 @@ Created on Wed Nov 25 11:50:34 2020
 
 @author: Grayson Schaer
 """
-import Finite_Element_Solver_2D as fes 
+import Finite_Element_Solver_3D as fes 
 import PPO_Agent_3_Output as ppo
 import numpy as np
 import matplotlib.pyplot as plt
@@ -22,7 +22,7 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
         'y_rate_stdev': [],
         'mag_stdev': [],
         'input_location': [],
-        'input_magnitude':[],
+        'input_percent':[],
         'temperature_field': [],
         'cure_field': [],
         'front_location': [],
@@ -33,7 +33,7 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
     }
     trajectory = {
         'input_location': [],
-        'input_magnitude':[],
+        'input_percent':[],
         'temperature_field': [],
         'cure_field': [],
         'front_location': [],
@@ -94,10 +94,10 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
             # Update logs
             if step_in_episode % int(frame_multiplier*execution_rate) == 0 or done:
                 trajectory['input_location'].append(np.copy(env.input_location))
-                trajectory['temperature_field'].append(np.copy(env.temp_mesh))
-                trajectory['input_magnitude'].append(np.copy(env.input_magnitude))
-                trajectory['cure_field'].append(np.copy(env.cure_mesh))
-                trajectory['front_location'].append(np.copy(env.front_loc))
+                trajectory['temperature_field'].append(np.copy(env.temp_mesh[:,:,0]))
+                trajectory['input_percent'].append(np.copy(env.input_percent))
+                trajectory['cure_field'].append(np.copy(env.cure_mesh[:,:,0]))
+                trajectory['front_location'].append(np.copy(env.front_loc[:,0]))
                 trajectory['front_velocity'].append(np.copy(env.front_vel))
                 trajectory['target_velocity'].append(np.copy(env.current_target_front_vel))
                 trajectory['time'].append(np.copy(env.current_time))
@@ -112,7 +112,7 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
             best_episode = episode_reward
             data['input_location'] = trajectory['input_location']
             data['temperature_field'] = trajectory['temperature_field']
-            data['input_magnitude'] = trajectory['input_magnitude']
+            data['input_percent'] = trajectory['input_percent']
             data['cure_field'] = trajectory['cure_field']
             data['front_location'] = trajectory['front_location']
             data['front_velocity'] = trajectory['front_velocity']
@@ -129,7 +129,7 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
         # Reset the trajectory memory
         trajectory['input_location'] = []
         trajectory['temperature_field'] = []
-        trajectory['input_magnitude'] = []
+        trajectory['input_percent'] = []
         trajectory['cure_field'] = []
         trajectory['front_location'] = []
         trajectory['front_velocity'] = []
@@ -157,15 +157,9 @@ if __name__ == '__main__':
     # Simulation parameters
     load_previous_agent = False
     reset_stdev = False
-    
-    # Environment parameters
-    control = False
-    trigger = True
-    random_target = True
-    target_switch = False
         
     # Agent parameters
-    total_trajectories = 20000
+    total_trajectories = 1
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
@@ -180,8 +174,8 @@ if __name__ == '__main__':
     dpi = 100
     
     # Calculated env and agent parameters
-    env = fes.FES(random_target=random_target, target_switch=target_switch, control=control, trigger=trigger)
-    num_states = ((env.num_vert_length-1)//9)*((env.num_vert_width-1)//5) + 25 + 2*((env.num_vert_width-1)//5) + 3
+    env = fes.FES()
+    num_states = ((env.num_vert_length)//8)*((env.num_vert_width)//4) + 25 + 2*((env.num_vert_width)//4) + 3
     decay_rate = (end_alpha/start_alpha)**(trajectories_per_batch/total_trajectories)
     agent_temporal_precision = (env.sim_duration / float(steps_per_trajecotry))
     execution_rate = int(agent_temporal_precision / env.time_step)
@@ -240,7 +234,7 @@ if __name__ == '__main__':
     plt.title("Front Velocity",fontsize='xx-large')
     plt.xlabel("Simulation Time [s]",fontsize='large')
     plt.ylabel("Front Velocity [mm/s]",fontsize='large')
-    plt.plot(data['time'], 1000.0*np.array(np.mean(data['front_velocity'],axis=1)),c='k',lw=2.0)
+    plt.plot(data['time'], 1000.0*np.array(np.mean(np.mean(data['front_velocity'],axis=1),axis=1)),c='k',lw=2.0)
     plt.plot(data['time'], 1000.0*np.array(data['target_velocity']),c='b',ls='--',lw=2.0)
     plt.legend(('Actual','Target'),loc='lower right',fontsize='large')
     plt.ylim(0.0, max(1.25*1000.0*np.array(data['target_velocity'])))
@@ -322,7 +316,7 @@ if __name__ == '__main__':
     # Make videos of the best temperature field trajecotry and cure field trajectories as function of time
     print("Rendering...")
     min_temp = 0.99*np.min(data['temperature_field'])
-    max_temp = max(1.05*np.max(data['temperature_field']), 1.05*env.temperature_limit)
+    max_temp = 1.01*np.max(data['temperature_field'])
     
     # Make custom color map for normalized data
     min_round = 10.0*round(min_temp//10.0)
@@ -342,10 +336,10 @@ if __name__ == '__main__':
     for curr_step in range(len(data['time'])):
            
         # Calculate input field
-        input_magnitude = data['input_magnitude'][curr_step]
+        input_percent = data['input_percent'][curr_step]
         input_location = data['input_location'][curr_step]
-        input_mesh = input_magnitude * env.max_input_mag * np.exp(((env.mesh_cens_x_cords - input_location[0])**2 * env.exp_const) +
-                                                                      (env.mesh_cens_y_cords - input_location[1])**2 * env.exp_const)
+        input_mesh = input_percent*env.max_input_mag*np.exp(((env.mesh_x[:,:,0]-input_location[0])**2*env.exp_const) + 
+                                                             (env.mesh_y[:,:,0]-input_location[1])**2*env.exp_const)
         input_mesh[input_mesh<0.01*env.max_input_mag] = 0.0
         
         # Make fig for temperature, cure, and input
@@ -355,7 +349,7 @@ if __name__ == '__main__':
         fig.set_size_inches(11,8.5)
         
         # Plot temperature
-        c0 = ax0.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, data['temperature_field'][curr_step], shading='auto', cmap=cmap, norm=norm)
+        c0 = ax0.pcolor(100.0*env.mesh_x[:,:,0], 100.0*env.mesh_y[:,:,0], data['temperature_field'][curr_step], shading='auto', cmap=cmap, norm=norm)
         cbar0 = fig.colorbar(c0, ax=ax0)
         cbar0.set_label('Temperature [K]',labelpad=20,fontsize='large')
         cbar0.set_ticks(ticks)
@@ -367,7 +361,7 @@ if __name__ == '__main__':
         ax0.set_aspect('equal', adjustable='box')
         
         # Plot cure
-        c1 = ax1.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, data['cure_field'][curr_step], shading='auto', cmap='YlOrBr', vmin=0.0, vmax=1.0)
+        c1 = ax1.pcolor(100.0*env.mesh_x[:,:,0], 100.0*env.mesh_y[:,:,0], data['cure_field'][curr_step], shading='auto', cmap='YlOrBr', vmin=0.0, vmax=1.0)
         cbar1 = fig.colorbar(c1, ax=ax1)
         cbar1.set_label('Degree Cure [-]', labelpad=20,fontsize='large')
         cbar1.ax.tick_params(labelsize=12)
@@ -378,8 +372,8 @@ if __name__ == '__main__':
         ax1.set_aspect('equal', adjustable='box')
         
         # Plot input
-        c2 = ax2.pcolor(100.0*env.mesh_verts_x_coords, 100.0*env.mesh_verts_y_coords, 1.0e-6*input_mesh, shading='auto', cmap='coolwarm', vmin=0.0, vmax=1.0e-6*env.max_input_mag)
-        ax2.plot(100.0*np.array(data['front_location'][curr_step]).reshape(env.num_vert_width-1,1), 100.0*env.mesh_cens_y_cords[0,:], 'k-', lw=1.5)
+        c2 = ax2.pcolor(100.0*env.mesh_x[:,:,0], 100.0*env.mesh_y[:,:,0], 1.0e-6*input_mesh, shading='auto', cmap='coolwarm', vmin=0.0, vmax=1.0e-6*env.max_input_mag)
+        ax2.plot(100.0*np.array(data['front_location'][curr_step]).reshape(env.num_vert_width,1), 100.0*env.mesh_y[0,:,0], 'k-', lw=1.5)
         cbar2 = fig.colorbar(c2, ax=ax2)
         cbar2.set_label('Input Heat [MW/m^3]',labelpad=20,fontsize='large')
         cbar2.ax.tick_params(labelsize=12)

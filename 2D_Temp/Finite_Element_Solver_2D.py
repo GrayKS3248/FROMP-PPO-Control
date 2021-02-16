@@ -61,6 +61,15 @@ class FES():
         self.x_step = self.mesh_cens_x_cords[1][0]
         self.y_step = self.mesh_cens_y_cords[0][1]
         
+        # Constants set to divide mesh
+        self.x_cens = np.round(np.linspace(0,self.num_vert_length-2,21)).astype(int)
+        self.x_cens = self.x_cens[1:-1:2]
+        self.y_cens = np.round(np.linspace(0,self.num_vert_width-2,21)).astype(int)
+        self.y_cens = self.y_cens[1:-1:2]
+        self.x_coords = np.round(np.linspace(0,self.num_vert_length-2,11)).astype(int)
+        self.y_coords = np.round(np.linspace(0,self.num_vert_width-2,11)).astype(int)
+        self.avg_error = np.zeros((10,10))
+        
         # Init and perturb temperature and cure meshes
         self.temp_mesh = np.ones(self.mesh_cens_x_cords.shape) * self.initial_temperature
         self.temp_mesh = self.temp_mesh + self.get_perturbation(self.temp_mesh, self.initial_temp_delta)
@@ -122,6 +131,14 @@ class FES():
                                                                                 (self.mesh_cens_y_cords - self.input_location[1])**2 * self.exp_const)
         self.input_mesh[self.input_mesh<0.01*self.max_input_mag] = 0.0
         
+        # Determine target position
+        error = abs(self.temp_mesh - self.target_temp_mesh)
+        for i in range(10):
+            for j in range(10):
+                self.avg_error[i][j] = np.mean(error[self.x_coords[i]:self.x_coords[i+1], self.y_coords[j]:self.y_coords[j+1]])
+        index = np.unravel_index(np.argmax(self.avg_error), self.avg_error.shape)
+        self.target_pos = np.array([self.mesh_cens_x_cords[self.x_cens[index[0]],self.y_cens[index[1]]], self.mesh_cens_y_cords[self.x_cens[index[0]],self.y_cens[index[1]]]])
+        
         # Reward constants
         self.max_reward = 2.0
         self.input_punishment_const = 0.05
@@ -157,49 +174,68 @@ class FES():
         
         return perturbation
 
-    def step_input(self, action):        
-        # Determine the movement state
-        at_top_edge = self.input_location[1] >= 0.98*self.width
-        at_bottom_edge = self.input_location[1] <= 0.02*self.width
-        at_right_edge = self.input_location[0] >= 0.98*self.length
-        at_left_edge = self.input_location[0] <= 0.02*self.length
-        going_up = self.movement_dirn[1] == 1.0
-        going_down = self.movement_dirn[1] == -1.0
-        going_right = self.movement_dirn[0] == 1.0
-        going_left = self.movement_dirn[0] == -1.0
-        time_to_switch = False
+    def step_input(self, action):
+        if True:
+            # Determine the movement state
+            at_top_edge = self.input_location[1] >= 0.98*self.width
+            at_bottom_edge = self.input_location[1] <= 0.02*self.width
+            at_right_edge = self.input_location[0] >= 0.98*self.length
+            at_left_edge = self.input_location[0] <= 0.02*self.length
+            going_up = self.movement_dirn[1] == 1.0
+            going_down = self.movement_dirn[1] == -1.0
+            going_right = self.movement_dirn[0] == 1.0
+            going_left = self.movement_dirn[0] == -1.0
+            time_to_switch = False
+            
+            # Update how long the input has been traversing lengthwise
+            if going_right or going_left:
+                self.length_wise_dist = self.length_wise_dist + self.max_input_loc_rate*self.time_step
+                if (self.length_wise_dist>=self.loc_multiplier*2.0*self.radius_of_input) or (self.half_dist and self.length_wise_dist>=self.loc_multiplier*self.radius_of_input):
+                    time_to_switch = True
+                    if self.half_dist:
+                        self.half_dist = False
+            else :
+                self.length_wise_dist = 0.0
+            
+            # Determine the movement direction
+            if (going_up and at_top_edge) or (going_down and at_bottom_edge):
+                self.movement_dirn = np.array([self.x_dirn_movement, 0.0])
+            elif (going_right and at_right_edge and at_top_edge) or (going_left and at_left_edge and at_top_edge):
+                self.movement_dirn = np.array([0.0, -1.0])
+                self.x_dirn_movement = -1.0 * self.x_dirn_movement
+                if going_right:
+                    self.half_dist = True
+            elif (going_right and at_right_edge and at_bottom_edge) or (going_left and at_left_edge and at_bottom_edge):
+                self.movement_dirn = np.array([0.0, 1.0])
+                self.x_dirn_movement = -1.0 * self.x_dirn_movement
+                if going_right:
+                    self.half_dist = True
+            elif (going_right and at_top_edge and time_to_switch) or (going_left and at_top_edge and time_to_switch):
+                self.movement_dirn = np.array([0.0, -1.0])
+            elif (going_right and at_bottom_edge and time_to_switch) or (going_left and at_bottom_edge and time_to_switch):
+                self.movement_dirn = np.array([0.0, 1.0])
+            
+            # Update the input location based on the movement direction
+            self.input_location = self.input_location + self.movement_dirn*self.max_input_loc_rate*self.time_step
+            self.input_location.clip(np.array([0.0, 0.0]), np.array([self.length, self.width]), out=self.input_location)
         
-        # Update how long the input has been traversing lengthwise
-        if going_right or going_left:
-            self.length_wise_dist = self.length_wise_dist + self.max_input_loc_rate*self.time_step
-            if (self.length_wise_dist>=self.loc_multiplier*2.0*self.radius_of_input) or (self.half_dist and self.length_wise_dist>=self.loc_multiplier*self.radius_of_input):
-                time_to_switch = True
-                if self.half_dist:
-                    self.half_dist = False
-        else :
-            self.length_wise_dist = 0.0
-        
-        # Determine the movement direction
-        if (going_up and at_top_edge) or (going_down and at_bottom_edge):
-            self.movement_dirn = np.array([self.x_dirn_movement, 0.0])
-        elif (going_right and at_right_edge and at_top_edge) or (going_left and at_left_edge and at_top_edge):
-            self.movement_dirn = np.array([0.0, -1.0])
-            self.x_dirn_movement = -1.0 * self.x_dirn_movement
-            if going_right:
-                self.half_dist = True
-        elif (going_right and at_right_edge and at_bottom_edge) or (going_left and at_left_edge and at_bottom_edge):
-            self.movement_dirn = np.array([0.0, 1.0])
-            self.x_dirn_movement = -1.0 * self.x_dirn_movement
-            if going_right:
-                self.half_dist = True
-        elif (going_right and at_top_edge and time_to_switch) or (going_left and at_top_edge and time_to_switch):
-            self.movement_dirn = np.array([0.0, -1.0])
-        elif (going_right and at_bottom_edge and time_to_switch) or (going_left and at_bottom_edge and time_to_switch):
-            self.movement_dirn = np.array([0.0, 1.0])
-        
-        # Update the input location based on the movement direction
-        self.input_location = self.input_location + self.movement_dirn*self.max_input_loc_rate*self.time_step
-        self.input_location.clip(np.array([0.0, 0.0]), np.array([self.length, self.width]), out=self.input_location)
+        else:
+            # Average the temperature field into 10x10 field
+            error = abs(self.temp_mesh - self.target_temp_mesh)
+            for i in range(10):
+                for j in range(10):
+                    self.avg_error[i][j] = np.mean(error[self.x_coords[i]:self.x_coords[i+1], self.y_coords[j]:self.y_coords[j+1]])
+            index = np.unravel_index(np.argmax(self.avg_error), self.avg_error.shape)
+            if np.linalg.norm(self.target_pos - self.input_location) <= self.radius_of_input/4.0:
+                self.target_pos = np.array([self.mesh_cens_x_cords[self.x_cens[index[0]],self.y_cens[index[1]]], self.mesh_cens_y_cords[self.x_cens[index[0]],self.y_cens[index[1]]]])
+            target_dirn = self.target_pos - self.input_location
+            target_dirn = target_dirn / np.linalg.norm(target_dirn)
+            target_dirn[np.argmax(abs(target_dirn))] = 1.0 if target_dirn[np.argmax(abs(target_dirn))]>0.0 else -1.0
+            target_dirn[np.argmin(abs(target_dirn))] = 0.0
+            
+             # Update the input location based on the lowest temperature region
+            self.input_location = self.input_location + target_dirn*self.max_input_loc_rate*self.time_step
+            self.input_location.clip(np.array([0.0, 0.0]), np.array([self.length, self.width]), out=self.input_location)
         
         # Update the input's magnitude
         magnitude_command = action[0]
@@ -367,11 +403,20 @@ class FES():
         self.movement_dirn = np.array([0.0, 1.0])
         self.x_dirn_movement = 1.0
         self.length_wise_dist = 0.0
+        self.avg_error = np.zeros((10,10))
         
         # Reset input panels
         self.input_mesh = self.input_magnitude * self.max_input_mag * np.exp(((self.mesh_cens_x_cords - self.input_location[0])**2 * self.exp_const) + 
                                                                                 (self.mesh_cens_y_cords - self.input_location[1])**2 * self.exp_const)
         self.input_mesh[self.input_mesh<0.01*self.max_input_mag] = 0.0
+        
+        # Determine target position
+        error = abs(self.temp_mesh - self.target_temp_mesh)
+        for i in range(10):
+            for j in range(10):
+                self.avg_error[i][j] = np.mean(error[self.x_coords[i]:self.x_coords[i+1], self.y_coords[j]:self.y_coords[j+1]])
+        index = np.unravel_index(np.argmax(self.avg_error), self.avg_error.shape)
+        self.target_pos = np.array([self.mesh_cens_x_cords[self.x_cens[index[0]],self.y_cens[index[1]]], self.mesh_cens_y_cords[self.x_cens[index[0]],self.y_cens[index[1]]]])
         
         # Return the initial state
         return self.get_state()

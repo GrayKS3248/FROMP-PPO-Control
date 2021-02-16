@@ -11,16 +11,13 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as clr
 import pickle
 import os
+import shutil
 
 def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
 
     # Create dict to store data from simulation
     data = {
         'r_per_episode' : [],
-        'value_error' : [],
-        'x_rate_stdev': [],
-        'y_rate_stdev': [],
-        'mag_stdev': [],
         'input_location': [],
         'input_magnitude':[],
         'temperature_field': [],
@@ -84,10 +81,9 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
             
             # Get action, do action, learn
             if step_in_episode % execution_rate == 0:
-                x_loc_rate_action, x_loc_rate_stdev, y_loc_rate_action, y_loc_rate_stdev, mag_action, mag_stdev = agent.get_action(s)
+                x_loc_rate_action, y_loc_rate_action, mag_action = agent.get_greedy_action(s)
             (s2, r, done) = env.step(np.array([x_loc_rate_action, y_loc_rate_action, mag_action]))
             if step_in_episode % execution_rate == 0:
-                agent.update_agent(s, np.array([x_loc_rate_action, y_loc_rate_action, mag_action]), r)
                 r_total = r_total + r
                 curr_step = curr_step + 1
             
@@ -122,9 +118,6 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
         
         # Update the logs
         data['r_per_episode'].append(episode_reward / agent.steps_per_trajectory)
-        data['x_rate_stdev'].append(x_loc_rate_stdev)
-        data['y_rate_stdev'].append(y_loc_rate_stdev)
-        data['mag_stdev'].append(mag_stdev)
         
         # Reset the trajectory memory
         trajectory['input_location'] = []
@@ -135,9 +128,6 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
         trajectory['front_velocity'] = []
         trajectory['target_velocity'] = []
         trajectory['time'] = []
-   
-    # Store the training data
-    data['value_error'].append(agent.value_estimation_error)
         
     # User readout
     percent_complete = 1.0
@@ -155,17 +145,17 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
 if __name__ == '__main__':
     
     # Simulation parameters
-    load_previous_agent = False
+    load_previous_agent = True
     reset_stdev = False
     
     # Environment parameters
     control = False
-    trigger = True
-    random_target = True
+    trigger = False
+    random_target = False
     target_switch = False
         
     # Agent parameters
-    total_trajectories = 20000
+    total_trajectories = 1000
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
@@ -192,24 +182,30 @@ if __name__ == '__main__':
         raise RuntimeError("Agent execution rate is not multiple of simulation rate")
    
     # Find save paths
+    path = "results/PPO_Performance"
+    video_path = "results/PPO_Performance/video"
+    if not os.path.isdir(path):
+        os.mkdir(path)
+        os.mkdir(video_path)
+    else:
+        shutil.rmtree(path)
+        os.mkdir(path)
+        os.mkdir(video_path)
+    
+    # Find load path
     done = False
     curr_folder = 1
     while not done:
-        path = "results/PPO_"+str(curr_folder)
-        video_path = "results/PPO_"+str(curr_folder)+"/video"
-        if not os.path.isdir(path):
-            os.mkdir(path)
-            os.mkdir(video_path)
+        load_path = "results/PPO_"+str(curr_folder)
+        if not os.path.isdir(load_path):
             done = True
         else:
             curr_folder = curr_folder + 1
-            
-    # Find load path
+    curr_folder = curr_folder - 1
+    if curr_folder == 0:
+        raise RuntimeError("No training data found")
     if load_previous_agent:
-        load_path = "results/PPO_"+str(curr_folder-1)
-        if not os.path.isdir(load_path):
-            raise RuntimeError("Could not find previous folder: " + load_path)
-        load_path = load_path + "/output"
+        load_path = "results/PPO_"+str(curr_folder)+"/output"
         if not os.path.exists(load_path):
             raise RuntimeError("Could not find previous output file: " + load_path)
         with open(load_path, 'rb') as file:
@@ -262,60 +258,6 @@ if __name__ == '__main__':
     plt.yticks(fontsize='large')
     plt.gcf().set_size_inches(8.5, 5.5)
     save_file = path + "/actor_learning.png"
-    plt.savefig(save_file, dpi = 500)
-    plt.close()
-
-    # Plot value learning curve
-    plt.clf()
-    title_str = "Critic Learning Curve"
-    plt.title(title_str,fontsize='xx-large')
-    plt.xlabel("Optimization Step",fontsize='large')
-    plt.ylabel("MSE Loss",fontsize='large')
-    plt.plot([*range(len(data['value_error'][0]))],data['value_error'][0],lw=2.0,c='r')
-    plt.yscale("log")
-    plt.xticks(fontsize='large')
-    plt.yticks(fontsize='large')
-    plt.gcf().set_size_inches(8.5, 5.5)
-    save_file = path + "/critic_learning.png"
-    plt.savefig(save_file, dpi = 500)
-    plt.close()
-
-    # Plot x rate stdev curve
-    plt.clf()
-    plt.title("Laser X Position Rate Stdev",fontsize='xx-large')
-    plt.xlabel("Episode",fontsize='large')
-    plt.ylabel("Laser X Position Rate Stdev [m/s]",fontsize='large')
-    plt.plot([*range(len(data['x_rate_stdev']))],env.loc_rate_scale*np.array(data['x_rate_stdev']),lw=2.0,c='r')
-    plt.xticks(fontsize='large')
-    plt.yticks(fontsize='large')
-    plt.gcf().set_size_inches(8.5, 5.5)
-    save_file = path + "/x_rate_stdev.png"
-    plt.savefig(save_file, dpi = 500)
-    plt.close()
-
-    # Plot y rate stdev curve
-    plt.clf()
-    plt.title("Laser Y Position Rate Stdev",fontsize='xx-large')
-    plt.xlabel("Episode",fontsize='large')
-    plt.ylabel("Laser Y Position Rate Stdev [m/s]",fontsize='large')
-    plt.plot([*range(len(data['y_rate_stdev']))],env.loc_rate_scale*np.array(data['y_rate_stdev']),lw=2.0,c='r')
-    plt.xticks(fontsize='large')
-    plt.yticks(fontsize='large')
-    plt.gcf().set_size_inches(8.5, 5.5)
-    save_file = path + "/y_rate_stdev.png"
-    plt.savefig(save_file, dpi = 500)
-    plt.close()
-
-    # Plot magnitude stdev curve
-    plt.clf()
-    plt.title("Laser Magnitude Stdev",fontsize='xx-large')
-    plt.xlabel("Episode",fontsize='large')
-    plt.ylabel('Laser Magnitude Stdev [K/s]',fontsize='large')
-    plt.plot([*range(len(data['mag_stdev']))],env.mag_scale*env.max_input_mag*np.array(data['mag_stdev']),lw=2.0,c='r')
-    plt.xticks(fontsize='large')
-    plt.yticks(fontsize='large')
-    plt.gcf().set_size_inches(8.5, 5.5)
-    save_file = path + "/mag_stdev.png"
     plt.savefig(save_file, dpi = 500)
     plt.close()
     
