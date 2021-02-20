@@ -14,7 +14,7 @@ class FES():
         # Simulation parameters
         self.random_target=False
         self.target_switch=False
-        self.control=True
+        self.control=False
         self.trigger=True
         
         # Mesh parameters
@@ -55,8 +55,8 @@ class FES():
         self.autocatalysis_const = 0.365      # Unitless
         
         # Input distribution parameters
-        self.radius_of_input = 0.0075      # Meters
-        self.max_input_mag = 1132.0        # Watts / Meter^2
+        self.radius_of_input = 0.005       # Meters
+        self.laser_power = 0.2             # Watts
         self.input_mag_percent_rate = 0.5  # Decimal Percent / Second
         self.max_input_loc_rate = 0.025    # Meters / Second
         
@@ -129,8 +129,11 @@ class FES():
         self.front_has_started = np.zeros((self.num_vert_width, self.num_vert_depth))
         
         # Input magnitude parameters
-        sigma = self.radius_of_input / (2.0*np.sqrt(np.log(10.0)))
+        sigma = 0.329505114491*self.radius_of_input
         self.exp_const = -1.0 / (2.0 * sigma * sigma)
+        x = np.linspace(0,self.radius_of_input,1000)
+        y = 0.01**((x**2.0)/(self.radius_of_input**2.0))
+        self.max_input_mag = self.laser_power/(4.0*np.trapz(y,x=x)**2.0)
         
         # Input location parameters
         self.min_input_x_loc = 0.0
@@ -142,7 +145,7 @@ class FES():
         self.max_reward = 2.0
         self.front_rate_reward_const = 10.0*self.max_reward**(1.0/3.0)/(10.0)
         self.input_punishment_const = 0.10
-        self.overage_punishment_const = 0.25
+        self.overage_punishment_const = 0.40
         self.integral_punishment_const = 0.10
         self.front_shape_const = 10.0 / self.width
         self.max_integral = self.length * self.width * self.depth * self.temperature_limit
@@ -279,35 +282,29 @@ class FES():
         
         # Calculate x total heat flux
         if self.current_time >= self.trigger_time and self.current_time < self.trigger_time + self.trigger_duration:
-            left_flux = -self.htc*(self.temp_mesh[0,:,:]-self.ambient_temperature) + self.trigger_flux
+            left_flux = self.htc*(self.temp_mesh[0,:,:]-self.ambient_temperature) - self.trigger_flux
         else:
-            left_flux = -self.htc*(self.temp_mesh[0,:,:]-self.ambient_temperature)
-        right_flux = -self.htc*(self.temp_mesh[-1,:,:]-self.ambient_temperature)
+            left_flux = self.htc*(self.temp_mesh[0,:,:]-self.ambient_temperature)
+        right_flux = self.htc*(self.temp_mesh[-1,:,:]-self.ambient_temperature)
         
         # Calculate y total heat flux
-        front_flux = -self.htc*(self.temp_mesh[:,0,:]-self.ambient_temperature)
-        back_flux = -self.htc*(self.temp_mesh[:,-1,:]-self.ambient_temperature)
+        front_flux = self.htc*(self.temp_mesh[:,0,:]-self.ambient_temperature)
+        back_flux = self.htc*(self.temp_mesh[:,-1,:]-self.ambient_temperature)
         
         # Calculate z total heat flux
-        top_flux = -self.htc*(self.temp_mesh[:,:,0]-self.ambient_temperature) + self.input_mesh
-        bottom_flux = -self.htc*(self.temp_mesh[:,:,-1]-self.ambient_temperature)
+        top_flux = self.htc*(self.temp_mesh[:,:,0]-self.ambient_temperature) - self.input_mesh
+        bottom_flux = self.htc*(self.temp_mesh[:,:,-1]-self.ambient_temperature)
         
         # Calculate boundary conditions
-        dT2_dx2[ 0,:,:] = 2.0*(self.temp_mesh[ 1,:,:]-self.temp_mesh[ 0,:,:]-(self.x_step*-left_flux  /self.thermal_conductivity))/(self.x_step*self.x_step)
-        dT2_dx2[-1,:,:] = 2.0*(self.temp_mesh[-2,:,:]-self.temp_mesh[-1,:,:]-(self.x_step*-right_flux /self.thermal_conductivity))/(self.x_step*self.x_step)
-        dT2_dy2[:, 0,:] = 2.0*(self.temp_mesh[:, 1,:]-self.temp_mesh[:, 0,:]-(self.y_step*-front_flux /self.thermal_conductivity))/(self.y_step*self.y_step)
-        dT2_dy2[:,-1,:] = 2.0*(self.temp_mesh[:,-2,:]-self.temp_mesh[:,-1,:]-(self.y_step*-back_flux  /self.thermal_conductivity))/(self.y_step*self.y_step)
-        dT2_dz2[:,:, 0] = 2.0*(self.temp_mesh[:,:, 1]-self.temp_mesh[:,:, 0]-(self.z_step*-top_flux   /self.thermal_conductivity))/(self.z_step*self.z_step)
-        dT2_dz2[:,:,-1] = 2.0*(self.temp_mesh[:,:,-2]-self.temp_mesh[:,:,-1]-(self.z_step*-bottom_flux/self.thermal_conductivity))/(self.z_step*self.z_step)
-        
-        # Calculate the temperature laplacian 
-        del_sq_T = dT2_dx2 + dT2_dy2 + dT2_dz2
-
-        # Calculate the total interal heat rate density
-        cure_q = self.enthalpy_of_reaction * self.density * cure_rate
+        dT2_dx2[ 0,:,:] = 2.0*(self.temp_mesh[ 1,:,:]-self.temp_mesh[ 0,:,:]-(self.x_step*left_flux  /self.thermal_conductivity))/(self.x_step*self.x_step)
+        dT2_dx2[-1,:,:] = 2.0*(self.temp_mesh[-2,:,:]-self.temp_mesh[-1,:,:]-(self.x_step*right_flux /self.thermal_conductivity))/(self.x_step*self.x_step)
+        dT2_dy2[:, 0,:] = 2.0*(self.temp_mesh[:, 1,:]-self.temp_mesh[:, 0,:]-(self.y_step*front_flux /self.thermal_conductivity))/(self.y_step*self.y_step)
+        dT2_dy2[:,-1,:] = 2.0*(self.temp_mesh[:,-2,:]-self.temp_mesh[:,-1,:]-(self.y_step*back_flux  /self.thermal_conductivity))/(self.y_step*self.y_step)
+        dT2_dz2[:,:, 0] = 2.0*(self.temp_mesh[:,:, 1]-self.temp_mesh[:,:, 0]-(self.z_step*top_flux   /self.thermal_conductivity))/(self.z_step*self.z_step)
+        dT2_dz2[:,:,-1] = 2.0*(self.temp_mesh[:,:,-2]-self.temp_mesh[:,:,-1]-(self.z_step*bottom_flux/self.thermal_conductivity))/(self.z_step*self.z_step)
         
         # Calculate the temperature rate field
-        temp_rate = self.thermal_diffusivity*del_sq_T + (self.thermal_diffusivity/self.thermal_conductivity)*cure_q
+        temp_rate = self.thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(self.enthalpy_of_reaction*cure_rate)/self.specific_heat
         
         # Update the temperature field using forward Euler method
         self.temp_mesh = self.temp_mesh + temp_rate * self.time_step
@@ -333,7 +330,7 @@ class FES():
     # @return - state: The normalized state array
     def get_state(self):
         # Get the average temperature in even areas across entire field
-        average_temps = np.mean(self.blockshaped(self.temp_mesh[:,:,0],(self.num_vert_length)//8,(self.num_vert_width)//4),axis=0)
+        average_temps = np.mean(self.blockshaped(self.temp_mesh[:,:,0],(self.num_vert_length)//6,(self.num_vert_width)//4),axis=0)
         average_temps = average_temps.reshape(np.size(average_temps))
         
         # Find the x coords over which the laser can see
@@ -363,8 +360,8 @@ class FES():
         laser_view = laser_view.reshape(np.size(laser_view))
         
         # Compress front location and velocity data
-        average_front_loc = np.mean(np.mean(self.front_loc,axis=1).reshape((self.num_vert_width)//4,4),axis=1)
-        average_front_vel = np.mean(np.mean(self.front_vel,axis=1).reshape((self.num_vert_width)//4,4),axis=1)
+        average_front_loc = np.mean(self.front_loc[:,0].reshape(self.num_vert_width//4,4),axis=1)
+        average_front_vel = np.mean(self.front_vel[:,0].reshape(self.num_vert_width//4,4),axis=1)
         
         # Normalize and concatenate all substates
         state = np.concatenate((average_temps/self.temperature_limit, 
@@ -373,7 +370,7 @@ class FES():
                                 average_front_vel/self.current_target_front_vel, 
                                 [self.input_location[0]/self.length], [self.input_location[1]/self.width],
                                 [self.input_percent]))
-            
+        
         # Return the state
         return state
 
