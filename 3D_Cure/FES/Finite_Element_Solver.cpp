@@ -7,24 +7,21 @@ Finite_Element_Solver::Finite_Element_Solver()
 {
     // Set randomization seed
     srand(time(NULL));
-    RAND_MAX = 1.0;
 
     //******************** CALCUALTED PARAMETERS ********************//
-    // Initiate simulation timeand target velocity index
-    current_time = 0.0;
-    current_index = 0;
+    // time
+    current_time = 0.0;          // Seconds
+    current_index = 0;              // Unitless
 
-    // Define initial condition deltas
-    initial_temp_delta = 0.01 * initial_temperature;
-    initial_cure_delta = 0.025 * initial_cure;
-
-    // Define randomizing scaling and problem type
-    randomizing_scale = target / 6.0;
+    // Monomer physical parameters
+    thermal_diffusivity = thermal_conductivity / (specific_heat * density);
 
     // Calculate the target velocity temporal vector and define the current target
+    int sim_steps = (int)(sim_duration / time_step);
+    target_front_vel = vector<double>(sim_steps, 0.0);
     if (random_target)
     {
-        double new_target = target - 2.0 * (rand() - 0.5) * randomizing_scale;
+        double new_target = target - 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
         for (int i = 0; i < target_front_vel.size(); i++)
         {
             target_front_vel[i] = new_target;
@@ -32,8 +29,8 @@ Finite_Element_Solver::Finite_Element_Solver()
     }
     else if (target_switch)
     {
-        int switch_location = (int) floor((0.20 * rand() + 0.40) * (double)(target_front_vel.size() - 1));
-        double switch_vel = target_front_vel[switch_location] + 2.0 * (rand() - 0.5) * randomizing_scale;
+        int switch_location = (int) floor((0.20 * (double)rand()/(double)RAND_MAX + 0.40) * (double)(target_front_vel.size() - 1));
+        double switch_vel = target_front_vel[switch_location] + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
         for (int i = switch_location; i < target_front_vel.size(); i++)
         {
             target_front_vel[i] = switch_vel;
@@ -44,16 +41,25 @@ Finite_Element_Solver::Finite_Element_Solver()
     // Set trigger conditions
     if (!trigger)
     {
-        trigger_flux = 0.0;
-        trigger_time = 0.0;
-        trigger_duration = 0.0;
+        trigger_flux = 0.0;      // Watts / Meter ^ 2
+        trigger_time = 0.0;      // Seconds
+        trigger_duration = 0.0;  // Seconds
+    }
+    else
+    {
+      trigger_flux = 25500.0;   // Watts / Meter ^ 2
+      trigger_time = 0.0;       // Seconds
+      trigger_duration = 10.0;  // Seconds
     }
 
     // Create mesh and calculate step size
-    double* x_range[num_vert_length];
-    double* y_range[num_vert_width];
-    double* z_range[num_vert_depth];
-    for (int i = 0; i < max(max(num_vert_length, num_vert_width), num_vert_depth); i++)
+    vector<double> x_range = vector<double>(num_vert_length, 0.0);
+    vector<double> y_range = vector<double>(num_vert_width, 0.0);
+    vector<double> z_range = vector<double>(num_vert_depth, 0.0);
+    mesh_x = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth)));
+    mesh_y = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth)));
+    mesh_z = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth)));
+    for (int i = 0; i < max(num_vert_length, max(num_vert_width, num_vert_depth)); i++)
     {
         if (i < num_vert_length)
         {
@@ -68,9 +74,9 @@ Finite_Element_Solver::Finite_Element_Solver()
             z_range[i] = ((double)i / (double)(num_vert_depth - 1)) * depth;
         }
     }
-    for (int i = 0; i < num_vert_length; i++) 
+    for (int i = 0; i < num_vert_length; i++)
     {
-        for (int j = 0; j < num_vert_width; j++) 
+        for (int j = 0; j < num_vert_width; j++)
         {
             for (int k = 0; k < num_vert_depth; k++)
             {
@@ -84,11 +90,18 @@ Finite_Element_Solver::Finite_Element_Solver()
     y_step = mesh_y[0][1][0];
     z_step = mesh_z[0][0][1];
 
-    // Perturb temperature mesh
-    temp_mesh = get_perturbation(temp_mesh, initial_temp_delta);
+    // Init and perturb temperature and cure meshes
+    temp_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_temperature)));
+    //temp_mesh = get_perturbation(temp_mesh, initial_temp_delta);
+    cure_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_cure)));
+    //cure_mesh = get_perturbation(cure_mesh, initial_cure_delta);
 
-    // Perturb cure mesh
-    cure_mesh = get_perturbation(cure_mesh, initial_cure_delta);
+    // Init front mesh and parameters
+    front_mesh = vector<vector<vector<bool>>>(num_vert_length, vector<vector<bool>>(num_vert_width, vector<bool>(num_vert_depth, false)));
+    front_loc = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+    front_vel = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+    time_front_last_moved = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+    front_has_started = vector<vector<bool>>(num_vert_width, vector<bool>(num_vert_depth, false));
 
     // Input magnitude parameters
     double sigma = 0.329505114491 * radius_of_input;
@@ -102,11 +115,16 @@ Finite_Element_Solver::Finite_Element_Solver()
         max_input_mag += 2.0 * pow(0.01, ((x * x) / (radius_of_input * radius_of_input)));
     }
     max_input_mag = laser_power / (4.0 * (max_input_mag * delta_x / 2.0) * (max_input_mag * delta_x / 2.0));
+    input_percent = (double)rand()/(double)RAND_MAX;
 
-    // Initiate input
-    input_percent = rand();
-    input_location[0] = mesh_x[(int)floor(rand() * num_vert_length)][0][0];
-    input_location[1] = mesh_y[0][(int)floor(rand() * num_vert_width)][0];
+    // Input location parameters
+    min_input_x_loc = 0.0;
+    max_input_x_loc = length;
+    min_input_y_loc = 0.0;
+    max_input_y_loc = width;
+    input_location = vector<double>(2, 0.0);
+    input_location[0] = mesh_x[(int)floor((double)rand()/(double)RAND_MAX * num_vert_length)][0][0];
+    input_location[1] = mesh_y[0][(int)floor((double)rand()/(double)RAND_MAX * num_vert_width)][0];
     if (control)
     {
         max_input_mag = 0.0;
@@ -119,6 +137,8 @@ Finite_Element_Solver::Finite_Element_Solver()
     }
 
     // Initiate input wattage mesh
+    input_mesh = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
+    double local_input_power = 0.0;
     for (int i = 0; i < num_vert_length; i++)
     {
         for (int j = 0; j < num_vert_width; j++)
