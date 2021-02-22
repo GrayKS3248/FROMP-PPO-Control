@@ -9,9 +9,9 @@ Finite_Element_Solver::Finite_Element_Solver()
     srand(time(NULL));
 
     //******************** CALCUALTED PARAMETERS ********************//
-    // time
-    current_time = 0.0;          // Seconds
-    current_index = 0;              // Unitless
+    // Simulation time and target velocity index
+    current_time = 0.0;  // Seconds
+    current_index = 0;   // Unitless
 
     // Monomer physical parameters
     thermal_diffusivity = thermal_conductivity / (specific_heat * density);
