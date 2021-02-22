@@ -47,9 +47,9 @@ Finite_Element_Solver::Finite_Element_Solver()
     }
     else
     {
-      trigger_flux = 25500.0;   // Watts / Meter ^ 2
-      trigger_time = 0.0;       // Seconds
-      trigger_duration = 10.0;  // Seconds
+      trigger_flux = trigger_flux_r;          // Watts / Meter ^ 2
+      trigger_time = trigger_time_r;          // Seconds
+      trigger_duration = trigger_duration_r;  // Seconds
     }
 
     // Create mesh and calculate step size

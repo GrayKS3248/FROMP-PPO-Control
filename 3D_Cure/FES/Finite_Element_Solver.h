@@ -96,10 +96,10 @@ private:
     const double input_mag_percent_rate = 0.5;  // Decimal Percent / Second
     const double max_input_loc_rate = 0.025;    // Meters / Second
 
-    // Set trigger conditions
-    const double trigger_flux = 20000.0;   // Watts / Meter ^ 2
-    const double trigger_time = 0.0;       // Seconds
-    const double trigger_duration = 10.0;  // Seconds
+    // Set trigger condition references
+    const double trigger_flux_r = 20000.0;   // Watts / Meter ^ 2
+    const double trigger_time_r = 0.0;       // Seconds
+    const double trigger_duration_r = 10.0;  // Seconds
 
     // NN Input conversion factors
     const double mag_scale = 0.0227;        // Unitless
@@ -132,6 +132,11 @@ private:
     // Target velocity temporal vector and the current target
     vector<double> target_front_vel;
     double current_target_front_vel;
+
+    // Trigger conditions
+    double trigger_flux;      // Watts / Meter ^ 2
+    double trigger_time;      // Seconds
+    double trigger_duration;  // Seconds
 
     // Mesh and step size
     vector<vector<vector<double>>> mesh_x;
