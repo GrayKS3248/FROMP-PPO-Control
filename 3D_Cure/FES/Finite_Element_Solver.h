@@ -82,13 +82,13 @@ private:
     // Monomer physical parameters
     const double thermal_conductivity = 0.152;     // Watts / Meter * Kelvin
     const double density = 980.0;                  // Kilograms / Meter ^ 3
-    const double enthalpy_of_reaction = 350000.0;  // Joules / Kilogram
-    const double specific_heat = 1600.0;           // Joules / Kilogram * Kelvin
-    const double pre_exponential = 8.55e5;         // 1 / Seconds
-    const double activiation_energy = 110750.0;    // Joules / Mol
+    const double enthalpy_of_reaction = 352100.0;  // Joules / Kilogram
+    const double specific_heat = 1440.0;           // Joules / Kilogram * Kelvin
+    const double pre_exponential = 190985.325;     // 1 / Seconds
+    const double activiation_energy = 51100.0;    // Joules / Mol
     const double gas_const = 8.3144;               // Joules / Mol * Kelvin
-    const double n_exp = 1.7215;                   // Unitless
-    const double critical_conversion = 0.405;      // Unitless
+    const double model_fit_order = 1.927;          // Unitless
+    const double autocatalysis_const = 0.365;      // Unitless
 
     // Input distribution parameters
     const double radius_of_input = 0.005;       // Meters
@@ -97,7 +97,7 @@ private:
     const double max_input_loc_rate = 0.025;    // Meters / Second
 
     // Set trigger condition references
-    const double trigger_flux_r = 20000.0;   // Watts / Meter ^ 2
+    const double trigger_flux_r = 25500.0;   // Watts / Meter ^ 2
     const double trigger_time_r = 0.0;       // Seconds
     const double trigger_duration_r = 10.0;  // Seconds
 
@@ -119,7 +119,7 @@ private:
     const double integral_delta = max_integral - length * width * depth * initial_temperature;  // Unitless
 
     // Simulation stability limit
-    const double stab_lim = 20.0 * temperature_limit;
+    const double stab_lim = 10.0 * temperature_limit;
 
     //******************** CALCULATED PARAMETERS ********************//
     // Simulation time and target velocity index

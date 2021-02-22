@@ -22,7 +22,7 @@ Finite_Element_Solver::Finite_Element_Solver()
     if (random_target)
     {
         double new_target = target - 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
-        for (int i = 0; i < target_front_vel.size(); i++)
+        for (unsigned int i = 0; i < target_front_vel.size(); i++)
         {
             target_front_vel[i] = new_target;
         }
@@ -31,7 +31,7 @@ Finite_Element_Solver::Finite_Element_Solver()
     {
         int switch_location = (int) floor((0.20 * (double)rand()/(double)RAND_MAX + 0.40) * (double)(target_front_vel.size() - 1));
         double switch_vel = target_front_vel[switch_location] + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
-        for (int i = switch_location; i < target_front_vel.size(); i++)
+        for (unsigned int i = switch_location; i < target_front_vel.size(); i++)
         {
             target_front_vel[i] = switch_vel;
         }
@@ -155,3 +155,8 @@ Finite_Element_Solver::Finite_Element_Solver()
         }
     }
 }
+
+//******************** PUBLIC FUNCTIONS ******************************//
+
+
+//******************** PRIVATE FUNCTIONS ******************************//
