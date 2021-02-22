@@ -19,6 +19,7 @@ public:
     //******************** GETTERS ********************************//
     int get_num_vert_length();
     int get_num_vert_width();
+    int get_num_vert_depth();
     double get_sim_duration();
     double get_time_step();
     double get_input_percent();
@@ -33,9 +34,10 @@ public:
     vector<vector<double>> get_cure_mesh();
     vector<vector<double>> get_front_loc();
     vector<vector<double>> get_front_vel();
-    vector<vector<double>> get_mesh_x();
-    vector<vector<double>> get_mesh_y();
-    vector<vector<double>> get_mesh_z();
+    vector<vector<double>> get_mesh_x_z0();
+    vector<vector<double>> get_mesh_y_z0();
+    vector<vector<double>> get_mesh_y_x0();
+    vector<vector<double>> get_mesh_z_x0();
 
     //******************** FUNCTIONS ******************************//
     tuple <vector<double>, double, bool> step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
