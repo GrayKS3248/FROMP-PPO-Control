@@ -156,19 +156,19 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
 if __name__ == '__main__':
     
     # Simulation parameters
-    load_previous_agent = True
+    load_previous_agent = False
     reset_stdev = False
         
     # Agent parameters
-    total_trajectories = 10000
+    total_trajectories = 1
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    start_alpha = 3.0e-4
-    end_alpha = 1.0e-4
+    start_alpha = 5.0e-4
+    end_alpha = 4.0e-4
     
     # Rendering parameters
     frame_multiplier = 1.0/6.0
@@ -316,8 +316,8 @@ if __name__ == '__main__':
     
     # Make videos of the best temperature field trajecotry and cure field trajectories as function of time
     print("Rendering...")
-    min_temp = 0.99*np.min(data['temperature_field'])
-    max_temp = 1.01*np.max(data['temperature_field'])
+    min_temp = 0.99*np.min(data['temperature_field'])-273.15
+    max_temp = 1.01*np.max(data['temperature_field'])-273.15
     
     # Determine front shape deltas
     front_mean_loc = np.mean(100.0*np.array(data['front_location']),axis=(1,2))
@@ -346,15 +346,16 @@ if __name__ == '__main__':
         fig.set_size_inches(11,8.5)
         
         # Plot temperature
-        c0 = ax0.pcolormesh(100.0*env.mesh_x[:,:,0], 100.0*env.mesh_y[:,:,0], data['temperature_field'][curr_step], shading='gouraud', cmap='jet', vmin=min_round, vmax=max_round)
+        c0 = ax0.pcolormesh(100.0*env.mesh_x[:,:,0], 100.0*env.mesh_y[:,:,0], np.array(data['temperature_field'][curr_step])-273.15, shading='gouraud', cmap='jet', vmin=min_round, vmax=max_round)
         cbar0 = fig.colorbar(c0, ax=ax0)
-        cbar0.set_label('Temperature [K]',labelpad=20,fontsize='large')
+        cbar0.set_label('Temperature [C]',labelpad=20,fontsize='large')
         cbar0.ax.tick_params(labelsize=12)
         ax0.set_xlabel('X Position [cm]',fontsize='large')
         ax0.set_ylabel('Y Position [cm]',fontsize='large')
         ax0.tick_params(axis='x',labelsize=12)
         ax0.tick_params(axis='y',labelsize=12)
         ax0.set_aspect('equal', adjustable='box')
+        ax0.set_title('Max Temperature = '+'{:.2f}'.format(np.max(data['temperature_field'][curr_step]-273.15))+' C',fontsize='large')
         
         # Plot cure
         c1 = ax1.pcolormesh(100.0*env.mesh_x[:,:,0], 100.0*env.mesh_y[:,:,0], data['cure_field'][curr_step], shading='gouraud', cmap='YlOrBr', vmin=0.0, vmax=1.0)
@@ -392,7 +393,9 @@ if __name__ == '__main__':
         fig.set_size_inches(14.0,8.0)
         
         # Convolve front location data
-        front_delta_loc = 100.0*np.array(data['front_location'][curr_step]) - front_mean_loc[curr_step]
+        back_msaa_index = np.clip(curr_step-5,0,len(data['time'])-1)
+        front_msaa_index = np.clip(curr_step+5,0,len(data['time'])-1)
+        front_delta_loc = np.mean(100.0*np.array(data['front_location'][back_msaa_index:front_msaa_index]),axis=0) - np.mean(front_mean_loc[back_msaa_index:front_msaa_index])
         front_delta_min = np.min(front_delta_loc)
         front_delta_max = np.max(front_delta_loc)
         if not ((front_delta_loc<=1.0e-5).all() and (front_delta_loc>=-1.0e-5).all()):
@@ -423,7 +426,9 @@ if __name__ == '__main__':
         ax0.set_title("Front Shape",fontsize='xx-large')
         
         # Covolve front speed data
-        curr_front_vel = 100.0*np.array(data['front_velocity'][curr_step])
+        back_msaa_index = np.clip(curr_step-5,0,len(data['time'])-1)
+        front_msaa_index = np.clip(curr_step+5,0,len(data['time'])-1)
+        curr_front_vel = np.mean(100.0*np.array(data['front_velocity'][back_msaa_index:front_msaa_index]),axis=0)
         front_vel_min = np.min(curr_front_vel)
         front_vel_max = np.max(curr_front_vel)
         if not ((curr_front_vel<=1.0e-5).all() and (curr_front_vel>=-1.0e-5).all()):

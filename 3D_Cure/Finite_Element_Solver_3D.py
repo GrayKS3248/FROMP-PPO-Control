@@ -14,7 +14,7 @@ class FES():
         # Simulation parameters
         self.random_target=False
         self.target_switch=False
-        self.control=False
+        self.control=True
         self.trigger=True
         
         # Mesh parameters
@@ -29,14 +29,14 @@ class FES():
         
         # Temporal parameters
         self.sim_duration = 240.0  # Seconds
-        self.time_step = 0.1       # Seconds
+        self.time_step = 0.1      # Seconds
         
         # Initial conditions
         self.initial_temperature = 278.15  # Kelvin
-        self.initial_cure = 0.10           # Decimal Percent
+        self.initial_cure = 0.05           # Decimal Percent
         
         # Boundary conditions
-        self.htc = 6.0                     # Watts / (Meter^2 * Kelvin)
+        self.htc = 10.0                    # Watts / (Meter^2 * Kelvin)
         self.ambient_temperature = 294.15  # Kelvin
         
         # Problem definition
@@ -48,7 +48,7 @@ class FES():
         self.density = 980.0                  # Kilograms / Meter^3
         self.enthalpy_of_reaction = 352100.0  # Joules / Kilogram
         self.specific_heat = 1440.0           # Joules / Kilogram * Kelvin
-        self.pre_exponential = 190985.325     # 1 / Seconds
+        self.pre_exponential = 10**5.281      # 1 / Seconds
         self.activiation_energy = 51100.0     # Joules / Mol
         self.gas_const = 8.3144               # Joules / Mol * Kelvin
         self.model_fit_order = 1.927          # Unitless
@@ -61,9 +61,9 @@ class FES():
         self.max_input_loc_rate = 0.025    # Meters / Second
         
         # Set trigger conditions
-        self.trigger_flux = 26000.0   # Watts / Meter^2
+        self.trigger_flux = 25500.0   # Watts / Meter^2
         self.trigger_time = 0.0       # Seconds
-        self.trigger_duration = 10.0 # Seconds
+        self.trigger_duration = 10.0  # Seconds
         
         # NN Input conversion factors
         self.mag_scale = 0.0227        # Unitless
@@ -143,6 +143,7 @@ class FES():
         
         # Reward constants
         self.max_reward = 2.0
+        self.dist_punishment_const = 0.15
         self.front_rate_reward_const = 10.0*self.max_reward**(1.0/3.0)/(10.0)
         self.input_punishment_const = 0.10
         self.overage_punishment_const = 0.40
@@ -233,12 +234,13 @@ class FES():
     # @return - cure_rate: The calcualted cure rate (percent / second) across entire 3D mesh
     def step_cure(self):
         # Get the cure rate across the entire field based on the cure kinetics
-        cure_rate = ((self.pre_exponential * np.exp( (-self.activiation_energy) / (self.gas_const * self.temp_mesh) )) *
-                    ((1 - self.cure_mesh) ** self.model_fit_order) *
-                    (1 + self.autocatalysis_const * self.cure_mesh))
+        cure_rate = ((self.pre_exponential * np.exp((-1.0 * self.activiation_energy) / (self.gas_const * self.temp_mesh))) *
+                    ((1.0 - self.cure_mesh) ** self.model_fit_order) *
+                    (1.0 + self.autocatalysis_const * self.cure_mesh))
         
         # Update the cure field using forward Euler method
         self.cure_mesh = self.cure_mesh + cure_rate * self.time_step
+        self.cure_mesh[self.cure_mesh>1.0] = 1.0
         
         # Return the cure rate
         return cure_rate
@@ -380,15 +382,22 @@ class FES():
         # Calculate the punishments based on the temperature field, input strength, action, and overage
         if self.control:
             input_punishment = 0.0
+            dist_punishment = 0.0
         else:
             input_punishment = -self.input_punishment_const * self.max_reward * self.input_percent
+            dist_from_front = abs(np.mean(self.front_loc) - self.input_location[0])
+            if dist_from_front <= 1.25*self.radius_of_input:
+                dist_from_front = 0.0 
+            else:
+                dist_from_front = dist_from_front/self.length
+            dist_punishment = -self.dist_punishment_const * self.max_reward * dist_from_front
         overage_punishment =  -self.overage_punishment_const * self.max_reward * (np.max(self.temp_mesh) >= self.temperature_limit)
         integral = np.trapz(self.temp_mesh,x=self.mesh_x,axis=0)
         integral = np.trapz(integral,x=self.mesh_y[0,:,:],axis=0)
         integral = np.trapz(integral,x=self.mesh_z[0,0,:],axis=0)
         integral_punishment = -self.integral_punishment_const * self.max_reward * (1.0 - (self.max_integral - integral) / (self.integral_delta))
         front_shape_punishment = -self.front_shape_const * np.mean(abs(self.front_loc-np.mean(self.front_loc)))
-        punishment = max(input_punishment + integral_punishment + front_shape_punishment, -self.max_reward) + overage_punishment
+        punishment = max(input_punishment + integral_punishment + front_shape_punishment + dist_punishment, -self.max_reward) + overage_punishment
         
         # Calculate the reward
         mean_front_vel_error = min(np.mean(abs(self.front_vel - self.current_target_front_vel) / (self.current_target_front_vel)), 1.0)
