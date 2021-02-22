@@ -14,7 +14,7 @@ class FES():
         # Simulation parameters
         self.random_target=False
         self.target_switch=False
-        self.control=True
+        self.control=False
         self.trigger=True
         
         # Mesh parameters
@@ -29,7 +29,7 @@ class FES():
         
         # Temporal parameters
         self.sim_duration = 240.0  # Seconds
-        self.time_step = 0.1      # Seconds
+        self.time_step = 0.1       # Seconds
         
         # Initial conditions
         self.initial_temperature = 278.15  # Kelvin

@@ -25,16 +25,16 @@ Finite_Element_Solver::Finite_Element_Solver()
     if (random_target)
     {
         double new_target = target - 2.0 * (rand() - 0.5) * randomizing_scale;
-        for (int i = 0; i < sizeof(target_front_vel) / sizeof(target_front_vel[0]); i++)
+        for (int i = 0; i < target_front_vel.size(); i++)
         {
             target_front_vel[i] = new_target;
         }
     }
     else if (target_switch)
     {
-        int switch_location = (int) floor((0.20 * rand() + 0.40) * (double)(sizeof(target_front_vel) / sizeof(target_front_vel[0]) - 1));
+        int switch_location = (int) floor((0.20 * rand() + 0.40) * (double)(target_front_vel.size() - 1));
         double switch_vel = target_front_vel[switch_location] + 2.0 * (rand() - 0.5) * randomizing_scale;
-        for (int i = switch_location; i < sizeof(target_front_vel) / sizeof(target_front_vel[0]); i++)
+        for (int i = switch_location; i < target_front_vel.size(); i++)
         {
             target_front_vel[i] = switch_vel;
         }
@@ -118,11 +118,20 @@ Finite_Element_Solver::Finite_Element_Solver()
         input_location[1] = min_input_y_loc;
     }
 
-            // Initiate input wattage mesh
-            self.input_mesh = self.input_percent * self.max_input_mag * np.exp(((self.mesh_x[:, : , 0] - self.input_location[0]) * *2 * self.exp_const) +
-                (self.mesh_y[:, : , 0] - self.input_location[1]) * *2 * self.exp_const)
-            self.input_mesh[self.input_mesh < 0.01 * self.max_input_mag] = 0.0
-
-            # Simulation stability limit
-            self.stab_lim = 20.0 * self.temperature_limit
+    // Initiate input wattage mesh
+    for (int i = 0; i < num_vert_length; i++)
+    {
+        for (int j = 0; j < num_vert_width; j++)
+        {
+            local_input_power = input_percent * max_input_mag * exp(pow((mesh_x[i][j][0] - input_location[0]), 2.0) * exp_const + pow((mesh_y[i][j][0] - input_location[1]), 2.0) * exp_const);
+            if (local_input_power < 0.01 * max_input_mag)
+            {
+                input_mesh[i][j] = 0.0;
+            }
+            else
+            {
+                input_mesh[i][j] = local_input_power;
+            }
+        }
+    }
 }

@@ -160,19 +160,20 @@ if __name__ == '__main__':
     reset_stdev = False
         
     # Agent parameters
-    total_trajectories = 1
+    total_trajectories = 10000
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10
     gamma = 0.99
     lamb = 0.95
     epsilon = 0.20
-    start_alpha = 5.0e-4
-    end_alpha = 4.0e-4
+    start_alpha = 1.0e-3
+    end_alpha = 5.0e-4
     
     # Rendering parameters
     frame_multiplier = 1.0/6.0
     dpi = 100
+    radius_of_conv = 5
     
     # Calculated env and agent parameters
     env = fes.FES()
@@ -399,11 +400,10 @@ if __name__ == '__main__':
         front_delta_min = np.min(front_delta_loc)
         front_delta_max = np.max(front_delta_loc)
         if not ((front_delta_loc<=1.0e-5).all() and (front_delta_loc>=-1.0e-5).all()):
-            dim = 5
-            x,y=np.meshgrid(np.linspace(-1,1,dim),np.linspace(-1,1,dim))
+            x,y=np.meshgrid(np.linspace(-1,1,radius_of_conv),np.linspace(-1,1,radius_of_conv))
             win=multivariate_normal.pdf(np.dstack((x,y)),mean=[0,0],cov=[[1.0,0.0],[0.0,1.0]])
             padded = front_delta_loc
-            for i in range(int((dim+1)/2)-1):
+            for i in range(int((radius_of_conv+1)/2)-1):
                 padded = np.append(padded[:,0].reshape(len(padded[:,0]),1),padded,axis=1)
                 padded = np.append(padded[0,:].reshape(1,len(padded[0,:])),padded,axis=0)
                 padded = np.append(padded,padded[:,-1].reshape(len(padded[:,-1]),1),axis=1)
@@ -432,11 +432,10 @@ if __name__ == '__main__':
         front_vel_min = np.min(curr_front_vel)
         front_vel_max = np.max(curr_front_vel)
         if not ((curr_front_vel<=1.0e-5).all() and (curr_front_vel>=-1.0e-5).all()):
-            dim = 5
-            x,y=np.meshgrid(np.linspace(-1,1,dim),np.linspace(-1,1,dim))
+            x,y=np.meshgrid(np.linspace(-1,1,radius_of_conv),np.linspace(-1,1,radius_of_conv))
             win=multivariate_normal.pdf(np.dstack((x,y)),mean=[0,0],cov=[[1.0,0.0],[0.0,1.0]])
             padded = curr_front_vel
-            for i in range(int((dim+1)/2)-1):
+            for i in range(int((radius_of_conv+1)/2)-1):
                 padded = np.append(padded[:,0].reshape(len(padded[:,0]),1),padded,axis=1)
                 padded = np.append(padded[0,:].reshape(1,len(padded[0,:])),padded,axis=0)
                 padded = np.append(padded,padded[:,-1].reshape(len(padded[:,-1]),1),axis=1)

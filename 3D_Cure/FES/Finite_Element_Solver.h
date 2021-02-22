@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <algorithm>
+#include <vector>
 
 using namespace std;
 
@@ -37,8 +38,8 @@ public:
     double** get_mesh_z();
 
     //******************** FUNCTIONS ******************************//
-    tuple <double*, double, bool> step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
-    double* reset();
+    tuple <vector<double>, double, bool> step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
+    vector<double> reset();
 
 
 private:
@@ -127,7 +128,7 @@ private:
     double randomizing_scale;
 
     // Target velocity temporal vector and the current target
-    double* target_front_vel[floor(sim_duration / time_step)] = { target };
+    vector<double> target_front_vel = vector<double>((int)floor(sim_duration/time_step), target);
     int switch_location;
     double switch_vel;
     double current_target_front_vel;
@@ -136,27 +137,27 @@ private:
     const double thermal_diffusivity = thermal_conductivity / (specific_heat * density);;
 
     // Mesh and step size
-    double*** mesh_x[num_vert_length][num_vert_width][num_vert_depth];
-    double*** mesh_y[num_vert_length][num_vert_width][num_vert_depth];
-    double*** mesh_z[num_vert_length][num_vert_width][num_vert_depth];
+    vector<vector<vector<double>>> mesh_x = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0)));
+    vector<vector<vector<double>>> mesh_y = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0)));
+    vector<vector<vector<double>>> mesh_z = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0)));
     double x_step;
     double y_step;
     double z_step;
 
     // Temperature mesh
-    double*** temp_mesh[num_vert_length][num_vert_width][num_vert_depth] = { initial_temperature };
+    vector<vector<vector<double>>> temp_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_temperature)));
 
     // Cure mesh
-    double*** cure_mesh[num_vert_length][num_vert_width][num_vert_depth] = { initial_cure };
+    vector<vector<vector<double>>> cure_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_cure)));
 
     // Front mesh
-    bool*** front_mesh[num_vert_length][num_vert_width][num_vert_depth] = { false };
+    vector<vector<vector<bool>>> front_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<bool>>(num_vert_width, vector<bool>(num_vert_depth, false)));
 
     // Front parameters
-    double** front_loc[num_vert_width][num_vert_depth] = { 0.0 };
-    double** front_vel[num_vert_width][num_vert_depth] = { 0.0 };
-    double** time_front_last_moved[num_vert_width][num_vert_depth] = { 0.0 };
-    bool** front_has_started[num_vert_width][num_vert_depth] = { false };
+    vector<vector<double>> front_loc = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+    vector<vector<double>> front_vel = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+    vector<vector<double>> time_front_last_moved = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+    vector<vector<bool>> front_has_started = vector<vector<bool>>(num_vert_width, vector<bool>(num_vert_depth, false));
 
     // Input magnitude parameters
     double exp_const;
@@ -173,25 +174,23 @@ private:
     const double max_integral = length * width * depth * temperature_limit;
     const double integral_delta = max_integral - length * width * depth * initial_temperature;
 
-    // Input location and rate parameters
-    double* input_location[2] = { 0.0 };
-    double input_mag_percent_rate;
-    double max_input_loc_rate;
+    // Input location
+    vector<double> input_location(2, 0.0);
 
     // Input wattage mesh
-    double** input_mesh[num_vert_length][num_vert_width] = { 0.0 };
+    vector<vector<double>> input_mesh = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
 
     // Simulation stability limit
-    double stab_lim;
+    const double stab_lim = 20.0 * temperature_limit;
 
     //******************** FUNCTIONS ********************//
-    double*** get_perturbation(double*** size_array, double delta);
+    vector<vector<vector<double>>> get_perturbation(vector<vector<vector<double>>> size_array, double delta);
     void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
-    double*** step_cure();
+    vector<vector<vector<double>>> step_cure();
     void step_front();
     void step_temperature();
-    double** blockshaped(double** arr, int nrows, int ncols);
-    double* get_state();
+    vector<vector<double>> blockshaped(vector<vector<double>> arr, int nrows, int ncols);
+    vector<double> get_state();
     double get_reward();
     bool step_time();
 
