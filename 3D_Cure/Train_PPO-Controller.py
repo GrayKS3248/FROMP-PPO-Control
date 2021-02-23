@@ -12,6 +12,7 @@ import pickle
 import os
 from scipy import signal
 from scipy.stats import multivariate_normal
+import time
 
 def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
 
@@ -75,6 +76,7 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
             print(print_str, end="\r", flush=True)
         
         # Initialize simulation
+        start_time = time.time()
         s = env.reset()
         episode_reward = r_total
                 
@@ -150,6 +152,7 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
         ("| Avg R: " + '{:.1f}'.format(np.mean(data['r_per_episode'][-100:])*agent.steps_per_trajectory)).ljust(16) + 
         "|")
     print(print_str, end="\n", flush=True)
+    print(time.time() - start_time, end="\n")
     
     return data, agent, env
 
@@ -160,7 +163,7 @@ if __name__ == '__main__':
     reset_stdev = False
         
     # Agent parameters
-    total_trajectories = 10000
+    total_trajectories = 1
     steps_per_trajecotry = 240
     trajectories_per_batch = 10
     num_epochs = 10

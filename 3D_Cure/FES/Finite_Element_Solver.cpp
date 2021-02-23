@@ -646,6 +646,7 @@ void Finite_Element_Solver::step_meshes()
         // Temperature mesh variables
         const vector<vector<vector<double> > > prev_temp(temp_mesh);
 
+        // Update the mesh
         #pragma omp parallel for collapse(3)
         for (unsigned int i = 0; i < mesh_x.size(); i++)
                 for (unsigned int j = 0; j < mesh_x[0].size(); j++)
@@ -687,6 +688,7 @@ void Finite_Element_Solver::step_meshes()
                                 }
                                 else
                                 {
+                                        // Boundary conditions
                                         if (i == 0)
                                         {
                                                 if (current_time >= trigger_time && current_time < trigger_time + trigger_duration)
@@ -713,6 +715,7 @@ void Finite_Element_Solver::step_meshes()
                                 }
                                 else
                                 {
+                                        // Boundary conditions
                                         if (j == 0)
                                         {
                                                 front_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
@@ -732,6 +735,7 @@ void Finite_Element_Solver::step_meshes()
                                 }
                                 else
                                 {
+                                        // Boundary conditions
                                         if (k == 0)
                                         {
                                                 top_flux = htc*(prev_temp[i][j][k]-ambient_temperature) - input_mesh[i][j];
@@ -756,7 +760,35 @@ void Finite_Element_Solver::step_meshes()
  */
 vector<double> Finite_Element_Solver::get_state()
 {
-        vector<double> state(1, 0.0);
+        int num_vert_short_length = (int)((double)num_vert_length/6.0);
+        int num_vert_short_width = (int)((double)num_vert_width/4.0);
+        vector<double> state(num_vert_short_length*num_vert_short_width, 0.0);
+        int len_block = (int)ceil(num_vert_length/num_vert_short_length);
+        int width_block = (int)ceil(num_vert_width/num_vert_short_width);
+        for (int i = 0; i < num_vert_short_length; i++)
+        {
+                // Determine start and end x coordinates of block
+                int start_x = i*len_block;
+                int end_x = (i+1)*len_block - 1;
+                end_x = end_x > num_vert_length-1 ? num_vert_length-1 : end_x;
+
+                for (int j = 0; j < num_vert_short_width; j++)
+                {
+                        // Determine start and end y coordinates of block
+                        int start_y = j*width_block;
+                        int end_y = (j+1)*width_block - 1;
+                        end_y = end_y > num_vert_width-1 ? num_vert_width-1 : end_y;
+
+                        // Get the average temperature in each block
+                        double avg_temp = 0.0;
+                        for (int x = start_x; x <= end_x; x++)
+                                for (int y = start_y; y <= end_y; y++)
+                                {
+                                        avg_temp += temp_mesh[x][y][0];
+                                }
+                        state[i*num_vert_short_width + j] = avg_temp / ((double)(end_x-start_x+1)*(double)(end_y-start_y+1)*temperature_limit);
+                }
+        }
         return state;
 }
 

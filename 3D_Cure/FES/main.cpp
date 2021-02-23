@@ -1,6 +1,5 @@
 #include "Finite_Element_Solver.h"
 #include <unistd.h>
-#include <iostream>
 #include <chrono>
 
 using namespace std;
