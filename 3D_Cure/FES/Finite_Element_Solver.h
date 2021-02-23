@@ -8,7 +8,6 @@
 #include <vector>
 #include <tuple>
 #include <cmath>
-#include <iostream>
 
 using namespace std;
 
@@ -56,9 +55,9 @@ const bool control = false;
 const bool trigger = true;
 
 // Mesh parameters
-const int num_vert_length = 60;      // Unitless
-const int num_vert_width = 12;        // Unitless
-const int num_vert_depth = 6;        // Unitless
+const int num_vert_length = 30;      // Unitless
+const int num_vert_width = 6;        // Unitless
+const int num_vert_depth = 3;        // Unitless
 
 // Spatial parameters
 const double length = 0.05;      // Meters

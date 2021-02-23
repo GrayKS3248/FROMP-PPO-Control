@@ -1,4 +1,6 @@
 #include "Finite_Element_Solver.h"
+#include <unistd.h>
+#include <iostream>
 
 using namespace std;
 
@@ -30,6 +32,7 @@ void print_2D(vector<vector<double> > arr)
 																								else
 																								{
 																																curr_order = (int) floor(log10(abs(arr[i][j])));
+																																curr_order = curr_order < 0 ? 0 : curr_order;
 																																for (int i = 0; i < max_order-curr_order; i++)
 																																{
 																																								cout << " ";
@@ -53,7 +56,27 @@ int main()
 								Finite_Element_Solver FES = Finite_Element_Solver();
 								cout << "Finite Element solver" << endl;
 
-								cout << "Press enter to end..." << endl;
+								vector<double> s = FES.reset();
+								bool done = false;
+								tuple<vector<double>, double, bool> state_reward_done;
+								while (!done)
+								{
+																state_reward_done = FES.step(0.0, 0.0, 0.0);
+																done = get<2>(state_reward_done);
+																/*
+																   if ((int)round(FES.get_current_time()/FES.get_time_step()) % 20 == 0)
+																   {
+																        system("cls");
+																        cout << "Current Time: ";
+																        printf("%.1f", FES.get_current_time());
+																        cout << endl;
+																        print_2D(FES.get_cure_mesh());
+																        usleep(200000);
+																   }
+																 */
+								}
+
+								cout << endl << "Press enter to end..." << endl;
 								cin.get();
 								return 0;
 }
