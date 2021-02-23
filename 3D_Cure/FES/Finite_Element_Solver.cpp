@@ -54,9 +54,9 @@ Finite_Element_Solver::Finite_Element_Solver()
     }
 
     // Create mesh and calculate step size
-    vector<double> x_range = vector<double>(num_vert_length, 0.0);
-    vector<double> y_range = vector<double>(num_vert_width, 0.0);
-    vector<double> z_range = vector<double>(num_vert_depth, 0.0);
+    vector<double> x_range(num_vert_length, 0.0);
+    vector<double> y_range(num_vert_width, 0.0);
+    vector<double> z_range(num_vert_depth, 0.0);
     mesh_x = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth)));
     mesh_y = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth)));
     mesh_z = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth)));
@@ -98,11 +98,9 @@ Finite_Element_Solver::Finite_Element_Solver()
     cure_mesh = get_perturbation(cure_mesh, initial_cure_delta);
 
     // Init front mesh and parameters
-    front_mesh = vector<vector<vector<bool>>>(num_vert_length, vector<vector<bool>>(num_vert_width, vector<bool>(num_vert_depth, false)));
     front_loc = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
     front_vel = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
     time_front_last_moved = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
-    front_has_started = vector<vector<bool>>(num_vert_width, vector<bool>(num_vert_depth, false));
 
     // Input magnitude parameters
     double sigma = 0.329505114491 * radius_of_input;
@@ -280,7 +278,7 @@ vector<double> Finite_Element_Solver::get_input_location()
  */
 vector<vector<double>> Finite_Element_Solver::get_temp_mesh()
 {
-  vector<vector<double>> ret_val = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
+  vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
   for (int i = 0; i < num_vert_length; i++)
   {
     for (int j = 0; j < num_vert_width; j++)
@@ -297,7 +295,7 @@ vector<vector<double>> Finite_Element_Solver::get_temp_mesh()
  */
 vector<vector<double>> Finite_Element_Solver::get_cure_mesh()
 {
-  vector<vector<double>> ret_val = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
+  vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
   for (int i = 0; i < num_vert_length; i++)
   {
     for (int j = 0; j < num_vert_width; j++)
@@ -306,6 +304,15 @@ vector<vector<double>> Finite_Element_Solver::get_cure_mesh()
     }
   }
   return ret_val;
+}
+
+/**
+ * Gets the input mesh
+ * @return The input mesh as a 2D vector in x,y of watts/m^2
+ */
+vector<vector<double>> Finite_Element_Solver::get_input_mesh()
+{
+  return input_mesh;
 }
 
 /**
@@ -332,7 +339,7 @@ vector<vector<double>> Finite_Element_Solver::get_front_vel()
  */
 vector<vector<double>> Finite_Element_Solver::get_mesh_x_z0()
 {
-  vector<vector<double>> ret_val = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
+  vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
   for (int i = 0; i < num_vert_length; i++)
   {
     for (int j = 0; j < num_vert_width; j++)
@@ -349,7 +356,7 @@ vector<vector<double>> Finite_Element_Solver::get_mesh_x_z0()
  */
 vector<vector<double>> Finite_Element_Solver::get_mesh_y_z0()
 {
-  vector<vector<double>> ret_val = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
+  vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
   for (int i = 0; i < num_vert_length; i++)
   {
     for (int j = 0; j < num_vert_width; j++)
@@ -366,7 +373,7 @@ vector<vector<double>> Finite_Element_Solver::get_mesh_y_z0()
  */
 vector<vector<double>> Finite_Element_Solver::get_mesh_y_x0()
 {
-  vector<vector<double>> ret_val = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+  vector<vector<double>> ret_val(num_vert_width, vector<double>(num_vert_depth, 0.0));
   for (int i = 0; i < num_vert_width; i++)
   {
     for (int j = 0; j < num_vert_depth; j++)
@@ -383,7 +390,7 @@ vector<vector<double>> Finite_Element_Solver::get_mesh_y_x0()
  */
 vector<vector<double>> Finite_Element_Solver::get_mesh_z_x0()
 {
-  vector<vector<double>> ret_val = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+  vector<vector<double>> ret_val(num_vert_width, vector<double>(num_vert_depth, 0.0));
   for (int i = 0; i < num_vert_width; i++)
   {
     for (int j = 0; j < num_vert_depth; j++)
@@ -404,10 +411,7 @@ vector<vector<double>> Finite_Element_Solver::get_mesh_z_x0()
 tuple <vector<double>, double, bool> Finite_Element_Solver::step(double x_loc_rate_action, double y_loc_rate_action, double mag_action)
 {
   // Step the input, cure, front, and temperature
-  step_input(x_loc_rate_action, y_loc_rate_action, mag_action);
-  vector<vector<vector<double>>> cure_rate = step_cure();
-  step_front();
-  step_temperature(cure_rate);
+	step_meshes();
 
   // Get state and Reward
   vector<double> state = get_state();
@@ -461,11 +465,9 @@ tuple <vector<double>, double, bool> Finite_Element_Solver::step(double x_loc_ra
    cure_mesh = get_perturbation(cure_mesh, initial_cure_delta);
 
    // Init front mesh and parameters
-   front_mesh = vector<vector<vector<bool>>>(num_vert_length, vector<vector<bool>>(num_vert_width, vector<bool>(num_vert_depth, false)));
    front_loc = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
    front_vel = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
    time_front_last_moved = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
-   front_has_started = vector<vector<bool>>(num_vert_width, vector<bool>(num_vert_depth, false));
 
    // Input magnitude parameters
    input_percent = (double)rand()/(double)RAND_MAX;
@@ -484,7 +486,6 @@ tuple <vector<double>, double, bool> Finite_Element_Solver::step(double x_loc_ra
    }
 
    // Initiate input wattage mesh
-   input_mesh = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
    double local_input_power = 0.0;
    for (int i = 0; i < num_vert_length; i++)
    {
@@ -501,4 +502,300 @@ tuple <vector<double>, double, bool> Finite_Element_Solver::step(double x_loc_ra
            }
        }
    }
+
+	 // Return the state
+	 return get_state();
+
+ }
+
+ /** Get smooth 3D perturbation over input fields
+  * @ param array used to determine size of output mesh
+  * @ param maximum magnitude of perturbation
+  * @ return sum of size_array and smooth continuous perturbation of magnitude delta
+  */
+ vector<vector<vector<double>>> Finite_Element_Solver::get_perturbation(vector<vector<vector<double>>> size_array, double delta)
+ {
+   // Get magnitude and biases
+    double mag_1 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;
+    double mag_2 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;
+    double mag_3 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;
+    double bias_1 = 4.0 * M_PI * (double)rand()/(double)RAND_MAX - 2.0 * M_PI;
+    double bias_2 = 4.0 * M_PI * (double)rand()/(double)RAND_MAX - 2.0 * M_PI;
+    double bias_3 = 4.0 * M_PI * (double)rand()/(double)RAND_MAX - 2.0 * M_PI;
+    double min_mag = (double)rand()/(double)RAND_MAX;
+    double max_mag = (double)rand()/(double)RAND_MAX;
+    double min_x_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
+    double max_x_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
+    double min_y_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
+    double max_y_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
+    double min_z_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
+    double max_z_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
+
+    // Get x*y*z over perturbation field
+    double x;
+    double y;
+    double z;
+    double xyz;
+    double scale = 0.0;
+    vector<vector<vector<double>>> perturbation = vector<vector<vector<double>>>(size_array.size(), vector<vector<double>>(size_array[0].size(), vector<double>(size_array[0][0].size(), 0.0)));
+    for (unsigned int i = 0; i < size_array.size(); i++)
+    {
+      x = -2.0*min_mag+min_x_bias + (2.0*max_mag+max_x_bias + 2.0*min_mag+min_x_bias) * ((double)i / (double)size_array.size());
+      for (unsigned int j = 0; j < size_array[0].size(); j++)
+      {
+        y = -2.0*min_mag+min_y_bias + (2.0*max_mag+max_y_bias + 2.0*min_mag+min_y_bias) * ((double)i / (double)size_array[0].size());
+        for (unsigned int k = 0; k < size_array[0][0].size(); k++)
+        {
+          z =-2.0*min_mag+min_z_bias + (2.0*max_mag+max_z_bias + 2.0*min_mag+min_z_bias) * ((double)i / (double)size_array[0][0].size());
+          xyz = x * y * z;
+          perturbation[i][j][k] = mag_1 * sin(xyz + bias_1) + mag_2 * sin(2.0*xyz + bias_2) + mag_3 * sin(3.0*xyz + bias_3);
+          if (abs(perturbation[i][j][k]) > scale)
+          {
+            scale = abs(perturbation[i][j][k]);
+          }
+        }
+      }
+    }
+
+		// Scale the perturbations and sum them to the original array
+		for (unsigned int i = 0; i < size_array.size(); i++)
+		{
+			for (unsigned int j = 0; j < size_array[0].size(); j++)
+			{
+				for (unsigned int k = 0; k < size_array[0][0].size(); k++)
+				{
+					perturbation[i][j][k] = size_array[i][j][k] + (delta * perturbation[i][j][k]) / scale;
+				}
+			}
+		}
+
+		// Return perturbed array
+		return perturbation;
+ }
+
+ /** Step the input through time
+	 * @param The raw NN x location rate command
+	 * @param The raw NN y location rate command
+	 * @param The raw NN magnitude command
+	*/
+	void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_action)
+	{
+		// Convert the raw PPO x command to usable, clipped x location rate command
+		double cmd_x = loc_rate_offset + loc_rate_scale * x_loc_rate_action;
+		cmd_x = cmd_x > max_input_loc_rate ? max_input_loc_rate : cmd_x;
+		cmd_x = cmd_x < -max_input_loc_rate ? -max_input_loc_rate : cmd_x;
+
+		// Convert the raw PPO y command to usable, clipped y location rate command
+		double cmd_y = loc_rate_offset + loc_rate_scale * y_loc_rate_action;
+		cmd_y = cmd_y > max_input_loc_rate ? max_input_loc_rate : cmd_y;
+		cmd_y = cmd_y < -max_input_loc_rate ? -max_input_loc_rate : cmd_y;
+
+		// Update the input's x location from the converted location rate commands
+		input_location[0] = input_location[0] + cmd_x * time_step;
+		input_location[0] = input_location[0] > max_input_x_loc ? max_input_x_loc : input_location[0];
+		input_location[0] = input_location[0] < min_input_x_loc ? min_input_x_loc : input_location[0];
+
+		// Update the input's y location from the converted location rate commands
+		input_location[1] = input_location[1] + cmd_y * time_step;
+		input_location[1] = input_location[1] > max_input_y_loc ? max_input_y_loc : input_location[1];
+		input_location[1] = input_location[1] < min_input_y_loc ? min_input_y_loc : input_location[1];
+
+		// Convert the raw PPO command to a usable, clipped input percent command
+		double input_percent_command = mag_offset + mag_scale * mag_action;
+		input_percent_command = input_percent_command > 1.0 ? 1.0 : input_percent_command;
+		input_percent_command = input_percent_command < 0.0 ? 0.0 : input_percent_command;
+
+		// Update the input's magnitude from the converted input percent command
+		if (input_percent_command > input_percent)
+		{
+			input_percent = input_percent + input_mag_percent_rate * time_step;
+			input_percent = input_percent > input_percent_command ? input_percent_command : input_percent;
+		}
+		else if (input_percent_command < input_percent)
+		{
+			input_percent = input_percent - input_mag_percent_rate * time_step;
+			input_percent = input_percent < input_percent_command ? input_percent_command : input_percent;
+		}
+
+		// Update the input wattage mesh
+		double local_input_power = 0.0;
+		for (int i = 0; i < num_vert_length; i++)
+		{
+				for (int j = 0; j < num_vert_width; j++)
+				{
+						local_input_power = input_percent * max_input_mag * exp(pow((mesh_x[i][j][0] - input_location[0]), 2.0) * exp_const + pow((mesh_y[i][j][0] - input_location[1]), 2.0) * exp_const);
+						if (local_input_power < 0.01 * max_input_mag)
+						{
+								input_mesh[i][j] = 0.0;
+						}
+						else
+						{
+								input_mesh[i][j] = local_input_power;
+						}
+				}
+		}
+	}
+
+/** Calculates the cure rate at every point in the 3D mesh and uses this data to update the cure, temperature, and front meshes
+ */
+void Finite_Element_Solver::step_meshes()
+{
+	// Cure rate and mesh variables
+	double cure_rate;
+
+	// Front mesh variables
+	vector<vector<double>> prev_front_loc(front_loc);
+	vector<vector<double>> prev_last_move(time_front_last_moved);
+
+	// Temperature mesh variables
+  vector<vector<vector<double>>> prev_temp(temp_mesh);
+	double dT2_dx2;
+	double dT2_dy2;
+	double dT2_dz2;
+	double left_flux;
+	double right_flux;
+	double front_flux;
+	double back_flux;
+	double top_flux;
+	double bottom_flux;
+	double temp_rate;
+
+	for (unsigned int i = 0; i < mesh_x.size(); i++)
+	{
+		for (unsigned int j = 0; j < mesh_x[0].size(); j++)
+		{
+			for (unsigned int k = 0; k < mesh_x[0][0].size(); k++)
+			{
+				// Calculate the cure rate
+				cure_rate = pre_exponential * exp(-activiation_energy / (gas_const * prev_temp[i][j][k])) *  pow((1.0 - cure_mesh[i][j][k]), model_fit_order) * (1.0 + autocatalysis_const * cure_mesh[i][j][k]);
+
+				// Update the cure mesh
+				cure_mesh[i][j][k] = cure_mesh[i][j][k] + cure_rate * time_step;
+				cure_mesh[i][j][k] = cure_mesh[i][j][k] > 1.0 ? 1.0 : cure_mesh[i][j][k];
+
+				// Update the front location and velocity
+				if ((cure_mesh[i][j][k] >= 0.80) && (front_loc[j][k] <= mesh_x[i][j][k]))
+				{
+					front_loc[j][k] = mesh_x[i][j][k];
+					if (prev_last_move[j][k] != 0.0)
+					{
+						front_vel[j][k] = (front_loc[j][k] - prev_front_loc[j][k]) / (current_time - prev_last_move[j][k]);
+					}
+					time_front_last_moved[j][k] = current_time;
+				}
+
+				// Calculate the second derivative of temperature wrt x
+				if (i != 0 && i != mesh_x.size()-1)
+				{
+					dT2_dx2 = (prev_temp[i+1][j][k] - 2.0*prev_temp[i][j][k] + prev_temp[i-1][j][k]) / (x_step*x_step);
+				}
+				else
+				{
+					if (i == 0)
+					{
+						if (current_time >= trigger_time && current_time < trigger_time + trigger_duration)
+						{
+							left_flux = htc*(prev_temp[i][j][k]-ambient_temperature) - trigger_flux;
+						}
+						else
+						{
+							left_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
+						}
+						dT2_dx2 = 2.0*(prev_temp[i+1][j][k]-prev_temp[i][j][k]-(x_step*left_flux/thermal_conductivity))/(x_step*x_step);
+					}
+					if (i == mesh_x.size()-1)
+					{
+						right_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
+						dT2_dx2 = 2.0*(prev_temp[i-1][j][k]-prev_temp[i][j][k]-(x_step*right_flux/thermal_conductivity))/(x_step*x_step);
+					}
+				}
+
+				// Calculate the second derivative of temperature wrt y
+				if (j != 0 && j != mesh_x[0].size()-1)
+				{
+					dT2_dy2 = (prev_temp[i][j+1][k] - 2.0*prev_temp[i][j][k] + prev_temp[i][j-1][k]) / (y_step*y_step);
+				}
+				else
+				{
+					if (j == 0)
+					{
+						front_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
+						dT2_dy2 = 2.0*(prev_temp[i][j+1][k]-prev_temp[i][j][k]-(y_step*front_flux/thermal_conductivity))/(y_step*y_step);
+					}
+					if (j == mesh_x[0].size()-1)
+					{
+						back_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
+						dT2_dy2 = 2.0*(prev_temp[i][j-1][k]-prev_temp[i][j][k]-(y_step*back_flux/thermal_conductivity))/(y_step*y_step);
+					}
+				}
+
+				// Calculate the second derivative of temperature wrt z
+				if (k != 0 && k != mesh_x[0][0].size()-1)
+				{
+					dT2_dz2 = (prev_temp[i][j][k+1] - 2.0*prev_temp[i][j][k] + prev_temp[i][j][k-1]) / (z_step*z_step);
+				}
+				else
+				{
+					if (k == 0)
+					{
+						top_flux = htc*(prev_temp[i][j][k]-ambient_temperature) - input_mesh[i][j];
+						dT2_dz2 = 2.0*(prev_temp[i][j][k+1]-prev_temp[i][j][k]-(z_step*top_flux/thermal_conductivity))/(z_step*z_step);
+					}
+					if (k == mesh_x[0][0].size()-1)
+					{
+						bottom_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
+						dT2_dz2 = 2.0*(prev_temp[i][j][k-1]-prev_temp[i][j][k]-(z_step*bottom_flux/thermal_conductivity))/(z_step*z_step);
+					}
+				}
+
+        // Update the temperature field
+        temp_rate = thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(enthalpy_of_reaction*cure_rate)/specific_heat;
+        temp_mesh[i][j][k] = temp_mesh[i][j][k] + temp_rate * time_step;
+
+        // Check for unstable growth
+        if ((temp_mesh[i][j][k] >= stab_lim) || (temp_mesh[i][j][k] <= 0.0))
+        {
+          perror("Unstable growth detected.");
+        }
+			}
+		}
+	}
+}
+
+/**
+ * Gets the state fed to PPO agent based on temperature, front location, front velocity, and the input
+ * @return The normalized state array
+ */
+vector<double> Finite_Element_Solver::get_state()
+{
+  vector<double> state(1, 0.0);
+  return state;
+}
+
+/**
+ * Solves for the reward fed to the PPO agent based on the reward function parameters, temperature, and front velocity
+ * @return The calculated reward
+ */
+double Finite_Element_Solver::get_reward()
+{
+  double reward = 0.0;
+  return reward;
+}
+
+/**
+ * Steps the environments time and updates the target velocity
+ * Boolean that determines whether simulation is complete or not
+ */
+ bool Finite_Element_Solver::step_time()
+ {
+   // Update the current time and check for simulation completion
+   bool done = (current_index == target_front_vel.size() - 1);
+   if (!done)
+   {
+     current_time = current_time + time_step;
+     current_index = current_index + 1;
+     current_target_front_vel = target_front_vel[current_index];
+   }
+
+   return done;
  }

@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <vector>
 #include <tuple>
+#include <cmath>
+#include <iostream>
 
 using namespace std;
 
@@ -32,6 +34,7 @@ public:
     vector<double> get_input_location();
     vector<vector<double>> get_temp_mesh();
     vector<vector<double>> get_cure_mesh();
+    vector<vector<double>> get_input_mesh();
     vector<vector<double>> get_front_loc();
     vector<vector<double>> get_front_vel();
     vector<vector<double>> get_mesh_x_z0();
@@ -49,13 +52,13 @@ private:
     // Simulation parameters
     const bool random_target = false;
     const bool target_switch = false;
-    const bool control = true;
+    const bool control = false;
     const bool trigger = true;
 
     // Mesh parameters
-    const int num_vert_length = 120;  // Unitless
-    const int num_vert_width = 24;    // Unitless
-    const int num_vert_depth = 12;    // Unitless
+    const int num_vert_length = 60;  // Unitless
+    const int num_vert_width = 12;    // Unitless
+    const int num_vert_depth = 6;    // Unitless
 
     // Spatial parameters
     const double length = 0.05;  // Meters
@@ -153,11 +156,9 @@ private:
     vector<vector<vector<double>>> cure_mesh;
 
     // Front mesh and parameters
-    vector<vector<vector<bool>>> front_mesh;
     vector<vector<double>> front_loc;
     vector<vector<double>> front_vel;
     vector<vector<double>> time_front_last_moved;
-    vector<vector<bool>> front_has_started;
 
     // Input magnitude parameters
     double exp_const;
@@ -177,10 +178,7 @@ private:
     //******************** FUNCTIONS ********************//
     vector<vector<vector<double>>> get_perturbation(vector<vector<vector<double>>> size_array, double delta);
     void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
-    vector<vector<vector<double>>> step_cure();
-    void step_front();
-    void step_temperature();
-    vector<vector<double>> blockshaped(vector<vector<double>> arr, int nrows, int ncols);
+    void step_meshes();
     vector<double> get_state();
     double get_reward();
     bool step_time();
