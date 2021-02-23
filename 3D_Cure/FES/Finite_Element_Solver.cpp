@@ -620,7 +620,6 @@ void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_ra
         // Update the input wattage mesh
         double local_input_power = 0.0;
         for (int i = 0; i < num_vert_length; i++)
-        {
                 for (int j = 0; j < num_vert_width; j++)
                 {
                         local_input_power = input_percent * max_input_mag * exp(pow((mesh_x[i][j][0] - input_location[0]), 2.0) * exp_const + pow((mesh_y[i][j][0] - input_location[1]), 2.0) * exp_const);
@@ -633,41 +632,26 @@ void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_ra
                                 input_mesh[i][j] = local_input_power;
                         }
                 }
-        }
 }
 
 /** Calculates the cure rate at every point in the 3D mesh and uses this data to update the cure, temperature, and front meshes
  */
 void Finite_Element_Solver::step_meshes()
 {
-        // Cure rate and mesh variables
-        double cure_rate;
-
         // Front mesh variables
-        vector<vector<double> > prev_front_loc(front_loc);
-        vector<vector<double> > prev_last_move(time_front_last_moved);
+        const vector<vector<double> > prev_front_loc(front_loc);
+        const vector<vector<double> > prev_last_move(time_front_last_moved);
 
         // Temperature mesh variables
-        vector<vector<vector<double> > > prev_temp(temp_mesh);
-        double dT2_dx2;
-        double dT2_dy2;
-        double dT2_dz2;
-        double left_flux;
-        double right_flux;
-        double front_flux;
-        double back_flux;
-        double top_flux;
-        double bottom_flux;
-        double temp_rate;
+        const vector<vector<vector<double> > > prev_temp(temp_mesh);
 
+        #pragma omp parallel for collapse(3)
         for (unsigned int i = 0; i < mesh_x.size(); i++)
-        {
                 for (unsigned int j = 0; j < mesh_x[0].size(); j++)
-                {
                         for (unsigned int k = 0; k < mesh_x[0][0].size(); k++)
                         {
                                 // Calculate the cure rate
-                                cure_rate = pre_exponential * exp(-activiation_energy / (gas_const * prev_temp[i][j][k])) *  pow((1.0 - cure_mesh[i][j][k]), model_fit_order) * (1.0 + autocatalysis_const * cure_mesh[i][j][k]);
+                                double cure_rate = pre_exponential * exp(-activiation_energy / (gas_const * prev_temp[i][j][k])) *  pow((1.0 - cure_mesh[i][j][k]), model_fit_order) * (1.0 + autocatalysis_const * cure_mesh[i][j][k]);
 
                                 // Update the cure mesh
                                 cure_mesh[i][j][k] = cure_mesh[i][j][k] + cure_rate * time_step;
@@ -683,6 +667,17 @@ void Finite_Element_Solver::step_meshes()
                                         }
                                         time_front_last_moved[j][k] = current_time;
                                 }
+
+                                // Temperature variables
+                                double dT2_dx2;
+                                double dT2_dy2;
+                                double dT2_dz2;
+                                double left_flux;
+                                double right_flux;
+                                double front_flux;
+                                double back_flux;
+                                double top_flux;
+                                double bottom_flux;
 
                                 // Calculate the second derivative of temperature wrt x
                                 if (i != 0 && i != mesh_x.size()-1)
@@ -749,17 +744,9 @@ void Finite_Element_Solver::step_meshes()
                                 }
 
                                 // Update the temperature field
-                                temp_rate = thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(enthalpy_of_reaction*cure_rate)/specific_heat;
+                                double temp_rate = thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(enthalpy_of_reaction*cure_rate)/specific_heat;
                                 temp_mesh[i][j][k] = temp_mesh[i][j][k] + temp_rate * time_step;
-
-                                // Check for unstable growth
-                                if ((temp_mesh[i][j][k] >= stab_lim) || (temp_mesh[i][j][k] <= 0.0))
-                                {
-                                        perror("Unstable growth detected.");
-                                }
                         }
-                }
-        }
 }
 
 /**

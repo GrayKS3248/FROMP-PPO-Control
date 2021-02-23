@@ -1,6 +1,7 @@
 #include "Finite_Element_Solver.h"
 #include <unistd.h>
 #include <iostream>
+#include <chrono>
 
 using namespace std;
 
@@ -53,29 +54,33 @@ void print_2D(vector<vector<double> > arr)
 
 int main()
 {
-								Finite_Element_Solver FES = Finite_Element_Solver();
-								cout << "Finite Element solver" << endl;
+								// Start clock
+								auto t1 = std::chrono::high_resolution_clock::now();
 
+								// Initialize FES
+								Finite_Element_Solver FES = Finite_Element_Solver();
+								cout << "Finite Element Solver" << endl;
+
+								// Reset environment
 								vector<double> s = FES.reset();
 								bool done = false;
 								tuple<vector<double>, double, bool> state_reward_done;
+
+								// Simulation for loop
 								while (!done)
 								{
 																state_reward_done = FES.step(0.0, 0.0, 0.0);
 																done = get<2>(state_reward_done);
-																/*
-																   if ((int)round(FES.get_current_time()/FES.get_time_step()) % 20 == 0)
-																   {
-																        system("cls");
-																        cout << "Current Time: ";
-																        printf("%.1f", FES.get_current_time());
-																        cout << endl;
-																        print_2D(FES.get_cure_mesh());
-																        usleep(200000);
-																   }
-																 */
 								}
 
+								// Stop clock and print duration
+								auto t2 = std::chrono::high_resolution_clock::now();
+								auto duration = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
+								cout << "Execution took: ";
+								printf("%.3f", (double)duration*10e-7);
+								cout << " seconds." << endl;
+
+								// End main
 								cout << endl << "Press enter to end..." << endl;
 								cin.get();
 								return 0;

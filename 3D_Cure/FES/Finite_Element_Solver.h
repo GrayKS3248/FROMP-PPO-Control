@@ -55,9 +55,9 @@ const bool control = false;
 const bool trigger = true;
 
 // Mesh parameters
-const int num_vert_length = 30;      // Unitless
-const int num_vert_width = 6;        // Unitless
-const int num_vert_depth = 3;        // Unitless
+const int num_vert_length = 240;      // Unitless
+const int num_vert_width = 24;        // Unitless
+const int num_vert_depth = 12;        // Unitless
 
 // Spatial parameters
 const double length = 0.05;      // Meters
