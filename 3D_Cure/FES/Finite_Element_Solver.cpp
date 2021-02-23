@@ -411,6 +411,7 @@ vector<vector<double> > Finite_Element_Solver::get_mesh_z_x0()
 tuple <vector<double>, double, bool> Finite_Element_Solver::step(double x_loc_rate_action, double y_loc_rate_action, double mag_action)
 {
         // Step the input, cure, front, and temperature
+        step_input(x_loc_rate_action, y_loc_rate_action, mag_action);
         step_meshes();
 
         // Get state and Reward
@@ -618,11 +619,11 @@ void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_ra
         }
 
         // Update the input wattage mesh
-        double local_input_power = 0.0;
+        #pragma omp parallel for collapse(2)
         for (int i = 0; i < num_vert_length; i++)
                 for (int j = 0; j < num_vert_width; j++)
                 {
-                        local_input_power = input_percent * max_input_mag * exp(pow((mesh_x[i][j][0] - input_location[0]), 2.0) * exp_const + pow((mesh_y[i][j][0] - input_location[1]), 2.0) * exp_const);
+                        double local_input_power = input_percent * max_input_mag * exp(pow((mesh_x[i][j][0] - input_location[0]), 2.0) * exp_const + pow((mesh_y[i][j][0] - input_location[1]), 2.0) * exp_const);
                         if (local_input_power < 0.01 * max_input_mag)
                         {
                                 input_mesh[i][j] = 0.0;
