@@ -264,6 +264,30 @@ double Finite_Element_Solver::get_current_time()
 }
 
 /**
+ * Gets the length of the state vector
+ * @return The integer length of the state vector
+ */
+int Finite_Element_Solver::get_num_state()
+{
+        int num_states = 0;
+
+        // Add coarse temperature field length
+        num_states = (int)((double)num_vert_length/6.0) * (int)((double)num_vert_width/4.0);
+
+        // Add laser view field size
+        num_states += 25;
+
+        // Add front location and veloicty views
+        num_states += (int)((double)num_vert_width/4.0) + (int)((double)num_vert_width/4.0);
+
+        // Add input location and magnitude states
+        num_states += 3;
+
+        // Return calculated number of states
+        return num_states;
+}
+
+/**
  * Gets the input location
  * @return The input location as a vector {x,y}
  */
@@ -760,9 +784,12 @@ void Finite_Element_Solver::step_meshes()
  */
 vector<double> Finite_Element_Solver::get_state()
 {
+        // Init state variables
+        vector<double> state(get_num_state(), 0.0);
+
+        // Get coarse temperature field
         int num_vert_short_length = (int)((double)num_vert_length/6.0);
         int num_vert_short_width = (int)((double)num_vert_width/4.0);
-        vector<double> state(num_vert_short_length*num_vert_short_width, 0.0);
         int len_block = (int)ceil(num_vert_length/num_vert_short_length);
         int width_block = (int)ceil(num_vert_width/num_vert_short_width);
         for (int i = 0; i < num_vert_short_length; i++)
@@ -789,6 +816,59 @@ vector<double> Finite_Element_Solver::get_state()
                         state[i*num_vert_short_width + j] = avg_temp / ((double)(end_x-start_x+1)*(double)(end_y-start_y+1)*temperature_limit);
                 }
         }
+
+        // Get the fine laser view temperature field
+        int x_min_index = (int) round((input_location[0] - 0.90*radius_of_input) / x_step);
+        x_min_index = x_min_index < 0 ? 0 : x_min_index;
+        int y_min_index = (int) round((input_location[1] - 0.90*radius_of_input) / y_step);
+        y_min_index = y_min_index < 0 ? 0 : y_min_index;
+
+        int x_max_index = (int) round((input_location[0] + 0.90*radius_of_input) / x_step);
+        x_max_index = x_max_index > num_vert_length-1 ? num_vert_length-1 : x_max_index;
+        int y_max_index = (int) round((input_location[1] + 0.90*radius_of_input) / y_step);
+        y_max_index = y_max_index > num_vert_width-1 ? num_vert_width-1 : y_max_index;
+
+        int x_curr_index = x_min_index;
+        int y_curr_index = y_min_index;
+        int x_width = 0;
+        int y_width = 0;
+
+        double avg_temp = 0.0;
+        int state_start_ind = (int)((double)num_vert_length/6.0) * (int)((double)num_vert_width/4.0);
+        int curr_ind = 0;
+
+        for (int i = 0; i < 5; i++)
+        {
+                x_width = (int) floor((x_max_index-x_curr_index) / (5-i));
+                for (int j = 0; j < 5; j++)
+                {
+                        y_width = (int) floor((y_max_index-y_curr_index) / (5-j));
+                        avg_temp = 0.0;
+                        for (int x = x_curr_index; x <= (x_curr_index + x_width); x++)
+                        {
+                                for (int y = y_curr_index; y <= y_curr_index + y_width; y++)
+                                {
+                                        avg_temp += temp_mesh[x][y][0];
+                                }
+                        }
+                        state[state_start_ind+curr_ind] = avg_temp / ((double)(x_width + 1)*(double)(y_width + 1)*temperature_limit);
+                        curr_ind++;
+                        y_curr_index += y_width;
+                }
+                y_curr_index = y_min_index;
+                x_curr_index += x_width;
+        }
+
+        // Get the coarse front location data
+        state_start_ind+curr_ind;
+
+        // Get the coarse front velocity data
+        state_start_ind+curr_ind;
+
+        // Append the input location and magnitude parameters
+        state_start_ind+curr_ind;
+
+        // Return the state
         return state;
 }
 
@@ -809,7 +889,7 @@ double Finite_Element_Solver::get_reward()
 bool Finite_Element_Solver::step_time()
 {
         // Update the current time and check for simulation completion
-        bool done = (current_index == target_front_vel.size() - 1);
+        bool done = (current_index == (int)target_front_vel.size() - 1);
         if (!done)
         {
                 current_time = current_time + time_step;

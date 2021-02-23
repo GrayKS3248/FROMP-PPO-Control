@@ -31,6 +31,7 @@ double get_max_input_mag();
 double get_exp_const();
 double get_current_target_front_vel();
 double get_current_time();
+int get_num_state();
 vector<double> get_input_location();
 vector<vector<double> > get_temp_mesh();
 vector<vector<double> > get_cure_mesh();
