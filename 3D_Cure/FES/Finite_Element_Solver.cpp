@@ -19,7 +19,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 
         // Calculate the target velocity temporal vector and define the current target
         int sim_steps = (int)(sim_duration / time_step);
-        target_front_vel = vector<double>(sim_steps, 0.0);
+        target_front_vel = vector<double>(sim_steps, target);
         if (random_target)
         {
                 double new_target = target - 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
@@ -463,7 +463,7 @@ vector<double> Finite_Element_Solver::reset()
 
         // Calculate the target velocity temporal vector and define the current target
         int sim_steps = (int)(sim_duration / time_step);
-        target_front_vel = vector<double>(sim_steps, 0.0);
+        target_front_vel = vector<double>(sim_steps, target);
         if (random_target)
         {
                 double new_target = target - 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
@@ -851,22 +851,39 @@ vector<double> Finite_Element_Solver::get_state()
                                         avg_temp += temp_mesh[x][y][0];
                                 }
                         }
-                        state[state_start_ind+curr_ind] = avg_temp / ((double)(x_width + 1)*(double)(y_width + 1)*temperature_limit);
-                        curr_ind++;
+                        state[state_start_ind+curr_ind++] = avg_temp / ((double)(x_width + 1)*(double)(y_width + 1)*temperature_limit);
                         y_curr_index += y_width;
                 }
                 y_curr_index = y_min_index;
                 x_curr_index += x_width;
         }
 
-        // Get the coarse front location data
-        state_start_ind+curr_ind;
-
-        // Get the coarse front velocity data
-        state_start_ind+curr_ind;
+        // Get the coarse front location and velocity data
+        state_start_ind = (int)((double)num_vert_length/6.0) * (int)((double)num_vert_width/4.0) + 25;
+        curr_ind = 0;
+        y_width = 0;
+        y_max_index = num_vert_width-1;
+        y_curr_index = 0;
+        double avg_loc = 0.0;
+        double avg_vel = 0.0;
+        for (int j = 0; j < (int)((double)num_vert_width/4.0); j++)
+        {
+                y_width = (int) floor((y_max_index-y_curr_index) / ((int)((double)num_vert_width/4.0)-j));
+                for (int y = y_curr_index; y <= (y_curr_index + y_width); y++)
+                {
+                        avg_loc += front_loc[y][0];
+                        avg_vel += front_vel[y][0];
+                }
+                state[state_start_ind+curr_ind] = avg_loc / ((double)(y_width+1)*length);
+                state[state_start_ind+curr_ind+(int)((double)num_vert_width/4.0)] = avg_vel / ((double)(y_width+1)*current_target_front_vel);
+                curr_ind++;
+                y_curr_index += y_width;
+        }
 
         // Append the input location and magnitude parameters
-        state_start_ind+curr_ind;
+        state[get_num_state()-3] = input_location[0] / length;
+        state[get_num_state()-2] = input_location[1] / width;
+        state[get_num_state()-1] = input_percent;
 
         // Return the state
         return state;

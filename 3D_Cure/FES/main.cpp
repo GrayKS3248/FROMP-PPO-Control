@@ -70,6 +70,11 @@ int main()
 								{
 																state_reward_done = FES.step(0.0, 0.0, 0.0);
 																done = get<2>(state_reward_done);
+																for (int i = 0; i < FES.get_num_state(); i++)
+																{
+																								cout << get<0>(state_reward_done)[i] << ", ";
+																}
+																system("pause");
 								}
 
 								// Stop clock and print duration
