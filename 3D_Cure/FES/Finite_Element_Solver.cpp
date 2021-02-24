@@ -809,10 +809,12 @@ vector<double> Finite_Element_Solver::get_state()
                         // Get the average temperature in each block
                         double avg_temp = 0.0;
                         for (int x = start_x; x <= end_x; x++)
+                        {
                                 for (int y = start_y; y <= end_y; y++)
                                 {
                                         avg_temp += temp_mesh[x][y][0];
                                 }
+                        }
                         state[i*num_vert_short_width + j] = avg_temp / ((double)(end_x-start_x+1)*(double)(end_y-start_y+1)*temperature_limit);
                 }
         }
@@ -907,13 +909,17 @@ double Finite_Element_Solver::get_reward()
         double temp_integral = 0.0;
         double mean_location = 0.0;
         for (int i = 0; i < num_vert_length; i++)
+        {
                 for (int j = 0; j < num_vert_width; j++)
+                {
                         for (int k = 0; k < num_vert_depth; k++)
                         {
                                 max_temperature = temp_mesh[i][j][k] > max_temperature ? temp_mesh[i][j][k] : max_temperature;
                                 temp_integral += temp_mesh[i][j][k];
                                 mean_location = i == 0 ? mean_location + front_loc[j][k] : mean_location;
                         }
+                }
+        }
         temp_integral = temp_integral * x_step * y_step * z_step;
         mean_location = mean_location / ((double)num_vert_width * (double)num_vert_depth);
 
@@ -921,11 +927,13 @@ double Finite_Element_Solver::get_reward()
         double mean_loc_deviation = 0.0;
         double mean_vel_deviation = 0.0;
         for (int j = 0; j < num_vert_width; j++)
+        {
                 for (int k = 0; k < num_vert_depth; k++)
                 {
                         mean_loc_deviation += abs(front_loc[j][k] - mean_location);
                         mean_vel_deviation += abs(front_vel[j][k] - current_target_front_vel);
                 }
+        }
         mean_loc_deviation = mean_loc_deviation / ((double)num_vert_width * (double)num_vert_depth);
         mean_vel_deviation = mean_vel_deviation / ((double)num_vert_width * (double)num_vert_depth * current_target_front_vel);
         mean_vel_deviation = mean_vel_deviation > 1.0 ? 1.0 : mean_vel_deviation;

@@ -1,6 +1,8 @@
 #include "Finite_Element_Solver.h"
 #include <unistd.h>
 #include <chrono>
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
 
 using namespace std;
 
@@ -51,8 +53,18 @@ void print_2D(vector<vector<double> > arr)
 								}
 }
 
-int main()
+int main(int argc)
 {
+								// Init python interpreter
+								Py_Initialize();
+								PyObject *ppoName, *ppoModule;
+								ppoName = PyUnicode_DecodeFSDefault("PPO_Agent_3_Output");
+								ppoModule = PyImport_Import(ppoName);
+								PyRun_SimpleString("print('Importing PPO_Agent_3_Output...')\n");
+								PyRun_SimpleString("import PPO_Agent_3_Output as ppo\n");
+								PyRun_SimpleString("print('Building agent...')\n");
+								PyRun_SimpleString("agent = ppo.PPO_Agent(160, 240, 10, 240, 10, 0.99, 0.95, 0.20, 1.0e-3, 0.0009765625)\n");
+
 								// Start clock
 								auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -82,5 +94,6 @@ int main()
 								// End main
 								cout << endl << "Press enter to end..." << endl;
 								cin.get();
+								Py_FinalizeEx();
 								return 0;
 }

@@ -47,7 +47,6 @@ vector<vector<double> > get_mesh_z_x0();
 tuple <vector<double>, double, bool> step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
 vector<double> reset();
 
-
 private:
 //******************** USER SET PARAMETERS ********************//
 // Simulation parameters
