@@ -11,8 +11,8 @@ Finite_Element_Solver::Finite_Element_Solver()
         srand(time(NULL));
 
         // Simulation time and target velocity index
-        current_time = 0.0; // Seconds
-        current_index = 0; // Unitless
+        current_time = 0.0;  // Seconds
+        current_index = 0;   // Unitless
 
         // Monomer physical parameters
         thermal_diffusivity = thermal_conductivity / (specific_heat * density);
@@ -42,15 +42,15 @@ Finite_Element_Solver::Finite_Element_Solver()
         // Set trigger conditions
         if (!trigger)
         {
-                trigger_flux = 0.0; // Watts / Meter ^ 2
-                trigger_time = 0.0; // Seconds
-                trigger_duration = 0.0; // Seconds
+                trigger_flux = 0.0;      // Watts / Meter ^ 2
+                trigger_time = 0.0;      // Seconds
+                trigger_duration = 0.0;  // Seconds
         }
         else
         {
-                trigger_flux = trigger_flux_r; // Watts / Meter ^ 2
-                trigger_time = trigger_time_r; // Seconds
-                trigger_duration = trigger_duration_r; // Seconds
+                trigger_flux = trigger_flux_r;          // Watts / Meter ^ 2
+                trigger_time = trigger_time_r;          // Seconds
+                trigger_duration = trigger_duration_r;  // Seconds
         }
 
         // Create mesh and calculate step size
@@ -458,8 +458,8 @@ tuple <vector<double>, double, bool> Finite_Element_Solver::step(double x_loc_ra
 vector<double> Finite_Element_Solver::reset()
 {
         // Simulation time and target velocity index
-        current_time = 0.0; // Seconds
-        current_index = 0; // Unitless
+        current_time = 0.0;         // Seconds
+        current_index = 0;         // Unitless
 
         // Calculate the target velocity temporal vector and define the current target
         int sim_steps = (int)(sim_duration / time_step);
