@@ -914,6 +914,7 @@ double Finite_Element_Solver::get_reward()
                                 temp_integral += temp_mesh[i][j][k];
                                 mean_location = i == 0 ? mean_location + front_loc[j][k] : mean_location;
                         }
+        temp_integral = temp_integral * x_step * y_step * z_step;
         mean_location = mean_location / ((double)num_vert_width * (double)num_vert_depth);
 
         // Find the front's location and velocity mean deviation
@@ -950,14 +951,14 @@ double Finite_Element_Solver::get_reward()
                 dist_punishment = -dist_punishment_const * max_reward * dist_from_front;
         }
 
-        // Get the overage punishment
-        overage_punishment = max_temperature > temperature_limit ? -overage_punishment_const * max_reward * max_temperature / temperature_limit : 0.0;
-
         // Get the integral punishment
-        integral_punishment = -integral_punishment_const * max_reward * (1.0 - (max_integral - temp_integral) / (integral_delta));
+        integral_punishment = -integral_punishment_const * max_reward * (1.0 - (max_integral - temp_integral) / integral_delta);
 
         // Get the front shape punishment
         front_shape_punishment = -front_shape_const * mean_loc_deviation;
+
+        // Get the overage punishment
+        overage_punishment = max_temperature > temperature_limit ? -overage_punishment_const * max_reward * max_temperature / temperature_limit : 0.0;
 
         // Get the punishment
         punishment = input_punishment + dist_punishment + integral_punishment + front_shape_punishment + overage_punishment;

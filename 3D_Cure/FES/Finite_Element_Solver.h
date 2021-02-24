@@ -81,7 +81,7 @@ const double htc = 10.0;                        // Watts / (Meter ^ 2 * Kelvin)
 const double ambient_temperature = 294.15;      // Kelvin
 
 // Problem definition
-const double temperature_limit = 573.15;        // Kelvin
+const double temperature_limit = 523.15;        // Kelvin
 const double target = 0.00015;                  // Meters / Second
 const double randomizing_scale = 0.000025;      // Meters / Second
 
