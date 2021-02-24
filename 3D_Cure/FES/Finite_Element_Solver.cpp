@@ -127,9 +127,9 @@ Finite_Element_Solver::Finite_Element_Solver()
         if (control)
         {
                 max_input_mag = 0.0;
-                min_input_x_loc = mesh_x[(int)floor(0.5 * num_vert_length)][0][0];
+                min_input_x_loc = mesh_x[(int)floor(0.5 * (double)num_vert_length)][0][0];
                 max_input_x_loc = min_input_x_loc;
-                min_input_y_loc = mesh_y[0][(int)floor(0.5 * num_vert_width)][0];
+                min_input_y_loc = mesh_y[0][(int)floor(0.5 * (double)num_vert_width)][0];
                 max_input_y_loc = min_input_y_loc;
                 input_location[0] = min_input_x_loc;
                 input_location[1] = min_input_y_loc;
@@ -859,8 +859,6 @@ vector<double> Finite_Element_Solver::get_state()
         }
 
         // Get the coarse front location and velocity data
-        state_start_ind = (int)((double)num_vert_length/6.0) * (int)((double)num_vert_width/4.0) + 25;
-        curr_ind = 0;
         y_width = 0;
         y_max_index = num_vert_width-1;
         y_curr_index = 0;
@@ -895,7 +893,81 @@ vector<double> Finite_Element_Solver::get_state()
  */
 double Finite_Element_Solver::get_reward()
 {
-        double reward = 0.0;
+        // Initialize reward and punishment variables
+        double input_punishment;
+        double dist_punishment;
+        double overage_punishment;
+        double integral_punishment;
+        double front_shape_punishment;
+        double punishment;
+        double front_rate_reward;
+
+        // Find the max temperature, integrate the temp mesh, and get the mean front x location
+        double max_temperature = 0.0;
+        double temp_integral = 0.0;
+        double mean_location = 0.0;
+        for (int i = 0; i < num_vert_length; i++)
+                for (int j = 0; j < num_vert_width; j++)
+                        for (int k = 0; k < num_vert_depth; k++)
+                        {
+                                max_temperature = temp_mesh[i][j][k] > max_temperature ? temp_mesh[i][j][k] : max_temperature;
+                                temp_integral += temp_mesh[i][j][k];
+                                mean_location = i == 0 ? mean_location + front_loc[j][k] : mean_location;
+                        }
+        mean_location = mean_location / ((double)num_vert_width * (double)num_vert_depth);
+
+        // Find the front's location and velocity mean deviation
+        double mean_loc_deviation = 0.0;
+        double mean_vel_deviation = 0.0;
+        for (int j = 0; j < num_vert_width; j++)
+                for (int k = 0; k < num_vert_depth; k++)
+                {
+                        mean_loc_deviation += abs(front_loc[j][k] - mean_location);
+                        mean_vel_deviation += abs(front_vel[j][k] - current_target_front_vel);
+                }
+        mean_loc_deviation = mean_loc_deviation / ((double)num_vert_width * (double)num_vert_depth);
+        mean_vel_deviation = mean_vel_deviation / ((double)num_vert_width * (double)num_vert_depth * current_target_front_vel);
+        mean_vel_deviation = mean_vel_deviation > 1.0 ? 1.0 : mean_vel_deviation;
+
+        if (control)
+        {
+                input_punishment = 0.0;
+                dist_punishment = 0.0;
+        }
+        else
+        {
+                input_punishment = -input_punishment_const * max_reward * input_percent;
+
+                // Calculate dist from front punishment
+                double mean_front_loc = 0.0;
+                for (int j = 0; j < num_vert_width; j++)
+                {
+                        mean_front_loc += front_loc[j][0];
+                }
+                mean_front_loc = mean_front_loc / num_vert_width;
+                double dist_from_front = abs(mean_front_loc - input_location[0]);
+                dist_from_front = dist_from_front <= (1.25 * radius_of_input) ? 0.0 : dist_from_front/length;
+                dist_punishment = -dist_punishment_const * max_reward * dist_from_front;
+        }
+
+        // Get the overage punishment
+        overage_punishment = max_temperature > temperature_limit ? -overage_punishment_const * max_reward * max_temperature / temperature_limit : 0.0;
+
+        // Get the integral punishment
+        integral_punishment = -integral_punishment_const * max_reward * (1.0 - (max_integral - temp_integral) / (integral_delta));
+
+        // Get the front shape punishment
+        front_shape_punishment = -front_shape_const * mean_loc_deviation;
+
+        // Get the punishment
+        punishment = input_punishment + dist_punishment + integral_punishment + front_shape_punishment + overage_punishment;
+
+        // Get the front rate reward
+        front_rate_reward = pow((1.0 - mean_vel_deviation) * front_rate_reward_const, 3.0);
+
+        // Add rewards and punishments
+        double reward = front_rate_reward + punishment;
+
         return reward;
 }
 
