@@ -255,6 +255,15 @@ double Finite_Element_Solver::get_current_target_front_vel()
 }
 
 /**
+ * Gets the length of the target velocity array
+ * @return The length of the target velocity array
+ */
+int Finite_Element_Solver::get_target_front_vel_arr_size()
+{
+        return target_front_vel.size();
+}
+
+/**
  * Gets the current time
  * @return The time in seconds
  */

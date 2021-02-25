@@ -40,7 +40,7 @@ class FES():
         self.ambient_temperature = 294.15  # Kelvin
         
         # Problem definition
-        self.temperature_limit = 573.15  # Kelvin
+        self.temperature_limit = 523.15  # Kelvin
         self.target = 0.00015            # Meters / Second
         
         # Monomer physical parameters
@@ -397,7 +397,7 @@ class FES():
         integral = np.trapz(integral,x=self.mesh_z[0,0,:],axis=0)
         integral_punishment = -self.integral_punishment_const * self.max_reward * (1.0 - (self.max_integral - integral) / (self.integral_delta))
         front_shape_punishment = -self.front_shape_const * np.mean(abs(self.front_loc-np.mean(self.front_loc)))
-        punishment = max(input_punishment + integral_punishment + front_shape_punishment + dist_punishment, -self.max_reward) + overage_punishment
+        punishment = input_punishment + integral_punishment + front_shape_punishment + dist_punishment + overage_punishment
         
         # Calculate the reward
         mean_front_vel_error = min(np.mean(abs(self.front_vel - self.current_target_front_vel) / (self.current_target_front_vel)), 1.0)

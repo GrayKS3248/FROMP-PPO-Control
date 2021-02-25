@@ -26,6 +26,7 @@ double get_mag_scale();
 double get_max_input_mag();
 double get_exp_const();
 double get_current_target_front_vel();
+int get_target_front_vel_arr_size();
 double get_current_time();
 int get_num_state();
 vector<double> get_input_location();
@@ -116,8 +117,8 @@ const double dist_punishment_const = 0.15;      // Unitless
 const double front_rate_reward_const = 1.26;    // Unitless
 const double input_punishment_const = 0.10;     // Unitless
 const double overage_punishment_const = 0.40;   // Unitless
-const double front_shape_const = 10.0 / width;  // Unitless
 const double integral_punishment_const = 0.10;  // Unitless
+const double front_shape_const = 10.0 / width;  // Unitless
 const double max_integral = length * width * depth * temperature_limit;                     // Unitless
 const double integral_delta = max_integral - length * width * depth * initial_temperature;  // Unitless
 

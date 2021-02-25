@@ -159,6 +159,25 @@ PyObject* getList(vector<double> state)
 }
 
 /**
+ * Converts PyList to a 1D vector<double>
+ * @param The list used to create the vector
+ * @return 1D vector<double> copy of the PyList
+ */
+vector<double> getVector(PyObject* list)
+{
+        if (PyList_Size(list) > 0)
+        {
+                vector<double> out = vector<double>(PyList_Size(list), 0.0);
+                for (unsigned int i = 0; i < PyList_Size(list); i++)
+                {
+                        out[i] = PyFloat_AsDouble(PyList_GetItem(list, i));
+                }
+                return out;
+        }
+        return vector<double>();
+}
+
+/**
  * Runs a set of trajectories using the PPO policy, updates the PPO agent, and collects relevant training data
  * @param The finite element solver object used to propogate time
  * @param The ppo agent that defines the policy
@@ -168,11 +187,49 @@ PyObject* getList(vector<double> state)
  * @param The number of agent cycles steps in each trajecotry
  * @return Tuple containing the training data, the updated finite element solver, and the trained PPO agent
  */
-PyObject* run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory)
+auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory)
 {
+
+        // Determine how many frames there are in each trajectory
+        int frames_per_trajectory = 0;
+        int frame_index = 0;
+        bool frame_done = false;
+        while(!frame_done)
+        {
+                frame_done = (frame_index == (int)FES.get_target_front_vel_arr_size() - 1);
+                if ((frame_index % steps_per_frame == 0) || (frame_index==0))
+                {
+                        frames_per_trajectory++;
+                }
+                frame_index++;
+        }
 
         // Training data storage
         vector<double> r_per_episode;
+        vector<double> x_rate_stdev;
+        vector<double> y_rate_stdev;
+        vector<double> mag_stdev;
+        vector<double> value_error;
+
+        // Best trajecotry data
+        vector<double> best_input_location_x;
+        vector<double> best_input_location_y;
+        vector<double> best_sim_time;
+        vector<double> best_target_velocity;
+        vector<vector<vector<double> > > best_temperature_field = vector<vector<vector<double> > >(FES.get_num_vert_length(), vector<vector<double> >(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
+        vector<vector<vector<double> > > best_cure_field = vector<vector<vector<double> > >(FES.get_num_vert_length(), vector<vector<double> >(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
+        vector<vector<vector<double> > > best_front_location = vector<vector<vector<double> > >(FES.get_num_vert_width(), vector<vector<double> >(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
+        vector<vector<vector<double> > > best_front_velocity = vector<vector<vector<double> > >(FES.get_num_vert_width(), vector<vector<double> >(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
+
+        // Current trajectory data
+        vector<double> curr_input_location_x;
+        vector<double> curr_input_location_y;
+        vector<double> curr_sim_time;
+        vector<double> curr_target_velocity;
+        vector<vector<vector<double> > > curr_temperature_field = vector<vector<vector<double> > >(FES.get_num_vert_length(), vector<vector<double> >(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
+        vector<vector<vector<double> > > curr_cure_field = vector<vector<vector<double> > >(FES.get_num_vert_length(), vector<vector<double> >(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
+        vector<vector<vector<double> > > curr_front_location = vector<vector<vector<double> > >(FES.get_num_vert_width(), vector<vector<double> >(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
+        vector<vector<vector<double> > > curr_front_velocity = vector<vector<vector<double> > >(FES.get_num_vert_width(), vector<vector<double> >(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
 
         // Simulation set variables
         double total_reward = 0.0;
@@ -199,7 +256,7 @@ PyObject* run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories
                 msg2.append(22 - msg2.length(), ' ');
                 string msg3 = "| R/Step: ";
                 stream.str(std::string());
-                stream << std::fixed << std::setprecision(2) << episode_reward/(double)steps_per_trajectory;
+                stream << std::fixed << std::setprecision(2) << prev_episode_reward/(double)steps_per_trajectory;
                 msg3.append(stream.str());
                 msg3.append(18 - msg3.length(), ' ');
                 string msg4 = "| Avg_R/Step: ";
@@ -215,10 +272,10 @@ PyObject* run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories
                 }
                 else
                 {
-                        unsigned int start_index = r_per_episode.size() - 100;
+                        int start_index = (int) r_per_episode.size() - 100;
                         start_index = start_index < 0 ? 0 : start_index;
                         double avg_r_per_episode = 0.0;
-                        for (unsigned int i = start_index; i < r_per_episode.size(); i++)
+                        for (int i = start_index; i < (int)r_per_episode.size(); i++)
                         {
                                 avg_r_per_episode += r_per_episode[i];
                         }
@@ -238,9 +295,6 @@ PyObject* run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories
                 msg5.append(stream.str());
                 msg5.append(19 - msg5.length(), ' ');
                 cout << msg1+msg2+msg3+msg4+msg5+msg6 << "|\r";
-
-
-                //str(curr_episode+1) + "/" + str(total_trajectories)).ljust(20)
 
                 // Reset environment
                 vector<double> state = FES.reset();
@@ -293,6 +347,36 @@ PyObject* run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories
                                 done = FES.step(action_1, action_2, action_3);
                         }
 
+                        // Update the logs
+                        if (save_frame)
+                        {
+                                vector<double> input_location = FES.get_input_location();
+                                vector<vector<double> > temp_mesh = FES.get_temp_mesh();
+                                vector<vector<double> > cure_mesh = FES.get_cure_mesh();
+                                vector<vector<double> > front_loc = FES.get_front_loc();
+                                vector<vector<double> > front_vel = FES.get_front_vel();
+                                curr_input_location_x.push_back(input_location[0]);
+                                curr_input_location_y.push_back(input_location[1]);
+                                curr_sim_time.push_back(FES.get_current_time());
+                                curr_target_velocity.push_back(FES.get_current_target_front_vel());
+                                for (int i = 0; i < FES.get_num_vert_length(); i++)
+                                {
+                                        for (int j = 0; j < FES.get_num_vert_width(); j++)
+                                        {
+                                                curr_temperature_field[i][j][curr_target_velocity.size()-1] = temp_mesh[i][j];
+                                                curr_cure_field[i][j][curr_target_velocity.size()-1] = cure_mesh[i][j];
+                                        }
+                                }
+                                for (int j = 0; j < FES.get_num_vert_width(); j++)
+                                {
+                                        for (int k = 0; k < FES.get_num_vert_depth(); k++)
+                                        {
+                                                curr_front_location[j][k][curr_target_velocity.size()-1] = front_loc[j][k];
+                                                curr_front_velocity[j][k][curr_target_velocity.size()-1] = front_vel[j][k];
+                                        }
+                                }
+                        }
+
                         // Update the current state and the step in episode
                         step_in_trajectory += 1;
 
@@ -302,12 +386,36 @@ PyObject* run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories
                 episode_reward = total_reward - episode_reward;
                 prev_episode_reward = episode_reward;
 
+                // Update the best trajectory memory
+                if (episode_reward > best_episode || i == 0)
+                {
+                        best_episode = episode_reward;
+                        best_input_location_x = curr_input_location_x;
+                        best_input_location_y = curr_input_location_y;
+                        best_sim_time = curr_sim_time;
+                        best_target_velocity = curr_target_velocity;
+                        best_temperature_field = curr_temperature_field;
+                        best_cure_field = curr_cure_field;
+                        best_front_location = curr_front_location;
+                        best_front_velocity = curr_front_velocity;
+                }
+
+                // Reset the current trajectory memory
+                curr_input_location_x.clear();
+                curr_input_location_y.clear();
+                curr_sim_time.clear();
+                curr_target_velocity.clear();
+
                 // Update the logs
                 r_per_episode.push_back(episode_reward/(double)steps_per_trajectory);
+                x_rate_stdev.push_back(stdev_1);
+                y_rate_stdev.push_back(stdev_2);
+                mag_stdev.push_back(stdev_3);
 
                 // Release the python memory
                 Py_DECREF(py_state);
                 Py_DECREF(py_result);
+
                 // Final user readout
                 if (i == total_trajectories - 1)
                 {
@@ -348,8 +456,16 @@ PyObject* run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories
                 }
         }
 
+        // Gather the trajectory value error from the agent
+        PyObject* py_value_error = PyObject_GetAttr(agent, PyUnicode_DecodeFSDefault("value_estimation_error"));
+        value_error = getVector(py_value_error);
+        Py_DECREF(py_value_error);
+
         // Return agent
-        return agent;
+        auto out = make_tuple(agent, r_per_episode, x_rate_stdev, y_rate_stdev, mag_stdev, value_error, best_input_location_x,
+                              best_input_location_y, best_sim_time, best_target_velocity, best_temperature_field, best_cure_field,
+                              best_front_location, best_front_velocity, best_episode);
+        return out;
 }
 
 int main()
@@ -376,6 +492,7 @@ int main()
         double execution_period = (FES.get_sim_duration() / (double)steps_per_trajectory);
         int steps_per_agent_cycle = (int) round(execution_period / FES.get_time_step());
         int steps_per_frame = (int) round(1.0 / (FES.get_time_step() * frame_rate));
+        steps_per_frame = steps_per_frame <= 0 ? 1 : steps_per_frame;
         int minibatch_size = (int) round(((double)trajectories_per_batch * (double)steps_per_trajectory) / (double)num_epochs);
 
         // Check inputs
@@ -392,18 +509,25 @@ int main()
         // Train agent
         cout << "Training agent..." << endl;
         auto start_time = std::chrono::high_resolution_clock::now();
-        agent = run(FES, agent, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory);
+        auto [trained_agent, r_per_episode, x_rate_stdev, y_rate_stdev, mag_stdev, value_error, best_input_location_x,
+              best_input_location_y, best_sim_time, best_target_velocity, best_temperature_field, best_cure_field,
+              best_front_location, best_front_velocity, best_episode] = run(FES, agent, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory);
 
         // Stop clock and print duration
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end_time - start_time ).count();
-        cout << "Done!\nTraining Took: ";
+        cout << "Training Took: ";
         printf("%.1f", (double)duration*10e-7);
-        cout << " seconds." << endl;
+        cout << " seconds.\n";
+
+        // Save results
+        cout << "Saving results..." << endl;
 
         // End main
+        Py_DECREF(agent);
+        Py_DECREF(trained_agent);
         Py_FinalizeEx();
-        cout << "Press enter to end..." << endl;
+        cout << "Done! Press enter to end...";
         cin.get();
         return 0;
 }
