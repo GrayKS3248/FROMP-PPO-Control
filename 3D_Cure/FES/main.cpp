@@ -522,6 +522,30 @@ int main()
 
         // Save results
         cout << "Saving results..." << endl;
+        PyObject* py_r_per_episode = getList(r_per_episode);
+        PyObject* py_x_rate_stdev = getList(x_rate_stdev);
+        PyObject* py_y_rate_stdev = getList(y_rate_stdev);
+        PyObject* py_mag_stdev = getList(mag_stdev);
+        PyObject* py_value_error = getList(value_error);
+        PyObject* py_best_input_location_x = getList(best_input_location_x);
+        PyObject* py_best_input_location_y = getList(best_input_location_y);
+        PyObject* py_best_sim_time = getList(best_sim_time);
+        PyObject* py_best_target_velocity = getList(best_target_velocity);
+        best_temperature_field;
+        best_cure_field;
+        best_front_location;
+        best_front_velocity;
+        PyObject* py_best_episode = PyFloat_FromDouble(best_episode);
+        Py_DECREF(py_r_per_episode);
+        Py_DECREF(py_x_rate_stdev);
+        Py_DECREF(py_y_rate_stdev);
+        Py_DECREF(py_mag_stdev);
+        Py_DECREF(py_value_error);
+        Py_DECREF(py_best_input_location_x);
+        Py_DECREF(py_best_input_location_y);
+        Py_DECREF(py_best_sim_time);
+        Py_DECREF(py_best_target_velocity);
+        Py_DECREF(py_best_episode);
 
         // End main
         Py_DECREF(agent);
