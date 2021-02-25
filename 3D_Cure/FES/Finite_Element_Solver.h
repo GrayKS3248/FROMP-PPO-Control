@@ -40,8 +40,10 @@ vector<vector<double> > get_mesh_y_x0();
 vector<vector<double> > get_mesh_z_x0();
 
 //******************** FUNCTIONS ******************************//
-tuple <vector<double>, double, bool> step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
+bool step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
 vector<double> reset();
+vector<double> get_state();
+double get_reward();
 
 private:
 //******************** USER SET PARAMETERS ********************//
@@ -175,8 +177,6 @@ vector<vector<double> > input_mesh;
 vector<vector<vector<double> > > get_perturbation(vector<vector<vector<double> > > size_array, double delta);
 void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
 void step_meshes();
-vector<double> get_state();
-double get_reward();
 bool step_time();
 
 };

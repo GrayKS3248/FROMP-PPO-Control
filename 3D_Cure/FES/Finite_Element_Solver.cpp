@@ -430,25 +430,17 @@ vector<vector<double> > Finite_Element_Solver::get_mesh_z_x0()
  * @param The raw NN x location rate command
  * @param The raw NN y location rate command
  * @param The raw NN magnitude command
- * @return A tuple of the form <state, reward, done>
+ * @return Whether the sim is done or not
  */
-tuple <vector<double>, double, bool> Finite_Element_Solver::step(double x_loc_rate_action, double y_loc_rate_action, double mag_action)
+bool Finite_Element_Solver::step(double x_loc_rate_action, double y_loc_rate_action, double mag_action)
 {
         // Step the input, cure, front, and temperature
         step_input(x_loc_rate_action, y_loc_rate_action, mag_action);
         step_meshes();
 
-        // Get state and Reward
-        vector<double> state = get_state();
-        double reward = get_reward();
-
         // Step time_step
         bool done = step_time();
-
-        // Create and return tuple
-        tuple<vector<double>, double, bool> ret_val;
-        ret_val = make_tuple(state, reward, done);
-        return ret_val;
+        return done;
 }
 
 /**

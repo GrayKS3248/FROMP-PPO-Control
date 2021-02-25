@@ -52,7 +52,7 @@ def run(env, agent, total_trajectories, execution_rate, frame_multiplier):
     # Run a set of episodes
     for curr_episode in range(total_trajectories):
         
-        # # User readout parameters
+        # User readout parameters
         percent_complete = curr_episode / total_trajectories
         
         # User readout
