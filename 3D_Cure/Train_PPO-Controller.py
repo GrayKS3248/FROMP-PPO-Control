@@ -174,9 +174,9 @@ if __name__ == '__main__':
     end_alpha = 5.0e-4
     
     # Rendering parameters
-    frame_multiplier = 1.0/6.0
+    frame_multiplier = 1.0/15.0
     dpi = 100
-    radius_of_conv = 5
+    radius_of_conv = 15
     
     # Calculated env and agent parameters
     env = fes.FES()
@@ -242,7 +242,7 @@ if __name__ == '__main__':
     plt.plot(data['time'], 1000.0*np.array(np.mean(np.mean(data['front_velocity'],axis=1),axis=1)),c='k',lw=2.0)
     plt.plot(data['time'], 1000.0*np.array(data['target_velocity']),c='b',ls='--',lw=2.0)
     plt.legend(('Actual','Target'),loc='lower right',fontsize='large')
-    plt.ylim(0.0, max(1.25*1000.0*np.array(data['target_velocity'])))
+    #plt.ylim(0.0, max(1.25*1000.0*np.array(data['target_velocity'])))
     plt.xlim(0.0, env.sim_duration)
     plt.xticks(fontsize='large')
     plt.yticks(fontsize='large')

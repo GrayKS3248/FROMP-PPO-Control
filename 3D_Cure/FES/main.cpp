@@ -14,12 +14,12 @@ using namespace std;
  * Prints to std out a representation of a 2D vector
  * @param The array to be printed
  */
-void print_2D(vector<vector<double> > arr)
+void print_2D(vector<vector<double> > arr, unsigned int len)
 {
         // Find the largest order number
         int max_order = 0;
         int curr_order = 0;
-        for (unsigned int i = 0; i < arr.size(); i++)
+        for (unsigned int i = 0; i < len; i++)
         {
                 for (unsigned int j = 0; j < arr[0].size(); j++)
                 {
@@ -28,7 +28,7 @@ void print_2D(vector<vector<double> > arr)
                 }
         }
 
-        for (unsigned int i = 0; i < arr.size(); i++)
+        for (unsigned int i = 0; i <len; i++)
         {
                 for (unsigned int j = 0; j < arr[0].size(); j++)
                 {
@@ -196,7 +196,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
         bool frame_done = false;
         while(!frame_done)
         {
-                frame_done = (frame_index == (int)FES.get_target_front_vel_arr_size() - 1);
+                frame_done = (frame_index == (int)FES.get_target_vector_arr_size() - 1);
                 if ((frame_index % steps_per_frame == 0) || (frame_index==0))
                 {
                         frames_per_trajectory++;
@@ -215,21 +215,23 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
         vector<double> best_input_location_x;
         vector<double> best_input_location_y;
         vector<double> best_sim_time;
-        vector<double> best_target_velocity;
+        vector<double> best_target;
         vector<vector<vector<double> > > best_temperature_field = vector<vector<vector<double> > >(FES.get_num_vert_length(), vector<vector<double> >(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
         vector<vector<vector<double> > > best_cure_field = vector<vector<vector<double> > >(FES.get_num_vert_length(), vector<vector<double> >(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
         vector<vector<vector<double> > > best_front_location = vector<vector<vector<double> > >(FES.get_num_vert_width(), vector<vector<double> >(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
         vector<vector<vector<double> > > best_front_velocity = vector<vector<vector<double> > >(FES.get_num_vert_width(), vector<vector<double> >(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
+		vector<vector<vector<double> > > best_front_temperature = vector<vector<vector<double> > >(FES.get_num_vert_width(), vector<vector<double> >(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
 
         // Current trajectory data
         vector<double> curr_input_location_x;
         vector<double> curr_input_location_y;
         vector<double> curr_sim_time;
-        vector<double> curr_target_velocity;
+        vector<double> curr_target;
         vector<vector<vector<double> > > curr_temperature_field = vector<vector<vector<double> > >(FES.get_num_vert_length(), vector<vector<double> >(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
         vector<vector<vector<double> > > curr_cure_field = vector<vector<vector<double> > >(FES.get_num_vert_length(), vector<vector<double> >(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
         vector<vector<vector<double> > > curr_front_location = vector<vector<vector<double> > >(FES.get_num_vert_width(), vector<vector<double> >(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
         vector<vector<vector<double> > > curr_front_velocity = vector<vector<vector<double> > >(FES.get_num_vert_width(), vector<vector<double> >(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
+		vector<vector<vector<double> > > curr_front_temperature = vector<vector<vector<double> > >(FES.get_num_vert_width(), vector<vector<double> >(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
 
         // Simulation set variables
         double total_reward = 0.0;
@@ -250,15 +252,24 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
                 stream << std::fixed << std::setprecision(1) << percent_complete;
                 string msg1 = stream.str();
                 msg1.append("% Complete");
-                msg1.append(18 - msg1.length(), ' ');
+                if (msg1.length() < 18)
+                {
+                        msg1.append(18 - msg1.length(), ' ');
+                }
                 string msg2 = "";
                 msg2.append("| Traj: " + to_string(i+1) + "/" + to_string(total_trajectories));
-                msg2.append(22 - msg2.length(), ' ');
+                if (msg2.length() < 22)
+                {
+                        msg2.append(22 - msg2.length(), ' ');
+                }
                 string msg3 = "| R/Step: ";
                 stream.str(std::string());
                 stream << std::fixed << std::setprecision(2) << prev_episode_reward/(double)steps_per_trajectory;
                 msg3.append(stream.str());
-                msg3.append(18 - msg3.length(), ' ');
+                if (msg3.length() < 18)
+                {
+                        msg3.append(18 - msg3.length(), ' ');
+                }
                 string msg4 = "| Avg_R/Step: ";
                 string msg6 = "| Avg R: ";
                 if (r_per_episode.empty())
@@ -287,13 +298,22 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
                         stream << std::fixed << std::setprecision(1) << avg_r_per_episode*steps_per_trajectory;
                         msg6.append(stream.str());
                 }
-                msg4.append(22 - msg4.length(), ' ');
-                msg6.append(18 - msg6.length(), ' ');
+                if (msg4.length() < 22)
+                {
+                        msg4.append(22 - msg4.length(), ' ');
+                }
+                if (msg6.length() < 18)
+                {
+                        msg6.append(18 - msg6.length(), ' ');
+                }
                 string msg5 = "| Best R: ";
                 stream.str(std::string());
                 stream << std::fixed << std::setprecision(1) << best_episode;
                 msg5.append(stream.str());
-                msg5.append(19 - msg5.length(), ' ');
+                if (msg6.length() < 19)
+                {
+                        msg5.append(19 - msg5.length(), ' ');
+                }
                 cout << msg1+msg2+msg3+msg4+msg5+msg6 << "|\r";
 
                 // Reset environment
@@ -304,7 +324,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
                 double action_1=0.0, stdev_1, action_2=0.0, stdev_2, action_3=0.0, stdev_3, reward;
                 bool run_agent, save_frame;
                 int step_in_trajectory = 0;
-                PyObject *py_state, *py_result;
+                PyObject *py_state=getList(FES.get_state()), *py_result=PyObject_CallMethod(agent, "get_action", "O", py_state);;
 
                 // Simulation for loop
                 while (!done)
@@ -355,24 +375,26 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
                                 vector<vector<double> > cure_mesh = FES.get_cure_mesh();
                                 vector<vector<double> > front_loc = FES.get_front_loc();
                                 vector<vector<double> > front_vel = FES.get_front_vel();
+								vector<vector<double> > front_temp = FES.get_front_temp();
                                 curr_input_location_x.push_back(input_location[0]);
                                 curr_input_location_y.push_back(input_location[1]);
                                 curr_sim_time.push_back(FES.get_current_time());
-                                curr_target_velocity.push_back(FES.get_current_target_front_vel());
+                                curr_target.push_back(FES.get_current_target());
                                 for (int i = 0; i < FES.get_num_vert_length(); i++)
                                 {
                                         for (int j = 0; j < FES.get_num_vert_width(); j++)
                                         {
-                                                curr_temperature_field[i][j][curr_target_velocity.size()-1] = temp_mesh[i][j];
-                                                curr_cure_field[i][j][curr_target_velocity.size()-1] = cure_mesh[i][j];
+                                                curr_temperature_field[i][j][curr_target.size()-1] = temp_mesh[i][j];
+                                                curr_cure_field[i][j][curr_target.size()-1] = cure_mesh[i][j];
                                         }
                                 }
                                 for (int j = 0; j < FES.get_num_vert_width(); j++)
                                 {
                                         for (int k = 0; k < FES.get_num_vert_depth(); k++)
                                         {
-                                                curr_front_location[j][k][curr_target_velocity.size()-1] = front_loc[j][k];
-                                                curr_front_velocity[j][k][curr_target_velocity.size()-1] = front_vel[j][k];
+                                                curr_front_location[j][k][curr_target.size()-1] = front_loc[j][k];
+                                                curr_front_velocity[j][k][curr_target.size()-1] = front_vel[j][k];
+												curr_front_temperature[j][k][curr_target.size()-1] = front_temp[j][k];
                                         }
                                 }
                         }
@@ -393,18 +415,19 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
                         best_input_location_x = curr_input_location_x;
                         best_input_location_y = curr_input_location_y;
                         best_sim_time = curr_sim_time;
-                        best_target_velocity = curr_target_velocity;
+                        best_target = curr_target;
                         best_temperature_field = curr_temperature_field;
                         best_cure_field = curr_cure_field;
                         best_front_location = curr_front_location;
                         best_front_velocity = curr_front_velocity;
+						best_front_temperature = curr_front_temperature;
                 }
 
                 // Reset the current trajectory memory
                 curr_input_location_x.clear();
                 curr_input_location_y.clear();
                 curr_sim_time.clear();
-                curr_target_velocity.clear();
+                curr_target.clear();
 
                 // Update the logs
                 r_per_episode.push_back(episode_reward/(double)steps_per_trajectory);
@@ -423,12 +446,18 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
                         msg1.append("100.0% Complete   ");
                         msg2 = "| Traj: ";
                         msg2.append(to_string(i+1) + "/" + to_string(total_trajectories));
-                        msg2.append(22 - msg2.length(), ' ');
+                        if (msg2.length() < 22)
+                        {
+                                msg2.append(22 - msg2.length(), ' ');
+                        }
                         msg3 = "| R/Step: ";
                         stream.str(std::string());
                         stream << std::fixed << std::setprecision(2) << episode_reward/(double)steps_per_trajectory;
                         msg3.append(stream.str());
-                        msg3.append(18 - msg3.length(), ' ');
+                        if (msg3.length() < 18)
+                        {
+                                msg3.append(18 - msg3.length(), ' ');
+                        }
                         msg4 = "| Avg_R/Step: ";
                         msg6 = "| Avg R: ";
                         unsigned int start_index = r_per_episode.size() - 100;
@@ -445,13 +474,22 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
                         stream.str(std::string());
                         stream << std::fixed << std::setprecision(1) << avg_r_per_episode*steps_per_trajectory;
                         msg6.append(stream.str());
-                        msg4.append(22 - msg4.length(), ' ');
-                        msg6.append(18 - msg6.length(), ' ');
+                        if (msg4.length() < 22)
+                        {
+                                msg4.append(22 - msg4.length(), ' ');
+                        }
+                        if (msg6.length() < 18)
+                        {
+                                msg6.append(18 - msg6.length(), ' ');
+                        }
                         msg5 = "| Best R: ";
                         stream.str(std::string());
                         stream << std::fixed << std::setprecision(1) << best_episode;
                         msg5.append(stream.str());
-                        msg5.append(19 - msg5.length(), ' ');
+                        if (msg5.length() < 19)
+                        {
+                                msg5.append(19 - msg5.length(), ' ');
+                        }
                         cout << msg1+msg2+msg3+msg4+msg5+msg6 << "|\n";
                 }
         }
@@ -463,8 +501,8 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 
         // Return agent
         auto out = make_tuple(agent, r_per_episode, x_rate_stdev, y_rate_stdev, mag_stdev, value_error, best_input_location_x,
-                              best_input_location_y, best_sim_time, best_target_velocity, best_temperature_field, best_cure_field,
-                              best_front_location, best_front_velocity, best_episode);
+                              best_input_location_y, best_sim_time, best_target, best_temperature_field, best_cure_field,
+                              best_front_location, best_front_velocity, best_front_temperature, best_episode);
         return out;
 }
 
@@ -472,7 +510,7 @@ int main()
 {
         // Agent parameters
         int total_trajectories = 1;
-        int steps_per_trajectory = 240;
+        int steps_per_trajectory = 60;
         int trajectories_per_batch = 10;
         int num_epochs = 10;
         double gamma = 0.99;
@@ -482,7 +520,7 @@ int main()
         double end_alpha = 5.0e-4;
 
         // Rendering parameters
-        double frame_rate = 10.0;
+        double frame_rate = 2.0;
 
         // Initialize FES
         Finite_Element_Solver FES = Finite_Element_Solver();
@@ -499,6 +537,7 @@ int main()
         if ( floor(execution_period / FES.get_time_step()) != (execution_period / FES.get_time_step()) )
         {
                 fprintf(stderr, "RuntimeError: Agent execution rate is not multiple of simulation rate\n");
+				cin.get();
                 return 1;
         }
 
@@ -510,8 +549,8 @@ int main()
         cout << "Training agent..." << endl;
         auto start_time = std::chrono::high_resolution_clock::now();
         auto [trained_agent, r_per_episode, x_rate_stdev, y_rate_stdev, mag_stdev, value_error, best_input_location_x,
-              best_input_location_y, best_sim_time, best_target_velocity, best_temperature_field, best_cure_field,
-              best_front_location, best_front_velocity, best_episode] = run(FES, agent, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory);
+              best_input_location_y, best_sim_time, best_target, best_temperature_field, best_cure_field,
+              best_front_location, best_front_velocity, best_front_temperature, best_episode] = run(FES, agent, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory);
 
         // Stop clock and print duration
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -530,11 +569,12 @@ int main()
         PyObject* py_best_input_location_x = getList(best_input_location_x);
         PyObject* py_best_input_location_y = getList(best_input_location_y);
         PyObject* py_best_sim_time = getList(best_sim_time);
-        PyObject* py_best_target_velocity = getList(best_target_velocity);
+        PyObject* py_best_target = getList(best_target);
         best_temperature_field;
         best_cure_field;
         best_front_location;
         best_front_velocity;
+		best_front_temperature;
         PyObject* py_best_episode = PyFloat_FromDouble(best_episode);
         Py_DECREF(py_r_per_episode);
         Py_DECREF(py_x_rate_stdev);
@@ -544,7 +584,7 @@ int main()
         Py_DECREF(py_best_input_location_x);
         Py_DECREF(py_best_input_location_y);
         Py_DECREF(py_best_sim_time);
-        Py_DECREF(py_best_target_velocity);
+        Py_DECREF(py_best_target);
         Py_DECREF(py_best_episode);
 
         // End main

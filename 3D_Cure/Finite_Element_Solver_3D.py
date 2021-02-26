@@ -14,13 +14,13 @@ class FES():
         # Simulation parameters
         self.random_target=False
         self.target_switch=False
-        self.control=False
+        self.control=True
         self.trigger=True
         
         # Mesh parameters
-        self.num_vert_length = 120  # Unitless
-        self.num_vert_width = 24    # Unitless
-        self.num_vert_depth = 12    # Unitless
+        self.num_vert_length = 420  # Unitless
+        self.num_vert_width = 48    # Unitless
+        self.num_vert_depth = 24    # Unitless
         
         # Spatial parameters
         self.length = 0.05  # Meters
@@ -29,11 +29,11 @@ class FES():
         
         # Temporal parameters
         self.sim_duration = 240.0  # Seconds
-        self.time_step = 0.1       # Seconds
+        self.time_step = 0.01    # Seconds
         
         # Initial conditions
         self.initial_temperature = 278.15  # Kelvin
-        self.initial_cure = 0.05           # Decimal Percent
+        self.initial_cure = 0.05            # Decimal Percent
         
         # Boundary conditions
         self.htc = 10.0                    # Watts / (Meter^2 * Kelvin)
@@ -44,14 +44,15 @@ class FES():
         self.target = 0.00015            # Meters / Second
         
         # Monomer physical parameters
-        self.thermal_conductivity = 0.152     # Watts / Meter * Kelvin
-        self.density = 980.0                  # Kilograms / Meter^3
-        self.enthalpy_of_reaction = 352100.0  # Joules / Kilogram
-        self.specific_heat = 1440.0           # Joules / Kilogram * Kelvin
-        self.pre_exponential = 10**5.281      # 1 / Seconds
-        self.activiation_energy = 51100.0     # Joules / Mol
+        self.thermal_conductivity = 0.133     # Watts / Meter * Kelvin
+        self.density = 882.0                  # Kilograms / Meter^3
+        self.enthalpy_of_reaction = 220596.0  # Joules / Kilogram
+        self.specific_heat = 1838.5           # Joules / Kilogram * Kelvin
+        self.pre_exponential = 2.13e19        # 1 / Seconds
+        self.activiation_energy = 132000.0    # Joules / Mol
         self.gas_const = 8.3144               # Joules / Mol * Kelvin
-        self.model_fit_order = 1.927          # Unitless
+        self.model_fit_order = 2.5141         # Unitless
+        self.m_fit = 0.8173                   # Unitless 
         self.autocatalysis_const = 0.365      # Unitless
         
         # Input distribution parameters
@@ -61,9 +62,9 @@ class FES():
         self.max_input_loc_rate = 0.025    # Meters / Second
         
         # Set trigger conditions
-        self.trigger_flux = 25500.0   # Watts / Meter^2
+        self.trigger_flux = 20000.0   # Watts / Meter^2
         self.trigger_time = 0.0       # Seconds
-        self.trigger_duration = 10.0  # Seconds
+        self.trigger_duration = 6.0  # Seconds
         
         # NN Input conversion factors
         self.mag_scale = 0.0227        # Unitless
@@ -234,13 +235,24 @@ class FES():
     # @return - cure_rate: The calcualted cure rate (percent / second) across entire 3D mesh
     def step_cure(self):
         # Get the cure rate across the entire field based on the cure kinetics
+        #cure_rate = ((self.pre_exponential * np.exp((-1.0 * self.activiation_energy) / (self.gas_const * self.temp_mesh))) *
+        #            ((1.0 - self.cure_mesh) ** self.model_fit_order) *
+        #            (1.0 + self.autocatalysis_const * self.cure_mesh))
         cure_rate = ((self.pre_exponential * np.exp((-1.0 * self.activiation_energy) / (self.gas_const * self.temp_mesh))) *
                     ((1.0 - self.cure_mesh) ** self.model_fit_order) *
-                    (1.0 + self.autocatalysis_const * self.cure_mesh))
+                    self.cure_mesh**self.m_fit)
+        
+        # Limit cure rate
+        cure_rate[np.isnan(cure_rate)] = ((1.0-self.cure_mesh)/self.time_step)[np.isnan(cure_rate)]
+        cure_rate[np.isinf(cure_rate)] = ((1.0-self.cure_mesh)/self.time_step)[np.isinf(cure_rate)]
+        cure_rate[cure_rate > (1.0-self.cure_mesh)/self.time_step] = ((1.0-self.cure_mesh)/self.time_step)[cure_rate > (1.0-self.cure_mesh)/self.time_step]
+        cure_rate[cure_rate < 1.0e-7] = 0.0
         
         # Update the cure field using forward Euler method
         self.cure_mesh = self.cure_mesh + cure_rate * self.time_step
         self.cure_mesh[self.cure_mesh>1.0] = 1.0
+        
+        cure_rate[self.cure_mesh>1.0] = 0.0
         
         # Return the cure rate
         return cure_rate
@@ -312,8 +324,8 @@ class FES():
         self.temp_mesh = self.temp_mesh + temp_rate * self.time_step
             
         # Check for unstable growth
-        if((self.temp_mesh >= self.stab_lim).any() or (self.temp_mesh <= 0.0).any()):
-            raise RuntimeError('Unstable growth detected.')
+        #if((self.temp_mesh >= self.stab_lim).any() or (self.temp_mesh <= 0.0).any()):
+        #    raise RuntimeError('Unstable growth detected.')
 
     # blockshaped: splits a 2D input array into a set of evenly sized 2D blocks
     # @param - arr: The array to be blockshaped

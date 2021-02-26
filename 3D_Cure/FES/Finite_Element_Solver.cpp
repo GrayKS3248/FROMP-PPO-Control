@@ -15,29 +15,70 @@ Finite_Element_Solver::Finite_Element_Solver()
         current_index = 0;   // Unitless
 
         // Monomer physical parameters
-        thermal_diffusivity = thermal_conductivity / (specific_heat * density);
+		if (use_DCPD)
+		{
+			thermal_diffusivity = DCPD_thermal_conductivity / (DCPD_specific_heat * DCPD_density);
+			thermal_conductivity = DCPD_thermal_conductivity;
+			enthalpy_of_reaction = DCPD_enthalpy_of_reaction;
+			specific_heat = DCPD_specific_heat;
+		}
+		else if (use_COD)
+		{
+			thermal_diffusivity = COD_thermal_conductivity / (COD_specific_heat * COD_density);
+			thermal_conductivity = COD_thermal_conductivity;
+			enthalpy_of_reaction = COD_enthalpy_of_reaction;
+			specific_heat = COD_specific_heat;
+		}
 
-        // Calculate the target velocity temporal vector and define the current target
+        // Calculate the target temporal vector and define the current target
         int sim_steps = (int)(sim_duration / time_step);
-        target_front_vel = vector<double>(sim_steps, target);
+		double target = 0.0;
+		double randomizing_scale = 0.0;
+		if(control_speed)
+		{
+			if(use_DCPD)
+			{
+				target = DCPD_target_vel;
+				randomizing_scale = DCPD_vel_rand_scale;
+			}
+			else if(use_COD)
+			{
+				target = COD_target_vel;
+				randomizing_scale = COD_vel_rand_scale;
+			}
+		}
+		else if(control_temperature)
+		{
+			if(use_DCPD)
+			{
+				target = DCPD_target_temp;
+				randomizing_scale = DCPD_temp_rand_scale;
+			}
+			else if(use_COD)
+			{
+				target = COD_target_temp;
+				randomizing_scale = COD_temp_rand_scale;
+			}
+		}
+        target_vector = vector<double>(sim_steps, target);
         if (random_target)
         {
                 double new_target = target - 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
-                for (unsigned int i = 0; i < target_front_vel.size(); i++)
+                for (unsigned int i = 0; i < target_vector.size(); i++)
                 {
-                        target_front_vel[i] = new_target;
+                        target_vector[i] = new_target;
                 }
         }
         else if (target_switch)
         {
-                int switch_location = (int) floor((0.20 * (double)rand()/(double)RAND_MAX + 0.40) * (double)(target_front_vel.size() - 1));
-                double switch_vel = target_front_vel[switch_location] + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
-                for (unsigned int i = switch_location; i < target_front_vel.size(); i++)
+                int switch_location = (int) floor((0.20 * (double)rand()/(double)RAND_MAX + 0.40) * (double)(target_vector.size() - 1));
+                double switch_vel = target_vector[switch_location] + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
+                for (unsigned int i = switch_location; i < target_vector.size(); i++)
                 {
-                        target_front_vel[i] = switch_vel;
+                        target_vector[i] = switch_vel;
                 }
         }
-        current_target_front_vel = target_front_vel[current_index];
+        current_target = target_vector[current_index];
 
         // Set trigger conditions
         if (!trigger)
@@ -48,9 +89,20 @@ Finite_Element_Solver::Finite_Element_Solver()
         }
         else
         {
-                trigger_flux = trigger_flux_r;          // Watts / Meter ^ 2
-                trigger_time = trigger_time_r;          // Seconds
-                trigger_duration = trigger_duration_r;  // Seconds
+			if (use_DCPD)
+			{
+				trigger_flux = DCPD_trigger_flux_ref;          // Watts / Meter ^ 2
+                trigger_time = trigger_time_ref;          // Seconds
+                trigger_duration = DCPD_trigger_duration_ref;  // Seconds
+			}
+			else if (use_COD)
+			{
+				trigger_flux = COD_trigger_flux_ref;          // Watts / Meter ^ 2
+                trigger_time = trigger_time_ref;          // Seconds
+                trigger_duration = COD_trigger_duration_ref;  // Seconds
+			}
+				
+
         }
 
         // Create mesh and calculate step size
@@ -101,6 +153,7 @@ Finite_Element_Solver::Finite_Element_Solver()
         front_loc = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, 0.0));
         front_vel = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, 0.0));
         time_front_last_moved = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, 0.0));
+		front_temp = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, initial_temperature));
 
         // Input magnitude parameters
         double sigma = 0.329505114491 * radius_of_input;
@@ -249,18 +302,18 @@ double Finite_Element_Solver::get_exp_const()
  * Gets the current target velocity
  * @return The current target front velocity in m/s
  */
-double Finite_Element_Solver::get_current_target_front_vel()
+double Finite_Element_Solver::get_current_target()
 {
-        return current_target_front_vel;
+        return current_target;
 }
 
 /**
  * Gets the length of the target velocity array
  * @return The length of the target velocity array
  */
-int Finite_Element_Solver::get_target_front_vel_arr_size()
+int Finite_Element_Solver::get_target_vector_arr_size()
 {
-        return target_front_vel.size();
+        return target_vector.size();
 }
 
 /**
@@ -350,7 +403,7 @@ vector<vector<double> > Finite_Element_Solver::get_input_mesh()
 
 /**
  * Gets the current front location
- * @return The current front location as a 2D vector in x,y
+ * @return The current front location as a 2D vector in y,z
  */
 vector<vector<double> > Finite_Element_Solver::get_front_loc()
 {
@@ -359,11 +412,20 @@ vector<vector<double> > Finite_Element_Solver::get_front_loc()
 
 /**
  * Gets the current front velocity
- * @return The current front velocity as a 2D vector in x,y
+ * @return The current front velocity as a 2D vector in y,z
  */
 vector<vector<double> > Finite_Element_Solver::get_front_vel()
 {
         return front_vel;
+}
+
+/**
+ * Gets the current front temperature
+ * @return The current front temperature as a 2D vector in y,z
+ */
+vector<vector<double> > Finite_Element_Solver::get_front_temp()
+{
+        return front_temp;
 }
 
 /**
@@ -462,27 +524,55 @@ vector<double> Finite_Element_Solver::reset()
         current_time = 0.0;         // Seconds
         current_index = 0;         // Unitless
 
-        // Calculate the target velocity temporal vector and define the current target
+        // Calculate the target temporal vector and define the current target
         int sim_steps = (int)(sim_duration / time_step);
-        target_front_vel = vector<double>(sim_steps, target);
+		double target = 0.0;
+		double randomizing_scale = 0.0;
+		if(control_speed)
+		{
+			if(use_DCPD)
+			{
+				target = DCPD_target_vel;
+				randomizing_scale = DCPD_vel_rand_scale;
+			}
+			else if(use_COD)
+			{
+				target = COD_target_vel;
+				randomizing_scale = COD_vel_rand_scale;
+			}
+		}
+		else if(control_temperature)
+		{
+			if(use_DCPD)
+			{
+				target = DCPD_target_temp;
+				randomizing_scale = DCPD_temp_rand_scale;
+			}
+			else if(use_COD)
+			{
+				target = COD_target_temp;
+				randomizing_scale = COD_temp_rand_scale;
+			}
+		}
+        target_vector = vector<double>(sim_steps, target);
         if (random_target)
         {
                 double new_target = target - 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
-                for (unsigned int i = 0; i < target_front_vel.size(); i++)
+                for (unsigned int i = 0; i < target_vector.size(); i++)
                 {
-                        target_front_vel[i] = new_target;
+                        target_vector[i] = new_target;
                 }
         }
         else if (target_switch)
         {
-                int switch_location = (int) floor((0.20 * (double)rand()/(double)RAND_MAX + 0.40) * (double)(target_front_vel.size() - 1));
-                double switch_vel = target_front_vel[switch_location] + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
-                for (unsigned int i = switch_location; i < target_front_vel.size(); i++)
+                int switch_location = (int) floor((0.20 * (double)rand()/(double)RAND_MAX + 0.40) * (double)(target_vector.size() - 1));
+                double switch_vel = target_vector[switch_location] + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
+                for (unsigned int i = switch_location; i < target_vector.size(); i++)
                 {
-                        target_front_vel[i] = switch_vel;
+                        target_vector[i] = switch_vel;
                 }
         }
-        current_target_front_vel = target_front_vel[current_index];
+        current_target = target_vector[current_index];
 
         // Init and perturb temperature and cure meshes
         temp_mesh = vector<vector<vector<double> > >(num_vert_length, vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, initial_temperature)));
@@ -494,6 +584,7 @@ vector<double> Finite_Element_Solver::reset()
         front_loc = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, 0.0));
         front_vel = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, 0.0));
         time_front_last_moved = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, 0.0));
+		front_temp = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, initial_temperature));
 
         // Input magnitude parameters
         input_percent = (double)rand()/(double)RAND_MAX;
@@ -678,21 +769,57 @@ void Finite_Element_Solver::step_meshes()
                         for (unsigned int k = 0; k < mesh_x[0][0].size(); k++)
                         {
                                 // Calculate the cure rate
-                                double cure_rate = pre_exponential * exp(-activiation_energy / (gas_const * prev_temp[i][j][k])) *  pow((1.0 - cure_mesh[i][j][k]), model_fit_order) * (1.0 + autocatalysis_const * cure_mesh[i][j][k]);
+								double cure_rate = 0.0;
+								if (use_DCPD)
+								{
+									cure_rate = DCPD_pre_exponential * exp(-DCPD_activiation_energy / (gas_const * prev_temp[i][j][k])) *  
+									pow((1.0 - cure_mesh[i][j][k]), DCPD_model_fit_order) * 
+									pow(cure_mesh[i][j][k], DCPD_m_fit) * 
+									(1.0 / (1.0 + exp(DCPD_diffusion_const*(cure_mesh[i][j][k] - DCPD_critical_cure))));
+								}
+								else if (use_COD)
+								{
+									cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * prev_temp[i][j][k])) *  
+									pow((1.0 - cure_mesh[i][j][k]), COD_model_fit_order) * 
+									pow(cure_mesh[i][j][k], COD_m_fit);
+								}
 
                                 // Update the cure mesh
+								cure_rate = isnan(cure_rate) ? ((1.0 - cure_mesh[i][j][k]) / time_step) : cure_rate;
+                                cure_rate = (isinf(cure_rate) || (cure_rate > ((1.0 - cure_mesh[i][j][k]) / time_step))) ? ((1.0 - cure_mesh[i][j][k]) / time_step) : cure_rate;
+								cure_rate = cure_rate < 1.0e-7 ? 0.0 : cure_rate;
                                 cure_mesh[i][j][k] = cure_mesh[i][j][k] + cure_rate * time_step;
                                 cure_mesh[i][j][k] = cure_mesh[i][j][k] > 1.0 ? 1.0 : cure_mesh[i][j][k];
 
-                                // Update the front location and velocity
+                                // Update the front location and either temperature or velocity
                                 if ((cure_mesh[i][j][k] >= 0.80) && (front_loc[j][k] <= mesh_x[i][j][k]))
                                 {
                                         front_loc[j][k] = mesh_x[i][j][k];
-                                        if (prev_last_move[j][k] != 0.0)
-                                        {
-                                                front_vel[j][k] = (front_loc[j][k] - prev_front_loc[j][k]) / (current_time - prev_last_move[j][k]);
-                                        }
-                                        time_front_last_moved[j][k] = current_time;
+										if (control_temperature)
+										{
+											int search_diameter = (int) round((double) num_vert_length * 0.03);
+											int min_search_ind = i - search_diameter + 1;
+											int max_search_ind = i;
+											if (min_search_ind < 0)
+											{
+												max_search_ind -= min_search_ind;
+												min_search_ind = 0;
+											}
+											front_temp[j][k] = 0.0;
+											for (int ind = min_search_ind; ind <= max_search_ind; ind++)
+											{
+												front_temp[j][k] += temp_mesh[ind][j][k];
+											}
+											front_temp[j][k] = front_temp[j][k] / search_diameter;
+										}
+										else if (control_speed)
+										{
+											if (prev_last_move[j][k] != 0.0)
+											{
+												front_vel[j][k] = (front_loc[j][k] - prev_front_loc[j][k]) / (current_time - prev_last_move[j][k]);
+											}
+											time_front_last_moved[j][k] = current_time;
+										}
                                 }
 
                                 // Temperature variables
@@ -724,7 +851,7 @@ void Finite_Element_Solver::step_meshes()
                                                 {
                                                         left_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
                                                 }
-                                                dT2_dx2 = 2.0*(prev_temp[i+1][j][k]-prev_temp[i][j][k]-(x_step*left_flux/thermal_conductivity))/(x_step*x_step);
+												dT2_dx2 = 2.0*(prev_temp[i+1][j][k]-prev_temp[i][j][k]-(x_step*left_flux/thermal_conductivity))/(x_step*x_step);
                                         }
                                         if (i == mesh_x.size()-1)
                                         {
@@ -876,7 +1003,7 @@ vector<double> Finite_Element_Solver::get_state()
                         avg_vel += front_vel[y][0];
                 }
                 state[state_start_ind+curr_ind] = avg_loc / ((double)(y_width+1)*length);
-                state[state_start_ind+curr_ind+(int)((double)num_vert_width/4.0)] = avg_vel / ((double)(y_width+1)*current_target_front_vel);
+                state[state_start_ind+curr_ind+(int)((double)num_vert_width/4.0)] = avg_vel / ((double)(y_width+1)*current_target);
                 curr_ind++;
                 y_curr_index += y_width;
         }
@@ -903,7 +1030,7 @@ double Finite_Element_Solver::get_reward()
         double integral_punishment;
         double front_shape_punishment;
         double punishment;
-        double front_rate_reward;
+        double reward = 0.0;
 
         // Find the max temperature, integrate the temp mesh, and get the mean front x location
         double max_temperature = 0.0;
@@ -926,18 +1053,25 @@ double Finite_Element_Solver::get_reward()
 
         // Find the front's location and velocity mean deviation
         double mean_loc_deviation = 0.0;
-        double mean_vel_deviation = 0.0;
+        double mean_deviation = 0.0;
         for (int j = 0; j < num_vert_width; j++)
         {
                 for (int k = 0; k < num_vert_depth; k++)
                 {
                         mean_loc_deviation += abs(front_loc[j][k] - mean_location);
-                        mean_vel_deviation += abs(front_vel[j][k] - current_target_front_vel);
+						if (control_temperature)
+						{
+							mean_deviation += abs(front_temp[j][k] - current_target);
+						}
+						else if (control_speed)
+						{
+							mean_deviation += abs(front_vel[j][k] - current_target);
+						}
                 }
         }
         mean_loc_deviation = mean_loc_deviation / ((double)num_vert_width * (double)num_vert_depth);
-        mean_vel_deviation = mean_vel_deviation / ((double)num_vert_width * (double)num_vert_depth * current_target_front_vel);
-        mean_vel_deviation = mean_vel_deviation > 1.0 ? 1.0 : mean_vel_deviation;
+        mean_deviation = mean_deviation / ((double)num_vert_width * (double)num_vert_depth * current_target);
+        mean_deviation = mean_deviation > 1.0 ? 1.0 : mean_deviation;
 
         if (control)
         {
@@ -972,11 +1106,15 @@ double Finite_Element_Solver::get_reward()
         // Get the punishment
         punishment = input_punishment + dist_punishment + integral_punishment + front_shape_punishment + overage_punishment;
 
-        // Get the front rate reward
-        front_rate_reward = pow((1.0 - mean_vel_deviation) * front_rate_reward_const, 3.0);
-
-        // Add rewards and punishments
-        double reward = front_rate_reward + punishment;
+        // Get the total reward
+		if (control_temperature)
+		{
+			reward = pow((1.0 - mean_deviation) * temperature_reward_const * max_reward, 3.0) + punishment;
+		}
+		else if (control_speed)
+		{
+			reward = pow((1.0 - mean_deviation) * front_rate_reward_const * max_reward, 3.0) + punishment;
+		}
 
         return reward;
 }
@@ -988,12 +1126,12 @@ double Finite_Element_Solver::get_reward()
 bool Finite_Element_Solver::step_time()
 {
         // Update the current time and check for simulation completion
-        bool done = (current_index == (int)target_front_vel.size() - 1);
+        bool done = (current_index == (int)target_vector.size() - 1);
         if (!done)
         {
                 current_time = current_time + time_step;
                 current_index = current_index + 1;
-                current_target_front_vel = target_front_vel[current_index];
+                current_target = target_vector[current_index];
         }
 
         return done;
