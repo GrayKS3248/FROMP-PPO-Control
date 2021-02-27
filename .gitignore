@@ -7,5 +7,8 @@
 2D_Temp/validation/
 2D_Temp/results/
 
-3D_Cure/validation/
-3D_Cure/results/
+3D_Cure_Py/validation/
+3D_Cure_Py/results/
+
+3D_Cure_Cpp/validation/
+3D_Cure_Cpp/results/

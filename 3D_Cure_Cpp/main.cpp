@@ -2,7 +2,6 @@
 #include "Finite_Element_Solver.h"
 #include <chrono>
 #include <Python.h>
-#include <iostream>
 #include <string>
 #include <iomanip>
 #include <sstream>
@@ -55,6 +54,57 @@ void print_2D(vector<vector<double> > arr, unsigned int len)
                         else
                         {
                                 printf("%.2f ", arr[i][j]);
+                        }
+                }
+                cout << endl;
+        }
+}
+
+/**
+ * Prints to std out a representation of a 2D vector
+ * @param The array to be printed
+ */
+void print_3D(vector<vector<vector<double> > > arr, unsigned int len, unsigned int slice)
+{
+        // Find the largest order number
+        int max_order = 0;
+        int curr_order = 0;
+        for (unsigned int i = 0; i < len; i++)
+        {
+                for (unsigned int j = 0; j < arr[0].size(); j++)
+                {
+						curr_order = (int) floor(log10(abs(arr[i][j][slice])));
+						max_order = curr_order > max_order ? curr_order : max_order;
+                }
+        }
+
+        for (unsigned int i = 0; i <len; i++)
+        {
+                for (unsigned int j = 0; j < arr[0].size(); j++)
+                {
+                        if (arr[i][j][slice] == 0.0)
+                        {
+                                for (int i = 0; i <= max_order; i++)
+                                {
+                                        cout << " ";
+                                }
+                        }
+                        else
+                        {
+                                curr_order = (int) floor(log10(abs(arr[i][j][slice])));
+                                curr_order = curr_order < 0 ? 0 : curr_order;
+                                for (int i = 0; i < max_order-curr_order; i++)
+                                {
+                                        cout << " ";
+                                }
+                        }
+                        if (arr[i][j][slice] > 0.0)
+                        {
+                                printf(" %.2f ", arr[i][j][slice]);
+                        }
+                        else
+                        {
+                                printf("%.2f ", arr[i][j][slice]);
                         }
                 }
                 cout << endl;
@@ -144,11 +194,11 @@ PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectori
 }
 
 /**
- * Converts 1D vector<double> to a PyList
+ * Converts 1D vector<double> to a 1D PyList
  * @param The vector used to create list
  * @return PyObject pointer pointing at the created list
  */
-PyObject* getList(vector<double> state)
+PyObject* get_1D_list(vector<double> state)
 {
         PyObject *list = PyList_New(state.size());
         for (unsigned int i = 0; i < state.size(); i++)
@@ -159,11 +209,39 @@ PyObject* getList(vector<double> state)
 }
 
 /**
+ * Converts 3D vector<vector<vector<double>>> to a 3D PyList
+ * @param The vector used to create list
+ * @return PyObject pointer pointing at the created list
+ */
+PyObject* get_3D_list(vector<vector<vector<double>>> state)
+{
+        PyObject *list = PyList_New(0);
+		PyObject *inner_list = PyList_New(0);
+		PyObject *inner_inner_list = PyList_New(0);
+        for (unsigned int i = 0; i < state.size(); i++)
+        {
+			for (unsigned int j = 0; j < state[0].size(); j++)
+			{
+				for (unsigned int k = 0; k < state[0][0].size(); k++)
+				{
+					PyList_Append(inner_inner_list, PyFloat_FromDouble(state[i][j][k]));
+				}
+				PyList_Append(inner_list, inner_inner_list);
+				inner_inner_list = PyList_New(0);
+			}
+			PyList_Append(list, inner_list);
+			inner_list = PyList_New(0);
+        }
+		
+        return list;
+}
+
+/**
  * Converts PyList to a 1D vector<double>
  * @param The list used to create the vector
  * @return 1D vector<double> copy of the PyList
  */
-vector<double> getVector(PyObject* list)
+vector<double> get_vector(PyObject* list)
 {
         if (PyList_Size(list) > 0)
         {
@@ -214,6 +292,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
         // Best trajecotry data
         vector<double> best_input_location_x;
         vector<double> best_input_location_y;
+		vector<double> best_input_percent;
         vector<double> best_sim_time;
         vector<double> best_target;
         vector<vector<vector<double> > > best_temperature_field = vector<vector<vector<double> > >(FES.get_num_vert_length(), vector<vector<double> >(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
@@ -225,6 +304,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
         // Current trajectory data
         vector<double> curr_input_location_x;
         vector<double> curr_input_location_y;
+		vector<double> curr_input_percent;
         vector<double> curr_sim_time;
         vector<double> curr_target;
         vector<vector<vector<double> > > curr_temperature_field = vector<vector<vector<double> > >(FES.get_num_vert_length(), vector<vector<double> >(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
@@ -321,10 +401,10 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 
                 // Declare simulation variables
                 bool done = false;
-                double action_1=0.0, stdev_1, action_2=0.0, stdev_2, action_3=0.0, stdev_3, reward;
+                double action_1=0.0, stdev_1=0.0, action_2=0.0, stdev_2=0.0, action_3=0.0, stdev_3=0.0, reward;
                 bool run_agent, save_frame;
                 int step_in_trajectory = 0;
-                PyObject *py_state=getList(FES.get_state()), *py_result=PyObject_CallMethod(agent, "get_action", "O", py_state);;
+                PyObject *py_state=get_1D_list(FES.get_state()), *py_result=PyObject_CallMethod(agent, "get_action", "O", py_state);;
 
                 // Simulation for loop
                 while (!done)
@@ -341,7 +421,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
                                 state = FES.get_state();
 
                                 // Get the agent commanded action
-                                py_state = getList(state);
+                                py_state = get_1D_list(state);
                                 py_result = PyObject_CallMethod(agent, "get_action", "O", py_state);
                                 action_1 = PyFloat_AsDouble(PyTuple_GetItem(py_result, 0));
                                 stdev_1 = PyFloat_AsDouble(PyTuple_GetItem(py_result, 1));
@@ -378,6 +458,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 								vector<vector<double> > front_temp = FES.get_front_temp();
                                 curr_input_location_x.push_back(input_location[0]);
                                 curr_input_location_y.push_back(input_location[1]);
+								curr_input_percent.push_back(FES.get_input_percent());
                                 curr_sim_time.push_back(FES.get_current_time());
                                 curr_target.push_back(FES.get_current_target());
                                 for (int i = 0; i < FES.get_num_vert_length(); i++)
@@ -414,6 +495,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
                         best_episode = episode_reward;
                         best_input_location_x = curr_input_location_x;
                         best_input_location_y = curr_input_location_y;
+						best_input_percent = curr_input_percent;
                         best_sim_time = curr_sim_time;
                         best_target = curr_target;
                         best_temperature_field = curr_temperature_field;
@@ -426,14 +508,15 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
                 // Reset the current trajectory memory
                 curr_input_location_x.clear();
                 curr_input_location_y.clear();
+				curr_input_percent.clear();
                 curr_sim_time.clear();
                 curr_target.clear();
 
                 // Update the logs
                 r_per_episode.push_back(episode_reward/(double)steps_per_trajectory);
-                x_rate_stdev.push_back(stdev_1);
-                y_rate_stdev.push_back(stdev_2);
-                mag_stdev.push_back(stdev_3);
+                x_rate_stdev.push_back(FES.get_loc_rate_scale()*stdev_1);
+                y_rate_stdev.push_back(FES.get_loc_rate_scale()*stdev_2);
+                mag_stdev.push_back(FES.get_max_input_mag()*FES.get_mag_scale()*stdev_3);
 
                 // Release the python memory
                 Py_DECREF(py_state);
@@ -496,21 +579,22 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 
         // Gather the trajectory value error from the agent
         PyObject* py_value_error = PyObject_GetAttr(agent, PyUnicode_DecodeFSDefault("value_estimation_error"));
-        value_error = getVector(py_value_error);
+        value_error = get_vector(py_value_error);
         Py_DECREF(py_value_error);
 
         // Return agent
         auto out = make_tuple(agent, r_per_episode, x_rate_stdev, y_rate_stdev, mag_stdev, value_error, best_input_location_x,
-                              best_input_location_y, best_sim_time, best_target, best_temperature_field, best_cure_field,
-                              best_front_location, best_front_velocity, best_front_temperature, best_episode);
+              best_input_location_y, best_input_percent, best_sim_time, best_target, best_temperature_field, best_cure_field,
+              best_front_location, best_front_velocity, best_front_temperature, best_episode);
+			  
         return out;
 }
 
 int main()
 {
         // Agent parameters
-        int total_trajectories = 1;
-        int steps_per_trajectory = 60;
+        int total_trajectories = 40;
+        int steps_per_trajectory = 10;
         int trajectories_per_batch = 10;
         int num_epochs = 10;
         double gamma = 0.99;
@@ -520,7 +604,7 @@ int main()
         double end_alpha = 5.0e-4;
 
         // Rendering parameters
-        double frame_rate = 2.0;
+        double frame_rate = 10.0;
 
         // Initialize FES
         Finite_Element_Solver FES = Finite_Element_Solver();
@@ -549,8 +633,9 @@ int main()
         cout << "Training agent..." << endl;
         auto start_time = std::chrono::high_resolution_clock::now();
         auto [trained_agent, r_per_episode, x_rate_stdev, y_rate_stdev, mag_stdev, value_error, best_input_location_x,
-              best_input_location_y, best_sim_time, best_target, best_temperature_field, best_cure_field,
+              best_input_location_y, best_input_percent, best_sim_time, best_target, best_temperature_field, best_cure_field,
               best_front_location, best_front_velocity, best_front_temperature, best_episode] = run(FES, agent, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory);
+		Py_DECREF(agent);
 
         // Stop clock and print duration
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -558,24 +643,73 @@ int main()
         cout << "Training Took: ";
         printf("%.1f", (double)duration*10e-7);
         cout << " seconds.\n";
-
-        // Save results
-        cout << "Saving results..." << endl;
-        PyObject* py_r_per_episode = getList(r_per_episode);
-        PyObject* py_x_rate_stdev = getList(x_rate_stdev);
-        PyObject* py_y_rate_stdev = getList(y_rate_stdev);
-        PyObject* py_mag_stdev = getList(mag_stdev);
-        PyObject* py_value_error = getList(value_error);
-        PyObject* py_best_input_location_x = getList(best_input_location_x);
-        PyObject* py_best_input_location_y = getList(best_input_location_y);
-        PyObject* py_best_sim_time = getList(best_sim_time);
-        PyObject* py_best_target = getList(best_target);
-        best_temperature_field;
-        best_cure_field;
-        best_front_location;
-        best_front_velocity;
-		best_front_temperature;
+		
+		// Init save and render module
+		cout << "\nConverting results..." << endl;
+        PyObject* module_name = PyUnicode_DecodeFSDefault("Save_Render");
+        PyObject* module = PyImport_Import(module_name);
+        if (module == NULL)
+        {
+                PyErr_Print();
+                fprintf(stderr, "Failed to find module\n");
+				cin.get();
+        }
+        PyObject* fnc = PyObject_GetAttrString(module,"Run");
+        if (fnc == NULL || !PyCallable_Check(fnc))
+        {
+                PyErr_Print();
+                fprintf(stderr, "Failed to find function\n");
+				cin.get();
+        }
+		
+		// Convert results
+        PyObject* py_r_per_episode = get_1D_list(r_per_episode);
+        PyObject* py_x_rate_stdev = get_1D_list(x_rate_stdev);
+        PyObject* py_y_rate_stdev = get_1D_list(y_rate_stdev);
+        PyObject* py_mag_stdev = get_1D_list(mag_stdev);
+        PyObject* py_value_error = get_1D_list(value_error);
+        PyObject* py_best_input_location_x = get_1D_list(best_input_location_x);
+        PyObject* py_best_input_location_y = get_1D_list(best_input_location_y);
+		PyObject* py_best_input_percent = get_1D_list(best_input_percent);
+        PyObject* py_best_sim_time = get_1D_list(best_sim_time);
+        PyObject* py_best_target = get_1D_list(best_target);
+		PyObject* py_best_temperature_field = get_3D_list(best_temperature_field);
+		PyObject* py_best_cure_field = get_3D_list(best_cure_field);
+		PyObject* py_best_front_temperature = get_3D_list(best_front_temperature);
+        PyObject* py_best_front_location = get_3D_list(best_front_location);
+        PyObject* py_best_front_velocity = get_3D_list(best_front_velocity);
         PyObject* py_best_episode = PyFloat_FromDouble(best_episode);
+		
+		// Create args for run fucntion
+		PyObject* args = PyTuple_New(17);
+        PyTuple_SetItem(args, 0, trained_agent);
+        PyTuple_SetItem(args, 1, py_r_per_episode);
+        PyTuple_SetItem(args, 2, py_x_rate_stdev);
+        PyTuple_SetItem(args, 3, py_y_rate_stdev);
+        PyTuple_SetItem(args, 4, py_mag_stdev);
+        PyTuple_SetItem(args, 5, py_value_error);
+        PyTuple_SetItem(args, 6, py_best_input_location_x);
+        PyTuple_SetItem(args, 7, py_best_input_location_y);
+        PyTuple_SetItem(args, 8, py_best_input_percent);
+        PyTuple_SetItem(args, 9, py_best_sim_time);
+		PyTuple_SetItem(args, 10, py_best_target);
+		PyTuple_SetItem(args, 11, py_best_temperature_field);
+		PyTuple_SetItem(args, 12, py_best_cure_field);
+		PyTuple_SetItem(args, 13, py_best_front_location);
+		PyTuple_SetItem(args, 14, py_best_front_velocity);
+		PyTuple_SetItem(args, 15, py_best_front_temperature);
+		PyTuple_SetItem(args, 16, py_best_episode);
+		
+		// Run save and render
+		PyObject_CallObject(fnc, args);
+		
+		// End main
+		cout << "Done!";
+        cin.get();
+		Py_DECREF(module_name);
+		Py_DECREF(module);
+		Py_DECREF(fnc);
+		Py_DECREF(args);
         Py_DECREF(py_r_per_episode);
         Py_DECREF(py_x_rate_stdev);
         Py_DECREF(py_y_rate_stdev);
@@ -583,15 +717,16 @@ int main()
         Py_DECREF(py_value_error);
         Py_DECREF(py_best_input_location_x);
         Py_DECREF(py_best_input_location_y);
+		Py_DECREF(py_best_input_percent);
         Py_DECREF(py_best_sim_time);
         Py_DECREF(py_best_target);
+		Py_DECREF(py_best_temperature_field);
+		Py_DECREF(py_best_cure_field);
+		Py_DECREF(py_best_front_location);
+		Py_DECREF(py_best_front_velocity);
+		Py_DECREF(py_best_front_temperature);
         Py_DECREF(py_best_episode);
-
-        // End main
-        Py_DECREF(agent);
         Py_DECREF(trained_agent);
         Py_FinalizeEx();
-        cout << "Done! Press enter to end...";
-        cin.get();
         return 0;
 }

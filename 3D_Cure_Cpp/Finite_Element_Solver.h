@@ -1,10 +1,10 @@
 #pragma once
-
 #include <math.h>
 #include <time.h>
 #include <algorithm>
 #include <vector>
 #include <tuple>
+#include <iostream>
 
 using namespace std;
 
@@ -56,8 +56,8 @@ const bool control = true;
 const bool trigger = true;
 
 // Monomer type (only one can be true)
-const bool use_DCPD = true;
-const bool use_COD = false;
+const bool use_DCPD = false;
+const bool use_COD = true;
 
 // Control type (only one can be true)
 const bool control_speed = true;
@@ -79,8 +79,8 @@ const double width = 0.01;   // Meters
 const double depth = 0.005;  // Meters
 
 // Temporal parameters
-const double sim_duration = 60.0;  // Seconds
-const double time_step = 0.1;       // Seconds
+const double sim_duration = 20.0;  // Seconds
+const double time_step = 0.01;       // Seconds
 
 // Initial conditions
 const double initial_temperature = 278.15;  // Kelvin

@@ -795,31 +795,25 @@ void Finite_Element_Solver::step_meshes()
                                 if ((cure_mesh[i][j][k] >= 0.80) && (front_loc[j][k] <= mesh_x[i][j][k]))
                                 {
                                         front_loc[j][k] = mesh_x[i][j][k];
-										if (control_temperature)
+										int search_diameter = (int) round((double) num_vert_length * 0.03);
+										int min_search_ind = i - search_diameter + 1;
+										int max_search_ind = i;
+										if (min_search_ind < 0)
 										{
-											int search_diameter = (int) round((double) num_vert_length * 0.03);
-											int min_search_ind = i - search_diameter + 1;
-											int max_search_ind = i;
-											if (min_search_ind < 0)
-											{
-												max_search_ind -= min_search_ind;
-												min_search_ind = 0;
-											}
-											front_temp[j][k] = 0.0;
-											for (int ind = min_search_ind; ind <= max_search_ind; ind++)
-											{
-												front_temp[j][k] += temp_mesh[ind][j][k];
-											}
-											front_temp[j][k] = front_temp[j][k] / search_diameter;
+											max_search_ind -= min_search_ind;
+											min_search_ind = 0;
 										}
-										else if (control_speed)
+										front_temp[j][k] = 0.0;
+										for (int ind = min_search_ind; ind <= max_search_ind; ind++)
 										{
-											if (prev_last_move[j][k] != 0.0)
-											{
-												front_vel[j][k] = (front_loc[j][k] - prev_front_loc[j][k]) / (current_time - prev_last_move[j][k]);
-											}
-											time_front_last_moved[j][k] = current_time;
+											front_temp[j][k] += temp_mesh[ind][j][k];
 										}
+										front_temp[j][k] = front_temp[j][k] / search_diameter;
+										if (prev_last_move[j][k] != 0.0)
+										{
+											front_vel[j][k] = (front_loc[j][k] - prev_front_loc[j][k]) / (current_time - prev_last_move[j][k]);
+										}
+										time_front_last_moved[j][k] = current_time;
                                 }
 
                                 // Temperature variables
