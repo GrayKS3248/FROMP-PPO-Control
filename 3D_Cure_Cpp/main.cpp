@@ -209,6 +209,28 @@ PyObject* get_1D_list(vector<double> state)
 }
 
 /**
+ * Converts 2D vector<vector<double>> to a 2D PyList
+ * @param The vector used to create list
+ * @return PyObject pointer pointing at the created list
+ */
+PyObject* get_2D_list(vector<vector<double>> state)
+{
+        PyObject *list = PyList_New(0);
+		PyObject *inner_list = PyList_New(0);
+        for (unsigned int i = 0; i < state.size(); i++)
+        {
+			for (unsigned int j = 0; j < state[0].size(); j++)
+			{
+				PyList_Append(inner_list, PyFloat_FromDouble(state[i][j]));
+			}
+			PyList_Append(list, inner_list);
+			inner_list = PyList_New(0);
+        }
+		
+        return list;
+}
+
+/**
  * Converts 3D vector<vector<vector<double>>> to a 3D PyList
  * @param The vector used to create list
  * @return PyObject pointer pointing at the created list
@@ -628,6 +650,11 @@ int main()
         // Init agent
         Py_Initialize();
         PyObject* agent = init_agent(FES.get_num_state(), steps_per_trajectory, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, start_alpha, decay_rate);
+		if (agent == NULL)
+		{
+			cin.get();
+			return 1;
+		}
 
         // Train agent
         cout << "Training agent..." << endl;
@@ -652,6 +679,7 @@ int main()
                 PyErr_Print();
                 fprintf(stderr, "Failed to find module\n");
 				cin.get();
+				return 1;
         }
         PyObject* fnc = PyObject_GetAttrString(module,"Run");
         if (fnc == NULL || !PyCallable_Check(fnc))
@@ -659,6 +687,7 @@ int main()
                 PyErr_Print();
                 fprintf(stderr, "Failed to find function\n");
 				cin.get();
+				return 1;
         }
 		Py_DECREF(module_name);
 		Py_DECREF(module);
@@ -680,9 +709,15 @@ int main()
         PyObject* py_best_front_location = get_3D_list(best_front_location);
         PyObject* py_best_front_velocity = get_3D_list(best_front_velocity);
         PyObject* py_best_episode = PyFloat_FromDouble(best_episode);
+		PyObject* py_mesh_x_z0 =  get_2D_list(FES.get_mesh_x_z0());
+		PyObject* py_mesh_y_z0 =  get_2D_list(FES.get_mesh_y_z0());
+		PyObject* py_max_input_mag = PyFloat_FromDouble(FES.get_max_input_mag());
+		PyObject* py_exp_const = PyFloat_FromDouble(FES.get_exp_const());
+		PyObject* py_mesh_y_x0 =  get_2D_list(FES.get_mesh_y_x0());
+		PyObject* py_mesh_z_x0 =  get_2D_list(FES.get_mesh_z_x0());
 		
 		// Create args for run fucntion
-		PyObject* args = PyTuple_New(17);
+		PyObject* args = PyTuple_New(23);
         PyTuple_SetItem(args, 0, trained_agent);
         PyTuple_SetItem(args, 1, py_r_per_episode);
         PyTuple_SetItem(args, 2, py_x_rate_stdev);
@@ -700,13 +735,23 @@ int main()
 		PyTuple_SetItem(args, 14, py_best_front_velocity);
 		PyTuple_SetItem(args, 15, py_best_front_temperature);
 		PyTuple_SetItem(args, 16, py_best_episode);
+		PyTuple_SetItem(args, 17, py_mesh_x_z0);
+		PyTuple_SetItem(args, 18, py_mesh_y_z0);
+		PyTuple_SetItem(args, 19, py_max_input_mag);
+		PyTuple_SetItem(args, 20, py_exp_const);
+		PyTuple_SetItem(args, 21, py_mesh_y_x0);
+		PyTuple_SetItem(args, 22, py_mesh_z_x0);
 		
 		// Run save and render
-		PyObject_CallObject(fnc, args);
+		if (PyObject_CallObject(fnc, args) == NULL)
+		{
+			    PyErr_Print();
+                fprintf(stderr, "Save and render failed.\n");
+				cin.get();
+				return 1;
+		}
 		
 		// End main
-		cout << "Done!";
-        cin.get();
 		Py_DECREF(fnc);
 		Py_DECREF(args);
 		Py_DECREF(agent);
@@ -726,6 +771,14 @@ int main()
         Py_DECREF(py_best_front_location);
         Py_DECREF(py_best_front_velocity);
         Py_DECREF(py_best_episode);
-        Py_DECREF(Py_FinalizeEx);
+		Py_DECREF(py_mesh_x_z0);
+		Py_DECREF(py_mesh_y_z0);
+		Py_DECREF(py_max_input_mag);
+		Py_DECREF(py_exp_const);
+		Py_DECREF(py_mesh_y_x0);
+		Py_DECREF(py_mesh_z_x0);
+        Py_FinalizeEx();
+		cout << "Done!";
+        cin.get();
         return 0;
 }

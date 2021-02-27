@@ -18,9 +18,9 @@ class FES():
         self.trigger=True
         
         # Mesh parameters
-        self.num_vert_length = 420  # Unitless
-        self.num_vert_width = 48    # Unitless
-        self.num_vert_depth = 24    # Unitless
+        self.num_vert_length = 360  # Unitless
+        self.num_vert_width = 24    # Unitless
+        self.num_vert_depth = 12    # Unitless
         
         # Spatial parameters
         self.length = 0.05  # Meters

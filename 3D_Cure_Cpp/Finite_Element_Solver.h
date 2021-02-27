@@ -79,7 +79,7 @@ const double width = 0.01;   // Meters
 const double depth = 0.005;  // Meters
 
 // Temporal parameters
-const double sim_duration = 20.0;  // Seconds
+const double sim_duration = 200.0;  // Seconds
 const double time_step = 0.01;       // Seconds
 
 // Initial conditions
