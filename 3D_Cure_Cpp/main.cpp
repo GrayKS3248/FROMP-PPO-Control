@@ -593,7 +593,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 int main()
 {
         // Agent parameters
-        int total_trajectories = 40;
+        int total_trajectories = 1;
         int steps_per_trajectory = 10;
         int trajectories_per_batch = 10;
         int num_epochs = 10;
@@ -635,7 +635,6 @@ int main()
         auto [trained_agent, r_per_episode, x_rate_stdev, y_rate_stdev, mag_stdev, value_error, best_input_location_x,
               best_input_location_y, best_input_percent, best_sim_time, best_target, best_temperature_field, best_cure_field,
               best_front_location, best_front_velocity, best_front_temperature, best_episode] = run(FES, agent, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory);
-		Py_DECREF(agent);
 
         // Stop clock and print duration
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -661,6 +660,8 @@ int main()
                 fprintf(stderr, "Failed to find function\n");
 				cin.get();
         }
+		Py_DECREF(module_name);
+		Py_DECREF(module);
 		
 		// Convert results
         PyObject* py_r_per_episode = get_1D_list(r_per_episode);
@@ -706,11 +707,10 @@ int main()
 		// End main
 		cout << "Done!";
         cin.get();
-		Py_DECREF(module_name);
-		Py_DECREF(module);
 		Py_DECREF(fnc);
 		Py_DECREF(args);
-        Py_DECREF(py_r_per_episode);
+		Py_DECREF(agent);
+		Py_DECREF(py_r_per_episode);
         Py_DECREF(py_x_rate_stdev);
         Py_DECREF(py_y_rate_stdev);
         Py_DECREF(py_mag_stdev);
@@ -722,11 +722,10 @@ int main()
         Py_DECREF(py_best_target);
 		Py_DECREF(py_best_temperature_field);
 		Py_DECREF(py_best_cure_field);
-		Py_DECREF(py_best_front_location);
-		Py_DECREF(py_best_front_velocity);
 		Py_DECREF(py_best_front_temperature);
+        Py_DECREF(py_best_front_location);
+        Py_DECREF(py_best_front_velocity);
         Py_DECREF(py_best_episode);
-        Py_DECREF(trained_agent);
-        Py_FinalizeEx();
+        Py_DECREF(Py_FinalizeEx);
         return 0;
 }

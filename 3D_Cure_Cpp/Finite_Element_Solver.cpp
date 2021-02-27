@@ -809,11 +809,15 @@ void Finite_Element_Solver::step_meshes()
 											front_temp[j][k] += temp_mesh[ind][j][k];
 										}
 										front_temp[j][k] = front_temp[j][k] / search_diameter;
-										if (prev_last_move[j][k] != 0.0)
+										if (prev_last_move[j][k] != 0.0 && front_loc[j][k] != prev_front_loc[j][k])
 										{
 											front_vel[j][k] = (front_loc[j][k] - prev_front_loc[j][k]) / (current_time - prev_last_move[j][k]);
+											time_front_last_moved[j][k] = current_time;
 										}
-										time_front_last_moved[j][k] = current_time;
+										else if (prev_last_move[j][k] == 0.0 && front_loc[j][k] != prev_front_loc[j][k])
+										{
+											time_front_last_moved[j][k] = current_time;
+										}
                                 }
 
                                 // Temperature variables
