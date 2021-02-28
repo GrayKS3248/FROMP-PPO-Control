@@ -350,6 +350,15 @@ int Finite_Element_Solver::get_num_state()
 }
 
 /**
+ * Gets whether the speed is controlled or not
+ * @return Whether the speed is controlled or not
+ */
+bool Finite_Element_Solver::get_control_speed()
+{
+        return control_speed;
+}
+
+/**
  * Gets the input location
  * @return The input location as a vector {x,y}
  */
@@ -660,10 +669,10 @@ vector<vector<vector<double> > > Finite_Element_Solver::get_perturbation(vector<
                 x = -2.0*min_mag+min_x_bias + (2.0*max_mag+max_x_bias + 2.0*min_mag+min_x_bias) * ((double)i / (double)size_array.size());
                 for (unsigned int j = 0; j < size_array[0].size(); j++)
                 {
-                        y = -2.0*min_mag+min_y_bias + (2.0*max_mag+max_y_bias + 2.0*min_mag+min_y_bias) * ((double)i / (double)size_array[0].size());
+                        y = -2.0*min_mag+min_y_bias + (2.0*max_mag+max_y_bias + 2.0*min_mag+min_y_bias) * ((double)j / (double)size_array[0].size());
                         for (unsigned int k = 0; k < size_array[0][0].size(); k++)
                         {
-                                z =-2.0*min_mag+min_z_bias + (2.0*max_mag+max_z_bias + 2.0*min_mag+min_z_bias) * ((double)i / (double)size_array[0][0].size());
+                                z =-2.0*min_mag+min_z_bias + (2.0*max_mag+max_z_bias + 2.0*min_mag+min_z_bias) * ((double)k / (double)size_array[0][0].size());
                                 xyz = x * y * z;
                                 perturbation[i][j][k] = mag_1 * sin(xyz + bias_1) + mag_2 * sin(2.0*xyz + bias_2) + mag_3 * sin(3.0*xyz + bias_3);
                                 if (abs(perturbation[i][j][k]) > scale)

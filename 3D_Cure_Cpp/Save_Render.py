@@ -12,7 +12,7 @@ class Run:
                  value_error, input_location_x, input_location_y, input_percent, time, 
                  target, temperature_field, cure_field, front_location, front_velocity, 
                  front_temperature, best_reward, mesh_x_z0, mesh_y_z0, max_input_mag,
-                 exp_const, mesh_y_x0, mesh_z_x0):
+                 exp_const, mesh_y_x0, mesh_z_x0, control_speed):
 
         print("Saving results...")
 
@@ -39,6 +39,7 @@ class Run:
             'exp_const' : exp_const,
             'mesh_y_x0' : np.array(mesh_y_x0),
             'mesh_z_x0' : np.array(mesh_z_x0),
+            'control_speed' : control_speed
         }
 
         # Find save paths
@@ -62,21 +63,71 @@ class Run:
 
         # Plot the trajectory
         print("Plotting...")
-        plt.clf()
-        plt.title("Front Velocity",fontsize='xx-large')
-        plt.xlabel("Simulation Time [s]",fontsize='large')
-        plt.ylabel("Front Velocity [mm/s]",fontsize='large')
-        plt.plot(data['time'], 1000.0*np.array(np.mean(data['front_velocity'],axis=(0,1))),c='k',lw=2.0)
-        plt.plot(data['time'], 1000.0*np.array(data['target']),c='b',ls='--',lw=2.0)
-        plt.legend(('Actual','Target'),loc='best',fontsize='large')
-        plt.ylim(0.0, np.max(1025.0*np.array(np.mean(data['front_velocity'],axis=(0,1)))))
-        plt.xlim(0.0, np.round(data['time'][-1]))
-        plt.xticks(fontsize='large')
-        plt.yticks(fontsize='large')
-        plt.gcf().set_size_inches(8.5, 5.5)
-        save_file = path + "/trajectory.png"
-        plt.savefig(save_file, dpi = 500)
-        plt.close()
+        if data['control_speed']==1:
+            # Plot speed trajectory
+            plt.clf()
+            plt.title("Front Velocity",fontsize='xx-large')
+            plt.xlabel("Simulation Time [s]",fontsize='large')
+            plt.ylabel("Front Velocity [mm/s]",fontsize='large')
+            plt.plot(data['time'], 1000.0*(np.mean(data['front_velocity'],axis=(0,1))),c='k',lw=2.0)
+            plt.plot(data['time'], 1000.0*(data['target']),c='b',ls='--',lw=2.0)
+            plt.legend(('Actual','Target'),loc='best',fontsize='large')
+            plt.ylim(0.0, np.max(1025.0*np.array(np.mean(data['front_velocity'],axis=(0,1)))))
+            plt.xlim(0.0, np.round(data['time'][-1]))
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            save_file = path + "/trajectory.png"
+            plt.savefig(save_file, dpi = 500)
+            plt.close()
+            
+            # Plot front temperature trajectory
+            plt.clf()
+            plt.title("Front Temperature",fontsize='xx-large')
+            plt.xlabel("Location [mm]",fontsize='large')
+            plt.ylabel("Front Temperature [C]",fontsize='large')
+            plt.plot(np.mean(1000.0*np.array(data['front_location']),axis=(0,1)), (np.mean(data['front_temperature'],axis=(0,1))-273.15),c='k',lw=2.0)
+            plt.ylim(0.0, np.max(1.025*(np.mean(data['front_temperature'],axis=(0,1))-273.15)))
+            plt.xlim(0.0, 1000.0*data['mesh_x_z0'][-1,0])
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            save_file = path + "/temp.png"
+            plt.savefig(save_file, dpi = 500)
+            plt.close()
+            
+        else:
+            # Plot speed trajectory
+            plt.clf()
+            plt.title("Front Velocity",fontsize='xx-large')
+            plt.xlabel("Simulation Time [s]",fontsize='large')
+            plt.ylabel("Front Velocity [mm/s]",fontsize='large')
+            plt.plot(data['time'], 1000.0*(np.mean(data['front_velocity'],axis=(0,1))),c='k',lw=2.0)
+            plt.ylim(0.0, np.max(1025.0*np.array(np.mean(data['front_velocity'],axis=(0,1)))))
+            plt.xlim(0.0, np.round(data['time'][-1]))
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            save_file = path + "/speed.png"
+            plt.savefig(save_file, dpi = 500)
+            plt.close()
+            
+            # Plot front temperature trajectory
+            plt.clf()
+            plt.title("Front Temperature",fontsize='xx-large')
+            plt.xlabel("Location [mm]",fontsize='large')
+            plt.ylabel("Front Temperature [C]",fontsize='large')
+            plt.plot(np.mean(1000.0*np.array(data['front_location']),axis=(0,1)), (np.mean(data['front_temperature'],axis=(0,1))-273.15),c='k',lw=2.0)
+            plt.plot(np.mean(1000.0*np.array(data['front_location']),axis=(0,1)), (data['target']-273.15),c='b',ls='--',lw=2.0)
+            plt.legend(('Actual','Target'),loc='best',fontsize='large')
+            plt.ylim(0.0, np.max(1.025*(np.mean(data['front_temperature'],axis=(0,1))-273.15)))
+            plt.xlim(0.0, 1000.0*data['mesh_x_z0'][-1,0])
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            save_file = path + "/trajectory.png"
+            plt.savefig(save_file, dpi = 500)
+            plt.close()
 
         #Plot actor learning curve
         plt.clf()
@@ -147,23 +198,21 @@ class Run:
 
         # Make videos of the best temperature field trajecotry and cure field trajectories as function of time
         print("Rendering...")
+        min_temp = 10.0*np.floor((np.min(data['temperature_field'])-273.15)/10.0)
+        max_temp = 10.0*np.ceil((np.max(data['temperature_field'])-273.15)/10.0)
+
+        # Determine front shape deltas
+        front_mean_loc = np.mean(1000.0*np.array(data['front_location']),axis=(0,1))
+        min_loc = 0.5*np.floor((np.min(np.min(1000.0*np.array(data['front_location']),axis=(0,1)) - front_mean_loc))/0.5)
+        max_loc = 0.5*np.ceil((np.max(np.max(1000.0*np.array(data['front_location']),axis=(0,1)) - front_mean_loc))/0.5)
+
+        # Determine front speed deltas
+        max_vel = 0.5*np.ceil((np.max(1000.0*data['front_velocity']))/0.5)
+        
+        # Determine radius of convolution
+        radius_of_conv = int(np.round(len(data['mesh_y_x0'])*len(data['mesh_y_x0'][0])/100)*2.0-1.0)
 
         for curr_step in range(len(data['time'])):
-            
-            # Determine min and max temps
-            min_temp = 10.0*np.floor((np.min(data['temperature_field'])-273.15)/10.0)
-            max_temp = 10.0*np.ceil((np.max(data['temperature_field'])-273.15)/10.0)
-    
-            # Determine front shape deltas
-            front_mean_loc = np.mean(1000.0*np.array(data['front_location']),axis=(0,1))
-            min_loc = 0.5*np.floor((np.min(np.min(1000.0*np.array(data['front_location']),axis=(0,1)) - front_mean_loc))/0.5)
-            max_loc = 0.5*np.ceil((np.max(np.max(1000.0*np.array(data['front_location']),axis=(0,1)) - front_mean_loc))/0.5)
-    
-            # Determine front speed deltas
-            max_vel = 0.5*np.ceil((np.max(1000.0*data['front_velocity']))/0.5)
-            
-            # Determine radius of convolution
-            radius_of_conv = int(np.round(len(data['mesh_y_x0'])*len(data['mesh_y_x0'][0])/100)*2.0-1.0)            
 
             # Calculate input field
             input_percent = data['input_percent'][curr_step]

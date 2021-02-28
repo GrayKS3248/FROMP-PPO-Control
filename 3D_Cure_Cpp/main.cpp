@@ -715,9 +715,19 @@ int main()
 		PyObject* py_exp_const = PyFloat_FromDouble(FES.get_exp_const());
 		PyObject* py_mesh_y_x0 =  get_2D_list(FES.get_mesh_y_x0());
 		PyObject* py_mesh_z_x0 =  get_2D_list(FES.get_mesh_z_x0());
+		PyObject* py_control_speed;
+		if (FES.get_control_speed())
+		{
+			py_control_speed = PyLong_FromLong(1);
+		}
+		else
+		{
+			py_control_speed = PyLong_FromLong(0);
+		}
+		
 		
 		// Create args for run fucntion
-		PyObject* args = PyTuple_New(23);
+		PyObject* args = PyTuple_New(24);
         PyTuple_SetItem(args, 0, trained_agent);
         PyTuple_SetItem(args, 1, py_r_per_episode);
         PyTuple_SetItem(args, 2, py_x_rate_stdev);
@@ -741,6 +751,7 @@ int main()
 		PyTuple_SetItem(args, 20, py_exp_const);
 		PyTuple_SetItem(args, 21, py_mesh_y_x0);
 		PyTuple_SetItem(args, 22, py_mesh_z_x0);
+		PyTuple_SetItem(args, 23, py_control_speed);
 		
 		// Run save and render
 		if (PyObject_CallObject(fnc, args) == NULL)
@@ -777,6 +788,7 @@ int main()
 		Py_DECREF(py_exp_const);
 		Py_DECREF(py_mesh_y_x0);
 		Py_DECREF(py_mesh_z_x0);
+		Py_DECREF(py_control_speed);
         Py_FinalizeEx();
 		cout << "Done!";
         cin.get();

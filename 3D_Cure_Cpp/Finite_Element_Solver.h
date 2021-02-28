@@ -29,6 +29,7 @@ double get_current_target();
 int get_target_vector_arr_size();
 double get_current_time();
 int get_num_state();
+bool get_control_speed();
 vector<double> get_input_location();
 vector<vector<double> > get_temp_mesh();
 vector<vector<double> > get_cure_mesh();
@@ -60,8 +61,8 @@ const bool use_DCPD = false;
 const bool use_COD = true;
 
 // Control type (only one can be true)
-const bool control_speed = true;
-const bool control_temperature = false;
+const bool control_speed = false;
+const bool control_temperature = true;
 
 // Target type (only one can be true)
 const bool const_target = true;
@@ -79,7 +80,7 @@ const double width = 0.01;   // Meters
 const double depth = 0.005;  // Meters
 
 // Temporal parameters
-const double sim_duration = 200.0;  // Seconds
+const double sim_duration = 200.0;   // Seconds
 const double time_step = 0.01;       // Seconds
 
 // Initial conditions
@@ -100,7 +101,7 @@ const double DCPD_target_temp = 473.15;       // Kelvin
 const double DCPD_temp_rand_scale = 20.0;     // Kelvin
 const double COD_target_vel = 0.0005;         // Meters / Second
 const double COD_vel_rand_scale = 0.0001;     // Meters / Second
-const double COD_target_temp = 473.15;        // Kelvin
+const double COD_target_temp = 408.15;        // Kelvin
 const double COD_temp_rand_scale = 20.0;      // Kelvin
 
 // Physical constants
