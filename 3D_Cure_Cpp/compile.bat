@@ -1,2 +1,2 @@
-g++ -IC:\Users\GKSch\AppData\Local\Programs\Python\Python38\include -LC:\Users\GKSch\AppData\Local\Programs\Python\Python38 -lpython38 -fopenmp -Wall -O2 Finite_Element_Solver.h Finite_Element_Solver.cpp main.cpp -o FES
+g++ -IC:\Users\GKSch\AppData\Local\Programs\Python\Python39\include -LC:\Users\GKSch\AppData\Local\Programs\Python\Python39 -lpython39 -fopenmp -Wall -O2 Finite_Element_Solver.h Finite_Element_Solver.cpp main.cpp -o FES
 pause

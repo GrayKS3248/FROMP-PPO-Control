@@ -626,7 +626,8 @@ int main()
         double end_alpha = 5.0e-4;
 
         // Rendering parameters
-        double frame_rate = 10.0;
+		bool render = false;
+        double frame_rate = 20.0;
 
         // Initialize FES
         Finite_Element_Solver FES = Finite_Element_Solver();
@@ -724,10 +725,19 @@ int main()
 		{
 			py_control_speed = PyLong_FromLong(0);
 		}
+		PyObject* py_render;
+		if (render)
+		{
+			py_render = PyLong_FromLong(1);
+		}
+		else
+		{
+			py_render = PyLong_FromLong(0);
+		}
 		
 		
 		// Create args for run fucntion
-		PyObject* args = PyTuple_New(24);
+		PyObject* args = PyTuple_New(25);
         PyTuple_SetItem(args, 0, trained_agent);
         PyTuple_SetItem(args, 1, py_r_per_episode);
         PyTuple_SetItem(args, 2, py_x_rate_stdev);
@@ -752,6 +762,7 @@ int main()
 		PyTuple_SetItem(args, 21, py_mesh_y_x0);
 		PyTuple_SetItem(args, 22, py_mesh_z_x0);
 		PyTuple_SetItem(args, 23, py_control_speed);
+		PyTuple_SetItem(args, 24, py_render);
 		
 		// Run save and render
 		if (PyObject_CallObject(fnc, args) == NULL)

@@ -12,7 +12,7 @@ class Run:
                  value_error, input_location_x, input_location_y, input_percent, time, 
                  target, temperature_field, cure_field, front_location, front_velocity, 
                  front_temperature, best_reward, mesh_x_z0, mesh_y_z0, max_input_mag,
-                 exp_const, mesh_y_x0, mesh_z_x0, control_speed):
+                 exp_const, mesh_y_x0, mesh_z_x0, control_speed, render):
 
         print("Saving results...")
 
@@ -39,7 +39,8 @@ class Run:
             'exp_const' : exp_const,
             'mesh_y_x0' : np.array(mesh_y_x0),
             'mesh_z_x0' : np.array(mesh_z_x0),
-            'control_speed' : control_speed
+            'control_speed' : control_speed,
+			'render': render,
         }
 
         # Find save paths
@@ -197,150 +198,151 @@ class Run:
         plt.close()
 
         # Make videos of the best temperature field trajecotry and cure field trajectories as function of time
-        print("Rendering...")
-        min_temp = 10.0*np.floor((np.min(data['temperature_field'])-273.15)/10.0)
-        max_temp = 10.0*np.ceil((np.max(data['temperature_field'])-273.15)/10.0)
-
-        # Determine front shape deltas
-        front_mean_loc = np.mean(1000.0*np.array(data['front_location']),axis=(0,1))
-        min_loc = 0.5*np.floor((np.min(np.min(1000.0*np.array(data['front_location']),axis=(0,1)) - front_mean_loc))/0.5)
-        max_loc = 0.5*np.ceil((np.max(np.max(1000.0*np.array(data['front_location']),axis=(0,1)) - front_mean_loc))/0.5)
-
-        # Determine front speed deltas
-        max_vel = 0.5*np.ceil((np.max(1000.0*data['front_velocity']))/0.5)
-        
-        # Determine radius of convolution
-        radius_of_conv = int(np.round(len(data['mesh_y_x0'])*len(data['mesh_y_x0'][0])/100)*2.0-1.0)
-
-        for curr_step in range(len(data['time'])):
-
-            # Calculate input field
-            input_percent = data['input_percent'][curr_step]
-            input_location_x = data['input_location_x'][curr_step]
-            input_location_y = data['input_location_y'][curr_step]
-            input_mesh = input_percent*data['max_input_mag']*np.exp(((data['mesh_x_z0']-input_location_x)**2*data['exp_const']) +
-                                                                   (data['mesh_y_z0']-input_location_y)**2*data['exp_const'])
-            input_mesh[input_mesh<0.01*data['max_input_mag']] = 0.0
-
-            # Make fig for temperature, cure, and input
-            plt.cla()
-            plt.clf()
-            fig, (ax0, ax1, ax2) = plt.subplots(3, 1)
-            fig.set_size_inches(11,8.5)
-
-            # Plot temperature
-            c0 = ax0.pcolormesh(1000.0*data['mesh_x_z0'], 1000.0*data['mesh_y_z0'], data['temperature_field'][:,:,curr_step]-273.15, shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
-            cbar0 = fig.colorbar(c0, ax=ax0)
-            cbar0.set_label('Temperature [C]',labelpad=20,fontsize='large')
-            cbar0.ax.tick_params(labelsize=12)
-            ax0.set_xlabel('X Position [mm]',fontsize='large')
-            ax0.set_ylabel('Y Position [mm]',fontsize='large')
-            ax0.tick_params(axis='x',labelsize=12)
-            ax0.tick_params(axis='y',labelsize=12)
-            ax0.set_aspect('equal', adjustable='box')
-            ax0.set_title('Max Temperature = '+'{:.2f}'.format(np.max(data['temperature_field'][:,:,curr_step]-273.15))+' C',fontsize='large')
-
-            # Plot cure
-            c1 = ax1.pcolormesh(1000.0*data['mesh_x_z0'], 1000.0*data['mesh_y_z0'], data['cure_field'][:,:,curr_step], shading='gouraud', cmap='YlOrBr', vmin=0.0, vmax=1.0)
-            cbar1 = fig.colorbar(c1, ax=ax1)
-            cbar1.set_label('Degree Cure [-]', labelpad=20,fontsize='large')
-            cbar1.ax.tick_params(labelsize=12)
-            ax1.set_xlabel('X Position [mm]',fontsize='large')
-            ax1.set_ylabel('Y Position [mm]',fontsize='large')
-            ax1.tick_params(axis='x',labelsize=12)
-            ax1.tick_params(axis='y',labelsize=12)
-            ax1.set_aspect('equal', adjustable='box')
-
-            # Plot input
-            c2 = ax2.pcolormesh(1000.0*data['mesh_x_z0'], 1000.0*data['mesh_y_z0'], 1.0e-3*input_mesh, shading='gouraud', cmap='coolwarm', vmin=0.0, vmax=1.0e-3*data['max_input_mag'])
-            ax2.plot(1000.0*data['front_location'][:,0,curr_step].squeeze(), 1000.0*data['mesh_y_z0'][0,:], 'k-', lw=1.5)
-            cbar2 = fig.colorbar(c2, ax=ax2)
-            cbar2.set_label('Input Heat [KW/m^2]',labelpad=20,fontsize='large')
-            cbar2.ax.tick_params(labelsize=12)
-            ax2.set_xlabel('X Position [mm]',fontsize='large')
-            ax2.set_ylabel('Y Position [mm]',fontsize='large')
-            ax2.tick_params(axis='x',labelsize=12)
-            ax2.tick_params(axis='y',labelsize=12)
-            ax2.set_aspect('equal', adjustable='box')
-
-            # Set title and save
-            title_str = "Time From Trigger: "+'{:.2f}'.format(data['time'][curr_step])+'s'
-            fig.suptitle(title_str,fontsize='xx-large')
-            plt.savefig(video_path+str(curr_step).zfill(4)+'.png', dpi=100)
-            plt.close()
-
-            # Make fig for front location and velocity
-            plt.cla()
-            plt.clf()
-            fig, (ax0, ax1) = plt.subplots(1,2,subplot_kw={"projection": "3d"})
-            fig.set_size_inches(14.0,8.0)
-
-            # Convolve front location data
-            back_msaa_index = np.clip(curr_step-5,0,len(data['time'])-1)
-            front_msaa_index = np.clip(curr_step+5,0,len(data['time'])-1)
-            front_delta_loc = np.mean(1000.0*np.array(data['front_location'][:,:,back_msaa_index:front_msaa_index]),axis=2) - np.mean(front_mean_loc[back_msaa_index:front_msaa_index])
-            front_delta_min = np.min(front_delta_loc)
-            front_delta_max = np.max(front_delta_loc)
-            if not ((front_delta_loc<=1.0e-4).all() and (front_delta_loc>=-1.0e-4).all()):
-                x,y=np.meshgrid(np.linspace(-1,1,radius_of_conv),np.linspace(-1,1,radius_of_conv))
-                win=multivariate_normal.pdf(np.dstack((x,y)),mean=[0,0],cov=[[1.0,0.0],[0.0,1.0]])
-                padded = front_delta_loc
-                for i in range(int((radius_of_conv+1)/2)-1):
-                    padded = np.append(padded[:,0].reshape(len(padded[:,0]),1),padded,axis=1)
-                    padded = np.append(padded[0,:].reshape(1,len(padded[0,:])),padded,axis=0)
-                    padded = np.append(padded,padded[:,-1].reshape(len(padded[:,-1]),1),axis=1)
-                    padded = np.append(padded,padded[-1,:].reshape(1,len(padded[-1,:])),axis=0)
-                out = signal.convolve2d(padded,win,mode='valid')
-                out=out*((front_delta_max-front_delta_min)/(np.max(out)-np.min(out)))
-                out=out-np.mean(out)
-            else:
-                out = front_delta_loc
-
-            # Plot front location
-            ax0.plot_surface(1000.0*data['mesh_y_x0'], 1000.0*data['mesh_z_x0'],out,cmap='coolwarm',vmin=min_loc,vmax=max_loc,alpha=1.0)
-            ax0.set_xlabel('Y Position [mm]',fontsize='large',labelpad=15)
-            ax0.set_ylabel('Z Position [mm]',fontsize='large',labelpad=15)
-            ax0.set_zlabel('Lengthwise Delta [mm]',fontsize='large',labelpad=20)
-            ax0.tick_params(axis='x',labelsize=12,pad=10)
-            ax0.tick_params(axis='y',labelsize=12,pad=10)
-            ax0.tick_params(axis='z',labelsize=12,pad=10)
-            ax0.set_zlim(min_loc,max_loc)
-            ax0.set_title("Front Shape",fontsize='xx-large')
-
-            # Covolve front speed data
-            back_msaa_index = np.clip(curr_step-5,0,len(data['time'])-1)
-            front_msaa_index = np.clip(curr_step+5,0,len(data['time'])-1)
-            curr_front_vel = np.mean(1000.0*np.array(data['front_velocity'][:,:,back_msaa_index:front_msaa_index]),axis=2)
-            front_vel_min = np.min(curr_front_vel)
-            front_vel_max = np.max(curr_front_vel)
-            if not ((curr_front_vel<=1.0e-4).all() and (curr_front_vel>=-1.0e-4).all()):
-                x,y=np.meshgrid(np.linspace(-1,1,radius_of_conv),np.linspace(-1,1,radius_of_conv))
-                win=multivariate_normal.pdf(np.dstack((x,y)),mean=[0,0],cov=[[1.0,0.0],[0.0,1.0]])
-                padded = curr_front_vel
-                for i in range(int((radius_of_conv+1)/2)-1):
-                    padded = np.append(padded[:,0].reshape(len(padded[:,0]),1),padded,axis=1)
-                    padded = np.append(padded[0,:].reshape(1,len(padded[0,:])),padded,axis=0)
-                    padded = np.append(padded,padded[:,-1].reshape(len(padded[:,-1]),1),axis=1)
-                    padded = np.append(padded,padded[-1,:].reshape(1,len(padded[-1,:])),axis=0)
-                out = signal.convolve2d(padded,win,mode='valid')
-                out=out*((front_vel_max-front_vel_min)/(np.max(out)-np.min(out)))
-                out=out-np.mean(out)+np.mean(curr_front_vel)
-            else:
-                out = curr_front_vel
-
-            # Plot front speed
-            ax1.plot_surface(1000.0*data['mesh_y_x0'],1000.0*data['mesh_z_x0'],out,cmap='coolwarm',vmin=0.0,vmax=max_vel,alpha=1.0)
-            ax1.set_xlabel('Y Position [mm]',fontsize='large',labelpad=15)
-            ax1.set_ylabel('Z Position [mm]',fontsize='large',labelpad=15)
-            ax1.set_zlabel('Front Speed [mm/s]',fontsize='large',labelpad=20)
-            ax1.tick_params(axis='x',labelsize=12,pad=10)
-            ax1.tick_params(axis='y',labelsize=12,pad=10)
-            ax1.tick_params(axis='z',labelsize=12,pad=10)
-            ax1.set_zlim(0.0,max_vel)
-            ax1.set_title("Front Speed",fontsize='xx-large')
-
-            # Set title and save
-            title_str = "Time From Trigger: "+'{:.2f}'.format(data['time'][curr_step])+'s'
-            fig.suptitle(title_str,fontsize='xx-large')
-            plt.savefig(video_path+"f_"+str(curr_step).zfill(4)+'.png', dpi=100)
-            plt.close()
+        if data['render'] == 1:
+            print("Rendering...")
+            min_temp = 10.0*np.floor((np.min(data['temperature_field'])-273.15)/10.0)
+            max_temp = 10.0*np.ceil((np.max(data['temperature_field'])-273.15)/10.0)
+            
+            # Determine front shape deltas
+            front_mean_loc = np.mean(1000.0*np.array(data['front_location']),axis=(0,1))
+            min_loc = 0.5*np.floor((np.min(np.min(1000.0*np.array(data['front_location']),axis=(0,1)) - front_mean_loc))/0.5)
+            max_loc = 0.5*np.ceil((np.max(np.max(1000.0*np.array(data['front_location']),axis=(0,1)) - front_mean_loc))/0.5)
+            
+            # Determine front speed deltas
+            max_vel = 0.5*np.ceil((np.max(1000.0*data['front_velocity']))/0.5)
+            
+            # Determine radius of convolution
+            radius_of_conv = int(np.round(len(data['mesh_y_x0'])*len(data['mesh_y_x0'][0])/100)*2.0-1.0)
+            
+            for curr_step in range(len(data['time'])):
+            
+            	# Calculate input field
+            	input_percent = data['input_percent'][curr_step]
+            	input_location_x = data['input_location_x'][curr_step]
+            	input_location_y = data['input_location_y'][curr_step]
+            	input_mesh = input_percent*data['max_input_mag']*np.exp(((data['mesh_x_z0']-input_location_x)**2*data['exp_const']) +
+            														   (data['mesh_y_z0']-input_location_y)**2*data['exp_const'])
+            	input_mesh[input_mesh<0.01*data['max_input_mag']] = 0.0
+            
+            	# Make fig for temperature, cure, and input
+            	plt.cla()
+            	plt.clf()
+            	fig, (ax0, ax1, ax2) = plt.subplots(3, 1)
+            	fig.set_size_inches(11,8.5)
+            
+            	# Plot temperature
+            	c0 = ax0.pcolormesh(1000.0*data['mesh_x_z0'], 1000.0*data['mesh_y_z0'], data['temperature_field'][:,:,curr_step]-273.15, shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
+            	cbar0 = fig.colorbar(c0, ax=ax0)
+            	cbar0.set_label('Temperature [C]',labelpad=20,fontsize='large')
+            	cbar0.ax.tick_params(labelsize=12)
+            	ax0.set_xlabel('X Position [mm]',fontsize='large')
+            	ax0.set_ylabel('Y Position [mm]',fontsize='large')
+            	ax0.tick_params(axis='x',labelsize=12)
+            	ax0.tick_params(axis='y',labelsize=12)
+            	ax0.set_aspect('equal', adjustable='box')
+            	ax0.set_title('Max Temperature = '+'{:.2f}'.format(np.max(data['temperature_field'][:,:,curr_step]-273.15))+' C',fontsize='large')
+            
+            	# Plot cure
+            	c1 = ax1.pcolormesh(1000.0*data['mesh_x_z0'], 1000.0*data['mesh_y_z0'], data['cure_field'][:,:,curr_step], shading='gouraud', cmap='YlOrBr', vmin=0.0, vmax=1.0)
+            	cbar1 = fig.colorbar(c1, ax=ax1)
+            	cbar1.set_label('Degree Cure [-]', labelpad=20,fontsize='large')
+            	cbar1.ax.tick_params(labelsize=12)
+            	ax1.set_xlabel('X Position [mm]',fontsize='large')
+            	ax1.set_ylabel('Y Position [mm]',fontsize='large')
+            	ax1.tick_params(axis='x',labelsize=12)
+            	ax1.tick_params(axis='y',labelsize=12)
+            	ax1.set_aspect('equal', adjustable='box')
+            
+            	# Plot input
+            	c2 = ax2.pcolormesh(1000.0*data['mesh_x_z0'], 1000.0*data['mesh_y_z0'], 1.0e-3*input_mesh, shading='gouraud', cmap='coolwarm', vmin=0.0, vmax=1.0e-3*data['max_input_mag'])
+            	ax2.plot(1000.0*data['front_location'][:,0,curr_step].squeeze(), 1000.0*data['mesh_y_z0'][0,:], 'k-', lw=1.5)
+            	cbar2 = fig.colorbar(c2, ax=ax2)
+            	cbar2.set_label('Input Heat [KW/m^2]',labelpad=20,fontsize='large')
+            	cbar2.ax.tick_params(labelsize=12)
+            	ax2.set_xlabel('X Position [mm]',fontsize='large')
+            	ax2.set_ylabel('Y Position [mm]',fontsize='large')
+            	ax2.tick_params(axis='x',labelsize=12)
+            	ax2.tick_params(axis='y',labelsize=12)
+            	ax2.set_aspect('equal', adjustable='box')
+            
+            	# Set title and save
+            	title_str = "Time From Trigger: "+'{:.2f}'.format(data['time'][curr_step])+'s'
+            	fig.suptitle(title_str,fontsize='xx-large')
+            	plt.savefig(video_path+str(curr_step).zfill(4)+'.png', dpi=100)
+            	plt.close()
+            
+            	# Make fig for front location and velocity
+            	plt.cla()
+            	plt.clf()
+            	fig, (ax0, ax1) = plt.subplots(1,2,subplot_kw={"projection": "3d"})
+            	fig.set_size_inches(14.0,8.0)
+            
+            	# Convolve front location data
+            	back_msaa_index = np.clip(curr_step-5,0,len(data['time'])-1)
+            	front_msaa_index = np.clip(curr_step+5,0,len(data['time'])-1)
+            	front_delta_loc = np.mean(1000.0*np.array(data['front_location'][:,:,back_msaa_index:front_msaa_index]),axis=2) - np.mean(front_mean_loc[back_msaa_index:front_msaa_index])
+            	front_delta_min = np.min(front_delta_loc)
+            	front_delta_max = np.max(front_delta_loc)
+            	if not ((front_delta_loc<=1.0e-4).all() and (front_delta_loc>=-1.0e-4).all()):
+            		x,y=np.meshgrid(np.linspace(-1,1,radius_of_conv),np.linspace(-1,1,radius_of_conv))
+            		win=multivariate_normal.pdf(np.dstack((x,y)),mean=[0,0],cov=[[1.0,0.0],[0.0,1.0]])
+            		padded = front_delta_loc
+            		for i in range(int((radius_of_conv+1)/2)-1):
+            			padded = np.append(padded[:,0].reshape(len(padded[:,0]),1),padded,axis=1)
+            			padded = np.append(padded[0,:].reshape(1,len(padded[0,:])),padded,axis=0)
+            			padded = np.append(padded,padded[:,-1].reshape(len(padded[:,-1]),1),axis=1)
+            			padded = np.append(padded,padded[-1,:].reshape(1,len(padded[-1,:])),axis=0)
+            		out = signal.convolve2d(padded,win,mode='valid')
+            		out=out*((front_delta_max-front_delta_min)/(np.max(out)-np.min(out)))
+            		out=out-np.mean(out)
+            	else:
+            		out = front_delta_loc
+            
+            	# Plot front location
+            	ax0.plot_surface(1000.0*data['mesh_y_x0'], 1000.0*data['mesh_z_x0'],out,cmap='coolwarm',vmin=min_loc,vmax=max_loc,alpha=1.0)
+            	ax0.set_xlabel('Y Position [mm]',fontsize='large',labelpad=15)
+            	ax0.set_ylabel('Z Position [mm]',fontsize='large',labelpad=15)
+            	ax0.set_zlabel('Lengthwise Delta [mm]',fontsize='large',labelpad=20)
+            	ax0.tick_params(axis='x',labelsize=12,pad=10)
+            	ax0.tick_params(axis='y',labelsize=12,pad=10)
+            	ax0.tick_params(axis='z',labelsize=12,pad=10)
+            	ax0.set_zlim(min_loc,max_loc)
+            	ax0.set_title("Front Shape",fontsize='xx-large')
+            
+            	# Covolve front speed data
+            	back_msaa_index = np.clip(curr_step-5,0,len(data['time'])-1)
+            	front_msaa_index = np.clip(curr_step+5,0,len(data['time'])-1)
+            	curr_front_vel = np.mean(1000.0*np.array(data['front_velocity'][:,:,back_msaa_index:front_msaa_index]),axis=2)
+            	front_vel_min = np.min(curr_front_vel)
+            	front_vel_max = np.max(curr_front_vel)
+            	if not ((curr_front_vel<=1.0e-4).all() and (curr_front_vel>=-1.0e-4).all()):
+            		x,y=np.meshgrid(np.linspace(-1,1,radius_of_conv),np.linspace(-1,1,radius_of_conv))
+            		win=multivariate_normal.pdf(np.dstack((x,y)),mean=[0,0],cov=[[1.0,0.0],[0.0,1.0]])
+            		padded = curr_front_vel
+            		for i in range(int((radius_of_conv+1)/2)-1):
+            			padded = np.append(padded[:,0].reshape(len(padded[:,0]),1),padded,axis=1)
+            			padded = np.append(padded[0,:].reshape(1,len(padded[0,:])),padded,axis=0)
+            			padded = np.append(padded,padded[:,-1].reshape(len(padded[:,-1]),1),axis=1)
+            			padded = np.append(padded,padded[-1,:].reshape(1,len(padded[-1,:])),axis=0)
+            		out = signal.convolve2d(padded,win,mode='valid')
+            		out=out*((front_vel_max-front_vel_min)/(np.max(out)-np.min(out)))
+            		out=out-np.mean(out)+np.mean(curr_front_vel)
+            	else:
+            		out = curr_front_vel
+            
+            	# Plot front speed
+            	ax1.plot_surface(1000.0*data['mesh_y_x0'],1000.0*data['mesh_z_x0'],out,cmap='coolwarm',vmin=0.0,vmax=max_vel,alpha=1.0)
+            	ax1.set_xlabel('Y Position [mm]',fontsize='large',labelpad=15)
+            	ax1.set_ylabel('Z Position [mm]',fontsize='large',labelpad=15)
+            	ax1.set_zlabel('Front Speed [mm/s]',fontsize='large',labelpad=20)
+            	ax1.tick_params(axis='x',labelsize=12,pad=10)
+            	ax1.tick_params(axis='y',labelsize=12,pad=10)
+            	ax1.tick_params(axis='z',labelsize=12,pad=10)
+            	ax1.set_zlim(0.0,max_vel)
+            	ax1.set_title("Front Speed",fontsize='xx-large')
+            
+            	# Set title and save
+            	title_str = "Time From Trigger: "+'{:.2f}'.format(data['time'][curr_step])+'s'
+            	fig.suptitle(title_str,fontsize='xx-large')
+            	plt.savefig(video_path+"f_"+str(curr_step).zfill(4)+'.png', dpi=100)
+            	plt.close()
