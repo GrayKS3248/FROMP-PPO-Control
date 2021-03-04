@@ -7,6 +7,11 @@ using namespace std;
  */
 Finite_Element_Solver::Finite_Element_Solver()
 {
+		// Profiling
+		#ifdef DEBUG
+			auto start = std::chrono::high_resolution_clock::now();
+		#endif
+		
         // Set randomization seed
         srand(time(NULL));
 
@@ -206,6 +211,13 @@ Finite_Element_Solver::Finite_Element_Solver()
                         }
                 }
         }
+		
+		// Profiling
+		#ifdef DEBUG
+			auto end = std::chrono::high_resolution_clock::now();
+			auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
+			construct_duration += duration;
+		#endif
 }
 
 /**
@@ -356,6 +368,46 @@ int Finite_Element_Solver::get_num_state()
 bool Finite_Element_Solver::get_control_speed()
 {
         return control_speed;
+}
+
+/**
+ * Prints the results of the profiling to stdout
+ */
+void Finite_Element_Solver::get_profile_results()
+{
+	// Profiling
+	#ifdef DEBUG
+		cout << "\nProfiling results:\n";
+		cout << "constructor:     ";
+		printf(" %.3f ", construct_duration/1000.0);
+		cout<< " miliseconds\n";
+		cout << "reset:           ";
+		printf(" %.3f ", reset_duration/1000.0);
+		cout<< " miliseconds\n";
+		cout << "get_perturbation:";
+		printf(" %.3f ", get_perturbation_duration/1000.0);
+		cout<< " miliseconds\n";
+		cout << "get_state:       ";
+		printf(" %.3f ", get_state_duration/1000.0);
+		cout<< " miliseconds\n";
+		cout << "get_reward:      ";
+		printf(" %.3f ", get_reward_duration/1000.0);
+		cout<< " miliseconds\n";
+		cout << "step_input:      ";
+		printf(" %.3f ", step_input_duration/1000.0);
+		cout<< " miliseconds\n";
+		cout << "step_meshes:     ";
+		printf(" %.3f ", step_meshes_duration/1000.0);
+		cout<< " miliseconds\n";
+		cout << "step_time:       ";
+		printf(" %.3f ", step_time_duration/1000.0);
+		cout<< " miliseconds\n";
+		cout << "py_agent:        ";
+		printf(" %.3f ", agent_duration/1000.0);
+		cout<< " miliseconds\n";
+	#else
+		cout << "\nNo profile data to report.\n";
+	#endif
 }
 
 /**
@@ -529,6 +581,11 @@ bool Finite_Element_Solver::step(double x_loc_rate_action, double y_loc_rate_act
  */
 vector<double> Finite_Element_Solver::reset()
 {
+		// Profiling
+		#ifdef DEBUG
+			auto start = std::chrono::high_resolution_clock::now();
+		#endif
+		
         // Simulation time and target velocity index
         current_time = 0.0;         // Seconds
         current_index = 0;         // Unitless
@@ -628,6 +685,13 @@ vector<double> Finite_Element_Solver::reset()
                         }
                 }
         }
+		
+		// Profiling
+		#ifdef DEBUG
+			auto end = std::chrono::high_resolution_clock::now();
+			auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
+			reset_duration += duration;
+		#endif
 
         // Return the state
         return get_state();
@@ -641,6 +705,11 @@ vector<double> Finite_Element_Solver::reset()
  */
 vector<vector<vector<double> > > Finite_Element_Solver::get_perturbation(vector<vector<vector<double> > > size_array, double delta)
 {
+		// Profiling
+		#ifdef DEBUG
+			auto start = std::chrono::high_resolution_clock::now();
+		#endif
+		
         // Get magnitude and biases
         double mag_1 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;
         double mag_2 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;
@@ -695,6 +764,13 @@ vector<vector<vector<double> > > Finite_Element_Solver::get_perturbation(vector<
                 }
         }
 
+		// Profiling
+		#ifdef DEBUG
+			auto end = std::chrono::high_resolution_clock::now();
+			auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
+			get_perturbation_duration += duration;
+		#endif
+
         // Return perturbed array
         return perturbation;
 }
@@ -706,6 +782,11 @@ vector<vector<vector<double> > > Finite_Element_Solver::get_perturbation(vector<
  */
 void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_action)
 {
+		// Profiling
+		#ifdef DEBUG
+			auto start = std::chrono::high_resolution_clock::now();
+		#endif
+		
         // Convert the raw PPO x command to usable, clipped x location rate command
         double cmd_x = loc_rate_offset + loc_rate_scale * x_loc_rate_action;
         cmd_x = cmd_x > max_input_loc_rate ? max_input_loc_rate : cmd_x;
@@ -758,12 +839,24 @@ void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_ra
                                 input_mesh[i][j] = local_input_power;
                         }
                 }
+				
+		// Profiling
+		#ifdef DEBUG
+			auto end = std::chrono::high_resolution_clock::now();
+			auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
+			step_input_duration += duration;
+		#endif
 }
 
 /** Calculates the cure rate at every point in the 3D mesh and uses this data to update the cure, temperature, and front meshes
  */
 void Finite_Element_Solver::step_meshes()
 {
+		// Profiling
+		#ifdef DEBUG
+			auto start = std::chrono::high_resolution_clock::now();
+		#endif
+		
         // Front mesh variables
         const vector<vector<double> > prev_front_loc(front_loc);
         const vector<vector<double> > prev_last_move(time_front_last_moved);
@@ -915,6 +1008,13 @@ void Finite_Element_Solver::step_meshes()
                                 double temp_rate = thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(enthalpy_of_reaction*cure_rate)/specific_heat;
                                 temp_mesh[i][j][k] = temp_mesh[i][j][k] + temp_rate * time_step;
                         }
+		
+		// Profiling
+		#ifdef DEBUG
+			auto end = std::chrono::high_resolution_clock::now();
+			auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
+			step_meshes_duration += duration;
+		#endif
 }
 
 /**
@@ -923,6 +1023,11 @@ void Finite_Element_Solver::step_meshes()
  */
 vector<double> Finite_Element_Solver::get_state()
 {
+		// Profiling
+		#ifdef DEBUG
+			auto start = std::chrono::high_resolution_clock::now();
+		#endif
+		
         // Init state variables
         vector<double> state(get_num_state(), 0.0);
 
@@ -1024,6 +1129,13 @@ vector<double> Finite_Element_Solver::get_state()
         state[get_num_state()-2] = input_location[1] / width;
         state[get_num_state()-1] = input_percent;
 
+		// Profiling
+		#ifdef DEBUG
+			auto end = std::chrono::high_resolution_clock::now();
+			auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
+			get_state_duration += duration;
+		#endif
+
         // Return the state
         return state;
 }
@@ -1034,6 +1146,11 @@ vector<double> Finite_Element_Solver::get_state()
  */
 double Finite_Element_Solver::get_reward()
 {
+		// Profiling
+		#ifdef DEBUG
+			auto start = std::chrono::high_resolution_clock::now();
+		#endif
+		
         // Initialize reward and punishment variables
         double input_punishment;
         double dist_punishment;
@@ -1127,6 +1244,13 @@ double Finite_Element_Solver::get_reward()
 			reward = pow((1.0 - mean_deviation) * front_rate_reward_const * max_reward, 3.0) + punishment;
 		}
 
+		// Profiling
+		#ifdef DEBUG
+			auto end = std::chrono::high_resolution_clock::now();
+			auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
+			get_reward_duration += duration;
+		#endif
+
         return reward;
 }
 
@@ -1136,6 +1260,11 @@ double Finite_Element_Solver::get_reward()
  */
 bool Finite_Element_Solver::step_time()
 {
+		// Profiling
+		#ifdef DEBUG
+			auto start = std::chrono::high_resolution_clock::now();
+		#endif
+		
         // Update the current time and check for simulation completion
         bool done = (current_index == (int)target_vector.size() - 1);
         if (!done)
@@ -1144,6 +1273,13 @@ bool Finite_Element_Solver::step_time()
                 current_index = current_index + 1;
                 current_target = target_vector[current_index];
         }
+
+		// Profiling
+		#ifdef DEBUG
+			auto end = std::chrono::high_resolution_clock::now();
+			auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
+			step_time_duration += duration;
+		#endif
 
         return done;
 }

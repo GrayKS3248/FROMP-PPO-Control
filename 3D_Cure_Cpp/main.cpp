@@ -1,11 +1,9 @@
 #define PY_SSIZE_T_CLEAN
 #include "Finite_Element_Solver.h"
-#include <chrono>
 #include <Python.h>
 #include <string>
 #include <iomanip>
 #include <sstream>
-#include <queue>
 
 using namespace std;
 
@@ -670,6 +668,9 @@ int main()
         cout << "Training Took: ";
         printf("%.1f", (double)duration*10e-7);
         cout << " seconds.\n";
+		#ifdef DEBUG
+			FES.get_profile_results();
+		#endif
 		
 		// Init save and render module
 		cout << "\nConverting results..." << endl;

@@ -5,6 +5,7 @@
 #include <vector>
 #include <tuple>
 #include <iostream>
+#include <chrono>
 
 using namespace std;
 
@@ -30,6 +31,7 @@ int get_target_vector_arr_size();
 double get_current_time();
 int get_num_state();
 bool get_control_speed();
+void get_profile_results();
 vector<double> get_input_location();
 vector<vector<double> > get_temp_mesh();
 vector<vector<double> > get_cure_mesh();
@@ -51,7 +53,7 @@ double get_reward();
 private:
 //******************** USER SET PARAMETERS ********************//
 // Input type
-const bool control = true;
+const bool control = false;
 
 // Trigger type
 const bool trigger = true;
@@ -212,6 +214,19 @@ vector<double> input_location;
 
 // Input wattage mesh
 vector<vector<double> > input_mesh;
+
+//******************** PROFILING PARAMETERS ********************//
+#ifdef DEBUG
+	double construct_duration = 0.0;
+	double reset_duration = 0.0;
+	double get_state_duration = 0.0;
+	double get_reward_duration = 0.0;
+	double get_perturbation_duration = 0.0;
+	double step_input_duration = 0.0;
+	double step_meshes_duration = 0.0;
+	double step_time_duration = 0.0;
+	double agent_duration = 0.0;
+#endif	
 
 //******************** FUNCTIONS ********************//
 vector<vector<vector<double> > > get_perturbation(vector<vector<vector<double> > > size_array, double delta);
