@@ -7,11 +7,6 @@ using namespace std;
 */
 Finite_Element_Solver::Finite_Element_Solver()
 {
-	// Profiling
-	#ifdef DEBUG
-		auto start = std::chrono::high_resolution_clock::now();
-	#endif
-	
 	// Set randomization seed
 	srand(time(NULL));
 
@@ -20,12 +15,19 @@ Finite_Element_Solver::Finite_Element_Solver()
 	current_index = 0;   // Unitless
 
 	// Monomer physical parameters
-	if (use_DCPD)
+	if (use_DCPD_GC1)
 	{
-		thermal_diffusivity = DCPD_thermal_conductivity / (DCPD_specific_heat * DCPD_density);
-		thermal_conductivity = DCPD_thermal_conductivity;
-		enthalpy_of_reaction = DCPD_enthalpy_of_reaction;
-		specific_heat = DCPD_specific_heat;
+		thermal_diffusivity = DCPD_GC1_thermal_conductivity / (DCPD_GC1_specific_heat * DCPD_GC1_density);
+		thermal_conductivity = DCPD_GC1_thermal_conductivity;
+		enthalpy_of_reaction = DCPD_GC1_enthalpy_of_reaction;
+		specific_heat = DCPD_GC1_specific_heat;
+	}
+	else if (use_DCPD_GC2)
+	{
+		thermal_diffusivity = DCPD_GC2_thermal_conductivity / (DCPD_GC2_specific_heat * DCPD_GC2_density);
+		thermal_conductivity = DCPD_GC2_thermal_conductivity;
+		enthalpy_of_reaction = DCPD_GC2_enthalpy_of_reaction;
+		specific_heat = DCPD_GC2_specific_heat;
 	}
 	else if (use_COD)
 	{
@@ -41,10 +43,15 @@ Finite_Element_Solver::Finite_Element_Solver()
 	double randomizing_scale = 0.0;
 	if(control_speed)
 	{
-		if(use_DCPD)
+		if(use_DCPD_GC1)
 		{
-			target = DCPD_target_vel;
-			randomizing_scale = DCPD_vel_rand_scale;
+			target = DCPD_GC1_target_vel;
+			randomizing_scale = DCPD_GC1_vel_rand_scale;
+		}
+		else if(use_DCPD_GC2)
+		{
+			target = DCPD_GC2_target_vel;
+			randomizing_scale = DCPD_GC2_vel_rand_scale;
 		}
 		else if(use_COD)
 		{
@@ -54,10 +61,15 @@ Finite_Element_Solver::Finite_Element_Solver()
 	}
 	else if(control_temperature)
 	{
-		if(use_DCPD)
+		if(use_DCPD_GC1)
 		{
-			target = DCPD_target_temp;
-			randomizing_scale = DCPD_temp_rand_scale;
+			target = DCPD_GC1_target_temp;
+			randomizing_scale = DCPD_GC1_temp_rand_scale;
+		}
+		else if(use_DCPD_GC2)
+		{
+			target = DCPD_GC2_target_temp;
+			randomizing_scale = DCPD_GC2_temp_rand_scale;
 		}
 		else if(use_COD)
 		{
@@ -94,11 +106,17 @@ Finite_Element_Solver::Finite_Element_Solver()
 	}
 	else
 	{
-		if (use_DCPD)
+		if (use_DCPD_GC1)
 		{
-			trigger_flux = DCPD_trigger_flux_ref;          // Watts / Meter ^ 2
+			trigger_flux = DCPD_GC1_trigger_flux_ref;          // Watts / Meter ^ 2
 			trigger_time = trigger_time_ref;          // Seconds
-			trigger_duration = DCPD_trigger_duration_ref;  // Seconds
+			trigger_duration = DCPD_GC1_trigger_duration_ref;  // Seconds
+		}
+		else if (use_DCPD_GC2)
+		{
+			trigger_flux = DCPD_GC2_trigger_flux_ref;          // Watts / Meter ^ 2
+			trigger_time = trigger_time_ref;          // Seconds
+			trigger_duration = DCPD_GC2_trigger_duration_ref;  // Seconds
 		}
 		else if (use_COD)
 		{
@@ -211,13 +229,6 @@ Finite_Element_Solver::Finite_Element_Solver()
 			}
 		}
 	}
-	
-	// Profiling
-	#ifdef DEBUG
-		auto end = std::chrono::high_resolution_clock::now();
-		auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
-		construct_duration += duration;
-	#endif
 }
 
 /**
@@ -368,46 +379,6 @@ int Finite_Element_Solver::get_num_state()
 bool Finite_Element_Solver::get_control_speed()
 {
 	return control_speed;
-}
-
-/**
-* Prints the results of the profiling to stdout
-*/
-void Finite_Element_Solver::get_profile_results()
-{
-	// Profiling
-	#ifdef DEBUG
-		cout << "\nProfiling results:\n";
-		cout << "constructor:     ";
-		printf(" %.3f ", construct_duration/1000.0);
-		cout<< " miliseconds\n";
-		cout << "reset:           ";
-		printf(" %.3f ", reset_duration/1000.0);
-		cout<< " miliseconds\n";
-		cout << "get_perturbation:";
-		printf(" %.3f ", get_perturbation_duration/1000.0);
-		cout<< " miliseconds\n";
-		cout << "get_state:       ";
-		printf(" %.3f ", get_state_duration/1000.0);
-		cout<< " miliseconds\n";
-		cout << "get_reward:      ";
-		printf(" %.3f ", get_reward_duration/1000.0);
-		cout<< " miliseconds\n";
-		cout << "step_input:      ";
-		printf(" %.3f ", step_input_duration/1000.0);
-		cout<< " miliseconds\n";
-		cout << "step_meshes:     ";
-		printf(" %.3f ", step_meshes_duration/1000.0);
-		cout<< " miliseconds\n";
-		cout << "step_time:       ";
-		printf(" %.3f ", step_time_duration/1000.0);
-		cout<< " miliseconds\n";
-		cout << "py_agent:        ";
-		printf(" %.3f ", agent_duration/1000.0);
-		cout<< " miliseconds\n";
-	#else
-		cout << "\nNo profile data to report.\n";
-	#endif
 }
 
 /**
@@ -581,11 +552,6 @@ bool Finite_Element_Solver::step(double x_loc_rate_action, double y_loc_rate_act
 */
 vector<double> Finite_Element_Solver::reset()
 {
-	// Profiling
-	#ifdef DEBUG
-		auto start = std::chrono::high_resolution_clock::now();
-	#endif
-	
 	// Simulation time and target velocity index
 	current_time = 0.0;         // Seconds
 	current_index = 0;         // Unitless
@@ -596,10 +562,15 @@ vector<double> Finite_Element_Solver::reset()
 	double randomizing_scale = 0.0;
 	if(control_speed)
 	{
-		if(use_DCPD)
+		if(use_DCPD_GC1)
 		{
-			target = DCPD_target_vel;
-			randomizing_scale = DCPD_vel_rand_scale;
+			target = DCPD_GC1_target_vel;
+			randomizing_scale = DCPD_GC1_vel_rand_scale;
+		}
+		else if(use_DCPD_GC2)
+		{
+			target = DCPD_GC2_target_vel;
+			randomizing_scale = DCPD_GC2_vel_rand_scale;
 		}
 		else if(use_COD)
 		{
@@ -609,10 +580,15 @@ vector<double> Finite_Element_Solver::reset()
 	}
 	else if(control_temperature)
 	{
-		if(use_DCPD)
+		if(use_DCPD_GC1)
 		{
-			target = DCPD_target_temp;
-			randomizing_scale = DCPD_temp_rand_scale;
+			target = DCPD_GC1_target_temp;
+			randomizing_scale = DCPD_GC1_temp_rand_scale;
+		}
+		else if(use_DCPD_GC2)
+		{
+			target = DCPD_GC2_target_temp;
+			randomizing_scale = DCPD_GC2_temp_rand_scale;
 		}
 		else if(use_COD)
 		{
@@ -685,13 +661,6 @@ vector<double> Finite_Element_Solver::reset()
 			}
 		}
 	}
-	
-	// Profiling
-	#ifdef DEBUG
-		auto end = std::chrono::high_resolution_clock::now();
-		auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
-		reset_duration += duration;
-	#endif
 
 	// Return the state
 	return get_state();
@@ -705,11 +674,6 @@ vector<double> Finite_Element_Solver::reset()
 */
 vector<vector<vector<double> > > Finite_Element_Solver::get_perturbation(vector<vector<vector<double> > > size_array, double delta)
 {
-	// Profiling
-	#ifdef DEBUG
-		auto start = std::chrono::high_resolution_clock::now();
-	#endif
-	
 	// Get magnitude and biases
 	double mag_1 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;
 	double mag_2 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;
@@ -764,13 +728,6 @@ vector<vector<vector<double> > > Finite_Element_Solver::get_perturbation(vector<
 		}
 	}
 
-	// Profiling
-	#ifdef DEBUG
-		auto end = std::chrono::high_resolution_clock::now();
-		auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
-		get_perturbation_duration += duration;
-	#endif
-
 	// Return perturbed array
 	return perturbation;
 }
@@ -782,11 +739,6 @@ vector<vector<vector<double> > > Finite_Element_Solver::get_perturbation(vector<
 */
 void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_action)
 {
-	// Profiling
-	#ifdef DEBUG
-		auto start = std::chrono::high_resolution_clock::now();
-	#endif
-	
 	// Convert the raw PPO x command to usable, clipped x location rate command
 	double cmd_x = loc_rate_offset + loc_rate_scale * x_loc_rate_action;
 	cmd_x = cmd_x > max_input_loc_rate ? max_input_loc_rate : cmd_x;
@@ -839,24 +791,12 @@ void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_ra
 			input_mesh[i][j] = local_input_power;
 		}
 	}
-	
-	// Profiling
-	#ifdef DEBUG
-		auto end = std::chrono::high_resolution_clock::now();
-		auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
-		step_input_duration += duration;
-	#endif
 }
 
 /** Calculates the cure rate at every point in the 3D mesh and uses this data to update the cure, temperature, and front meshes
 */
 void Finite_Element_Solver::step_meshes()
 {
-	// Profiling
-	#ifdef DEBUG
-		auto start = std::chrono::high_resolution_clock::now();
-	#endif
-	
 	// Front mesh variables
 	const vector<vector<double> > prev_front_loc(front_loc);
 	const vector<vector<double> > prev_last_move(time_front_last_moved);
@@ -872,12 +812,18 @@ void Finite_Element_Solver::step_meshes()
 	{
 		// Calculate the cure rate
 		double cure_rate = 0.0;
-		if (use_DCPD)
+		if (use_DCPD_GC1)
 		{
-			cure_rate = DCPD_pre_exponential * exp(-DCPD_activiation_energy / (gas_const * prev_temp[i][j][k])) *  
-			pow((1.0 - cure_mesh[i][j][k]), DCPD_model_fit_order) * 
-			pow(cure_mesh[i][j][k], DCPD_m_fit) * 
-			(1.0 / (1.0 + exp(DCPD_diffusion_const*(cure_mesh[i][j][k] - DCPD_critical_cure))));
+			cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * prev_temp[i][j][k])) *
+			pow((1.0 - cure_mesh[i][j][k]), DCPD_GC1_model_fit_order) * 
+			(1.0 + DCPD_GC1_autocatalysis_const * cure_mesh[i][j][k]);
+		}
+		else if (use_DCPD_GC2)
+		{
+			cure_rate = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * prev_temp[i][j][k])) *  
+			pow((1.0 - cure_mesh[i][j][k]), DCPD_GC2_model_fit_order) * 
+			pow(cure_mesh[i][j][k], DCPD_GC2_m_fit) * 
+			(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh[i][j][k] - DCPD_GC2_critical_cure))));
 		}
 		else if (use_COD)
 		{
@@ -1008,13 +954,6 @@ void Finite_Element_Solver::step_meshes()
 		double temp_rate = thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(enthalpy_of_reaction*cure_rate)/specific_heat;
 		temp_mesh[i][j][k] = temp_mesh[i][j][k] + temp_rate * time_step;
 	}
-	
-	// Profiling
-	#ifdef DEBUG
-		auto end = std::chrono::high_resolution_clock::now();
-		auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
-		step_meshes_duration += duration;
-	#endif
 }
 
 /**
@@ -1023,11 +962,6 @@ void Finite_Element_Solver::step_meshes()
 */
 vector<double> Finite_Element_Solver::get_state()
 {
-	// Profiling
-	#ifdef DEBUG
-		auto start = std::chrono::high_resolution_clock::now();
-	#endif
-	
 	// Init state variables
 	vector<double> state(get_num_state(), 0.0);
 
@@ -1129,13 +1063,6 @@ vector<double> Finite_Element_Solver::get_state()
 	state[get_num_state()-2] = input_location[1] / width;
 	state[get_num_state()-1] = input_percent;
 
-	// Profiling
-	#ifdef DEBUG
-		auto end = std::chrono::high_resolution_clock::now();
-		auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
-		get_state_duration += duration;
-	#endif
-
 	// Return the state
 	return state;
 }
@@ -1146,11 +1073,6 @@ vector<double> Finite_Element_Solver::get_state()
 */
 double Finite_Element_Solver::get_reward()
 {
-	// Profiling
-	#ifdef DEBUG
-		auto start = std::chrono::high_resolution_clock::now();
-	#endif
-	
 	// Initialize reward and punishment variables
 	double input_punishment;
 	double dist_punishment;
@@ -1244,13 +1166,6 @@ double Finite_Element_Solver::get_reward()
 		reward = pow((1.0 - mean_deviation) * front_rate_reward_const * max_reward, 3.0) + punishment;
 	}
 
-	// Profiling
-	#ifdef DEBUG
-		auto end = std::chrono::high_resolution_clock::now();
-		auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
-		get_reward_duration += duration;
-	#endif
-
 	return reward;
 }
 
@@ -1260,11 +1175,6 @@ double Finite_Element_Solver::get_reward()
 */
 bool Finite_Element_Solver::step_time()
 {
-	// Profiling
-	#ifdef DEBUG
-		auto start = std::chrono::high_resolution_clock::now();
-	#endif
-	
 	// Update the current time and check for simulation completion
 	bool done = (current_index == (int)target_vector.size() - 1);
 	if (!done)
@@ -1273,13 +1183,6 @@ bool Finite_Element_Solver::step_time()
 		current_index = current_index + 1;
 		current_target = target_vector[current_index];
 	}
-
-	// Profiling
-	#ifdef DEBUG
-		auto end = std::chrono::high_resolution_clock::now();
-		auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end - start ).count();
-		step_time_duration += duration;
-	#endif
 
 	return done;
 }

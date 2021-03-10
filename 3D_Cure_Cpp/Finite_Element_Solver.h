@@ -31,7 +31,6 @@ int get_target_vector_arr_size();
 double get_current_time();
 int get_num_state();
 bool get_control_speed();
-void get_profile_results();
 vector<double> get_input_location();
 vector<vector<double> > get_temp_mesh();
 vector<vector<double> > get_cure_mesh();
@@ -53,18 +52,19 @@ double get_reward();
 private:
 //******************** USER SET PARAMETERS ********************//
 // Input type
-const bool control = false;
+const bool control = true;
 
 // Trigger type
 const bool trigger = true;
 
 // Monomer type (only one can be true)
-const bool use_DCPD = false;
-const bool use_COD = true;
+const bool use_DCPD_GC1 = false;
+const bool use_DCPD_GC2 = true;
+const bool use_COD = false;
 
 // Control type (only one can be true)
-const bool control_speed = false;
-const bool control_temperature = true;
+const bool control_speed = true;
+const bool control_temperature = false;
 
 // Target type (only one can be true)
 const bool const_target = true;
@@ -73,8 +73,8 @@ const bool target_switch = false;
 
 // Mesh parameters
 const int num_vert_length = 360;  // Unitless
-const int num_vert_width = 24;    // Unitless
-const int num_vert_depth = 12;    // Unitless
+const int num_vert_width = 40;     // Unitless
+const int num_vert_depth = 6;    // Unitless
 
 // Spatial parameters
 const double length = 0.05;  // Meters
@@ -82,8 +82,8 @@ const double width = 0.01;   // Meters
 const double depth = 0.005;  // Meters
 
 // Temporal parameters
-const double sim_duration = 200.0;   // Seconds
-const double time_step = 0.01;       // Seconds
+const double sim_duration = 60.0;   // Seconds
+const double time_step = 0.03;       // Seconds
 
 // Initial conditions
 const double initial_temperature = 278.15;  // Kelvin
@@ -97,10 +97,14 @@ const double ambient_temperature = 294.15;  // Kelvin
 
 // Problem definition
 const double temperature_limit = 523.15;      // Kelvin
-const double DCPD_target_vel = 0.00015;       // Meters / Second
-const double DCPD_vel_rand_scale = 0.000025;  // Meters / Second
-const double DCPD_target_temp = 473.15;       // Kelvin
-const double DCPD_temp_rand_scale = 20.0;     // Kelvin
+const double DCPD_GC1_target_vel = 0.00015;       // Meters / Second
+const double DCPD_GC1_vel_rand_scale = 0.000025;  // Meters / Second
+const double DCPD_GC1_target_temp = 473.15;       // Kelvin
+const double DCPD_GC1_temp_rand_scale = 20.0;     // Kelvin
+const double DCPD_GC2_target_vel = 0.0015;       // Meters / Second
+const double DCPD_GC2_vel_rand_scale = 0.00025;  // Meters / Second
+const double DCPD_GC2_target_temp = 473.15;       // Kelvin
+const double DCPD_GC2_temp_rand_scale = 20.0;     // Kelvin
 const double COD_target_vel = 0.0005;         // Meters / Second
 const double COD_vel_rand_scale = 0.0001;     // Meters / Second
 const double COD_target_temp = 408.15;        // Kelvin
@@ -109,17 +113,27 @@ const double COD_temp_rand_scale = 20.0;      // Kelvin
 // Physical constants
 const double gas_const = 8.3144;  // Joules / Mol * Kelvin
 
-// DCPD Monomer physical parameters
-const double DCPD_thermal_conductivity = 0.15;      // Watts / Meter * Kelvin
-const double DCPD_density = 980.0;                  // Kilograms / Meter ^ 3
-const double DCPD_enthalpy_of_reaction = 350000.0;  // Joules / Kilogram
-const double DCPD_specific_heat = 1600.0;           // Joules / Kilogram * Kelvin
-const double DCPD_pre_exponential = 8.55e15;        // 1 / Seconds
-const double DCPD_activiation_energy = 110750.0;    // Joules / Mol
-const double DCPD_model_fit_order = 1.72;           // Unitless
-const double DCPD_m_fit = 0.777;                    // Unitless
-const double DCPD_diffusion_const = 14.48;          // Unitless
-const double DCPD_critical_cure = 0.41;             // Decimal Percent
+// DCPD Monomer with GC1 physical parameters
+const double DCPD_GC1_thermal_conductivity = 0.15;      // Watts / Meter * Kelvin
+const double DCPD_GC1_density = 980.0;                  // Kilograms / Meter ^ 3
+const double DCPD_GC1_enthalpy_of_reaction = 352100.0;  // Joules / Kilogram
+const double DCPD_GC1_specific_heat = 1440.0;           // Joules / Kilogram * Kelvin
+const double DCPD_GC1_pre_exponential = 190985.3;        // 1 / Seconds
+const double DCPD_GC1_activiation_energy = 51100.0;    // Joules / Mol
+const double DCPD_GC1_model_fit_order = 1.927;           // Unitless
+const double DCPD_GC1_autocatalysis_const = 0.365;                    // Unitless
+
+// DCPD Monomer with GC2 physical parameters
+const double DCPD_GC2_thermal_conductivity = 0.15;      // Watts / Meter * Kelvin
+const double DCPD_GC2_density = 980.0;                  // Kilograms / Meter ^ 3
+const double DCPD_GC2_enthalpy_of_reaction = 350000.0;  // Joules / Kilogram
+const double DCPD_GC2_specific_heat = 1600.0;           // Joules / Kilogram * Kelvin
+const double DCPD_GC2_pre_exponential = 8.55e15;        // 1 / Seconds
+const double DCPD_GC2_activiation_energy = 110750.0;    // Joules / Mol
+const double DCPD_GC2_model_fit_order = 1.72;           // Unitless
+const double DCPD_GC2_m_fit = 0.777;                    // Unitless
+const double DCPD_GC2_diffusion_const = 14.48;          // Unitless
+const double DCPD_GC2_critical_cure = 0.41;             // Decimal Percent
 
 // COD Monomer physical parameters
 const double COD_thermal_conductivity = 0.133;     // Watts / Meter * Kelvin
@@ -138,8 +152,10 @@ const double input_mag_percent_rate = 0.5;  // Decimal Percent / Second
 const double max_input_loc_rate = 0.025;    // Meters / Second
 
 // Set trigger condition references
-const double DCPD_trigger_flux_ref = 25500.0;   // Watts / Meter ^ 2
-const double DCPD_trigger_duration_ref = 10.0;  // Seconds
+const double DCPD_GC1_trigger_flux_ref = 25500.0;   // Watts / Meter ^ 2
+const double DCPD_GC1_trigger_duration_ref = 10.0;  // Seconds
+const double DCPD_GC2_trigger_flux_ref = 25500.0;   // Watts / Meter ^ 2
+const double DCPD_GC2_trigger_duration_ref = 10.0;  // Seconds
 const double COD_trigger_flux_ref = 20000.0;   // Watts / Meter ^ 2
 const double COD_trigger_duration_ref = 6.0;  // Seconds
 const double trigger_time_ref = 0.0;       // Seconds
@@ -214,19 +230,6 @@ vector<double> input_location;
 
 // Input wattage mesh
 vector<vector<double> > input_mesh;
-
-//******************** PROFILING PARAMETERS ********************//
-#ifdef DEBUG
-	double construct_duration = 0.0;
-	double reset_duration = 0.0;
-	double get_state_duration = 0.0;
-	double get_reward_duration = 0.0;
-	double get_perturbation_duration = 0.0;
-	double step_input_duration = 0.0;
-	double step_meshes_duration = 0.0;
-	double step_time_duration = 0.0;
-	double agent_duration = 0.0;
-#endif	
 
 //******************** FUNCTIONS ********************//
 vector<vector<vector<double> > > get_perturbation(vector<vector<vector<double> > > size_array, double delta);

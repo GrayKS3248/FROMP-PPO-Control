@@ -123,7 +123,7 @@ void print_3D(vector<vector<vector<double> > > arr, unsigned int len, unsigned i
 * @param Learning rate exponential decay rate
 * @return PyObject pointer pointing at the initialized PPO agent
 */
-PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectories_per_batch, long minibatch_size, long num_epochs, double gamma, double lamb, double epsilon, double alpha, double decay_rate)
+PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectories_per_batch, long minibatch_size, long num_epochs, double gamma, double lamb, double epsilon, double alpha, double decay_rate, bool  load_agent, bool reset_stdev)
 {
 	// Declare PyObjects
 	PyObject *ppo_name, *ppo_module, *ppo_dict, *ppo_init, *ppo_init_args, *ppo_object;
@@ -136,7 +136,7 @@ PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectori
 	if (ppo_module == NULL)
 	{
 		PyErr_Print();
-		fprintf(stderr, "Failed to find module\n");
+		fprintf(stderr, "Failed to find agent module.\n");
 		return NULL;
 	}
 	Py_DECREF(ppo_name);
@@ -146,7 +146,7 @@ PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectori
 	if (ppo_dict == NULL)
 	{
 		PyErr_Print();
-		fprintf(stderr, "Failed to load module dict\n");
+		fprintf(stderr, "Failed to load agent module dictionary.\n");
 		return NULL;
 	}
 	Py_DECREF(ppo_module);
@@ -156,13 +156,33 @@ PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectori
 	if (ppo_init == NULL || !PyCallable_Check(ppo_init))
 	{
 		PyErr_Print();
-		fprintf(stderr, "Failed to find __init__\n");
+		fprintf(stderr, "Failed to find agent __init__ function.\n");
 		return NULL;
 	}
 	Py_DECREF(ppo_dict);
 
+	// Convert load agent and reset stdev bool to Py pointer
+	PyObject* py_load_agent;
+	if (load_agent)
+	{
+		py_load_agent = PyLong_FromLong(1);
+	}
+	else
+	{
+		py_load_agent = PyLong_FromLong(0);
+	}
+	PyObject* py_reset_stdev;
+	if (reset_stdev)
+	{
+		py_reset_stdev = PyLong_FromLong(1);
+	}
+	else
+	{
+		py_reset_stdev = PyLong_FromLong(0);
+	}
+
 	// Build the initialization arguments
-	ppo_init_args = PyTuple_New(10);
+	ppo_init_args = PyTuple_New(12);
 	PyTuple_SetItem(ppo_init_args, 0, PyLong_FromLong(num_states));
 	PyTuple_SetItem(ppo_init_args, 1, PyLong_FromLong(steps_per_trajectory));
 	PyTuple_SetItem(ppo_init_args, 2, PyLong_FromLong(trajectories_per_batch));
@@ -173,13 +193,17 @@ PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectori
 	PyTuple_SetItem(ppo_init_args, 7, PyFloat_FromDouble(epsilon));
 	PyTuple_SetItem(ppo_init_args, 8, PyFloat_FromDouble(alpha));
 	PyTuple_SetItem(ppo_init_args, 9, PyFloat_FromDouble(decay_rate));
+	PyTuple_SetItem(ppo_init_args, 10, py_load_agent);
+	PyTuple_SetItem(ppo_init_args, 11, py_reset_stdev);
+	Py_DECREF(py_load_agent);
+	Py_DECREF(py_reset_stdev);
 
 	// Initialize ppo object
 	ppo_object = PyObject_CallObject(ppo_init, ppo_init_args);
 	if (ppo_object == NULL)
 	{
 		PyErr_Print();
-		fprintf(stderr, "Initialization failed\n");
+		fprintf(stderr, "Failed to call agent __init__ function.\n");
 		Py_DECREF(ppo_init);
 		Py_DECREF(ppo_init_args);
 		return NULL;
@@ -613,8 +637,10 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 int main()
 {
 	// Agent parameters
+	bool load_agent = false;
+	bool reset_stdev = false;
 	int total_trajectories = 1;
-	int steps_per_trajectory = 10;
+	int steps_per_trajectory = 100;
 	int trajectories_per_batch = 10;
 	int num_epochs = 10;
 	double gamma = 0.99;
@@ -624,8 +650,8 @@ int main()
 	double end_alpha = 5.0e-4;
 
 	// Rendering parameters
-	bool render = false;
-	double frame_rate = 20.0;
+	bool render = true;
+	double frame_rate = 10.0;
 
 	// Initialize FES
 	Finite_Element_Solver FES = Finite_Element_Solver();
@@ -641,16 +667,18 @@ int main()
 	// Check inputs
 	if ( floor(execution_period / FES.get_time_step()) != (execution_period / FES.get_time_step()) )
 	{
-		fprintf(stderr, "RuntimeError: Agent execution rate is not multiple of simulation rate\n");
+		fprintf(stderr, "Agent execution rate is not multiple of simulation rate\n");
 		cin.get();
 		return 1;
 	}
 
 	// Init agent
 	Py_Initialize();
-	PyObject* agent = init_agent(FES.get_num_state(), steps_per_trajectory, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, start_alpha, decay_rate);
+	PyObject* agent = init_agent(FES.get_num_state(), steps_per_trajectory, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, start_alpha, decay_rate, load_agent, reset_stdev);
 	if (agent == NULL)
 	{
+		PyErr_Print();
+		fprintf(stderr, "Failed to initialize agent\n");
 		cin.get();
 		return 1;
 	}
@@ -669,11 +697,6 @@ int main()
 	printf("%.1f", (double)duration*10e-7);
 	cout << " seconds.\n";
 	
-	// Profiling output
-	#ifdef DEBUG
-		FES.get_profile_results();
-	#endif
-	
 	// Init save and render module
 	cout << "\nConverting results..." << endl;
 	PyObject* module_name = PyUnicode_DecodeFSDefault("Save_Render");
@@ -681,7 +704,7 @@ int main()
 	if (module == NULL)
 	{
 		PyErr_Print();
-		fprintf(stderr, "Failed to find module\n");
+		fprintf(stderr, "Failed to find save and render module.\n");
 		cin.get();
 		return 1;
 	}
@@ -689,7 +712,7 @@ int main()
 	if (fnc == NULL || !PyCallable_Check(fnc))
 	{
 		PyErr_Print();
-		fprintf(stderr, "Failed to find function\n");
+		fprintf(stderr, "Failed to find save and render function.\n");
 		cin.get();
 		return 1;
 	}
@@ -771,7 +794,7 @@ int main()
 	if (PyObject_CallObject(fnc, args) == NULL)
 	{
 		PyErr_Print();
-		fprintf(stderr, "Save and render failed.\n");
+		fprintf(stderr, "Failed to call save and render function.\n");
 		cin.get();
 		return 1;
 	}
