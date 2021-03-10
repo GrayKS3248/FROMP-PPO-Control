@@ -382,6 +382,72 @@ bool Finite_Element_Solver::get_control_speed()
 }
 
 /**
+* Prints the finite element solver parameters to std out
+*/
+void Finite_Element_Solver::print_params()
+{
+	// Input parameters
+	cout << "\nInput(\n";
+	if (control)
+	{
+		cout << "  No input.\n";
+	}
+	else
+	{ 
+		cout << "  (Radius): " << 1000.0 * radius_of_input << " mm\n";
+		cout << "  (Power): " << 1000.0 * laser_power << " mW\n";
+		cout << "  (Power Rate): " << 1000.0 * laser_power * input_mag_percent_rate << " mW/s\n";
+		cout << "  (Slew Rate): " << 1000.0 * max_input_loc_rate << " mm/s\n";
+	}
+	cout << ")\n";
+	
+	// Trigger parameters
+	cout << "\nTrigger(\n";
+	if (!trigger)
+	{
+		cout << "  No trigger.\n";
+	}
+	else
+	{ 
+		cout << "  (Flux): " << trigger_flux << " W/m^2\n";
+		cout << "  (Time): " << trigger_time << " s\n";
+		cout << "  (Duration): " << trigger_duration  << " s\n";
+	}
+	cout << ")\n";
+	
+	// Monomer
+	cout << "\nMaterial(\n";
+	if (use_DCPD_GC1)
+	{
+		cout << "  (Monomer): DCPD\n";
+		cout << "  (Catalyst): GC1\n";
+	}
+	else if (use_DCPD_GC2)
+	{ 
+		cout << "  (Monomer): DCPD\n";
+		cout << "  (Catalyst): GC2\n";
+	}
+	else if (use_COD)
+	{
+		cout << "  (Monomer): COD\n";
+		cout << "  (Catalyst): GC2\n";
+	}
+	cout << "  (Initial Temperature): " << initial_temperature-273.15 << "C +- " << initial_temp_delta << " C\n";
+	cout << "  (Initial Cure): " << initial_cure << " +- " << initial_cure_delta << "\n";
+	cout << "  (HTC): " << htc << " W/m^2-K\n";
+	cout << ")\n";
+	
+	// Environment
+	cout << "\nEnvironment(\n";
+	cout << "  (Dimensions): " << 1000.0*length << " x " << 1000.0*width << " x " << 1000.0*depth << " mm\n";
+	cout << "  (Grid): " << num_vert_length << " x " << num_vert_width << " x " << num_vert_depth << "\n";
+	cout << "  (Duration): " << sim_duration << " s\n";
+	cout << "  (Time Step): " << 1000.0*time_step << " ms\n";
+	cout << "  (Ambient Temperature): " << ambient_temperature-273.15 << " C\n";
+	cout << ")\n";
+}
+
+/**
 * Gets the input location
 * @return The input location as a vector {x,y}
 */
@@ -402,6 +468,32 @@ vector<vector<double> > Finite_Element_Solver::get_temp_mesh()
 		for (int j = 0; j < num_vert_width; j++)
 		{
 			ret_val[i][j] = temp_mesh[i][j][0];
+		}
+	}
+	return ret_val;
+}
+
+/**
+* Gets the normalized top layer of the temperature mesh with half resolution
+* @return The top layer of the temperature mesh as a 2D vector in x,y normalized against in 0.90*T0 to 1.10*Tmax
+*/
+vector<vector<double> > Finite_Element_Solver::get_norm_temp_mesh()
+{
+	int half_vert_length = (int)ceil((double)num_vert_length/2.0);
+	int half_vert_width = (int)ceil((double)num_vert_width/2.0);
+	vector<vector<double> > ret_val(half_vert_length, vector<double>(half_vert_width, 0.0));
+	for (int i = 0; i < num_vert_length; i++)
+	{
+		for (int j = 0; j < num_vert_width; j++)
+		{
+			if (i%2==0 && j%2==0)
+			{
+				int curr_i = (int)round((double)i/2.0);
+				int curr_j = (int)round((double)j/2.0);
+				ret_val[curr_i][curr_j] = (temp_mesh[curr_i][j][0] - 0.90*initial_temperature) / (1.1*temperature_limit - 0.90*initial_temperature);
+				ret_val[curr_i][curr_j] = ret_val[curr_i][curr_j] > 1.0 ? 1.0 : ret_val[curr_i][curr_j];
+				ret_val[curr_i][curr_j] = ret_val[curr_i][curr_j] < 0.0 ? 0.0 : ret_val[curr_i][curr_j];
+			}
 		}
 	}
 	return ret_val;

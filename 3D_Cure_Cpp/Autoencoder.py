@@ -7,85 +7,126 @@ Created on Tue Mar  9 16:11:39 2021
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import Autoencoder_NN as auto
+import numpy as np
+import matplotlib.pyplot as plt
+import pickle
+import os
 
-class NN(nn.Module):
+class Autoencoder:
     
-    def __init__(self, x_dim, y_dim, out_size):
+    def __init__(self, alpha, decay, x_dim, y_dim, out_size, frame_buffer_size, load_previous):
         
-        # Initialize inherited class
-        super(NN, self).__init__()
-        
-        #Initialize class variables
+        # Initialize model, loss criterion, and optimizer
+        self.model = auto.NN(x_dim, y_dim, out_size);
+        self.criterion = nn.MSELoss()
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=alpha)
+        self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer, gamma=decay)
+    
+        # Load model onto GPU
+        self.device = self.get_device()
+        self.model.to(self.device)
+        print("device(")
+        print("  " + self.device)
+        print(")\n")
+        print(self.model) 
+    
+        # Store NN shape parameters
         self.x_dim = x_dim
         self.y_dim = y_dim
+        self.out_size = out_size
         
-        #Initialize the encoding convolutional layers
-        self.conv1 = nn.Conv2d(1,  8, 3, padding=1)
-        self.conv2 = nn.Conv2d(8, 16, 3, padding=1)
-        self.pool = nn.MaxPool2d(2, 2)
+        # Memory for MSE loss
+        self.tot_MSE_loss = 0.0
         
-        #Determine size of input after convultion
-        test = torch.rand(1,1,x_dim,y_dim)
-        test = self.pool(F.relu(self.conv1(test)))
-        test = self.pool(F.relu(self.conv2(test)))
-        self.size = test.size()[0]*test.size()[1]*test.size()[2]*test.size()[3]
-        self.conv_dim = test.size()
+        # Initialize frame buffer
+        self.frame_buffer_size = frame_buffer_size
+        self.frame_buffer = []
         
-        #Initialize the encoding linear layers
-        self.fc1 = nn.Linear(self.size, self.size//4)
-        self.fc2 = nn.Linear(self.size//4, (self.size//4+out_size)//4)
-        self.fc3 = nn.Linear((self.size//4+out_size)//4, out_size)
+    def get_device(self):
+        if torch.cuda.is_available():
+            device = 'cuda:0'
+        else:
+            device = 'cpu'
+        return device
+        
+    def update(self, frame):
+        
+        # Store the current frame
+        self.frame_buffer.append(np.array(frame))
 
-        #Initialize the decoding linear layers
-        self.t_fc1 = nn.Linear(out_size, (self.size//4+out_size)//4)
-        self.t_fc2 = nn.Linear((self.size//4+out_size)//4, self.size//4)
-        self.t_fc3 = nn.Linear(self.size//4, self.size)
+        # If the frame buffer is full, perform one epoch of stochastic gradient descent
+        if len(self.frame_buffer) >= self.frame_buffer_size:
+            
+            # Step through frame buffer
+            self.tot_MSE_loss = 0.0
+            rand_indcies = np.random.permutation(self.frame_buffer_size)
+            
+            for i in range(self.frame_buffer_size):
+                
+                # Convert frame to proper data type
+                with torch.no_grad():
+                    frame = torch.tensor(self.frame_buffer[rand_indcies[i]])
+                    frame = frame.reshape(1,1,frame.shape[0],frame.shape[1]).float()
+                    frame = frame.to(self.device)
+                
+                # Forward propogate the frame through the autoencoder
+                rebuilt_frame = self.model.forward(frame)
+            
+                # Calculate loss and take optimization step and learning rate step
+                self.optimizer.zero_grad()
+                curr_MSE_loss = self.criterion(rebuilt_frame, frame)
+                curr_MSE_loss.backward()
+                self.optimizer.step()
+                self.lr_scheduler.step()
+                
+                # Sum the epoch's total loss
+                self.tot_MSE_loss = self.tot_MSE_loss + curr_MSE_loss.item()
+                
+            
+            # Empty frame buffer
+            self.frame_buffer = []
         
-        #Initialize the decoding convolutional layers
-        self.t_conv1 = nn.ConvTranspose2d(16, 8, 2, stride=2)
-        self.t_conv2 = nn.ConvTranspose2d(8,  1, 2, stride=2)
+        
+        return self.tot_MSE_loss
+    
+    def display_and_save(self, MSE_loss):
+        print("Saving results...")
 
-    def forward(self, x):
-        #Feed-forward x
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, self.size)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        x = F.relu(self.t_fc1(x))
-        x = F.relu(self.t_fc2(x))
-        x = F.relu(self.t_fc3(x))
-        x = x.view(self.conv_dim)
-        x = F.relu(self.t_conv1(x))
-        x = torch.sigmoid(self.t_conv2(x))
-        
-        #Return x
-        return x
-    
-    def encode(self, x):
-        #Feed-forward x
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, self.size)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        
-        #Return x
-        return x
-        
-    
-if __name__ == '__main__':
-    autoencoder = NN(120,24,50)
-    state = torch.rand(1,1,120,24)
-    rebuilt_state = autoencoder.forward(state)
-    
-    criterion = nn.BCELoss()
-    optimizer = torch.optim.Adam(autoencoder.parameters(), lr=0.001, weight_decay=1e-5)
-    optimizer.zero_grad()
-    loss = criterion(rebuilt_state, state)
-    loss.backward()
-    optimizer.step()
-    print(loss.item())
+        data = {
+            'MSE_loss' : np.array(MSE_loss),
+        }
+
+        # Find save paths
+        done = False
+        curr_folder = 1
+        while not done:
+            path = "results/Auto_"+str(curr_folder)
+            if not os.path.isdir(path):
+                os.mkdir(path)
+                done = True
+            else:
+                curr_folder = curr_folder + 1
+
+        # Pickle all important outputs
+        output = { 'data':data, 'autoencoder':self.model}
+        save_file = path + "/output"
+        with open(save_file, 'wb') as file:
+            pickle.dump(output, file)
+
+        # Plot the BCE loss training data
+        print("Plotting...")
+        # Plot value learning curve
+        plt.clf()
+        title_str = "Autoencoder Learning Curve"
+        plt.title(title_str,fontsize='xx-large')
+        plt.xlabel("Optimization Frame",fontsize='large')
+        plt.ylabel("MSE Loss",fontsize='large')
+        plt.plot([*range(len(data['MSE_loss']))],data['MSE_loss'],lw=2.5,c='r')
+        plt.yscale("log")
+        plt.xticks(fontsize='large')
+        plt.yticks(fontsize='large')
+        plt.gcf().set_size_inches(8.5, 5.5)
+        save_file = path + "/autoencoder_learning.png"
+        plt.savefig(save_file, dpi = 500)
+        plt.close()
