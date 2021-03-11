@@ -74,4 +74,4 @@ class NN(nn.Module):
         x = self.fc3(x)
         
         #Return x
-        return x
+        return x  

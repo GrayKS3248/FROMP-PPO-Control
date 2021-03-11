@@ -7,7 +7,7 @@ Created on Tue Mar  9 16:11:39 2021
 
 import torch
 import torch.nn as nn
-import Autoencoder_NN as auto
+import Autoencoder_NN
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
@@ -17,8 +17,12 @@ class Autoencoder:
     
     def __init__(self, alpha, decay, x_dim, y_dim, out_size, frame_buffer_size, load_previous):
         
-        # Initialize model, loss criterion, and optimizer
-        self.model = auto.NN(x_dim, y_dim, out_size);
+        # Initialize model
+        self.model = Autoencoder_NN.NN(x_dim, y_dim, out_size);
+        if load_previous:
+            self.load_previous()
+            
+        # Initialize loss criterion, and optimizer
         self.criterion = nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=alpha)
         self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer, gamma=decay)
@@ -26,7 +30,7 @@ class Autoencoder:
         # Load model onto GPU
         self.device = self.get_device()
         self.model.to(self.device)
-        print("device(")
+        print("Device(")
         print("  " + self.device)
         print(")\n")
         print(self.model) 
@@ -43,6 +47,29 @@ class Autoencoder:
         self.frame_buffer_size = frame_buffer_size
         self.frame_buffer = []
         
+    def load_previous(self):
+        # Find load paths
+        done = False
+        curr_folder = 1
+        while not done:
+            path = "results/Auto_"+str(curr_folder)
+            if not os.path.isdir(path):
+                done = True
+            else:
+                curr_folder = curr_folder + 1
+        path = "results/Auto_"+str(curr_folder-1)+"/output"
+        
+        if not os.path.isdir(path):
+            raise RuntimeError("Could not find previous autoencoder to load")
+        
+        # Load the previous autoencoder
+        with open(path, 'rb') as file:
+            load_data = pickle.load(file)
+            
+        # Copy previous NN to current module
+        load_autoencoder = load_data['autoencoder']
+        self.model.load_state_dict(load_autoencoder.state_dict())
+        
     def get_device(self):
         if torch.cuda.is_available():
             device = 'cuda:0'
@@ -50,6 +77,21 @@ class Autoencoder:
             device = 'cpu'
         return device
         
+    def encode(self, frame):
+        
+        # Convert frame to proper data type
+        with torch.no_grad():
+            frame = torch.tensor(frame)
+            frame = frame.reshape(1,1,frame.shape[0],frame.shape[1]).float()
+            frame = frame.to(self.device)
+            encoded_frame = self.model.encode(frame).to('cpu')
+            
+        # convert encoded frame to proper data type
+        encoded_frame = encoded_frame.squeeze().numpy()
+        
+        # Return the encoded frame of the proper data type
+        return encoded_frame
+    
     def update(self, frame):
         
         # Store the current frame
