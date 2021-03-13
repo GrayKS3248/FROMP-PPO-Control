@@ -47,6 +47,9 @@ class Autoencoder:
         self.frame_buffer_size = frame_buffer_size
         self.frame_buffer = []
         
+        # Test frames
+        self.test_frame_buffer = []
+        
     def load_previous(self):
         # Find load paths
         done = False
@@ -59,7 +62,7 @@ class Autoencoder:
                 curr_folder = curr_folder + 1
         path = "results/Auto_"+str(curr_folder-1)+"/output"
         
-        if not os.path.isdir(path):
+        if not os.path.isdir("results/Auto_"+str(curr_folder-1)):
             raise RuntimeError("Could not find previous autoencoder to load")
         
         # Load the previous autoencoder
@@ -67,6 +70,7 @@ class Autoencoder:
             load_data = pickle.load(file)
             
         # Copy previous NN to current module
+        print("Loading previous autoencoder...\n")
         load_autoencoder = load_data['autoencoder']
         self.model.load_state_dict(load_autoencoder.state_dict())
         
@@ -76,7 +80,22 @@ class Autoencoder:
         else:
             device = 'cpu'
         return device
+ 
+    def forward(self, frame):
         
+        # Convert frame to proper data type
+        with torch.no_grad():
+            frame = torch.tensor(frame)
+            frame = frame.reshape(1,1,frame.shape[0],frame.shape[1]).float()
+            frame = frame.to(self.device)
+            rebuilt_frame = self.model.forward(frame).to('cpu')
+            
+        # convert encoded frame to proper data type
+        rebuilt_frame = rebuilt_frame.squeeze().numpy()
+        
+        # Return the encoded frame of the proper data type
+        return rebuilt_frame
+       
     def encode(self, frame):
         
         # Convert frame to proper data type
@@ -96,6 +115,8 @@ class Autoencoder:
         
         # Store the current frame
         self.frame_buffer.append(np.array(frame))
+        if len(self.test_frame_buffer) < self.frame_buffer_size:
+            self.test_frame_buffer.append(np.array(frame))
 
         # If the frame buffer is full, perform one epoch of stochastic gradient descent
         if len(self.frame_buffer) >= self.frame_buffer_size:
@@ -137,6 +158,7 @@ class Autoencoder:
 
         data = {
             'MSE_loss' : np.array(MSE_loss),
+            'Test_frames' : self.test_frame_buffer,
         }
 
         # Find save paths
@@ -172,3 +194,66 @@ class Autoencoder:
         save_file = path + "/autoencoder_learning.png"
         plt.savefig(save_file, dpi = 500)
         plt.close()
+        
+    def render(self, frames):
+        print("Rendering...")
+        x_grid, y_grid = np.meshgrid(np.linspace(0,1,self.x_dim), np.linspace(0,1,self.y_dim))
+        
+        # Find save paths
+        done = False
+        curr_folder = 1
+        while not done:
+            path = "results/Auto_"+str(curr_folder)
+            if not os.path.isdir(path):
+                done = True
+            else:
+                curr_folder = curr_folder + 1
+        path = "results/Auto_"+str(curr_folder-1)+"/video"
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        
+        for curr_step in range(len(frames)):
+
+            # Make fig for temperature, cure, and input
+            plt.cla()
+            plt.clf()
+            fig, (ax0, ax1) = plt.subplots(2, 1)
+            fig.set_size_inches(11,8.5)
+            
+            # Plot frame
+            c0 = ax0.pcolormesh(x_grid, y_grid, np.transpose(frames[curr_step]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+            cbar0 = fig.colorbar(c0, ax=ax0)
+            cbar0.set_label('Nondimensional Temperature [-]',labelpad=20,fontsize='large')
+            cbar0.ax.tick_params(labelsize=12)
+            ax0.set_xlabel('X Position [-]',fontsize='large')
+            ax0.set_ylabel('Y Position [-]',fontsize='large')
+            ax0.tick_params(axis='x',labelsize=12)
+            ax0.tick_params(axis='y',labelsize=12)
+            ax0.set_aspect(self.y_dim/self.x_dim, adjustable='box')
+            ax0.set_title('True Frame')
+            
+            # Rebuilt frame
+            c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(self.forward(frames[curr_step])), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+            cbar1 = fig.colorbar(c1, ax=ax1)
+            cbar1.set_label('Nondimensional Temperature [-]',labelpad=20,fontsize='large')
+            cbar1.ax.tick_params(labelsize=12)
+            ax1.set_xlabel('X Position [-]',fontsize='large')
+            ax1.set_ylabel('Y Position [-]',fontsize='large')
+            ax1.tick_params(axis='x',labelsize=12)
+            ax1.tick_params(axis='y',labelsize=12)
+            ax1.set_aspect(self.y_dim/self.x_dim, adjustable='box')
+            ax1.set_title('Rebuilt Frame')
+            
+            # Set title and save
+            plt.savefig(path+"/"+str(curr_step).zfill(4)+'.png', dpi=100)
+            plt.close()
+                
+        
+# if __name__ == '__main__':
+#     autoencoder = Autoencoder(1.0e-3, 1.0, 180, 20, 64, 20, True)
+    
+#     with open("results/Auto_1/test_frames", 'rb') as file:
+#         test_frames = pickle.load(file)
+#     test_frames = test_frames['data']['Test_frames']
+    
+#     autoencoder.render(test_frames)

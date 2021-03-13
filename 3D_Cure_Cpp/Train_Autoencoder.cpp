@@ -154,7 +154,7 @@ PyObject* get_2D_list(vector<vector<double>> state)
 * @param How many frames are to be gathered from each trajectory
 * @return Tuple containing the training data and the trained autoencoder
 */
-auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectories, int steps_per_cycle, int samples_per_trajectory)
+auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectories, int steps_per_cycle, int samples_per_trajectory, int encoder_output_size)
 {
 
 	// Declare variable tracking MSE_loss during training
@@ -202,7 +202,7 @@ auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectorie
 		cout << msg1+msg2+msg3 << "|\r";
 
 		// Reset environment
-		vector<double> state = FES.reset();
+		FES.reset();
 
 		// Declare simulation variables
 		bool done = false;
@@ -225,6 +225,7 @@ auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectorie
 		sort (save_frames.begin(), save_frames.end());
 		int curr_save_frame_ind = 0;
 		int curr_save_frame = save_frames[curr_save_frame_ind];
+		int  num_of_frames_save = save_frames.size();
 
 		// Simulation for loop
 		while (!done)
@@ -253,7 +254,10 @@ auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectorie
 			{
 				// Update which frame is to be saved next
 				curr_save_frame_ind++;
-				curr_save_frame = save_frames[curr_save_frame_ind];	
+				if (curr_save_frame_ind < num_of_frames_save)
+				{
+					curr_save_frame = save_frames[curr_save_frame_ind];
+				}
 				
 				// Collect frame data
 				vector<vector<double> > norm_temp_mesh = FES.get_norm_temp_mesh();
@@ -273,7 +277,7 @@ auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectorie
 			}
 
 			// Update the current state and the step in episode
-			step_in_trajectory += 1;
+			step_in_trajectory++;
 
 		}
 
@@ -309,12 +313,12 @@ int main()
 {
 	// Autoencoder hyperparameters
 	bool load_autoencoder = false;
-	int encoder_output_size = 100;
+	int encoder_output_size = 64;
 	int total_trajectories = 5000;
 	int samples_per_trajectory = 20;
 	int samples_per_batch = 100;
 	double start_alpha = 1.0e-3;
-	double end_alpha = 5.0e-5;
+	double end_alpha = 1.0e-5;
 
 	// Initialize FES
 	Finite_Element_Solver FES = Finite_Element_Solver();
@@ -342,7 +346,7 @@ int main()
 	// Train autoencoder
 	cout << "\nTraining autoencoder..." << endl;
 	auto start_time = std::chrono::high_resolution_clock::now();
-	auto [trained_autoencoder, MSE_loss] = run(FES, autoencoder, total_trajectories, steps_per_cycle, samples_per_trajectory);
+	auto [trained_autoencoder, MSE_loss] = run(FES, autoencoder, total_trajectories, steps_per_cycle, samples_per_trajectory, encoder_output_size);
 
 	// Stop clock and print duration
 	auto end_time = std::chrono::high_resolution_clock::now();

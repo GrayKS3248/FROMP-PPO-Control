@@ -29,7 +29,7 @@ double get_exp_const();
 double get_current_target();
 int get_target_vector_arr_size();
 double get_current_time();
-int get_num_state();
+int get_num_state(int encoded_size);
 bool get_control_speed();
 void print_params();
 vector<double> get_input_location();
@@ -47,8 +47,8 @@ vector<vector<double> > get_mesh_z_x0();
 
 //******************** FUNCTIONS ******************************//
 bool step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
-vector<double> reset();
-vector<double> get_state();
+void reset();
+vector<double> get_state(vector<double> encoded_temp, int encoded_size);
 double get_reward();
 
 private:
@@ -84,7 +84,7 @@ const double width = 0.01;   // Meters
 const double depth = 0.005;  // Meters
 
 // Temporal parameters
-const double sim_duration = 50.0;   // Seconds
+const double sim_duration = 60.0;   // Seconds
 const double time_step = 0.03;       // Seconds
 
 // Initial conditions

@@ -352,15 +352,10 @@ double Finite_Element_Solver::get_current_time()
 * Gets the length of the state vector
 * @return The integer length of the state vector
 */
-int Finite_Element_Solver::get_num_state()
+int Finite_Element_Solver::get_num_state(int encoded_size)
 {
-	int num_states = 0;
-
-	// Add coarse temperature field length
-	num_states = (int)((double)num_vert_length/6.0) * (int)((double)num_vert_width/4.0);
-
-	// Add laser view field size
-	num_states += 25;
+	// Temperature field view
+	int num_states = encoded_size;
 
 	// Add front location and veloicty views
 	num_states += (int)((double)num_vert_width/4.0) + (int)((double)num_vert_width/4.0);
@@ -489,10 +484,13 @@ vector<vector<double> > Finite_Element_Solver::get_norm_temp_mesh()
 			if (i%2==0 && j%2==0)
 			{
 				int curr_i = (int)round((double)i/2.0);
-				int curr_j = (int)round((double)j/2.0);
-				ret_val[curr_i][curr_j] = (temp_mesh[curr_i][j][0] - 0.90*initial_temperature) / (1.1*temperature_limit - 0.90*initial_temperature);
-				ret_val[curr_i][curr_j] = ret_val[curr_i][curr_j] > 1.0 ? 1.0 : ret_val[curr_i][curr_j];
-				ret_val[curr_i][curr_j] = ret_val[curr_i][curr_j] < 0.0 ? 0.0 : ret_val[curr_i][curr_j];
+				int curr_j =(int)round((double)j/2.0);
+				if (curr_i < half_vert_length && curr_j < half_vert_width)
+				{
+					ret_val[curr_i][curr_j] = (temp_mesh[i][j][0] - 0.90*initial_temperature) / (1.1*temperature_limit - 0.90*initial_temperature);
+					ret_val[curr_i][curr_j] = ret_val[curr_i][curr_j] > 1.0 ? 1.0 : ret_val[curr_i][curr_j];
+					ret_val[curr_i][curr_j] = ret_val[curr_i][curr_j] < 0.0 ? 0.0 : ret_val[curr_i][curr_j];
+				}
 			}
 		}
 	}
@@ -642,7 +640,7 @@ bool Finite_Element_Solver::step(double x_loc_rate_action, double y_loc_rate_act
 * Resets the environment to initial conditions
 * @return the initial state vector
 */
-vector<double> Finite_Element_Solver::reset()
+void Finite_Element_Solver::reset()
 {
 	// Simulation time and target velocity index
 	current_time = 0.0;         // Seconds
@@ -753,10 +751,6 @@ vector<double> Finite_Element_Solver::reset()
 			}
 		}
 	}
-
-	// Return the state
-	return get_state();
-
 }
 
 /** Get smooth 3D perturbation over input fields
@@ -1050,13 +1044,21 @@ void Finite_Element_Solver::step_meshes()
 
 /**
 * Gets the state fed to PPO agent based on temperature, front location, front velocity, and the input
+* @param The autoencoder encoded temperature field as a vector of doubles
 * @return The normalized state array
 */
-vector<double> Finite_Element_Solver::get_state()
+vector<double> Finite_Element_Solver::get_state(vector<double> encoded_temp, int encoded_size)
 {
 	// Init state variables
-	vector<double> state(get_num_state(), 0.0);
-
+	vector<double> state(get_num_state(encoded_size), 0.0);
+	
+/*
+	// Copy encoded_temp to state
+	for (int i = 0; i < encoded_size; i++)
+	{
+		state[i] = encoded_temp[i];
+	}
+	
 	// Get coarse temperature field
 	int num_vert_short_length = (int)((double)num_vert_length/6.0);
 	int num_vert_short_width = (int)((double)num_vert_width/4.0);
@@ -1129,11 +1131,13 @@ vector<double> Finite_Element_Solver::get_state()
 		y_curr_index = y_min_index;
 		x_curr_index += x_width;
 	}
+*/
 
 	// Get the coarse front location and velocity data
-	y_width = 0;
-	y_max_index = num_vert_width-1;
-	y_curr_index = 0;
+	int curr_state_index = encoded_size;
+	int y_width = 0;
+	int y_max_index = num_vert_width-1;
+	int y_curr_index = 0;
 	double avg_loc = 0.0;
 	double avg_vel = 0.0;
 	for (int j = 0; j < (int)((double)num_vert_width/4.0); j++)
@@ -1144,19 +1148,20 @@ vector<double> Finite_Element_Solver::get_state()
 			avg_loc += front_loc[y][0];
 			avg_vel += front_vel[y][0];
 		}
-		state[state_start_ind+curr_ind] = avg_loc / ((double)(y_width+1)*length);
-		state[state_start_ind+curr_ind+(int)((double)num_vert_width/4.0)] = avg_vel / ((double)(y_width+1)*current_target);
-		curr_ind++;
+		state[curr_state_index] = avg_loc / ((double)(y_width+1)*length);
+		state[curr_state_index+(int)((double)num_vert_width/4.0)] = avg_vel / ((double)(y_width+1)*current_target);
+		curr_state_index++;
 		y_curr_index += y_width;
 	}
 
 	// Append the input location and magnitude parameters
-	state[get_num_state()-3] = input_location[0] / length;
-	state[get_num_state()-2] = input_location[1] / width;
-	state[get_num_state()-1] = input_percent;
+	state[get_num_state(encoded_size)-3] = input_location[0] / length;
+	state[get_num_state(encoded_size)-2] = input_location[1] / width;
+	state[get_num_state(encoded_size)-1] = input_percent;
 
 	// Return the state
 	return state;
+*/
 }
 
 /**

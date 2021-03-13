@@ -216,6 +216,80 @@ PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectori
 }
 
 /**
+* Initializes the python autoencoder
+* @param Initial learning rate
+* @param Learning rate exponential decay rate
+* @param The x dimension of the frames sent to the autoencoder
+* @param The y dimension of the frames sent to the autoencoder
+* @param Length of the 1D compressed array in autoencoder
+* @param Number of frames stored before a single stochastic gradient descent step
+* @param Whether or not a previous autoencoder's NN is loaded into the current autoencoder
+* @return PyObject pointer pointing at the initialized autoencoder
+*/
+PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, long y_dim, long encoder_output_size, long frame_buffer)
+{
+	// Declare PyObjects
+	PyObject *name, *module, *dict, *init, *init_args, *object;
+
+	// Define module name
+	name = PyUnicode_DecodeFSDefault("Autoencoder");
+
+	// Initialize module
+	module = PyImport_Import(name);
+	if (module == NULL)
+	{
+		PyErr_Print();
+		fprintf(stderr, "Failed to find autoencoder module.\n");
+		return NULL;
+	}
+	Py_DECREF(name);
+
+	// Load dictionary of module methods and variables
+	dict = PyModule_GetDict(module);
+	if (dict == NULL)
+	{
+		PyErr_Print();
+		fprintf(stderr, "Failed to load autoencoder module dictionary.\n");
+		return NULL;
+	}
+	Py_DECREF(module);
+
+	// Get the initialization function from the module dictionary
+	init = PyDict_GetItemString(dict, "Autoencoder");
+	if (init == NULL || !PyCallable_Check(init))
+	{
+		PyErr_Print();
+		fprintf(stderr, "Failed to find autoencoder __init__ function.\n");
+		return NULL;
+	}
+	Py_DECREF(dict);
+
+	// Build the initialization arguments
+	init_args = PyTuple_New(7);
+	PyTuple_SetItem(init_args, 0, PyFloat_FromDouble(start_alpha));
+	PyTuple_SetItem(init_args, 1, PyFloat_FromDouble(decay_rate));
+	PyTuple_SetItem(init_args, 2, PyLong_FromLong(x_dim));
+	PyTuple_SetItem(init_args, 3, PyLong_FromLong(y_dim));
+	PyTuple_SetItem(init_args, 4, PyLong_FromLong(encoder_output_size));
+	PyTuple_SetItem(init_args, 5, PyLong_FromLong(frame_buffer));
+	PyTuple_SetItem(init_args, 6, PyLong_FromLong(1));
+
+	// Initialize autoencoder object
+	object = PyObject_CallObject(init, init_args);
+	if (object == NULL)
+	{
+		PyErr_Print();
+		fprintf(stderr, "Failed to call autoencoder __init__ function.\n");
+		return NULL;
+	}
+	Py_DECREF(init);
+	Py_DECREF(init_args);
+
+	// return the class
+	return object;
+}
+
+/**
 * Converts 1D vector<double> to a 1D PyList
 * @param The vector used to create list
 * @return PyObject pointer pointing at the created list
@@ -448,7 +522,10 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 		double action_1=0.0, stdev_1=0.0, action_2=0.0, stdev_2=0.0, action_3=0.0, stdev_3=0.0, reward;
 		bool run_agent, save_frame;
 		int step_in_trajectory = 0;
-		PyObject *py_state=get_1D_list(FES.get_state()), *py_result=PyObject_CallMethod(agent, "get_action", "O", py_state);;
+		
+		//TODO pass encoded state and encoded state size to FES.get_state()
+		PyObject *py_state=get_1D_list(FES.get_state());
+		PyObject *py_result=PyObject_CallMethod(agent, "get_action", "O", py_state);
 
 		// Simulation for loop
 		while (!done)
