@@ -84,7 +84,7 @@ const double width = 0.01;   // Meters
 const double depth = 0.005;  // Meters
 
 // Temporal parameters
-const double sim_duration = 60.0;   // Seconds
+const double sim_duration = 30.0;   // Seconds
 const double time_step = 0.03;         // Seconds
 
 // Initial conditions
@@ -170,15 +170,15 @@ const double loc_rate_offset = 0.0;     // Unitless
 
 // Reward constants
 const double max_reward = 2.0;                  // Unitless
-const double dist_punishment_const = 0.15;      // Unitless
-const double front_rate_reward_const = 1.00;    // Unitless
-const double temperature_reward_const = 1.00;    // Unitless
+const double dist_punishment_const = 0.25;      // Unitless
 const double input_punishment_const = 0.10;     // Unitless
 const double overage_punishment_const = 0.40;   // Unitless
 const double integral_punishment_const = 0.10;  // Unitless
 const double front_shape_const = 10.0 / width;  // Unitless
 const double max_integral = length * width * depth * temperature_limit;                     // Unitless
 const double integral_delta = max_integral - length * width * depth * initial_temperature;  // Unitless
+const double front_rate_reward_const = pow(max_reward,0.33333);    // Unitless
+const double temperature_reward_const =  pow(max_reward,0.33333);    // Unitless
 
 //******************** CALCULATED PARAMETERS ********************//
 // Simulation time and target velocity index

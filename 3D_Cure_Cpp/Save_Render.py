@@ -14,7 +14,7 @@ class Run:
                  front_temperature, best_reward, mesh_x_z0, mesh_y_z0, max_input_mag,
                  exp_const, mesh_y_x0, mesh_z_x0, control_speed, render):
 
-        print("Saving results...")
+        print("Saving agent results...")
 
         data = {
             'r_per_episode' : np.array(r_per_episode),
@@ -63,7 +63,7 @@ class Run:
             pickle.dump(output, file)
 
         # Plot the trajectory
-        print("Plotting...")
+        print("Plotting agent results...")
         if data['control_speed']==1:
             # Plot speed trajectory
             plt.clf()
@@ -199,7 +199,7 @@ class Run:
 
         # Make videos of the best temperature field trajecotry and cure field trajectories as function of time
         if data['render'] == 1:
-            print("Rendering...")
+            print("Rendering agent results...")
             min_temp = 10.0*np.floor((np.min(data['temperature_field'])-273.15)/10.0)
             max_temp = 10.0*np.ceil((np.max(data['temperature_field'])-273.15)/10.0)
             

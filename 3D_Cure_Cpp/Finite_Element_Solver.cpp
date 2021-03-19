@@ -968,7 +968,7 @@ void Finite_Element_Solver::step_meshes()
 		if ((cure_mesh[i][j][k] >= 0.80) && (front_loc[j][k] <= mesh_x[i][j][k]))
 		{
 			front_loc[j][k] = mesh_x[i][j][k];
-			int search_diameter = (int) round((double) num_vert_length * 0.03);
+			int search_diameter = (int) round((double) num_vert_length * 0.025);
 			int min_search_ind = i - search_diameter + 1;
 			int max_search_ind = i;
 			if (min_search_ind < 0)
@@ -1084,93 +1084,19 @@ void Finite_Element_Solver::step_meshes()
 /**
 * Gets the state fed to PPO agent based on temperature, front location, front velocity, and the input
 * @param The autoencoder encoded temperature field as a vector of doubles
+* @param The length of the encoded vector
 * @return The normalized state array
 */
 vector<double> Finite_Element_Solver::get_state(vector<double> encoded_temp, int encoded_size)
 {
 	// Init state variables
 	vector<double> state(get_num_state(encoded_size), 0.0);
-	
-/*
-	// Copy encoded_temp to state
-	for (int i = 0; i < encoded_size; i++)
+
+	// Copy the encoded state
+	for (int i = 0 ; i  < encoded_size; i++)
 	{
 		state[i] = encoded_temp[i];
 	}
-	
-	// Get coarse temperature field
-	int num_vert_short_length = (int)((double)num_vert_length/6.0);
-	int num_vert_short_width = (int)((double)num_vert_width/4.0);
-	int len_block = (int)ceil(num_vert_length/num_vert_short_length);
-	int width_block = (int)ceil(num_vert_width/num_vert_short_width);
-	for (int i = 0; i < num_vert_short_length; i++)
-	{
-		// Determine start and end x coordinates of block
-		int start_x = i*len_block;
-		int end_x = (i+1)*len_block - 1;
-		end_x = end_x > num_vert_length-1 ? num_vert_length-1 : end_x;
-
-		for (int j = 0; j < num_vert_short_width; j++)
-		{
-			// Determine start and end y coordinates of block
-			int start_y = j*width_block;
-			int end_y = (j+1)*width_block - 1;
-			end_y = end_y > num_vert_width-1 ? num_vert_width-1 : end_y;
-
-			// Get the average temperature in each block
-			double avg_temp = 0.0;
-			for (int x = start_x; x <= end_x; x++)
-			{
-				for (int y = start_y; y <= end_y; y++)
-				{
-					avg_temp += temp_mesh[x][y][0];
-				}
-			}
-			state[i*num_vert_short_width + j] = avg_temp / ((double)(end_x-start_x+1)*(double)(end_y-start_y+1)*temperature_limit);
-		}
-	}
-
-	// Get the fine laser view temperature field
-	int x_min_index = (int) round((input_location[0] - 0.90*radius_of_input) / x_step);
-	x_min_index = x_min_index < 0 ? 0 : x_min_index;
-	int y_min_index = (int) round((input_location[1] - 0.90*radius_of_input) / y_step);
-	y_min_index = y_min_index < 0 ? 0 : y_min_index;
-
-	int x_max_index = (int) round((input_location[0] + 0.90*radius_of_input) / x_step);
-	x_max_index = x_max_index > num_vert_length-1 ? num_vert_length-1 : x_max_index;
-	int y_max_index = (int) round((input_location[1] + 0.90*radius_of_input) / y_step);
-	y_max_index = y_max_index > num_vert_width-1 ? num_vert_width-1 : y_max_index;
-
-	int x_curr_index = x_min_index;
-	int y_curr_index = y_min_index;
-	int x_width = 0;
-	int y_width = 0;
-
-	double avg_temp = 0.0;
-	int state_start_ind = (int)((double)num_vert_length/6.0) * (int)((double)num_vert_width/4.0);
-	int curr_ind = 0;
-
-	for (int i = 0; i < 5; i++)
-	{
-		x_width = (int) floor((x_max_index-x_curr_index) / (5-i));
-		for (int j = 0; j < 5; j++)
-		{
-			y_width = (int) floor((y_max_index-y_curr_index) / (5-j));
-			avg_temp = 0.0;
-			for (int x = x_curr_index; x <= (x_curr_index + x_width); x++)
-			{
-				for (int y = y_curr_index; y <= y_curr_index + y_width; y++)
-				{
-					avg_temp += temp_mesh[x][y][0];
-				}
-			}
-			state[state_start_ind+curr_ind++] = avg_temp / ((double)(x_width + 1)*(double)(y_width + 1)*temperature_limit);
-			y_curr_index += y_width;
-		}
-		y_curr_index = y_min_index;
-		x_curr_index += x_width;
-	}
-*/
 
 	// Get the coarse front location and velocity data
 	int curr_state_index = encoded_size;
@@ -1217,8 +1143,7 @@ double Finite_Element_Solver::get_reward()
 	double punishment;
 	double reward = 0.0;
 
-	// Find the max temperature, integrate the temp mesh, and get the mean front x location
-	double max_temperature = 0.0;
+	// Integrate the temp mesh and get the mean front x location
 	double temp_integral = 0.0;
 	double mean_location = 0.0;
 	for (int i = 0; i < num_vert_length; i++)
@@ -1227,7 +1152,6 @@ double Finite_Element_Solver::get_reward()
 		{
 			for (int k = 0; k < num_vert_depth; k++)
 			{
-				max_temperature = temp_mesh[i][j][k] > max_temperature ? temp_mesh[i][j][k] : max_temperature;
 				temp_integral += temp_mesh[i][j][k];
 				mean_location = i == 0 ? mean_location + front_loc[j][k] : mean_location;
 			}
@@ -1236,7 +1160,8 @@ double Finite_Element_Solver::get_reward()
 	temp_integral = temp_integral * x_step * y_step * z_step;
 	mean_location = mean_location / ((double)num_vert_width * (double)num_vert_depth);
 
-	// Find the front's location and velocity mean deviation
+	// Find the front's location and velocity mean deviation and max temperature
+	double max_front_temp = 0.0;
 	double mean_loc_deviation = 0.0;
 	double mean_deviation = 0.0;
 	for (int j = 0; j < num_vert_width; j++)
@@ -1252,6 +1177,7 @@ double Finite_Element_Solver::get_reward()
 			{
 				mean_deviation += abs(front_vel[j][k] - current_target);
 			}
+			max_front_temp = front_temp[j][k] > max_front_temp ? front_temp[j][k] : max_front_temp;
 		}
 	}
 	mean_loc_deviation = mean_loc_deviation / ((double)num_vert_width * (double)num_vert_depth);
@@ -1286,7 +1212,7 @@ double Finite_Element_Solver::get_reward()
 	front_shape_punishment = -front_shape_const * mean_loc_deviation;
 
 	// Get the overage punishment
-	overage_punishment = max_temperature > temperature_limit ? -overage_punishment_const * max_reward * max_temperature / temperature_limit : 0.0;
+	overage_punishment = max_front_temp > temperature_limit ? -overage_punishment_const * max_reward * max_front_temp / temperature_limit : 0.0;
 
 	// Get the punishment
 	punishment = input_punishment + dist_punishment + integral_punishment + front_shape_punishment + overage_punishment;
@@ -1294,11 +1220,11 @@ double Finite_Element_Solver::get_reward()
 	// Get the total reward
 	if (control_temperature)
 	{
-		reward = pow((1.0 - mean_deviation) * temperature_reward_const * max_reward, 3.0) + punishment;
+		reward = pow((1.0 - mean_deviation) * temperature_reward_const, 3.0) + punishment;
 	}
 	else if (control_speed)
 	{
-		reward = pow((1.0 - mean_deviation) * front_rate_reward_const * max_reward, 3.0) + punishment;
+		reward = pow((1.0 - mean_deviation) * front_rate_reward_const, 3.0) + punishment;
 	}
 
 	return reward;

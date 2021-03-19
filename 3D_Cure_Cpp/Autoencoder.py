@@ -97,7 +97,6 @@ class Autoencoder:
         return rebuilt_frame
        
     def encode(self, frame):
-        
         # Convert frame to proper data type
         with torch.no_grad():
             frame = torch.tensor(frame)
@@ -106,7 +105,7 @@ class Autoencoder:
             encoded_frame = self.model.encode(frame).to('cpu')
             
         # convert encoded frame to proper data type
-        encoded_frame = encoded_frame.squeeze().numpy()
+        encoded_frame = encoded_frame.squeeze().numpy().tolist()
         
         # Return the encoded frame of the proper data type
         return encoded_frame
@@ -154,7 +153,7 @@ class Autoencoder:
         return self.tot_MSE_loss
     
     def display_and_save(self, MSE_loss):
-        print("Saving results...")
+        print("Saving autoencoder results...")
 
         data = {
             'MSE_loss' : np.array(MSE_loss),
@@ -179,7 +178,7 @@ class Autoencoder:
             pickle.dump(output, file)
 
         # Plot the BCE loss training data
-        print("Plotting...")
+        print("Plotting autoencoder results...")
         # Plot value learning curve
         plt.clf()
         title_str = "Autoencoder Learning Curve"

@@ -48,6 +48,12 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 	{
 		PyErr_Print();
 		fprintf(stderr, "Failed to find autoencoder module.\n");
+		Py_DECREF(name);
+		Py_DECREF(module);
+		Py_DECREF(dict);
+		Py_DECREF(init);
+		Py_DECREF(init_args);
+		Py_DECREF(object);
 		return NULL;
 	}
 	Py_DECREF(name);
@@ -58,6 +64,11 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 	{
 		PyErr_Print();
 		fprintf(stderr, "Failed to load autoencoder module dictionary.\n");
+		Py_DECREF(module);
+		Py_DECREF(dict);
+		Py_DECREF(init);
+		Py_DECREF(init_args);
+		Py_DECREF(object);
 		return NULL;
 	}
 	Py_DECREF(module);
@@ -68,6 +79,10 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 	{
 		PyErr_Print();
 		fprintf(stderr, "Failed to find autoencoder __init__ function.\n");
+		Py_DECREF(dict);
+		Py_DECREF(init);
+		Py_DECREF(init_args);
+		Py_DECREF(object);
 		return NULL;
 	}
 	Py_DECREF(dict);
@@ -100,6 +115,9 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 	{
 		PyErr_Print();
 		fprintf(stderr, "Failed to call autoencoder __init__ function.\n");
+		Py_DECREF(init);
+		Py_DECREF(init_args);
+		Py_DECREF(object);
 		return NULL;
 	}
 	Py_DECREF(init);
@@ -114,12 +132,12 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 * @param The vector used to create list
 * @return PyObject pointer pointing at the created list
 */
-PyObject* get_1D_list(vector<double> state)
+PyObject* get_1D_list(vector<double> arr)
 {
-	PyObject *list = PyList_New(state.size());
-	for (unsigned int i = 0; i < state.size(); i++)
+	PyObject *list = PyList_New(arr.size());
+	for (unsigned int i = 0; i < arr.size(); i++)
 	{
-		PyList_SetItem(list, i, PyFloat_FromDouble(state[i]));
+		PyList_SetItem(list, i, PyFloat_FromDouble(arr[i]));
 	}
 	return list;
 }
@@ -129,15 +147,15 @@ PyObject* get_1D_list(vector<double> state)
 * @param The vector used to create list
 * @return PyObject pointer pointing at the created list
 */
-PyObject* get_2D_list(vector<vector<double>> state)
+PyObject* get_2D_list(vector<vector<double>> arr)
 {
 	PyObject *list = PyList_New(0);
 	PyObject *inner_list = PyList_New(0);
-	for (unsigned int i = 0; i < state.size(); i++)
+	for (unsigned int i = 0; i < arr.size(); i++)
 	{
-		for (unsigned int j = 0; j < state[0].size(); j++)
+		for (unsigned int j = 0; j < arr[0].size(); j++)
 		{
-			PyList_Append(inner_list, PyFloat_FromDouble(state[i][j]));
+			PyList_Append(inner_list, PyFloat_FromDouble(arr[i][j]));
 		}
 		PyList_Append(list, inner_list);
 		inner_list = PyList_New(0);
