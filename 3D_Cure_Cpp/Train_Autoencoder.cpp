@@ -10,11 +10,12 @@ using namespace std;
 /**
 * Prints the finite element solver and simulation parameters to std out
 */
-void print_params(int encoder_output_size, int samples_per_trajectory, int samples_per_batch, double start_alpha, double end_alpha)
+void print_params(int encoder_output_size, int samples_per_trajectory, int samples_per_batch, double start_alpha, double end_alpha, int x_dim, int y_dim)
 {
 	// Hyperparameters
 	cout << "\nHyperparameters(\n";
 	cout << "  (Bottleneck): " << encoder_output_size << "\n";
+	cout << "  (Image Dimenstions): " << x_dim << " x " << y_dim << "\n";
 	cout << "  (Samples per Trajectory): " << samples_per_trajectory << "\n";
 	cout << "  (Samples per Batch): " << samples_per_batch << " \n";
 	cout << "  (Start LR): " << start_alpha << "\n";
@@ -152,9 +153,10 @@ PyObject* get_2D_list(vector<vector<double>> state)
 * @param The total number of trajectories to be executed
 * @param The number of simulation steps taken per single cycle of control application
 * @param How many frames are to be gathered from each trajectory
+* @param The x dimension of the images fed to autoencoder
 * @return Tuple containing the training data and the trained autoencoder
 */
-auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectories, int steps_per_cycle, int samples_per_trajectory, int encoder_output_size)
+auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectories, int steps_per_cycle, int samples_per_trajectory, int encoder_output_size, int x_dim)
 {
 
 	// Declare variable tracking MSE_loss during training
@@ -260,7 +262,7 @@ auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectorie
 				}
 				
 				// Collect frame data
-				vector<vector<double> > norm_temp_mesh = FES.get_norm_temp_mesh();
+				vector<vector<double> > norm_temp_mesh = FES.get_norm_temp_mesh(x_dim);
 				PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
 								
 				// Send frame data to autoencoder (it will automatically update when data buffer is full)
@@ -311,6 +313,9 @@ auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectorie
 
 int main()
 {
+	// Initialize FES
+	Finite_Element_Solver FES = Finite_Element_Solver();
+	
 	// Autoencoder hyperparameters
 	bool load_autoencoder = false;
 	int encoder_output_size = 64;
@@ -319,18 +324,18 @@ int main()
 	int samples_per_batch = 100;
 	double start_alpha = 1.0e-3;
 	double end_alpha = 1.0e-5;
-
-	// Initialize FES
-	Finite_Element_Solver FES = Finite_Element_Solver();
+	double x_range = 0.20;
 
 	// Calculated parameters
+	int x_dim = (int)round(x_range*(double)FES.get_num_vert_length());
+	int y_dim = FES.get_num_vert_width();
 	double decay_rate = pow(end_alpha/start_alpha, 1.0/((double)total_trajectories*(double)samples_per_trajectory));
 	double execution_period = (FES.get_sim_duration() / (double)samples_per_trajectory);
 	int steps_per_cycle = (int) round(execution_period / FES.get_time_step());
 
 	// Init autoencoder
 	Py_Initialize();
-	PyObject* autoencoder = init_autoencoder(start_alpha, decay_rate, (int)ceil((double)FES.get_num_vert_length()/2.0), (int)ceil((double)FES.get_num_vert_width()/2.0), encoder_output_size, samples_per_batch, load_autoencoder);
+	PyObject* autoencoder = init_autoencoder(start_alpha, decay_rate, x_dim, y_dim, encoder_output_size, samples_per_batch, load_autoencoder);
 	if (autoencoder == NULL)
 	{
 		PyErr_Print();
@@ -340,13 +345,13 @@ int main()
 	}
 
 	// Print simulation parameters
-	print_params(encoder_output_size, samples_per_trajectory, samples_per_batch, start_alpha, end_alpha);
+	print_params(encoder_output_size, samples_per_trajectory, samples_per_batch, start_alpha, end_alpha, x_dim, y_dim);
 	FES.print_params();
 
 	// Train autoencoder
 	cout << "\nTraining autoencoder..." << endl;
 	auto start_time = std::chrono::high_resolution_clock::now();
-	auto [trained_autoencoder, MSE_loss] = run(FES, autoencoder, total_trajectories, steps_per_cycle, samples_per_trajectory, encoder_output_size);
+	auto [trained_autoencoder, MSE_loss] = run(FES, autoencoder, total_trajectories, steps_per_cycle, samples_per_trajectory, encoder_output_size, x_dim);
 
 	// Stop clock and print duration
 	auto end_time = std::chrono::high_resolution_clock::now();

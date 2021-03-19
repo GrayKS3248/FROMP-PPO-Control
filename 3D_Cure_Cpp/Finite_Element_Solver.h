@@ -34,7 +34,7 @@ bool get_control_speed();
 void print_params();
 vector<double> get_input_location();
 vector<vector<double> > get_temp_mesh();
-vector<vector<double> > get_norm_temp_mesh();
+vector<vector<double> > get_norm_temp_mesh(int num_vert_sub_length);
 vector<vector<double> > get_cure_mesh();
 vector<vector<double> > get_input_mesh();
 vector<vector<double> > get_front_loc();
@@ -85,7 +85,7 @@ const double depth = 0.005;  // Meters
 
 // Temporal parameters
 const double sim_duration = 60.0;   // Seconds
-const double time_step = 0.03;       // Seconds
+const double time_step = 0.03;         // Seconds
 
 // Initial conditions
 const double initial_temperature = 278.15;  // Kelvin

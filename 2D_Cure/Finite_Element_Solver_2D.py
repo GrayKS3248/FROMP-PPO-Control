@@ -350,7 +350,7 @@ class FES():
         
         # Calculate the reward
         mean_front_vel_error = min(np.mean(abs(self.front_vel - self.current_target_front_vel) / (self.current_target_front_vel)), 1.0)
-        front_rate_reward = ((1.0 - mean_front_vel_error) * self.front_rate_reward_const)**3.0
+        front_rate_reward = ((1.0 - mean_front_vel_error) * self.)**3.0
         
         # Sum reward and punishment
         reward = front_rate_reward + punishment

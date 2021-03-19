@@ -469,29 +469,68 @@ vector<vector<double> > Finite_Element_Solver::get_temp_mesh()
 }
 
 /**
-* Gets the normalized top layer of the temperature mesh with half resolution
-* @return The top layer of the temperature mesh as a 2D vector in x,y normalized against in 0.90*T0 to 1.10*Tmax
+* Gets the normalized top layer of the temperature mesh around the front
+* @param The total number of vertices in the lengthwise direction to return
+* @return The top layer of the temperature mesh around the front as a 2D vector in x,y normalized against in 0.90*T0 to 1.10*Tmax
 */
-vector<vector<double> > Finite_Element_Solver::get_norm_temp_mesh()
+vector<vector<double> > Finite_Element_Solver::get_norm_temp_mesh(int num_vert_sub_length)
 {
-	int half_vert_length = (int)ceil((double)num_vert_length/2.0);
-	int half_vert_width = (int)ceil((double)num_vert_width/2.0);
-	vector<vector<double> > ret_val(half_vert_length, vector<double>(half_vert_width, 0.0));
-	for (int i = 0; i < num_vert_length; i++)
+	// Get the mean front x location on the top layer of the mesh
+	double mean_front_loc = 0.0;
+	for (int i = 0; i < num_vert_width; i++)
+	{
+		mean_front_loc += front_loc[i][0];
+	}
+	mean_front_loc = mean_front_loc / num_vert_width;
+	
+	// Determine the index of the mean front location
+	int mean_front_index = 0;
+	double error = 2.0*length;
+	bool getting_colder = false;
+	while(!getting_colder)
+	{
+		if (mean_front_index > num_vert_length-1)
+		{
+			getting_colder = true;
+			mean_front_index--;
+		}
+		else
+		{
+			double new_error = abs(mean_front_loc - mesh_x[mean_front_index][0][0]);
+			if (new_error > error)
+			{
+				getting_colder = true;
+				mean_front_index--;
+			}
+			else
+			{
+				error = new_error;
+				mean_front_index++;
+			}
+		}
+	}
+	
+	// Determine the starting and ending vertices based on the mean front index
+	int half_num_vert_sub_length = (int)round((double)num_vert_sub_length/2.0);
+	int start_index = mean_front_index - half_num_vert_sub_length;
+	start_index = start_index < 0 ? 0 : start_index;
+	int end_index = start_index + num_vert_sub_length - 1;
+	if(end_index >= num_vert_length)
+	{
+		end_index = num_vert_length - 1;
+		start_index = end_index - num_vert_sub_length + 1;
+	}
+	
+	// Get the temperature in the range determined above
+	vector<vector<double> > ret_val(num_vert_sub_length, vector<double>(num_vert_width, 0.0));
+	for (int i = start_index; i <= end_index; i++)
 	{
 		for (int j = 0; j < num_vert_width; j++)
 		{
-			if (i%2==0 && j%2==0)
-			{
-				int curr_i = (int)round((double)i/2.0);
-				int curr_j =(int)round((double)j/2.0);
-				if (curr_i < half_vert_length && curr_j < half_vert_width)
-				{
-					ret_val[curr_i][curr_j] = (temp_mesh[i][j][0] - 0.90*initial_temperature) / (1.1*temperature_limit - 0.90*initial_temperature);
-					ret_val[curr_i][curr_j] = ret_val[curr_i][curr_j] > 1.0 ? 1.0 : ret_val[curr_i][curr_j];
-					ret_val[curr_i][curr_j] = ret_val[curr_i][curr_j] < 0.0 ? 0.0 : ret_val[curr_i][curr_j];
-				}
-			}
+			int i_index = i - start_index;
+			ret_val[i_index][j] = (temp_mesh[i][j][0] - 0.90*initial_temperature) / (1.1*temperature_limit - 0.90*initial_temperature);
+			ret_val[i_index][j] = ret_val[i_index][j] > 1.0 ? 1.0 : ret_val[i_index][j];
+			ret_val[i_index][j] = ret_val[i_index][j] < 0.0 ? 0.0 : ret_val[i_index][j];
 		}
 	}
 	return ret_val;
@@ -909,7 +948,7 @@ void Finite_Element_Solver::step_meshes()
 			cure_rate = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * prev_temp[i][j][k])) *  
 			pow((1.0 - cure_mesh[i][j][k]), DCPD_GC2_model_fit_order) * 
 			pow(cure_mesh[i][j][k], DCPD_GC2_m_fit) * 
-			(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh[i][j][k] - DCPD_GC2_critical_cure))));
+			(1.0 / 1+(1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh[i][j][k] - DCPD_GC2_critical_cure))));
 		}
 		else if (use_COD)
 		{
@@ -1161,7 +1200,6 @@ vector<double> Finite_Element_Solver::get_state(vector<double> encoded_temp, int
 
 	// Return the state
 	return state;
-*/
 }
 
 /**

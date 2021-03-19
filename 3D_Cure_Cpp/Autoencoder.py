@@ -218,7 +218,7 @@ class Autoencoder:
             plt.cla()
             plt.clf()
             fig, (ax0, ax1) = plt.subplots(2, 1)
-            fig.set_size_inches(11,8.5)
+            fig.set_size_inches(10,(round(100.0*(20.0*self.y_dim)/self.x_dim)-round(100.0*(20.0*self.y_dim)/self.x_dim)%2)/100.0)
             
             # Plot frame
             c0 = ax0.pcolormesh(x_grid, y_grid, np.transpose(frames[curr_step]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
@@ -249,11 +249,11 @@ class Autoencoder:
             plt.close()
                 
         
-# if __name__ == '__main__':
-#     autoencoder = Autoencoder(1.0e-3, 1.0, 180, 20, 64, 20, True)
+if __name__ == '__main__':
+    autoencoder = Autoencoder(1.0e-3, 1.0, 72, 40, 64, 20, True)
     
-#     with open("results/Auto_1/test_frames", 'rb') as file:
-#         test_frames = pickle.load(file)
-#     test_frames = test_frames['data']['Test_frames']
+    with open("results/Auto_1/test_frames", 'rb') as file:
+        test_frames = pickle.load(file)
+    test_frames = test_frames['data']['Test_frames']
     
-#     autoencoder.render(test_frames)
+    autoencoder.render(test_frames)
