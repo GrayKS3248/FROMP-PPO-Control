@@ -1,7 +1,7 @@
 CXX = g++
 CXXFLAGS = -fopenmp -Wall -ansi -std=c++2a
-INC = -IC:\Users\GKSch\AppData\Local\Programs\Python\Python39\include
-LIB_PATH= -LC:\Users\GKSch\AppData\Local\Programs\Python\Python39
+INC = -I$(CPYTHONPATH)
+LIB_PATH= -L$(PYTHONPATH)
 LIB = -lpython39
 NAME = FES
 
