@@ -165,53 +165,41 @@ void print_training_info(int curr_trajectory, int total_trajectories, double pre
 */
 PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectories_per_batch, long minibatch_size, long num_epochs, double gamma, double lamb, double epsilon, double alpha, double decay_rate, bool  load_agent, bool reset_stdev)
 {
-	// Declare PyObjects
-	PyObject *name, *module, *dict, *init, *init_args, *object;
-
 	// Define module name
-	name = PyUnicode_DecodeFSDefault("PPO_Agent_3_Output");
+	PyObject* name = PyUnicode_DecodeFSDefault("PPO_Agent_3_Output");
 
 	// Initialize module
-	module = PyImport_Import(name);
+	PyObject* module = PyImport_Import(name);
 	if (module == NULL)
 	{
 		PyErr_Print();
 		fprintf(stderr, "Failed to find agent module.\n");
 		Py_DECREF(name);
 		Py_DECREF(module);
-		Py_DECREF(dict);
-		Py_DECREF(init);
-		Py_DECREF(init_args);
-		Py_DECREF(object);
 		return NULL;
 	}
 	Py_DECREF(name);
 
 	// Load dictionary of module methods and variables
-	dict = PyModule_GetDict(module);
+	PyObject* dict = PyModule_GetDict(module);
 	if (dict == NULL)
 	{
 		PyErr_Print();
 		fprintf(stderr, "Failed to load agent module dictionary.\n");
 		Py_DECREF(module);
 		Py_DECREF(dict);
-		Py_DECREF(init);
-		Py_DECREF(init_args);
-		Py_DECREF(object);
 		return NULL;
 	}
 	Py_DECREF(module);
 
 	// Get the initialization function from the module dictionary
-	init = PyDict_GetItemString(dict, "PPO_Agent");
+	PyObject* init = PyDict_GetItemString(dict, "PPO_Agent");
 	if (init == NULL || !PyCallable_Check(init))
 	{
 		PyErr_Print();
 		fprintf(stderr, "Failed to find agent __init__ function.\n");
 		Py_DECREF(dict);
 		Py_DECREF(init);
-		Py_DECREF(init_args);
-		Py_DECREF(object);
 		return NULL;
 	}
 	Py_DECREF(dict);
@@ -237,7 +225,7 @@ PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectori
 	}
 
 	// Build the initialization arguments
-	init_args = PyTuple_New(12);
+	PyObject* init_args = PyTuple_New(12);
 	PyTuple_SetItem(init_args, 0, PyLong_FromLong(num_states));
 	PyTuple_SetItem(init_args, 1, PyLong_FromLong(steps_per_trajectory));
 	PyTuple_SetItem(init_args, 2, PyLong_FromLong(trajectories_per_batch));
@@ -254,7 +242,7 @@ PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectori
 	Py_DECREF(py_reset_stdev);
 
 	// Initialize ppo object
-	object = PyObject_CallObject(init, init_args);
+	PyObject* object = PyObject_CallObject(init, init_args);
 	if (object == NULL)
 	{
 		PyErr_Print();
@@ -284,53 +272,41 @@ PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectori
 */
 PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, long y_dim, long encoder_output_size, long frame_buffer, bool load_autoencoder)
 {
-	// Declare PyObjects
-	PyObject *name, *module, *dict, *init, *init_args, *object;
-
 	// Define module name
-	name = PyUnicode_DecodeFSDefault("Autoencoder");
+	PyObject* name = PyUnicode_DecodeFSDefault("Autoencoder");
 
 	// Initialize module
-	module = PyImport_Import(name);
+	PyObject* module = PyImport_Import(name);
 	if (module == NULL)
 	{
 		PyErr_Print();
 		fprintf(stderr, "Failed to find autoencoder module.\n");
 		Py_DECREF(name);
 		Py_DECREF(module);
-		Py_DECREF(dict);
-		Py_DECREF(init);
-		Py_DECREF(init_args);
-		Py_DECREF(object);
 		return NULL;
 	}
 	Py_DECREF(name);
 
 	// Load dictionary of module methods and variables
-	dict = PyModule_GetDict(module);
+	PyObject* dict = PyModule_GetDict(module);
 	if (dict == NULL)
 	{
 		PyErr_Print();
 		fprintf(stderr, "Failed to load autoencoder module dictionary.\n");
 		Py_DECREF(module);
 		Py_DECREF(dict);
-		Py_DECREF(init);
-		Py_DECREF(init_args);
-		Py_DECREF(object);
 		return NULL;
 	}
 	Py_DECREF(module);
 
 	// Get the initialization function from the module dictionary
-	init = PyDict_GetItemString(dict, "Autoencoder");
+	PyObject* init = PyDict_GetItemString(dict, "Autoencoder");
 	if (init == NULL || !PyCallable_Check(init))
 	{
 		PyErr_Print();
 		fprintf(stderr, "Failed to find autoencoder __init__ function.\n");
 		Py_DECREF(dict);
 		Py_DECREF(init);
-		Py_DECREF(init_args);
-		Py_DECREF(object);
 		return NULL;
 	}
 	Py_DECREF(dict);
@@ -347,7 +323,7 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 	}
 
 	// Build the initialization arguments
-	init_args = PyTuple_New(7);
+	PyObject* init_args = PyTuple_New(7);
 	PyTuple_SetItem(init_args, 0, PyFloat_FromDouble(start_alpha));
 	PyTuple_SetItem(init_args, 1, PyFloat_FromDouble(decay_rate));
 	PyTuple_SetItem(init_args, 2, PyLong_FromLong(x_dim));
@@ -358,7 +334,7 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 	Py_DECREF(py_load_autoencoder);
 
 	// Initialize autoencoder object
-	object = PyObject_CallObject(init, init_args);
+	PyObject* object = PyObject_CallObject(init, init_args);
 	if (object == NULL)
 	{
 		PyErr_Print();
@@ -736,42 +712,54 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 	// Run a set of episodes
 	for (int i = 0; i < total_trajectories; i++)
 	{
-		
+		cout << "\n\n1" << flush;
 		// Initialize simulation variables
 		bool done = false;
 		double action_1=0.0, stdev_1=0.0, action_2=0.0, stdev_2=0.0, action_3=0.0, stdev_3=0.0, reward;
 		bool run_agent, save_frame, update_encoder;
 		int step_in_trajectory = 0;
 		
+		cout << " 2" << flush;
 		// Select random set of frames to be used to update autoencoder
 		vector<int> update_frames = get_update_frames(tot_num_sim_steps, samples_per_trajectory);
 		int curr_save_frame_ind = 0;
 		int curr_save_frame = update_frames[curr_save_frame_ind];
 		
+		cout << " 3\n" << flush;
 		// User readout
 		print_training_info(i, total_trajectories, prev_episode_reward, steps_per_trajectory, r_per_episode, best_episode, MSE_loss);
 		prev_episode_reward = total_reward;
 
+		cout << "\n4" << flush;
 		// Reset environment
 		FES.reset();
 
+		cout << " 5" << flush;
 		// Simulation loop
 		while (!done)
 		{
+			cout << "\n6" << flush;
+			cout << " (" << curr_save_frame << "  " << step_in_trajectory << "  " << steps_per_agent_cycle << "  " << steps_per_frame << ")";
 			// Determine what to run this simulation step
 			run_agent = (step_in_trajectory % steps_per_agent_cycle == 0) || (step_in_trajectory==0);
+			cout << " 6a" << flush;
 			save_frame = (step_in_trajectory % steps_per_frame == 0) || (step_in_trajectory==0);
+			cout << " 6b" << flush;
 			update_encoder = (step_in_trajectory == curr_save_frame);
+			cout << " 6c" << flush;
 			step_in_trajectory++;
+			cout << " 6d" << flush;
 			
+			cout << " 7" << flush;
 			// Run the agent
 			if (run_agent)
 			{
-
+				cout << " 8" << flush;
 				// Gather temperature state data
 				vector<vector<double> > norm_temp_mesh = FES.get_norm_temp_mesh(x_dim);
 				PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
 				
+				cout << " 9" << flush;
 				// Encode and convert temperature state data
 				PyObject* py_encoded_temp = PyObject_CallMethod(autoencoder, "encode", "O", py_norm_temp_mesh);
 				if (py_encoded_temp == NULL)
@@ -782,26 +770,39 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 				}
 				vector<double> encoded_temp = get_vector(py_encoded_temp);
 				
+				cout << " 10" << flush;
 				// Combine encoded temperature state data with front and input data
 				vector<double> state = FES.get_state(encoded_temp, encoder_output_size);
 
+				cout << " 11" << flush;
 				// Get agent action based on total encoded state
 				PyObject *py_state = get_1D_list(state);
 				PyObject *py_action = PyObject_CallMethod(agent, "get_action", "O", py_state);
+				if (py_action == NULL)
+				{
+					PyErr_Print();
+					fprintf(stderr, "Failed to call get action function.\n");
+					cin.get();
+				}
 				
+				cout << " 12" << flush;
 				// Get the agent commanded action
 				action_1 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 0));
 				action_2 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 2));
 				action_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 4));
-
+				cout << " (" << action_1 << "  " << action_2 << "  " << action_3 << ")";
+				
+				cout << " 13" << flush;
 				// Get the agent's stdev
 				stdev_1 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 1));
 				stdev_2 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 3));
 				stdev_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 5));
 
+				cout << " 14" << flush;
 				// Step the environment
 				done = FES.step(action_1, action_2, action_3);
 
+				cout << " 15" << flush;
 				// Update the agent
 				reward = FES.get_reward();
 				PyObject* py_result = PyObject_CallMethod(agent, "update_agent", "(O,f,f,f,f)", py_state, PyFloat_FromDouble(action_1), PyFloat_FromDouble(action_2), PyFloat_FromDouble(action_3), PyFloat_FromDouble(reward));
@@ -812,25 +813,32 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 					cin.get();
 				}
 	
+				cout << " 16" << flush;
 				// Update reward
 				total_reward = total_reward + reward;
 				
+				cout << " 17" << flush;
 				// Release the python memory
 				Py_DECREF(py_norm_temp_mesh);
 				Py_DECREF(py_encoded_temp);
 				Py_DECREF(py_state);
 				Py_DECREF(py_action);
 				Py_DECREF(py_result);
+				cout << " 18" << flush;
 			}
 			else
 			{
+				cout << " 19" << flush;
 				// Step the environment based on the previously commanded action
 				done = FES.step(action_1, action_2, action_3);
+				cout << " 20" << flush;
 			}
 
+			cout << " 21" << flush;
 			// Update the autoencoder
 			if (update_encoder)
 			{
+				cout << " 22" << flush;
 				// Update which frame is to be saved next
 				curr_save_frame_ind++;
 				if (curr_save_frame_ind < samples_per_trajectory)
@@ -838,10 +846,12 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 					curr_save_frame = update_frames[curr_save_frame_ind];
 				}
 				
+				cout << " 23" << flush;
 				// Collect frame data
 				vector<vector<double> > norm_temp_mesh = FES.get_norm_temp_mesh(x_dim);
 				PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
-								
+						
+				cout << " 24" << flush;
 				// Send frame data to autoencoder (it will automatically update when data buffer is full)
 				PyObject* py_MSE_loss = PyObject_CallMethod(autoencoder, "update", "O", py_norm_temp_mesh);
 				if (py_MSE_loss == NULL)
@@ -851,17 +861,22 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 					cin.get();
 				}
 				
+				cout << " 25" << flush;
 				// Store training data
 				MSE_loss.push_back(PyFloat_AsDouble(py_MSE_loss));
 				
+				cout << " 26" << flush;
 				// Free python memory
 				Py_DECREF(py_MSE_loss);
 				Py_DECREF(py_norm_temp_mesh);
+				cout << " 27" << flush;
 			}
 
+			cout << " 28" << flush;
 			// Update the logs
 			if (save_frame)
 			{
+				cout << " 29" << flush;
 				// Get environment data
 				vector<double> input_location = FES.get_input_location();
 				vector<vector<double> > temp_mesh = FES.get_temp_mesh();
@@ -870,6 +885,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 				vector<vector<double> > front_vel = FES.get_front_vel();
 				vector<vector<double> > front_temp = FES.get_front_temp();
 				
+				cout << " 30" << flush;
 				// Store simulation data
 				curr_input_location_x.push_back(input_location[0]);
 				curr_input_location_y.push_back(input_location[1]);
@@ -877,6 +893,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 				curr_sim_time.push_back(FES.get_current_time());
 				curr_target.push_back(FES.get_current_target());
 				
+				cout << " 31" << flush;
 				// Store environment temperature data
 				for (int i = 0; i < FES.get_num_vert_length(); i++)
 				{
@@ -887,6 +904,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 					}
 				}
 				
+				cout << " 32" << flush;
 				// Store environment front data
 				for (int j = 0; j < FES.get_num_vert_width(); j++)
 				{
@@ -901,6 +919,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 			
 		}
 
+		cout << " 33" << flush;
 		// Update the best trajectory memory
 		prev_episode_reward = total_reward - prev_episode_reward;
 		if (prev_episode_reward > best_episode || i == 0)
@@ -918,6 +937,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 			best_front_temperature = curr_front_temperature;
 		}
 
+		cout << " 34" << flush;
 		// Reset the current trajectory memory
 		curr_input_location_x.clear();
 		curr_input_location_y.clear();
@@ -925,15 +945,18 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 		curr_sim_time.clear();
 		curr_target.clear();
 
+		cout << " 35" << flush;
 		// Update the logs
 		r_per_episode.push_back(prev_episode_reward/(double)steps_per_trajectory);
 		x_rate_stdev.push_back(FES.get_loc_rate_scale()*stdev_1);
 		y_rate_stdev.push_back(FES.get_loc_rate_scale()*stdev_2);
 		mag_stdev.push_back(FES.get_max_input_mag()*FES.get_mag_scale()*stdev_3);
 
+		cout << " 36" << flush;
 		// Final user readout
 		if (i == total_trajectories - 1)
 		{
+			cout << " 37\n" << flush;
 			print_training_info(total_trajectories, total_trajectories, prev_episode_reward, steps_per_trajectory, r_per_episode, best_episode, MSE_loss);
 		}
 	}
@@ -957,7 +980,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 }
 
 int main()
-{
+{	
 	// Agent parameters
 	bool load_agent = false;
 	bool reset_stdev = false;

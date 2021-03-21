@@ -330,7 +330,7 @@ auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectorie
 }
 
 int main()
-{
+{	
 	// Initialize FES
 	Finite_Element_Solver FES = Finite_Element_Solver();
 	
