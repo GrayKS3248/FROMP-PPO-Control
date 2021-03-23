@@ -134,7 +134,9 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 */
 PyObject* get_1D_list(vector<double> arr)
 {
-	PyObject *list = PyList_New(arr.size());
+	PyObject *list;
+	
+	list = PyList_New(arr.size());
 	for (unsigned int i = 0; i < arr.size(); i++)
 	{
 		PyList_SetItem(list, i, PyFloat_FromDouble(arr[i]));
@@ -149,19 +151,20 @@ PyObject* get_1D_list(vector<double> arr)
 */
 PyObject* get_2D_list(vector<vector<double>> arr)
 {
-	PyObject *list = PyList_New(0);
-	PyObject *inner_list = PyList_New(0);
+	PyObject *mat, *vec;
+
+	mat = PyList_New(arr.size());
 	for (unsigned int i = 0; i < arr.size(); i++)
 	{
+		vec = PyList_New(arr[0].size());
 		for (unsigned int j = 0; j < arr[0].size(); j++)
 		{
-			PyList_Append(inner_list, PyFloat_FromDouble(arr[i][j]));
+			PyList_SetItem(vec, j, PyFloat_FromDouble(arr[i][j]));
 		}
-		PyList_Append(list, inner_list);
-		inner_list = PyList_New(0);
+		PyList_SetItem(mat, i, vec);
 	}
 	
-	return list;
+	return mat;
 }
 
 /**
@@ -191,7 +194,7 @@ auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectorie
 
 		// User readout
 		stringstream stream;
-		stream << std::fixed << std::setprecision(1) << percent_complete;
+		stream << fixed << setprecision(1) << percent_complete;
 		string msg1 = stream.str();
 		msg1.append("% Complete");
 		if (msg1.length() < 18)
@@ -205,14 +208,14 @@ auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectorie
 			msg2.append(22 - msg2.length(), ' ');
 		}
 		string msg3 = "| MSE Loss: ";
-		stream.str(std::string());
+		stream.str(string());
 		if (i != 0)
 		{
-			stream << std::fixed << std::setprecision(3) << MSE_loss.back();
+			stream << fixed << setprecision(3) << MSE_loss.back();
 		}
 		else
 		{
-			stream << std::fixed << std::setprecision(3) << 0.0;
+			stream << fixed << setprecision(3) << 0.0;
 		}
 		msg3.append(stream.str());
 		if (msg3.length() < 20)
@@ -313,8 +316,8 @@ auto run(Finite_Element_Solver FES, PyObject* autoencoder, int total_trajectorie
 				msg2.append(22 - msg2.length(), ' ');
 			}
 			msg3 = "| MSE Loss: ";
-			stream.str(std::string());
-			stream << std::fixed << std::setprecision(3) << MSE_loss.back();
+			stream.str(string());
+			stream << fixed << setprecision(3) << MSE_loss.back();
 			msg3.append(stream.str());
 			if (msg3.length() < 20)
 			{
@@ -368,12 +371,12 @@ int main()
 
 	// Train autoencoder
 	cout << "\nTraining autoencoder..." << endl;
-	auto start_time = std::chrono::high_resolution_clock::now();
+	auto start_time = chrono::high_resolution_clock::now();
 	auto [trained_autoencoder, MSE_loss] = run(FES, autoencoder, total_trajectories, steps_per_cycle, samples_per_trajectory, encoder_output_size, x_dim);
 
 	// Stop clock and print duration
-	auto end_time = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::microseconds>( end_time - start_time ).count();
+	auto end_time = chrono::high_resolution_clock::now();
+	auto duration = chrono::duration_cast<chrono::microseconds>( end_time - start_time ).count();
 	cout << "Training Took: ";
 	printf("%.1f", (double)duration*10e-7);
 	cout << " seconds.\n";
@@ -396,6 +399,5 @@ int main()
 	Py_DECREF(py_MSE_loss);
 	Py_FinalizeEx();
 	cout << "Done!";
-	cin.get();
 	return 0;
 }

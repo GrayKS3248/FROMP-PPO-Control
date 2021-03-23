@@ -33,17 +33,17 @@ int get_num_state(int encoded_size);
 bool get_control_speed();
 void print_params();
 vector<double> get_input_location();
-vector<vector<double> > get_temp_mesh();
-vector<vector<double> > get_norm_temp_mesh(int num_vert_sub_length);
-vector<vector<double> > get_cure_mesh();
-vector<vector<double> > get_input_mesh();
-vector<vector<double> > get_front_loc();
-vector<vector<double> > get_front_vel();
-vector<vector<double> > get_front_temp();
-vector<vector<double> > get_mesh_x_z0();
-vector<vector<double> > get_mesh_y_z0();
-vector<vector<double> > get_mesh_y_x0();
-vector<vector<double> > get_mesh_z_x0();
+vector<vector<double>> get_temp_mesh();
+vector<vector<double>> get_norm_temp_mesh(int num_vert_sub_length);
+vector<vector<double>> get_cure_mesh();
+vector<vector<double>> get_input_mesh();
+vector<vector<double>> get_front_loc();
+vector<vector<double>> get_front_vel();
+vector<vector<double>> get_front_temp();
+vector<vector<double>> get_mesh_x_z0();
+vector<vector<double>> get_mesh_y_z0();
+vector<vector<double>> get_mesh_y_x0();
+vector<vector<double>> get_mesh_z_x0();
 
 //******************** FUNCTIONS ******************************//
 bool step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
@@ -201,22 +201,22 @@ double trigger_time;      // Seconds
 double trigger_duration;  // Seconds
 
 // Mesh and step size
-vector<vector<vector<double> > > mesh_x;
-vector<vector<vector<double> > > mesh_y;
-vector<vector<vector<double> > > mesh_z;
+vector<vector<vector<double>>> mesh_x;
+vector<vector<vector<double>>> mesh_y;
+vector<vector<vector<double>>> mesh_z;
 double x_step;
 double y_step;
 double z_step;
 
 // Temperature and cure meshes
-vector<vector<vector<double> > > temp_mesh;
-vector<vector<vector<double> > > cure_mesh;
+vector<vector<vector<double>>> temp_mesh;
+vector<vector<vector<double>>> cure_mesh;
 
 // Front mesh and parameters
-vector<vector<double> > front_loc;
-vector<vector<double> > front_vel;
-vector<vector<double> > time_front_last_moved;
-vector<vector<double> > front_temp;
+vector<vector<double>> front_loc;
+vector<vector<double>> front_vel;
+vector<vector<double>> time_front_last_moved;
+vector<vector<double>> front_temp;
 
 // Input magnitude parameters
 double exp_const;
@@ -231,10 +231,10 @@ double max_input_y_loc;
 vector<double> input_location;
 
 // Input wattage mesh
-vector<vector<double> > input_mesh;
+vector<vector<double>> input_mesh;
 
 //******************** FUNCTIONS ********************//
-vector<vector<vector<double> > > get_perturbation(vector<vector<vector<double> > > size_array, double delta);
+vector<vector<vector<double>>> get_perturbation(vector<vector<vector<double> > > size_array, double delta);
 void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
 void step_meshes();
 bool step_time();

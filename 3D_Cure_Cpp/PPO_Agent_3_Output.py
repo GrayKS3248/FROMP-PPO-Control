@@ -205,7 +205,6 @@ class PPO_Agent:
     def get_value_target_minibatches(self, minibatch_indices):
 
         value_target_minibatches = []
-
         value_estimates, next_value_estimates = self.get_value_estimate()
         next_value_estimates = next_value_estimates.reshape(self.trajectories_per_batch*self.steps_per_trajectory)
 
@@ -215,7 +214,8 @@ class PPO_Agent:
 
             # Use the TD(0) algorithm to calculate the target value function
             reward_minibatch = torch.tensor(self.trajectory_rewards[minibatch_indices[curr_epoch]])
-            value_target_minibatch = reward_minibatch + self.gamma * next_value_estimate_minibatch
+            with torch.no_grad():
+                value_target_minibatch = reward_minibatch + self.gamma * torch.tensor(next_value_estimate_minibatch).double()
             value_target_minibatches.append(value_target_minibatch)
 
         return value_target_minibatches
@@ -307,28 +307,28 @@ class PPO_Agent:
 
         # If a trajectory batch is complete, apply the learning algorithm
         if current_step == self.steps_per_trajectory - 1 and current_trajectory == self.trajectories_per_batch - 1:
-
+            
             # Define the minibatches to be used for minibatch SGD
             minibatch_indices = np.random.permutation(len(self.trajectory_actions[0,:])).astype(int).reshape(self.num_epochs, self.minibatch_size)
-
+            
             # Calculate the value estimates and targets in minibatches
             value_estimate_minibatches = self.get_value_estimate_minibatches(minibatch_indices)
             value_target_minibatches =  self.get_value_target_minibatches(minibatch_indices)
-
+            
             # Calculate the advantage estimates and probability ratios in minibatches
             advantage_estimate_minibatches = self.get_advantage_minibatches(minibatch_indices)
             probability_ratio_minibatches = self.get_action_prob_ratio_minibatches(minibatch_indices)
-
+            
             # Copy the current state dictionary to the old actor and let the actor and critic learn
             self.old_actor.load_state_dict(self.actor.state_dict())
             self.learn(advantage_estimate_minibatches, probability_ratio_minibatches, value_estimate_minibatches, value_target_minibatches)
-
+            
             # After learning, reset the memory
             self.trajectory_index  = 0
             self.trajectory_states = np.zeros((self.trajectories_per_batch*self.steps_per_trajectory, self.num_states))
             self.trajectory_actions = np.zeros((3, self.trajectories_per_batch*self.steps_per_trajectory))
             self.trajectory_rewards = np.zeros(self.trajectories_per_batch*self.steps_per_trajectory)
-            
+        
         # Give indication that update was successful
         return True;
 

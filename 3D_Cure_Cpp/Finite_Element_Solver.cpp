@@ -133,9 +133,9 @@ Finite_Element_Solver::Finite_Element_Solver()
 	vector<double> x_range(num_vert_length, 0.0);
 	vector<double> y_range(num_vert_width, 0.0);
 	vector<double> z_range(num_vert_depth, 0.0);
-	mesh_x = vector<vector<vector<double> > >(num_vert_length, vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth)));
-	mesh_y = vector<vector<vector<double> > >(num_vert_length, vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth)));
-	mesh_z = vector<vector<vector<double> > >(num_vert_length, vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth)));
+	mesh_x = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth)));
+	mesh_y = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth)));
+	mesh_z = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth)));
 	for (int i = 0; i < max(num_vert_length, max(num_vert_width, num_vert_depth)); i++)
 	{
 		if (i < num_vert_length)
@@ -168,16 +168,16 @@ Finite_Element_Solver::Finite_Element_Solver()
 	z_step = mesh_z[0][0][1];
 
 	// Init and perturb temperature and cure meshes
-	temp_mesh = vector<vector<vector<double> > >(num_vert_length, vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, initial_temperature)));
+	temp_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_temperature)));
 	temp_mesh = get_perturbation(temp_mesh, initial_temp_delta);
-	cure_mesh = vector<vector<vector<double> > >(num_vert_length, vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, initial_cure)));
+	cure_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_cure)));
 	cure_mesh = get_perturbation(cure_mesh, initial_cure_delta);
 
 	// Init front mesh and parameters
-	front_loc = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	front_vel = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	time_front_last_moved = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	front_temp = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, initial_temperature));
+	front_loc = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+	front_vel = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+	time_front_last_moved = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+	front_temp = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_temperature));
 
 	// Input magnitude parameters
 	double sigma = 0.329505114491 * radius_of_input;
@@ -213,7 +213,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 	}
 
 	// Initiate input wattage mesh
-	input_mesh = vector<vector<double> >(num_vert_length, vector<double>(num_vert_width, 0.0));
+	input_mesh = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
 	double local_input_power = 0.0;
 	for (int i = 0; i < num_vert_length; i++)
 	{
@@ -456,9 +456,9 @@ vector<double> Finite_Element_Solver::get_input_location()
 * Gets the top layer of the temperature mesh
 * @return The top layer of the temperature mesh as a 2D vector in x,y
 */
-vector<vector<double> > Finite_Element_Solver::get_temp_mesh()
+vector<vector<double>> Finite_Element_Solver::get_temp_mesh()
 {
-	vector<vector<double> > ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
+	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
 	for (int i = 0; i < num_vert_length; i++)
 	{
 		for (int j = 0; j < num_vert_width; j++)
@@ -474,7 +474,7 @@ vector<vector<double> > Finite_Element_Solver::get_temp_mesh()
 * @param The total number of vertices in the lengthwise direction to return
 * @return The top layer of the temperature mesh around the front as a 2D vector in x,y normalized against in 0.90*T0 to 1.10*Tmax
 */
-vector<vector<double> > Finite_Element_Solver::get_norm_temp_mesh(int num_vert_sub_length)
+vector<vector<double>> Finite_Element_Solver::get_norm_temp_mesh(int num_vert_sub_length)
 {
 	// Get the mean front x location on the top layer of the mesh
 	double mean_front_loc = 0.0;
@@ -523,7 +523,7 @@ vector<vector<double> > Finite_Element_Solver::get_norm_temp_mesh(int num_vert_s
 	}
 	
 	// Get the temperature in the range determined above
-	vector<vector<double> > ret_val(num_vert_sub_length, vector<double>(num_vert_width, 0.0));
+	vector<vector<double>> ret_val(num_vert_sub_length, vector<double>(num_vert_width, 0.0));
 	for (int i = start_index; i <= end_index; i++)
 	{
 		for (int j = 0; j < num_vert_width; j++)
@@ -541,9 +541,9 @@ vector<vector<double> > Finite_Element_Solver::get_norm_temp_mesh(int num_vert_s
 * Gets the top layer of the cure mesh
 * @return The top layer of the cure mesh as a 2D vector in x,y
 */
-vector<vector<double> > Finite_Element_Solver::get_cure_mesh()
+vector<vector<double>> Finite_Element_Solver::get_cure_mesh()
 {
-	vector<vector<double> > ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
+	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
 	for (int i = 0; i < num_vert_length; i++)
 	{
 		for (int j = 0; j < num_vert_width; j++)
@@ -558,7 +558,7 @@ vector<vector<double> > Finite_Element_Solver::get_cure_mesh()
 * Gets the input mesh
 * @return The input mesh as a 2D vector in x,y of watts/m^2
 */
-vector<vector<double> > Finite_Element_Solver::get_input_mesh()
+vector<vector<double>> Finite_Element_Solver::get_input_mesh()
 {
 	return input_mesh;
 }
@@ -567,7 +567,7 @@ vector<vector<double> > Finite_Element_Solver::get_input_mesh()
 * Gets the current front location
 * @return The current front location as a 2D vector in y,z
 */
-vector<vector<double> > Finite_Element_Solver::get_front_loc()
+vector<vector<double>> Finite_Element_Solver::get_front_loc()
 {
 	return front_loc;
 }
@@ -576,7 +576,7 @@ vector<vector<double> > Finite_Element_Solver::get_front_loc()
 * Gets the current front velocity
 * @return The current front velocity as a 2D vector in y,z
 */
-vector<vector<double> > Finite_Element_Solver::get_front_vel()
+vector<vector<double>> Finite_Element_Solver::get_front_vel()
 {
 	return front_vel;
 }
@@ -585,7 +585,7 @@ vector<vector<double> > Finite_Element_Solver::get_front_vel()
 * Gets the current front temperature
 * @return The current front temperature as a 2D vector in y,z
 */
-vector<vector<double> > Finite_Element_Solver::get_front_temp()
+vector<vector<double>> Finite_Element_Solver::get_front_temp()
 {
 	return front_temp;
 }
@@ -594,9 +594,9 @@ vector<vector<double> > Finite_Element_Solver::get_front_temp()
 * Gets the top layer of the x mesh
 * @return The top layer of the x mesh as a 2D vector in x,y
 */
-vector<vector<double> > Finite_Element_Solver::get_mesh_x_z0()
+vector<vector<double>> Finite_Element_Solver::get_mesh_x_z0()
 {
-	vector<vector<double> > ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
+	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
 	for (int i = 0; i < num_vert_length; i++)
 	{
 		for (int j = 0; j < num_vert_width; j++)
@@ -611,9 +611,9 @@ vector<vector<double> > Finite_Element_Solver::get_mesh_x_z0()
 * Gets the top layer of the y mesh
 * @return The top layer of the y mesh as a 2D vector in x,y
 */
-vector<vector<double> > Finite_Element_Solver::get_mesh_y_z0()
+vector<vector<double>> Finite_Element_Solver::get_mesh_y_z0()
 {
-	vector<vector<double> > ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
+	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
 	for (int i = 0; i < num_vert_length; i++)
 	{
 		for (int j = 0; j < num_vert_width; j++)
@@ -628,9 +628,9 @@ vector<vector<double> > Finite_Element_Solver::get_mesh_y_z0()
 * Gets the left layer of the y mesh
 * @return The left layer of the y mesh as a 2D vector in y,z
 */
-vector<vector<double> > Finite_Element_Solver::get_mesh_y_x0()
+vector<vector<double>> Finite_Element_Solver::get_mesh_y_x0()
 {
-	vector<vector<double> > ret_val(num_vert_width, vector<double>(num_vert_depth, 0.0));
+	vector<vector<double>> ret_val(num_vert_width, vector<double>(num_vert_depth, 0.0));
 	for (int i = 0; i < num_vert_width; i++)
 	{
 		for (int j = 0; j < num_vert_depth; j++)
@@ -645,9 +645,9 @@ vector<vector<double> > Finite_Element_Solver::get_mesh_y_x0()
 * Gets the left layer of the z mesh
 * @return The left layer of the z mesh as a 2D vector in y,z
 */
-vector<vector<double> > Finite_Element_Solver::get_mesh_z_x0()
+vector<vector<double>> Finite_Element_Solver::get_mesh_z_x0()
 {
-	vector<vector<double> > ret_val(num_vert_width, vector<double>(num_vert_depth, 0.0));
+	vector<vector<double>> ret_val(num_vert_width, vector<double>(num_vert_depth, 0.0));
 	for (int i = 0; i < num_vert_width; i++)
 	{
 		for (int j = 0; j < num_vert_depth; j++)

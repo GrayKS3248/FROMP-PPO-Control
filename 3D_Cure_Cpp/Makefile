@@ -10,6 +10,3 @@ auto:
 	
 ppo: 
 	$(CXX) $(INC) $(LIB_PATH) $(LIB) -O2 $(CXXFLAGS) Finite_Element_Solver.h Finite_Element_Solver.cpp Train_Controller.cpp -o $(NAME)
-	
-ppo_debug: 
-	$(CXX) $(INC) $(LIB_PATH) $(LIB) -O2 $(CXXFLAGS) -ggdb Finite_Element_Solver.h Finite_Element_Solver.cpp Train_Controller.cpp -o $(NAME)
