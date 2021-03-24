@@ -5,8 +5,11 @@ using namespace std;
 
 /**
 * Default constructor
+* @param length of encoded state
+* @param boolean flag that indicates whether front location and velocity data are appended to encoded state
+* @param decimal percent of length sent to autoencoder
 */
-Finite_Element_Solver::Finite_Element_Solver()
+Finite_Element_Solver::Finite_Element_Solver(int encoded_size_in, bool get_extended_state_in, double x_crop)
 {
 	// Set randomization seed
 	srand(time(NULL));
@@ -14,7 +17,19 @@ Finite_Element_Solver::Finite_Element_Solver()
 	// Simulation time and target velocity index
 	current_time = 0.0;  // Seconds
 	current_index = 0;   // Unitless
-
+	
+	// State information
+	encoded_size = encoded_size_in;
+	get_extended_state = get_extended_state_in;
+	if (x_crop > 0.0 && x_crop < 1.0)
+	{
+		num_vert_sub_length = (int)round(x_crop*(double)num_vert_length);
+	}
+	else
+	{
+		num_vert_sub_length = num_vert_length;
+	}	
+	
 	// Monomer physical parameters
 	if (use_DCPD_GC1)
 	{
@@ -39,7 +54,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 	}
 
 	// Calculate the target temporal vector and define the current target
-	int sim_steps = (int)(sim_duration / time_step);
+	int sim_steps = (int)round(sim_duration / time_step);
 	double target = 0.0;
 	double randomizing_scale = 0.0;
 	if(control_speed)
@@ -199,8 +214,18 @@ Finite_Element_Solver::Finite_Element_Solver()
 	min_input_y_loc = 0.0;
 	max_input_y_loc = width;
 	input_location = vector<double>(2, 0.0);
-	input_location[0] = mesh_x[(int)floor((double)rand()/(double)RAND_MAX * num_vert_length)][0][0];
-	input_location[1] = mesh_y[0][(int)floor((double)rand()/(double)RAND_MAX * num_vert_width)][0];
+	
+	// Select a random input location
+	int length_pos = (int)floor((double)rand()/(double)RAND_MAX * num_vert_length);
+	length_pos = length_pos >= num_vert_length ? num_vert_length - 1 : length_pos;
+	int width_pos = (int)floor((double)rand()/(double)RAND_MAX * num_vert_width);
+	width_pos = width_pos >= num_vert_width ? num_vert_width - 1 : width_pos;
+
+	// Assign the random input locationj
+	input_location[0] = mesh_x[length_pos][0][0];
+	input_location[1] = mesh_y[0][width_pos][0];
+		
+	// Apply correction if in control mode
 	if (control)
 	{
 		max_input_mag = 0.0;
@@ -351,15 +376,17 @@ double Finite_Element_Solver::get_current_time()
 
 /**
 * Gets the length of the state vector
-* @return The integer length of the state vector
 */
-int Finite_Element_Solver::get_num_state(int encoded_size)
+int Finite_Element_Solver::get_num_state()
 {
 	// Temperature field view
 	int num_states = encoded_size;
 
 	// Add front location and veloicty views
-	num_states += (int)((double)num_vert_width/4.0) + (int)((double)num_vert_width/4.0);
+	if (get_extended_state)
+	{
+		num_states += (int)((double)num_vert_width/4.0) + (int)((double)num_vert_width/4.0);	
+	}
 
 	// Add input location and magnitude states
 	num_states += 3;
@@ -375,6 +402,15 @@ int Finite_Element_Solver::get_num_state(int encoded_size)
 bool Finite_Element_Solver::get_control_speed()
 {
 	return control_speed;
+}
+
+/**
+* Gets the number of vertices in the x dim sent to the autoencoder
+* @return the number of vertices in the x dim sent to the autoencoder
+*/
+int Finite_Element_Solver::get_cropped_x_dim()
+{
+	return num_vert_sub_length;
 }
 
 /**
@@ -437,6 +473,7 @@ void Finite_Element_Solver::print_params()
 	cout << "\nEnvironment(\n";
 	cout << "  (Dimensions): " << 1000.0*length << " x " << 1000.0*width << " x " << 1000.0*depth << " mm\n";
 	cout << "  (Grid): " << num_vert_length << " x " << num_vert_width << " x " << num_vert_depth << "\n";
+	cout << "  (State): " << get_num_state() << "\n";
 	cout << "  (Duration): " << sim_duration << " s\n";
 	cout << "  (Time Step): " << 1000.0*time_step << " ms\n";
 	cout << "  (Ambient Temperature): " << ambient_temperature-273.15 << " C\n";
@@ -471,10 +508,9 @@ vector<vector<double>> Finite_Element_Solver::get_temp_mesh()
 
 /**
 * Gets the normalized top layer of the temperature mesh around the front
-* @param The total number of vertices in the lengthwise direction to return
 * @return The top layer of the temperature mesh around the front as a 2D vector in x,y normalized against in 0.90*T0 to 1.10*Tmax
 */
-vector<vector<double>> Finite_Element_Solver::get_norm_temp_mesh(int num_vert_sub_length)
+vector<vector<double>> Finite_Element_Solver::get_norm_temp_mesh()
 {
 	// If you are returning a cropped image
 	if (num_vert_sub_length != num_vert_length && num_vert_sub_length >= 3)
@@ -543,7 +579,7 @@ vector<vector<double>> Finite_Element_Solver::get_norm_temp_mesh(int num_vert_su
 	// If you are returning an uncropped image
 	// Get the temperature 
 	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
-	for (int i = 0; i <= num_vert_length; i++)
+	for (int i = 0; i < num_vert_length; i++)
 	{
 		for (int j = 0; j < num_vert_width; j++)
 		{
@@ -702,11 +738,11 @@ bool Finite_Element_Solver::step(double x_loc_rate_action, double y_loc_rate_act
 void Finite_Element_Solver::reset()
 {
 	// Simulation time and target velocity index
-	current_time = 0.0;         // Seconds
-	current_index = 0;         // Unitless
+	current_time = 0.0;      // Seconds
+	current_index = 0;       // Unitless
 
 	// Calculate the target temporal vector and define the current target
-	int sim_steps = (int)(sim_duration / time_step);
+	int sim_steps = (int)round(sim_duration / time_step);
 	double target = 0.0;
 	double randomizing_scale = 0.0;
 	if(control_speed)
@@ -766,16 +802,16 @@ void Finite_Element_Solver::reset()
 	current_target = target_vector[current_index];
 
 	// Init and perturb temperature and cure meshes
-	temp_mesh = vector<vector<vector<double> > >(num_vert_length, vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, initial_temperature)));
+	temp_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_temperature)));
 	temp_mesh = get_perturbation(temp_mesh, initial_temp_delta);
-	cure_mesh = vector<vector<vector<double> > >(num_vert_length, vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, initial_cure)));
+	cure_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_cure)));
 	cure_mesh = get_perturbation(cure_mesh, initial_cure_delta);
 
 	// Init front mesh and parameters
-	front_loc = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	front_vel = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	time_front_last_moved = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	front_temp = vector<vector<double> >(num_vert_width, vector<double>(num_vert_depth, initial_temperature));
+	front_loc = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+	front_vel = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+	time_front_last_moved = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
+	front_temp = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_temperature));
 
 	// Input magnitude parameters
 	input_percent = (double)rand()/(double)RAND_MAX;
@@ -789,8 +825,15 @@ void Finite_Element_Solver::reset()
 	}
 	else
 	{
-		input_location[0] = mesh_x[(int)floor((double)rand()/(double)RAND_MAX * num_vert_length)][0][0];
-		input_location[1] = mesh_y[0][(int)floor((double)rand()/(double)RAND_MAX * num_vert_width)][0];
+		// Select a random input location
+		int length_pos = (int)floor((double)rand()/(double)RAND_MAX * num_vert_length);
+		length_pos = length_pos >= num_vert_length ? num_vert_length - 1 : length_pos;
+		int width_pos = (int)floor((double)rand()/(double)RAND_MAX * num_vert_width);
+		width_pos = width_pos >= num_vert_width ? num_vert_width - 1 : width_pos;
+		
+		// Assign the random input locationj
+		input_location[0] = mesh_x[length_pos][0][0];
+		input_location[1] = mesh_y[0][width_pos][0];
 	}
 
 	// Initiate input wattage mesh
@@ -836,10 +879,7 @@ vector<vector<vector<double> > > Finite_Element_Solver::get_perturbation(vector<
 	double max_z_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
 
 	// Get x*y*z over perturbation field
-	double x;
-	double y;
-	double z;
-	double xyz;
+	double x, y, z, xyz;
 	double scale = 0.0;
 	vector<vector<vector<double> > > perturbation = vector<vector<vector<double> > >(size_array.size(), vector<vector<double> >(size_array[0].size(), vector<double>(size_array[0][0].size(), 0.0)));
 	for (unsigned int i = 0; i < size_array.size(); i++)
@@ -1104,13 +1144,12 @@ void Finite_Element_Solver::step_meshes()
 /**
 * Gets the state fed to PPO agent based on temperature, front location, front velocity, and the input
 * @param The autoencoder encoded temperature field as a vector of doubles
-* @param The length of the encoded vector
 * @return The normalized state array
 */
-vector<double> Finite_Element_Solver::get_state(vector<double> encoded_temp, int encoded_size)
+vector<double> Finite_Element_Solver::get_state(vector<double> encoded_temp)
 {
 	// Init state variables
-	vector<double> state(get_num_state(encoded_size), 0.0);
+	vector<double> state(get_num_state(), 0.0);
 
 	// Copy the encoded state
 	for (int i = 0 ; i  < encoded_size; i++)
@@ -1140,9 +1179,9 @@ vector<double> Finite_Element_Solver::get_state(vector<double> encoded_temp, int
 	}
 
 	// Append the input location and magnitude parameters
-	state[get_num_state(encoded_size)-3] = input_location[0] / length;
-	state[get_num_state(encoded_size)-2] = input_location[1] / width;
-	state[get_num_state(encoded_size)-1] = input_percent;
+	state[get_num_state()-3] = input_location[0] / length;
+	state[get_num_state()-2] = input_location[1] / width;
+	state[get_num_state()-1] = input_percent;
 
 	// Return the state
 	return state;

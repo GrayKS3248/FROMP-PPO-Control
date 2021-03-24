@@ -21,8 +21,8 @@ class NN(nn.Module):
         self.y_dim = y_dim
         
         #Initialize the encoding convolutional layers
-        self.conv1 = nn.Conv2d(1, 12, 3, padding=1)
-        self.conv2 = nn.Conv2d(12, 24, 3, padding=1)
+        self.conv1 = nn.Conv2d(1, 24, 3, padding=1)
+        self.conv2 = nn.Conv2d(24, 12, 3, padding=1)
         self.pool = nn.MaxPool2d(2, 2)
         
         #Determine size of input after convultion
@@ -43,8 +43,8 @@ class NN(nn.Module):
         self.t_fc3 = nn.Linear(self.size//4, self.size)
         
         #Initialize the decoding convolutional layers
-        self.t_conv1 = nn.ConvTranspose2d(24, 12, 2, stride=2)
-        self.t_conv2 = nn.ConvTranspose2d(12, 1, 2, stride=2)
+        self.t_conv1 = nn.ConvTranspose2d(12, 24, 2, stride=2)
+        self.t_conv2 = nn.ConvTranspose2d(24, 1, 2, stride=2)
 
     def forward(self, x):
         #Feed-forward x

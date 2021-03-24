@@ -495,14 +495,14 @@ vector<double> get_vector(PyObject* list)
 * @param Total number of trajectory steps taken between each frame capture
 * @return number of frames to be rendered each trajectory
 */
-int get_num_frames_per_trajectory(Finite_Element_Solver FES, int steps_per_frame)
+int get_num_frames_per_trajectory(Finite_Element_Solver* FES, int steps_per_frame)
 {
 	int frames_per_trajectory = 0;
 	int frame_index = 0;
 	bool frame_done = false;
 	while(!frame_done)
 	{
-		frame_done = (frame_index == (int)FES.get_target_vector_arr_size() - 1);
+		frame_done = (frame_index == (int)FES->get_target_vector_arr_size() - 1);
 		if ((frame_index % steps_per_frame == 0) || (frame_index==0))
 		{
 			frames_per_trajectory++;
@@ -686,11 +686,9 @@ double best_episode, Finite_Element_Solver FES, bool render)
 * @param The autoencoder used to encode temperature state data
 * @param Total number of steps per simulation
 * @param Number of frames sampled each trajecotry by autoencoder
-* @param The x dimension of the autoencoder input
-* @param The bottleneck dimension of the autoencoder
 * @return Tuple containing the training data, the updated finite element solver, and the trained PPO agent
 */
-auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory, PyObject* autoencoder, int tot_num_sim_steps, int samples_per_trajectory, int x_dim, int encoder_output_size)
+auto run(Finite_Element_Solver* FES, PyObject* agent, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory, PyObject* autoencoder, int tot_num_sim_steps, int samples_per_trajectory)
 {
 
 	// Determine how many frames there are in each trajectory
@@ -712,11 +710,11 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 	vector<double> best_input_percent;
 	vector<double> best_sim_time;
 	vector<double> best_target;
-	vector<vector<vector<double>>> best_temperature_field(FES.get_num_vert_length(), vector<vector<double>>(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> best_cure_field(FES.get_num_vert_length(), vector<vector<double>>(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> best_front_location(FES.get_num_vert_width(), vector<vector<double>>(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> best_front_velocity(FES.get_num_vert_width(), vector<vector<double>>(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> best_front_temperature(FES.get_num_vert_width(), vector<vector<double>>(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
+	vector<vector<vector<double>>> best_temperature_field(FES->get_num_vert_length(), vector<vector<double>>(FES->get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
+	vector<vector<vector<double>>> best_cure_field(FES->get_num_vert_length(), vector<vector<double>>(FES->get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
+	vector<vector<vector<double>>> best_front_location(FES->get_num_vert_width(), vector<vector<double>>(FES->get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
+	vector<vector<vector<double>>> best_front_velocity(FES->get_num_vert_width(), vector<vector<double>>(FES->get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
+	vector<vector<vector<double>>> best_front_temperature(FES->get_num_vert_width(), vector<vector<double>>(FES->get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
 
 	// Current trajectory data
 	vector<double> curr_input_location_x;
@@ -724,11 +722,11 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 	vector<double> curr_input_percent;
 	vector<double> curr_sim_time;
 	vector<double> curr_target;
-	vector<vector<vector<double>>> curr_temperature_field(FES.get_num_vert_length(), vector<vector<double>>(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> curr_cure_field(FES.get_num_vert_length(), vector<vector<double>>(FES.get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> curr_front_location(FES.get_num_vert_width(), vector<vector<double>>(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> curr_front_velocity(FES.get_num_vert_width(), vector<vector<double>>(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> curr_front_temperature(FES.get_num_vert_width(), vector<vector<double>>(FES.get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
+	vector<vector<vector<double>>> curr_temperature_field(FES->get_num_vert_length(), vector<vector<double>>(FES->get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
+	vector<vector<vector<double>>> curr_cure_field(FES->get_num_vert_length(), vector<vector<double>>(FES->get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
+	vector<vector<vector<double>>> curr_front_location(FES->get_num_vert_width(), vector<vector<double>>(FES->get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
+	vector<vector<vector<double>>> curr_front_velocity(FES->get_num_vert_width(), vector<vector<double>>(FES->get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
+	vector<vector<vector<double>>> curr_front_temperature(FES->get_num_vert_width(), vector<vector<double>>(FES->get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
 
 	// Simulation set variables
 	double total_reward = 0.0;
@@ -754,7 +752,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 		prev_episode_reward = total_reward;
 
 		// Reset environment
-		FES.reset();
+		FES->reset();
 
 		// Simulation loop
 		while (!done)
@@ -769,7 +767,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 			if (run_agent)
 			{
 				// Gather temperature state data
-				vector<vector<double>> norm_temp_mesh = FES.get_norm_temp_mesh(x_dim);
+				vector<vector<double>> norm_temp_mesh = FES->get_norm_temp_mesh();
 				PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
 				
 				// Encode and convert temperature state data
@@ -783,7 +781,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 				vector<double> encoded_temp = get_vector(py_encoded_temp);
 				
 				// Combine encoded temperature state data with front and input data
-				vector<double> state = FES.get_state(encoded_temp, encoder_output_size);
+				vector<double> state = FES->get_state(encoded_temp);
 				
 				// Get agent action based on total encoded state
 				PyObject* py_state = get_1D_list(state);
@@ -806,10 +804,10 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 				stdev_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 5));
 
 				// Step the environment
-				done = FES.step(action_1, action_2, action_3);
+				done = FES->step(action_1, action_2, action_3);
 
 				// Update the agent
-				reward = FES.get_reward();
+				reward = FES->get_reward();
 				PyObject* py_result = PyObject_CallMethod(agent, "update_agent", "(O,f,f,f,f)", py_state, PyFloat_FromDouble(action_1), PyFloat_FromDouble(action_2), PyFloat_FromDouble(action_3), PyFloat_FromDouble(reward));
 				if (py_result == NULL)
 				{
@@ -831,7 +829,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 			else
 			{
 				// Step the environment based on the previously commanded action
-				done = FES.step(action_1, action_2, action_3);
+				done = FES->step(action_1, action_2, action_3);
 			}
 
 			// Update the autoencoder
@@ -845,7 +843,7 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 				}
 				
 				// Collect frame data
-				vector<vector<double> > norm_temp_mesh = FES.get_norm_temp_mesh(x_dim);
+				vector<vector<double> > norm_temp_mesh = FES->get_norm_temp_mesh();
 				PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
 						
 				// Send frame data to autoencoder (it will automatically update when data buffer is full)
@@ -869,24 +867,24 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 			if (save_frame)
 			{
 				// Get environment data
-				vector<double> input_location = FES.get_input_location();
-				vector<vector<double>> temp_mesh = FES.get_temp_mesh();
-				vector<vector<double>> cure_mesh = FES.get_cure_mesh();
-				vector<vector<double>> front_loc = FES.get_front_loc();
-				vector<vector<double>> front_vel = FES.get_front_vel();
-				vector<vector<double>> front_temp = FES.get_front_temp();
+				vector<double> input_location = FES->get_input_location();
+				vector<vector<double>> temp_mesh = FES->get_temp_mesh();
+				vector<vector<double>> cure_mesh = FES->get_cure_mesh();
+				vector<vector<double>> front_loc = FES->get_front_loc();
+				vector<vector<double>> front_vel = FES->get_front_vel();
+				vector<vector<double>> front_temp = FES->get_front_temp();
 				
 				// Store simulation data
 				curr_input_location_x.push_back(input_location[0]);
 				curr_input_location_y.push_back(input_location[1]);
-				curr_input_percent.push_back(FES.get_input_percent());
-				curr_sim_time.push_back(FES.get_current_time());
-				curr_target.push_back(FES.get_current_target());
+				curr_input_percent.push_back(FES->get_input_percent());
+				curr_sim_time.push_back(FES->get_current_time());
+				curr_target.push_back(FES->get_current_target());
 				
 				// Store environment temperature data
-				for (int i = 0; i < FES.get_num_vert_length(); i++)
+				for (int i = 0; i < FES->get_num_vert_length(); i++)
 				{
-					for (int j = 0; j < FES.get_num_vert_width(); j++)
+					for (int j = 0; j < FES->get_num_vert_width(); j++)
 					{
 						curr_temperature_field[i][j][curr_target.size()-1] = temp_mesh[i][j];
 						curr_cure_field[i][j][curr_target.size()-1] = cure_mesh[i][j];
@@ -894,9 +892,9 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 				}
 				
 				// Store environment front data
-				for (int j = 0; j < FES.get_num_vert_width(); j++)
+				for (int j = 0; j < FES->get_num_vert_width(); j++)
 				{
-					for (int k = 0; k < FES.get_num_vert_depth(); k++)
+					for (int k = 0; k < FES->get_num_vert_depth(); k++)
 					{
 						curr_front_location[j][k][curr_target.size()-1] = front_loc[j][k];
 						curr_front_velocity[j][k][curr_target.size()-1] = front_vel[j][k];
@@ -933,9 +931,9 @@ auto run(Finite_Element_Solver FES, PyObject* agent, int total_trajectories, int
 
 		// Update the logs
 		r_per_episode.push_back(prev_episode_reward/(double)steps_per_trajectory);
-		x_rate_stdev.push_back(FES.get_loc_rate_scale()*stdev_1);
-		y_rate_stdev.push_back(FES.get_loc_rate_scale()*stdev_2);
-		mag_stdev.push_back(FES.get_max_input_mag()*FES.get_mag_scale()*stdev_3);
+		x_rate_stdev.push_back(FES->get_loc_rate_scale()*stdev_1);
+		y_rate_stdev.push_back(FES->get_loc_rate_scale()*stdev_2);
+		mag_stdev.push_back(FES->get_max_input_mag()*FES->get_mag_scale()*stdev_3);
 
 		// Final user readout
 		if (i == total_trajectories - 1)
@@ -978,20 +976,21 @@ int main()
 	double rl_end_alpha = 5.0e-4;
 
 	// Autoencoder hyperparameters
-	bool load_autoencoder = true;
-	int encoder_output_size = 64;
-	int samples_per_trajectory = 10;
+	bool load_autoencoder = false;
+	bool use_extended_state = false;
+	int encoder_output_size = 80;
+	double x_range = 1.0;
+	int samples_per_trajectory = 20;
 	int samples_per_batch = 100;
-	double ae_start_alpha = 1.0e-4;
-	double ae_end_alpha = 1.0e-5;
-	double x_range = 0.20;
+	double ae_start_alpha = 1.0e-3;
+	double ae_end_alpha = 1.0e-6;
 
 	// Rendering parameters
 	bool render = false;
 	double frame_rate = 30.0;
 
 	// Initialize FES
-	Finite_Element_Solver FES = Finite_Element_Solver();
+	Finite_Element_Solver FES = Finite_Element_Solver(encoder_output_size, use_extended_state, x_range);
 
 	// Calculated agent parameters
 	double rl_decay_rate = pow(rl_end_alpha/rl_start_alpha, (double)trajectories_per_batch/(double)total_trajectories);
@@ -1000,7 +999,7 @@ int main()
 	int steps_per_agent_cycle = (int) round(agent_execution_period / FES.get_time_step());
 	
 	// Calculated autoencoder parameters
-	int x_dim = (int)round(x_range*(double)FES.get_num_vert_length());
+	int x_dim = FES.get_cropped_x_dim();
 	int y_dim = FES.get_num_vert_width();
 	double ae_decay_rate = pow(ae_end_alpha/ae_start_alpha, 1.0/((double)total_trajectories*(double)samples_per_trajectory));
 	int tot_num_sim_steps = (int)floor(FES.get_sim_duration()/FES.get_time_step());
@@ -1011,7 +1010,7 @@ int main()
 
 	// Init agent
 	Py_Initialize();
-	PyObject* agent = init_agent(FES.get_num_state(encoder_output_size), steps_per_trajectory, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, rl_start_alpha, rl_decay_rate, load_agent, reset_stdev);
+	PyObject* agent = init_agent(FES.get_num_state(), steps_per_trajectory, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, rl_start_alpha, rl_decay_rate, load_agent, reset_stdev);
 	if (agent == NULL)
 	{
 		PyErr_Print();
@@ -1042,8 +1041,8 @@ int main()
 	auto [r_per_episode, x_rate_stdev, y_rate_stdev, mag_stdev, value_error, best_input_location_x,
 	best_input_location_y, best_input_percent, best_sim_time, best_target, best_temperature_field, 
 	best_cure_field,best_front_location, best_front_velocity, best_front_temperature, best_episode, 
-	MSE_loss] = run(FES, agent, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory, 
-	autoencoder, tot_num_sim_steps, samples_per_trajectory, x_dim, encoder_output_size);
+	MSE_loss] = run(&FES, agent, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory, 
+	autoencoder, tot_num_sim_steps, samples_per_trajectory);
 
 	// Stop clock and print duration
 	auto end_time = chrono::high_resolution_clock::now();

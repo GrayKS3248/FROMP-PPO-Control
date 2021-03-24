@@ -13,7 +13,7 @@ class Finite_Element_Solver {
 
 public:
 //******************** CONSTRUCTOR ****************************//
-Finite_Element_Solver();
+Finite_Element_Solver(int encoded_size_in, bool get_extended_state_in, double x_crop);
 
 //******************** GETTERS ********************************//
 int get_num_vert_length();
@@ -29,12 +29,13 @@ double get_exp_const();
 double get_current_target();
 int get_target_vector_arr_size();
 double get_current_time();
-int get_num_state(int encoded_size);
+int get_num_state();
 bool get_control_speed();
+int get_cropped_x_dim();
 void print_params();
 vector<double> get_input_location();
 vector<vector<double>> get_temp_mesh();
-vector<vector<double>> get_norm_temp_mesh(int num_vert_sub_length);
+vector<vector<double>> get_norm_temp_mesh();
 vector<vector<double>> get_cure_mesh();
 vector<vector<double>> get_input_mesh();
 vector<vector<double>> get_front_loc();
@@ -48,7 +49,7 @@ vector<vector<double>> get_mesh_z_x0();
 //******************** FUNCTIONS ******************************//
 bool step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
 void reset();
-vector<double> get_state(vector<double> encoded_temp, int encoded_size);
+vector<double> get_state(vector<double> encoded_temp);
 double get_reward();
 
 private:
@@ -75,8 +76,8 @@ const bool target_switch = false;
 
 // Mesh parameters
 const int num_vert_length = 360;  // Unitless
-const int num_vert_width = 40;     // Unitless
-const int num_vert_depth = 6;    // Unitless
+const int num_vert_width = 40;    // Unitless
+const int num_vert_depth = 6;     // Unitless
 
 // Spatial parameters
 const double length = 0.05;  // Meters
@@ -85,7 +86,7 @@ const double depth = 0.005;  // Meters
 
 // Temporal parameters
 const double sim_duration = 30.0;   // Seconds
-const double time_step = 0.03;         // Seconds
+const double time_step = 0.03;      // Seconds
 
 // Initial conditions
 const double initial_temperature = 278.15;  // Kelvin
@@ -98,19 +99,19 @@ const double htc = 10.0;                    // Watts / (Meter ^ 2 * Kelvin)
 const double ambient_temperature = 294.15;  // Kelvin
 
 // Problem definition
-const double temperature_limit = 523.15;      // Kelvin
+const double temperature_limit = 523.15;          // Kelvin
 const double DCPD_GC1_target_vel = 0.00015;       // Meters / Second
 const double DCPD_GC1_vel_rand_scale = 0.000025;  // Meters / Second
 const double DCPD_GC1_target_temp = 473.15;       // Kelvin
 const double DCPD_GC1_temp_rand_scale = 20.0;     // Kelvin
-const double DCPD_GC2_target_vel = 0.0015;       // Meters / Second
-const double DCPD_GC2_vel_rand_scale = 0.00025;  // Meters / Second
+const double DCPD_GC2_target_vel = 0.0015;        // Meters / Second
+const double DCPD_GC2_vel_rand_scale = 0.00025;   // Meters / Second
 const double DCPD_GC2_target_temp = 473.15;       // Kelvin
 const double DCPD_GC2_temp_rand_scale = 20.0;     // Kelvin
-const double COD_target_vel = 0.0005;         // Meters / Second
-const double COD_vel_rand_scale = 0.0001;     // Meters / Second
-const double COD_target_temp = 408.15;        // Kelvin
-const double COD_temp_rand_scale = 20.0;      // Kelvin
+const double COD_target_vel = 0.0005;             // Meters / Second
+const double COD_vel_rand_scale = 0.0001;         // Meters / Second
+const double COD_target_temp = 408.15;            // Kelvin
+const double COD_temp_rand_scale = 20.0;          // Kelvin
 
 // Physical constants
 const double gas_const = 8.3144;  // Joules / Mol * Kelvin
@@ -120,10 +121,10 @@ const double DCPD_GC1_thermal_conductivity = 0.15;      // Watts / Meter * Kelvi
 const double DCPD_GC1_density = 980.0;                  // Kilograms / Meter ^ 3
 const double DCPD_GC1_enthalpy_of_reaction = 352100.0;  // Joules / Kilogram
 const double DCPD_GC1_specific_heat = 1440.0;           // Joules / Kilogram * Kelvin
-const double DCPD_GC1_pre_exponential = 190985.3;        // 1 / Seconds
-const double DCPD_GC1_activiation_energy = 51100.0;    // Joules / Mol
-const double DCPD_GC1_model_fit_order = 1.927;           // Unitless
-const double DCPD_GC1_autocatalysis_const = 0.365;                    // Unitless
+const double DCPD_GC1_pre_exponential = 190985.3;       // 1 / Seconds
+const double DCPD_GC1_activiation_energy = 51100.0;     // Joules / Mol
+const double DCPD_GC1_model_fit_order = 1.927;          // Unitless
+const double DCPD_GC1_autocatalysis_const = 0.365;      // Unitless
 
 // DCPD Monomer with GC2 physical parameters
 const double DCPD_GC2_thermal_conductivity = 0.15;      // Watts / Meter * Kelvin
@@ -158,32 +159,37 @@ const double DCPD_GC1_trigger_flux_ref = 25500.0;   // Watts / Meter ^ 2
 const double DCPD_GC1_trigger_duration_ref = 10.0;  // Seconds
 const double DCPD_GC2_trigger_flux_ref = 25500.0;   // Watts / Meter ^ 2
 const double DCPD_GC2_trigger_duration_ref = 10.0;  // Seconds
-const double COD_trigger_flux_ref = 20000.0;   // Watts / Meter ^ 2
-const double COD_trigger_duration_ref = 6.0;  // Seconds
-const double trigger_time_ref = 0.0;       // Seconds
+const double COD_trigger_flux_ref = 20000.0;        // Watts / Meter ^ 2
+const double COD_trigger_duration_ref = 6.0;        // Seconds
+const double trigger_time_ref = 0.0;                // Seconds
 
 // NN Input conversion factors
 const double mag_scale = 0.0227;        // Unitless
 const double mag_offset = 0.5;          // Unitless
-const double loc_rate_scale = 0.001136;  // Unitless
+const double loc_rate_scale = 0.001136; // Unitless
 const double loc_rate_offset = 0.0;     // Unitless
 
 // Reward constants
-const double max_reward = 2.0;                  // Unitless
-const double dist_punishment_const = 0.25;      // Unitless
-const double input_punishment_const = 0.10;     // Unitless
-const double overage_punishment_const = 0.40;   // Unitless
-const double integral_punishment_const = 0.10;  // Unitless
-const double front_shape_const = 10.0 / width;  // Unitless
+const double max_reward = 2.0;                   // Unitless
+const double dist_punishment_const = 0.25;       // Unitless
+const double input_punishment_const = 0.10;      // Unitless
+const double overage_punishment_const = 0.40;    // Unitless
+const double integral_punishment_const = 0.10;   // Unitless
+const double front_shape_const = 10.0 / width;   // Unitless
 const double max_integral = length * width * depth * temperature_limit;                     // Unitless
 const double integral_delta = max_integral - length * width * depth * initial_temperature;  // Unitless
 const double front_rate_reward_const = pow(max_reward,0.33333);    // Unitless
-const double temperature_reward_const =  pow(max_reward,0.33333);    // Unitless
+const double temperature_reward_const =  pow(max_reward,0.33333);  // Unitless
 
 //******************** CALCULATED PARAMETERS ********************//
 // Simulation time and target velocity index
 double current_time;
 int current_index;
+
+// State generation parameters
+bool get_extended_state;
+int encoded_size;
+int num_vert_sub_length;
 
 // Monomer physical parameters
 double thermal_diffusivity;

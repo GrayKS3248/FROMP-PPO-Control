@@ -144,7 +144,6 @@ class Autoencoder:
                 
                 # Sum the epoch's total loss
                 self.tot_MSE_loss = self.tot_MSE_loss + curr_MSE_loss.item()
-                
             
             # Empty frame buffer
             self.frame_buffer = []
@@ -248,11 +247,13 @@ class Autoencoder:
             plt.close()
                 
         
-if __name__ == '__main__':
-    autoencoder = Autoencoder(1.0e-3, 1.0, 72, 40, 64, 20, True)
+# if __name__ == '__main__':
+    # autoencoder = Autoencoder(1.0e-3, 1.0, 360, 40, 80, 20, False)
     
-    with open("results/Auto_1/test_frames", 'rb') as file:
-        test_frames = pickle.load(file)
-    test_frames = test_frames['data']['Test_frames']
+    # autoencoder.forward(np.random.rand(360,40).tolist())
     
-    autoencoder.render(test_frames)
+    # with open("results/Auto_1/test_frames", 'rb') as file:
+    #     test_frames = pickle.load(file)
+    # test_frames = test_frames['data']['Test_frames']
+    
+    # autoencoder.render(test_frames)
