@@ -1158,24 +1158,27 @@ vector<double> Finite_Element_Solver::get_state(vector<double> encoded_temp)
 	}
 
 	// Get the coarse front location and velocity data
-	int curr_state_index = encoded_size;
-	int y_width = 0;
-	int y_max_index = num_vert_width-1;
-	int y_curr_index = 0;
-	double avg_loc = 0.0;
-	double avg_vel = 0.0;
-	for (int j = 0; j < (int)((double)num_vert_width/4.0); j++)
+	if (get_extended_state)
 	{
-		y_width = (int) floor((y_max_index-y_curr_index) / ((int)((double)num_vert_width/4.0)-j));
-		for (int y = y_curr_index; y <= (y_curr_index + y_width); y++)
+		int curr_state_index = encoded_size;
+		int y_width = 0;
+		int y_max_index = num_vert_width-1;
+		int y_curr_index = 0;
+		double avg_loc = 0.0;
+		double avg_vel = 0.0;
+		for (int j = 0; j < (int)((double)num_vert_width/4.0); j++)
 		{
-			avg_loc += front_loc[y][0];
-			avg_vel += front_vel[y][0];
+			y_width = (int) floor((y_max_index-y_curr_index) / ((int)((double)num_vert_width/4.0)-j));
+			for (int y = y_curr_index; y <= (y_curr_index + y_width); y++)
+			{
+				avg_loc += front_loc[y][0];
+				avg_vel += front_vel[y][0];
+			}
+			state[curr_state_index] = avg_loc / ((double)(y_width+1)*length);
+			state[curr_state_index+(int)((double)num_vert_width/4.0)] = avg_vel / ((double)(y_width+1)*current_target);
+			curr_state_index++;
+			y_curr_index += y_width;
 		}
-		state[curr_state_index] = avg_loc / ((double)(y_width+1)*length);
-		state[curr_state_index+(int)((double)num_vert_width/4.0)] = avg_vel / ((double)(y_width+1)*current_target);
-		curr_state_index++;
-		y_curr_index += y_width;
 	}
 
 	// Append the input location and magnitude parameters

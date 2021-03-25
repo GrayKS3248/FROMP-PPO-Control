@@ -976,13 +976,13 @@ int main()
 	double rl_end_alpha = 5.0e-4;
 
 	// Autoencoder hyperparameters
-	bool load_autoencoder = false;
+	bool load_autoencoder = true;
 	bool use_extended_state = false;
 	int encoder_output_size = 80;
 	double x_range = 1.0;
 	int samples_per_trajectory = 20;
 	int samples_per_batch = 100;
-	double ae_start_alpha = 1.0e-3;
+	double ae_start_alpha = 1.0e-4;
 	double ae_end_alpha = 1.0e-6;
 
 	// Rendering parameters
