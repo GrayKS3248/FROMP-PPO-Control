@@ -980,7 +980,7 @@ int main()
 	bool use_extended_state = false;
 	int encoder_output_size = 80;
 	double x_range = 1.0;
-	int samples_per_trajectory = 20;
+	int samples_per_trajectory = 5;
 	int samples_per_batch = 100;
 	double ae_start_alpha = 1.0e-4;
 	double ae_end_alpha = 1.0e-6;

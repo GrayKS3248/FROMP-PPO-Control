@@ -343,11 +343,11 @@ int main()
 {	
 	// Autoencoder hyperparameters
 	bool use_extended_state = false;
-	int total_trajectories = 1;
-	int encoder_output_size = 80;
+	int total_trajectories = 5000;
+	int encoder_output_size = 64;
 	double x_range = 1.0;
-	int samples_per_trajectory = 2000;
-	int samples_per_batch = 2000;
+	int samples_per_trajectory = 20;
+	int samples_per_batch = 100;
 	double start_alpha = 1.0e-3;
 	double end_alpha = 1.0e-5;
 
