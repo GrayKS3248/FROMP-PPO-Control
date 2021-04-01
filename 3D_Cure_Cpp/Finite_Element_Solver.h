@@ -13,7 +13,7 @@ class Finite_Element_Solver {
 
 public:
 //******************** CONSTRUCTOR ****************************//
-Finite_Element_Solver(int encoded_size_in, bool get_extended_state_in, double x_crop);
+Finite_Element_Solver(int encoded_size_in, bool get_extended_state_in);
 
 //******************** GETTERS ********************************//
 int get_num_vert_length();
@@ -31,7 +31,6 @@ int get_target_vector_arr_size();
 double get_current_time();
 int get_num_state();
 bool get_control_speed();
-int get_cropped_x_dim();
 void print_params();
 vector<double> get_input_location();
 vector<vector<double>> get_temp_mesh();
@@ -189,7 +188,6 @@ int current_index;
 // State generation parameters
 bool get_extended_state;
 int encoded_size;
-int num_vert_sub_length;
 
 // Monomer physical parameters
 double thermal_diffusivity;

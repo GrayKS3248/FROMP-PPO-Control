@@ -11,22 +11,22 @@ import torch.nn.functional as F
 
 class NN(nn.Module):
     
-    def __init__(self, x_dim, y_dim, out_size):
+    def __init__(self, x_dim_input, y_dim_input, num_filter_1, num_filter_2, bottleneck, num_output_layers):
         
         # Initialize inherited class
         super(NN, self).__init__()
         
         #Initialize class variables
-        self.x_dim = x_dim
-        self.y_dim = y_dim
+        self.x_dim = x_dim_input
+        self.y_dim = y_dim_input
         
         #Initialize the encoding convolutional layers
-        self.conv1 = nn.Conv2d(1, 8, 3, padding=1)
-        self.conv2 = nn.Conv2d(8,16, 3, padding=1)
+        self.conv1 = nn.Conv2d(1, num_filter_1, 3, padding=1)
+        self.conv2 = nn.Conv2d(num_filter_1,num_filter_2, 3, padding=1)
         self.pool = nn.MaxPool2d(2, 2)
         
         #Determine size of input after convultion
-        test = torch.rand(1,1,x_dim,y_dim)
+        test = torch.rand(1,1,x_dim_input,y_dim_input)
         test = self.pool(F.relu(self.conv1(test)))
         test = self.pool(F.relu(self.conv2(test)))
         self.size = test.size()[0]*test.size()[1]*test.size()[2]*test.size()[3]
@@ -34,17 +34,17 @@ class NN(nn.Module):
         
         #Initialize the encoding linear layers
         self.fc1 = nn.Linear(self.size, self.size//4)
-        self.fc2 = nn.Linear(self.size//4, (self.size//4+out_size)//4)
-        self.fc3 = nn.Linear((self.size//4+out_size)//4, out_size)
+        self.fc2 = nn.Linear(self.size//4, (self.size//4+bottleneck)//4)
+        self.fc3 = nn.Linear((self.size//4+bottleneck)//4, bottleneck)
 
         #Initialize the decoding linear layers
-        self.t_fc1 = nn.Linear(out_size, (self.size//4+out_size)//4)
-        self.t_fc2 = nn.Linear((self.size//4+out_size)//4, self.size//4)
+        self.t_fc1 = nn.Linear(bottleneck, (self.size//4+bottleneck)//4)
+        self.t_fc2 = nn.Linear((self.size//4+bottleneck)//4, self.size//4)
         self.t_fc3 = nn.Linear(self.size//4, self.size)
         
         #Initialize the decoding convolutional layers
-        self.t_conv1 = nn.ConvTranspose2d(16, 8, 2, stride=2)
-        self.t_conv2 = nn.ConvTranspose2d(8, 2, 2, stride=2)
+        self.t_conv1 = nn.ConvTranspose2d(num_filter_2, num_filter_1, 2, stride=2)
+        self.t_conv2 = nn.ConvTranspose2d(num_filter_1, num_output_layers, 2, stride=2)
 
     def forward(self, x):
         #Feed-forward x

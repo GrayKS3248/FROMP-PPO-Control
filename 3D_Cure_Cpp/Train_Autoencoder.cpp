@@ -29,12 +29,15 @@ void print_params(int encoder_output_size, int samples_per_trajectory, int sampl
 * @param Learning rate exponential decay rate
 * @param The x dimension of the frames sent to the autoencoder
 * @param The y dimension of the frames sent to the autoencoder
+* @param Number of filters used in first convolutional layer
+* @param Number of filters used in second convolutional layer
 * @param Length of the 1D compressed array in autoencoder
+* @param Number of layers at decoder output
 * @param Number of frames stored before a single stochastic gradient descent step
 * @param Whether or not a previous autoencoder's NN is loaded into the current autoencoder
 * @return PyObject pointer pointing at the initialized autoencoder
 */
-PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, long y_dim, long encoder_output_size, long frame_buffer, bool load_autoencoder)
+PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, long y_dim, long num_filter_1, long num_filter_2, long encoder_output_size, long num_output_layers, long frame_buffer, bool load_autoencoder)
 {
 	// Define module name
 	PyObject* name = PyUnicode_DecodeFSDefault("Autoencoder");
@@ -87,14 +90,17 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 	}
 
 	// Build the initialization arguments
-	PyObject* init_args = PyTuple_New(7);
+	PyObject* init_args = PyTuple_New(10);
 	PyTuple_SetItem(init_args, 0, PyFloat_FromDouble(start_alpha));
 	PyTuple_SetItem(init_args, 1, PyFloat_FromDouble(decay_rate));
 	PyTuple_SetItem(init_args, 2, PyLong_FromLong(x_dim));
 	PyTuple_SetItem(init_args, 3, PyLong_FromLong(y_dim));
-	PyTuple_SetItem(init_args, 4, PyLong_FromLong(encoder_output_size));
-	PyTuple_SetItem(init_args, 5, PyLong_FromLong(frame_buffer));
-	PyTuple_SetItem(init_args, 6, py_load_autoencoder);
+	PyTuple_SetItem(init_args, 4, PyLong_FromLong(num_filter_1));
+	PyTuple_SetItem(init_args, 5, PyLong_FromLong(num_filter_2));
+	PyTuple_SetItem(init_args, 6, PyLong_FromLong(encoder_output_size));
+	PyTuple_SetItem(init_args, 7, PyLong_FromLong(num_output_layers));
+	PyTuple_SetItem(init_args, 8, PyLong_FromLong(frame_buffer));
+	PyTuple_SetItem(init_args, 9, py_load_autoencoder);
 	Py_DECREF(py_load_autoencoder);
 
 	// Initialize autoencoder object
@@ -303,11 +309,13 @@ vector<double> run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_
 				}
 				
 				// Collect frame data
-				vector<vector<double> > norm_temp_mesh = FES->get_norm_temp_mesh();
+				vector<vector<double>> norm_temp_mesh = FES->get_norm_temp_mesh();
+				vector<vector<double>> cure_mesh = FES->get_cure_mesh();
 				PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
+				PyObject* py_cure_mesh = get_2D_list(cure_mesh);
 						
 				// Send frame data to autoencoder (it will automatically update when data buffer is full)
-				PyObject* py_MSE_loss = PyObject_CallMethod(autoencoder, "update", "O", py_norm_temp_mesh);
+				PyObject* py_MSE_loss = PyObject_CallMethod(autoencoder, "update", "(O,O)", py_norm_temp_mesh, py_cure_mesh);
 				if (py_MSE_loss == NULL)
 				{
 					PyErr_Print();
@@ -321,6 +329,7 @@ vector<double> run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_
 				// Free python memory
 				Py_DECREF(py_MSE_loss);
 				Py_DECREF(py_norm_temp_mesh);
+				Py_DECREF(py_cure_mesh);
 			}
 
 			// Update the current state and the step in episode
@@ -344,18 +353,20 @@ int main()
 	// Autoencoder hyperparameters
 	bool use_extended_state = false;
 	int total_trajectories = 5000;
+	long num_filter_1 = 12;
+	long num_filter_2 = 12;
 	int encoder_output_size = 64;
-	double x_range = 1.0;
+	long num_output_layers = 3;
 	int samples_per_trajectory = 20;
 	int samples_per_batch = 100;
 	double start_alpha = 1.0e-3;
 	double end_alpha = 1.0e-5;
 
 	// Initialize FES
-	Finite_Element_Solver FES = Finite_Element_Solver(encoder_output_size, use_extended_state, x_range);
+	Finite_Element_Solver FES = Finite_Element_Solver(encoder_output_size, use_extended_state);
 
 	// Calculated parameters
-	int x_dim = FES.get_cropped_x_dim();
+	int x_dim = FES.get_num_vert_length();
 	int y_dim = FES.get_num_vert_width();
 	double decay_rate = pow(end_alpha/start_alpha, 1.0/((double)total_trajectories*(double)samples_per_trajectory));
 	double execution_period = (FES.get_sim_duration() / (double)samples_per_trajectory);
@@ -364,7 +375,7 @@ int main()
 	
 	// Init autoencoder
 	Py_Initialize();
-	PyObject* autoencoder = init_autoencoder(start_alpha, decay_rate, x_dim, y_dim, encoder_output_size, samples_per_batch, false);
+	PyObject* autoencoder = init_autoencoder(start_alpha, decay_rate, x_dim, y_dim, num_filter_1, num_filter_2, encoder_output_size, num_output_layers, samples_per_batch, false);
 	if (autoencoder == NULL)
 	{
 		PyErr_Print();

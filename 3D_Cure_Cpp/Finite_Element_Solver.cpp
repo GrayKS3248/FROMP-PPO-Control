@@ -7,9 +7,8 @@ using namespace std;
 * Default constructor
 * @param length of encoded state
 * @param boolean flag that indicates whether front location and velocity data are appended to encoded state
-* @param decimal percent of length sent to autoencoder
 */
-Finite_Element_Solver::Finite_Element_Solver(int encoded_size_in, bool get_extended_state_in, double x_crop)
+Finite_Element_Solver::Finite_Element_Solver(int encoded_size_in, bool get_extended_state_in)
 {
 	// Set randomization seed
 	srand(time(NULL));
@@ -21,14 +20,6 @@ Finite_Element_Solver::Finite_Element_Solver(int encoded_size_in, bool get_exten
 	// State information
 	encoded_size = encoded_size_in;
 	get_extended_state = get_extended_state_in;
-	if (x_crop > 0.0 && x_crop < 1.0)
-	{
-		num_vert_sub_length = (int)round(x_crop*(double)num_vert_length);
-	}
-	else
-	{
-		num_vert_sub_length = num_vert_length;
-	}	
 	
 	// Monomer physical parameters
 	if (use_DCPD_GC1)
@@ -405,15 +396,6 @@ bool Finite_Element_Solver::get_control_speed()
 }
 
 /**
-* Gets the number of vertices in the x dim sent to the autoencoder
-* @return the number of vertices in the x dim sent to the autoencoder
-*/
-int Finite_Element_Solver::get_cropped_x_dim()
-{
-	return num_vert_sub_length;
-}
-
-/**
 * Prints the finite element solver parameters to std out
 */
 void Finite_Element_Solver::print_params()
@@ -512,71 +494,6 @@ vector<vector<double>> Finite_Element_Solver::get_temp_mesh()
 */
 vector<vector<double>> Finite_Element_Solver::get_norm_temp_mesh()
 {
-	// If you are returning a cropped image
-	if (num_vert_sub_length != num_vert_length && num_vert_sub_length >= 3)
-	{
-		// Get the mean front x location on the top layer of the mesh
-		double mean_front_loc = 0.0;
-		for (int i = 0; i < num_vert_width; i++)
-		{
-			mean_front_loc += front_loc[i][0];
-		}
-		mean_front_loc = mean_front_loc / num_vert_width;
-		
-		// Determine the index of the mean front location
-		int mean_front_index = 0;
-		double error = 2.0*length;
-		bool getting_colder = false;
-		while(!getting_colder)
-		{
-			if (mean_front_index > num_vert_length-1)
-			{
-				getting_colder = true;
-				mean_front_index--;
-			}
-			else
-			{
-				double new_error = abs(mean_front_loc - mesh_x[mean_front_index][0][0]);
-				if (new_error > error)
-				{
-					getting_colder = true;
-					mean_front_index--;
-				}
-				else
-				{
-					error = new_error;
-					mean_front_index++;
-				}
-			}
-		}
-		
-		// Determine the starting and ending vertices based on the mean front index
-		int half_num_vert_sub_length = (int)round((double)num_vert_sub_length/2.0);
-		int start_index = mean_front_index - half_num_vert_sub_length;
-		start_index = start_index < 0 ? 0 : start_index;
-		int end_index = start_index + num_vert_sub_length - 1;
-		if(end_index >= num_vert_length)
-		{
-			end_index = num_vert_length - 1;
-			start_index = end_index - num_vert_sub_length + 1;
-		}
-		
-		// Get the temperature in the range determined above
-		vector<vector<double>> ret_val(num_vert_sub_length, vector<double>(num_vert_width, 0.0));
-		for (int i = start_index; i <= end_index; i++)
-		{
-			for (int j = 0; j < num_vert_width; j++)
-			{
-				int i_index = i - start_index;
-				ret_val[i_index][j] = (temp_mesh[i][j][0] - 0.90*initial_temperature) / (1.1*temperature_limit - 0.90*initial_temperature);
-				ret_val[i_index][j] = ret_val[i_index][j] > 1.0 ? 1.0 : ret_val[i_index][j];
-				ret_val[i_index][j] = ret_val[i_index][j] < 0.0 ? 0.0 : ret_val[i_index][j];
-			}
-		}
-		return ret_val;
-	}
-	
-	// If you are returning an uncropped image
 	// Get the temperature 
 	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
 	for (int i = 0; i < num_vert_length; i++)
@@ -598,6 +515,7 @@ vector<vector<double>> Finite_Element_Solver::get_norm_temp_mesh()
 */
 vector<vector<double>> Finite_Element_Solver::get_cure_mesh()
 {
+	// Get the cure
 	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
 	for (int i = 0; i < num_vert_length; i++)
 	{
