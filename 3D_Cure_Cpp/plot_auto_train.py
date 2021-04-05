@@ -10,13 +10,13 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 if __name__ == "__main__":
-    with open('validation/DCPD_GC2_Autoencoder/0%_Cropped/1-12-12_64/output', 'rb') as file:
+    with open('validation/DCPD_GC2_Autoencoder/0%_Cropped/1-12-16_64/output', 'rb') as file:
         load_data_1 = pickle.load(file)
     
-    with open('validation/DCPD_GC2_Autoencoder/0%_Cropped/1-12-12_64_aux-1/output', 'rb') as file:
+    with open('validation/DCPD_GC2_Autoencoder/0%_Cropped/1-12-16_64_aux-1/output', 'rb') as file:
         load_data_2 = pickle.load(file)
     
-    with open('validation/DCPD_GC2_Autoencoder/0%_Cropped/1-12-12_64_aux-2/output', 'rb') as file:
+    with open('validation/DCPD_GC2_Autoencoder/0%_Cropped/1-12-16_64_aux-2/output', 'rb') as file:
         load_data_3 = pickle.load(file)
         
     load_data_1=load_data_1['data']
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     avg_3 = ts_3.rolling(window=1000).mean()
     
     plt.clf()
-    title_str = "Learning Curve - Objective Comparison, BN=64, 1-12-12"
+    title_str = "Learning Curve - Objective Comparison, BN=64, 1-12-16"
     plt.title(title_str,fontsize='xx-large')
     plt.xlabel("Optimization Frame",fontsize='large')
     plt.ylabel("MSE Loss",fontsize='large')
@@ -44,5 +44,5 @@ if __name__ == "__main__":
     plt.yticks(fontsize='large')
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.legend(('Temp','Temp+Front', 'Temp+Front+Cure'),loc='best',fontsize='large')
-    plt.savefig('validation/DCPD_GC2_Autoencoder/0%_Cropped/BN=64_1-12-12_objective.png', dpi = 500)
+    plt.savefig('validation/DCPD_GC2_Autoencoder/0%_Cropped/BN=64_1-12-16_objective.png', dpi = 500)
     plt.close()

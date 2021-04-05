@@ -8,120 +8,6 @@
 using namespace std;
 
 /**
-* Prints the finite element solver and simulation parameters to std out
-*/
-void print_params(int encoder_output_size, int samples_per_trajectory, int samples_per_batch, double start_alpha, double end_alpha, int x_dim, int y_dim)
-{
-	// Hyperparameters
-	cout << "\nHyperparameters(\n";
-	cout << "  (Bottleneck): " << encoder_output_size << "\n";
-	cout << "  (Image Dimenstions): " << x_dim << " x " << y_dim << "\n";
-	cout << "  (Samples per Trajectory): " << samples_per_trajectory << "\n";
-	cout << "  (Samples per Batch): " << samples_per_batch << " \n";
-	cout << "  (Start LR): " << start_alpha << "\n";
-	cout << "  (End LR): " << end_alpha << " \n";
-	cout << ")\n";
-}
-
-/**
-* Initializes the python autoencoder
-* @param Initial learning rate
-* @param Learning rate exponential decay rate
-* @param The x dimension of the frames sent to the autoencoder
-* @param The y dimension of the frames sent to the autoencoder
-* @param Number of filters used in first convolutional layer
-* @param Number of filters used in second convolutional layer
-* @param Length of the 1D compressed array in autoencoder
-* @param Number of layers at decoder output
-* @param Number of frames stored before a single stochastic gradient descent step
-* @param Whether or not a previous autoencoder's NN is loaded into the current autoencoder
-* @return PyObject pointer pointing at the initialized autoencoder
-*/
-PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, long y_dim, long num_filter_1, long num_filter_2, long encoder_output_size, long num_output_layers, long frame_buffer, bool load_autoencoder)
-{
-	// Define module name
-	PyObject* name = PyUnicode_DecodeFSDefault("Autoencoder");
-
-	// Initialize module
-	PyObject* module = PyImport_Import(name);
-	if (module == NULL)
-	{
-		PyErr_Print();
-		fprintf(stderr, "Failed to find autoencoder module.\n");
-		Py_DECREF(name);
-		Py_DECREF(module);
-		return NULL;
-	}
-	Py_DECREF(name);
-
-	// Load dictionary of module methods and variables
-	PyObject* dict = PyModule_GetDict(module);
-	if (dict == NULL)
-	{
-		PyErr_Print();
-		fprintf(stderr, "Failed to load autoencoder module dictionary.\n");
-		Py_DECREF(module);
-		Py_DECREF(dict);
-		return NULL;
-	}
-	Py_DECREF(module);
-
-	// Get the initialization function from the module dictionary
-	PyObject* init = PyDict_GetItemString(dict, "Autoencoder");
-	if (init == NULL || !PyCallable_Check(init))
-	{
-		PyErr_Print();
-		fprintf(stderr, "Failed to find autoencoder __init__ function.\n");
-		Py_DECREF(dict);
-		Py_DECREF(init);
-		return NULL;
-	}
-	Py_DECREF(dict);
-
-	// Convert load autoencoder bool to Py pointer
-	PyObject* py_load_autoencoder;
-	if (load_autoencoder)
-	{
-		py_load_autoencoder = PyLong_FromLong(1);
-	}
-	else
-	{
-		py_load_autoencoder = PyLong_FromLong(0);
-	}
-
-	// Build the initialization arguments
-	PyObject* init_args = PyTuple_New(10);
-	PyTuple_SetItem(init_args, 0, PyFloat_FromDouble(start_alpha));
-	PyTuple_SetItem(init_args, 1, PyFloat_FromDouble(decay_rate));
-	PyTuple_SetItem(init_args, 2, PyLong_FromLong(x_dim));
-	PyTuple_SetItem(init_args, 3, PyLong_FromLong(y_dim));
-	PyTuple_SetItem(init_args, 4, PyLong_FromLong(num_filter_1));
-	PyTuple_SetItem(init_args, 5, PyLong_FromLong(num_filter_2));
-	PyTuple_SetItem(init_args, 6, PyLong_FromLong(encoder_output_size));
-	PyTuple_SetItem(init_args, 7, PyLong_FromLong(num_output_layers));
-	PyTuple_SetItem(init_args, 8, PyLong_FromLong(frame_buffer));
-	PyTuple_SetItem(init_args, 9, py_load_autoencoder);
-	Py_DECREF(py_load_autoencoder);
-
-	// Initialize autoencoder object
-	PyObject* object = PyObject_CallObject(init, init_args);
-	if (object == NULL)
-	{
-		PyErr_Print();
-		fprintf(stderr, "Failed to call autoencoder __init__ function.\n");
-		Py_DECREF(init);
-		Py_DECREF(init_args);
-		Py_DECREF(object);
-		return NULL;
-	}
-	Py_DECREF(init);
-	Py_DECREF(init_args);
-
-	// return the class
-	return object;
-}
-
-/**
 * Converts 1D vector<double> to a 1D PyList
 * @param The vector used to create list
 * @return PyObject pointer pointing at the created list
@@ -159,6 +45,157 @@ PyObject* get_2D_list(vector<vector<double>> arr)
 	}
 	
 	return mat;
+}
+
+/**
+* Prints the finite element solver and simulation parameters to std out
+* @param size of the encoder bottleneck
+* @param number of autoencoder frames saved per trajecotry
+* @param number of frames per autoencoder optimization epoch
+* @param starting learning rate of autoencoder
+* @param ending learning rate of autoencoder
+* @param x dimension of images sent to autoencoder
+* @param y dimension of images sent to autoencoder
+* @param the objective function used to update the autoencoder
+*/
+void print_params(int encoded_size, int samples_per_trajectory, int samples_per_batch, double start_alpha, double end_alpha, int x_dim, int y_dim, long objective_fnc)
+{
+	// Hyperparameters
+	cout << "\nHyperparameters(\n";
+	cout << "  (Objective Fnc): " << objective_fnc << "\n";
+	cout << "  (Bottleneck): " << encoded_size << "\n";
+	cout << "  (Image Dimenstions): " << x_dim << " x " << y_dim << "\n";
+	cout << "  (Samples per Trajectory): " << samples_per_trajectory << "\n";
+	cout << "  (Samples per Batch): " << samples_per_batch << " \n";
+	cout << "  (Start LR): " << start_alpha << "\n";
+	cout << "  (End LR): " << end_alpha << " \n";
+	cout << ")\n";
+}
+
+/**
+* Initializes the python autoencoder
+* @param Initial learning rate
+* @param Learning rate exponential decay rate
+* @param The x dimension of the frames sent to the autoencoder
+* @param The y dimension of the frames sent to the autoencoder
+* @param Number of filters used in first convolutional layer
+* @param Number of filters used in second convolutional layer
+* @param Length of the 1D compressed array in autoencoder
+* @param Number of layers at decoder output
+* @param Number of frames stored before a single stochastic gradient descent step
+* @param Objective fnc type (must be less than or equal to num_output_layers) 1->rebuilt temp, 2->rebuilt temp and front, 3->rebuilt temp, front, and cure
+* @param Whether or not to load a previous AE
+* @param Path to previous AE to load
+* @return PyObject pointer pointing at the initialized autoencoder on success, NULL on failure
+*/
+PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, long y_dim, long num_filter_1, long num_filter_2, long encoded_size, long num_output_layers, long frame_buffer, long objective_fnc, bool load_autoencoder, const char* load_path)
+{
+	// Define module name
+	PyObject* name = PyUnicode_DecodeFSDefault("Autoencoder");
+
+	// Initialize module
+	PyObject* module = PyImport_Import(name);
+	if (module == NULL)
+	{
+		fprintf(stderr, "\nFailed to find autoencoder module:\n");
+		PyErr_Print();
+		Py_DECREF(name);
+		return NULL;
+	}
+	Py_DECREF(name);
+
+	// Load dictionary of module methods and variables
+	PyObject* dict = PyModule_GetDict(module);
+	if (dict == NULL)
+	{
+		fprintf(stderr, "\nFailed to load autoencoder module dictionary:\n");
+		PyErr_Print();
+		Py_DECREF(module);
+		return NULL;
+	}
+	Py_DECREF(module);
+
+	// Get the initialization function from the module dictionary
+	PyObject* init = PyDict_GetItemString(dict, "Autoencoder");
+	if (init == NULL || !PyCallable_Check(init))
+	{
+		fprintf(stderr, "\nFailed to find autoencoder __init__ function:\n");
+		PyErr_Print();
+		Py_DECREF(dict);
+		if (init != NULL) { Py_DECREF(init); }
+		return NULL;
+	}
+	Py_DECREF(dict);
+
+	// Build the initialization arguments
+	PyObject* init_args = PyTuple_New(10);
+	PyTuple_SetItem(init_args, 0, PyFloat_FromDouble(start_alpha));
+	PyTuple_SetItem(init_args, 1, PyFloat_FromDouble(decay_rate));
+	PyTuple_SetItem(init_args, 2, PyLong_FromLong(x_dim));
+	PyTuple_SetItem(init_args, 3, PyLong_FromLong(y_dim));
+	PyTuple_SetItem(init_args, 4, PyLong_FromLong(num_filter_1));
+	PyTuple_SetItem(init_args, 5, PyLong_FromLong(num_filter_2));
+	PyTuple_SetItem(init_args, 6, PyLong_FromLong(encoded_size));
+	PyTuple_SetItem(init_args, 7, PyLong_FromLong(num_output_layers));
+	PyTuple_SetItem(init_args, 8, PyLong_FromLong(frame_buffer));
+	PyTuple_SetItem(init_args, 9, PyLong_FromLong(objective_fnc));
+
+	// Initialize autoencoder object
+	PyObject* object = PyObject_CallObject(init, init_args);
+	if (object == NULL)
+	{
+		fprintf(stderr, "\nFailed to call autoencoder __init__ function:\n");
+		PyErr_Print();
+		Py_DECREF(init);
+		Py_DECREF(init_args);
+		return NULL;
+	}
+	Py_DECREF(init);
+	Py_DECREF(init_args);
+
+	// Load previous AE at path
+	if (load_autoencoder)
+	{
+		PyObject* load_result = PyObject_CallMethod(object, "load", "s", load_path);
+		if (load_result == NULL)
+		{
+			fprintf(stderr, "\nFailed to call autoencoder load function:\n");
+			PyErr_Print();
+			return NULL;
+		}
+		Py_DECREF(load_result);
+	}
+	
+	// return the class
+	return object;
+}
+
+/**
+* Saves MSE loss training data, last frame buffer, and trained autoencoder NN. Frees autoencoder
+* @param Vector containing MSE training data
+* @param Pointer to the trained autoencoder
+* @return 0 on success, 1 on failure
+*/
+int save_autoencoder_training_data(vector<double> MSE_loss, PyObject* autoencoder)
+{
+	// Convert autoencoder training results
+	cout << "\n\nConverting autoencoder results..." << endl;
+	PyObject* py_MSE_loss = get_1D_list(MSE_loss);
+	
+	// Run save and display
+	if (PyObject_CallMethod(autoencoder, "display_and_save", "O", py_MSE_loss) == NULL)
+	{
+		fprintf(stderr, "\nFailed to call display and save autoencoder function:\n");
+		PyErr_Print();
+		if (autoencoder != NULL) { Py_DECREF(autoencoder); }
+		if (py_MSE_loss != NULL) { Py_DECREF(py_MSE_loss); }
+		return 1;
+	}
+	
+	// Free python memory
+	Py_DECREF(autoencoder);
+	Py_DECREF(py_MSE_loss);
+	return 0;
 }
 
 /**
@@ -201,6 +238,7 @@ void print_training_info(int curr_trajectory, int total_trajectories, vector<dou
 {
 	// Percent complete sub messege
 	int percent_complete = total_trajectories>1 ? 100.0 * curr_trajectory / (total_trajectories-1) : 0.0;
+	percent_complete = curr_trajectory == total_trajectories ? 100.0 : percent_complete;
 	stringstream stream;
 	stream << fixed << setprecision(1) << percent_complete;
 	string msg1 = stream.str();
@@ -245,9 +283,9 @@ void print_training_info(int curr_trajectory, int total_trajectories, vector<dou
 * @param The autoencoder that is being trained
 * @param The total number of trajectories to be executed
 * @param The number of simulation steps taken per single cycle of control application
-* @return Vector containing the training data
+* @return 0 on success, 1 on failure
 */
-vector<double> run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_trajectories, int steps_per_cycle, int tot_num_sim_steps, int samples_per_trajectory)
+int run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_trajectories, int steps_per_cycle, int tot_num_sim_steps, int samples_per_trajectory)
 {
 
 	// Declare variable tracking MSE_loss during training
@@ -318,9 +356,11 @@ vector<double> run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_
 				PyObject* py_MSE_loss = PyObject_CallMethod(autoencoder, "update", "(O,O)", py_norm_temp_mesh, py_cure_mesh);
 				if (py_MSE_loss == NULL)
 				{
+					fprintf(stderr, "\nFailed to call update autoencoder function.\n");
 					PyErr_Print();
-					fprintf(stderr, "Failed to call update autoencoder function.\n");
-					cin.get();
+					Py_DECREF(py_norm_temp_mesh);
+					Py_DECREF(py_cure_mesh);
+					return 1;
 				}
 				
 				// Store training data
@@ -338,32 +378,35 @@ vector<double> run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_
 		}
 
 		// Final user readout
-		if (i == total_trajectories - 1)
-		{
-			print_training_info(total_trajectories-1, total_trajectories, MSE_loss);
-		}
+		if (i == total_trajectories - 1) { print_training_info(i, total_trajectories, MSE_loss); }
 	}
 
-	// Return autoencoder and training data
-	return MSE_loss;
+	// Save autoencoder and autoencoder training data
+	return save_autoencoder_training_data(MSE_loss, autoencoder);
 }
 
 int main()
 {	
-	// Autoencoder hyperparameters
-	bool use_extended_state = false;
-	int total_trajectories = 5000;
-	long num_filter_1 = 12;
-	long num_filter_2 = 12;
-	int encoder_output_size = 64;
-	long num_output_layers = 3;
+	// Autoencoder load parameters
+	bool load = true;
+	const char* path = "validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-2";
+	
+	// Autoencoder training parameters
+	int total_trajectories = 2;
 	int samples_per_trajectory = 20;
 	int samples_per_batch = 100;
 	double start_alpha = 1.0e-3;
 	double end_alpha = 1.0e-5;
+	
+	// Autoencoder NN parameters
+	long num_filter_1 = 8;
+	long num_filter_2 = 16;
+	int encoded_size = 64;
+	long num_output_layers = 3;
+	long objective_fnc = 3;
 
 	// Initialize FES
-	Finite_Element_Solver FES = Finite_Element_Solver(encoder_output_size, use_extended_state);
+	Finite_Element_Solver FES = Finite_Element_Solver(encoded_size);
 
 	// Calculated parameters
 	int x_dim = FES.get_num_vert_length();
@@ -373,49 +416,27 @@ int main()
 	int steps_per_cycle = (int) round(execution_period / FES.get_time_step());
 	int tot_num_sim_steps = (int)floor(FES.get_sim_duration()/FES.get_time_step());
 	
-	// Init autoencoder
+	// Init py environment
 	Py_Initialize();
-	PyObject* autoencoder = init_autoencoder(start_alpha, decay_rate, x_dim, y_dim, num_filter_1, num_filter_2, encoder_output_size, num_output_layers, samples_per_batch, false);
-	if (autoencoder == NULL)
-	{
-		PyErr_Print();
-		fprintf(stderr, "Failed to initialize autoencoder\n");
-		cin.get();
-		return 1;
-	}
+	
+	// Init autoencoder
+	PyObject* autoencoder = init_autoencoder(start_alpha, decay_rate, x_dim, y_dim, num_filter_1, num_filter_2, encoded_size, num_output_layers, samples_per_batch, objective_fnc, load, path);
+	if (autoencoder == NULL) { Py_FinalizeEx(); return 1; }
 
 	// Print simulation parameters
-	print_params(encoder_output_size, samples_per_trajectory, samples_per_batch, start_alpha, end_alpha, x_dim, y_dim);
+	print_params(encoded_size, samples_per_trajectory, samples_per_batch, start_alpha, end_alpha, x_dim, y_dim, objective_fnc);
 	FES.print_params();
 
 	// Train autoencoder
-	cout << "\nTraining autoencoder..." << endl;
+	cout << "\nTraining autoencoder...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	vector<double> MSE_loss = run(&FES, autoencoder, total_trajectories, steps_per_cycle, tot_num_sim_steps, samples_per_trajectory);
+	if (run(&FES, autoencoder, total_trajectories, steps_per_cycle, tot_num_sim_steps, samples_per_trajectory) == 1) { return 1; }
 
 	// Stop clock and print duration
-	auto end_time = chrono::high_resolution_clock::now();
-	auto duration = chrono::duration_cast<chrono::microseconds>( end_time - start_time ).count();
-	cout << "Training Took: ";
-	printf("%.1f", (double)duration*10e-7);
-	cout << " seconds.\n";
-	
-	// Convert training results
-	cout << "\nConverting results..." << endl;
-	PyObject* py_MSE_loss = get_1D_list(MSE_loss);
-	
-	// Run save and display
-	if (PyObject_CallMethod(autoencoder, "display_and_save", "O", py_MSE_loss) == NULL)
-	{
-		PyErr_Print();
-		fprintf(stderr, "Failed to call display autoencoder function.\n");
-		cin.get();
-		return 1;
-	}
-	
-	// End main
-	Py_DECREF(autoencoder);
-	Py_DECREF(py_MSE_loss);
+	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
+	printf("\nTraining Took: %.1f seconds.\n", duration);
+
+	// Close the py environment
 	Py_FinalizeEx();
 	cout << "Done!";
 	return 0;

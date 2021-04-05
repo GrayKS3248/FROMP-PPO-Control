@@ -13,7 +13,7 @@ class Finite_Element_Solver {
 
 public:
 //******************** CONSTRUCTOR ****************************//
-Finite_Element_Solver(int encoded_size_in, bool get_extended_state_in);
+Finite_Element_Solver(int encoded_size_in);
 
 //******************** GETTERS ********************************//
 int get_num_vert_length();
@@ -48,7 +48,7 @@ vector<vector<double>> get_mesh_z_x0();
 //******************** FUNCTIONS ******************************//
 bool step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
 void reset();
-vector<double> get_state(vector<double> encoded_temp);
+void append_input(vector<double>* encoded_state);
 double get_reward();
 
 private:
@@ -84,7 +84,7 @@ const double width = 0.01;   // Meters
 const double depth = 0.005;  // Meters
 
 // Temporal parameters
-const double sim_duration = 60.0;   // Seconds
+const double sim_duration = 30.0;   // Seconds
 const double time_step = 0.03;      // Seconds
 
 // Initial conditions
@@ -97,16 +97,22 @@ const double initial_cure_delta = 0.005;    // Decimal Percent
 const double htc = 10.0;                    // Watts / (Meter ^ 2 * Kelvin)
 const double ambient_temperature = 294.15;  // Kelvin
 
-// Problem definition
+// Temeprature limit
 const double temperature_limit = 523.15;          // Kelvin
+
+// DCPD GC1 problem definition
 const double DCPD_GC1_target_vel = 0.00015;       // Meters / Second
 const double DCPD_GC1_vel_rand_scale = 0.000025;  // Meters / Second
 const double DCPD_GC1_target_temp = 473.15;       // Kelvin
 const double DCPD_GC1_temp_rand_scale = 20.0;     // Kelvin
+
+// DCPD GC2 problem definition
 const double DCPD_GC2_target_vel = 0.0015;        // Meters / Second
 const double DCPD_GC2_vel_rand_scale = 0.00025;   // Meters / Second
 const double DCPD_GC2_target_temp = 473.15;       // Kelvin
 const double DCPD_GC2_temp_rand_scale = 20.0;     // Kelvin
+
+// COD problem definition
 const double COD_target_vel = 0.0005;             // Meters / Second
 const double COD_vel_rand_scale = 0.0001;         // Meters / Second
 const double COD_target_temp = 408.15;            // Kelvin
@@ -186,7 +192,6 @@ double current_time;
 int current_index;
 
 // State generation parameters
-bool get_extended_state;
 int encoded_size;
 
 // Monomer physical parameters

@@ -14,7 +14,7 @@ import os
 
 class PPO_Agent:
 
-    def __init__(self, num_states, steps_per_trajectory, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, alpha, decay_rate, load_agent, reset_stdev):
+    def __init__(self, num_states, steps_per_trajectory, trajectories_per_batch, minibatch_size, num_epochs, gamma, lamb, epsilon, alpha, decay_rate, load_agent, reset_stdev, path):
 
         # Policy and value estimation network
         # Input is the state
@@ -60,39 +60,30 @@ class PPO_Agent:
         # Training memory
         self.value_estimation_error = []
         
+        # Copy previous agent
         if load_agent == 1:
-            # Find load path
-            print("Loading previous agent...")
-            done = False
-            curr_folder = 1
-            while not done:
-                path = "results/PPO_"+str(curr_folder)
-                if not os.path.isdir(path):
-                    done = True
-                else:
-                    curr_folder = curr_folder + 1
-            load_path = "results/PPO_"+str(curr_folder-1)
-            if not os.path.isdir(load_path):
-                raise RuntimeError("Could not find previous folder: " + load_path)
-            load_path = load_path + "/output"
-            if not os.path.exists(load_path):
-                raise RuntimeError("Could not find previous output file: " + load_path)
-            with open(load_path, 'rb') as file:
-                input_data = pickle.load(file)
-            if 'agent' in input_data:
-                old_agent = input_data['agent']
-            else:
-                old_agent = input_data['logbook']['agents'][0]
-                
-            # Copy previous agent
-            self.copy(old_agent, reset_stdev)
+            self.copy(reset_stdev, path)
 
     # Copies the actor and critic NNs from another agent to this agent
-    # @param agent - the agent from which the NNs are copied
     # @param reset_stdev - boolean that determines if the stdev of the agent is reset or not
-    def copy(self, agent, reset_stdev):
+    # @param path - the path from which the previous agent is loaded
+    def copy(self, reset_stdev, path):
+        # Find load path
+        print("\nLoading: " + path + "\n")
+        if not os.path.isdir(path):
+            raise RuntimeError("Could not find previous folder: " + path)
+        path = path + "/output"
+        if not os.path.exists(path):
+            raise RuntimeError("Could not find previous output file: " + path)
+        with open(path, 'rb') as file:
+            input_data = pickle.load(file)
+        if 'agent' in input_data:
+            old_agent = input_data['agent']
+        else:
+            old_agent = input_data['logbook']['agents'][0]
+        
         # Copy the actor NN
-        self.actor.load_state_dict(agent.actor.state_dict())
+        self.actor.load_state_dict(old_agent.actor.state_dict())
 
         # Reset the stdev
         if reset_stdev:
@@ -108,7 +99,7 @@ class PPO_Agent:
         self.old_actor.load_state_dict(self.actor.state_dict())
 
         # Copy the critic NN
-        self.critic.load_state_dict(agent.critic.state_dict())
+        self.critic.load_state_dict(old_agent.critic.state_dict())
         self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=self.alpha)
         self.critic_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.critic_optimizer, gamma=self.decay_rate)
 

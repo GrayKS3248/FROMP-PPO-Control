@@ -8,7 +8,7 @@ using namespace std;
 * @param length of encoded state
 * @param boolean flag that indicates whether front location and velocity data are appended to encoded state
 */
-Finite_Element_Solver::Finite_Element_Solver(int encoded_size_in, bool get_extended_state_in)
+Finite_Element_Solver::Finite_Element_Solver(int encoded_size_in)
 {
 	// Set randomization seed
 	srand(time(NULL));
@@ -19,7 +19,6 @@ Finite_Element_Solver::Finite_Element_Solver(int encoded_size_in, bool get_exten
 	
 	// State information
 	encoded_size = encoded_size_in;
-	get_extended_state = get_extended_state_in;
 	
 	// Monomer physical parameters
 	if (use_DCPD_GC1)
@@ -370,20 +369,8 @@ double Finite_Element_Solver::get_current_time()
 */
 int Finite_Element_Solver::get_num_state()
 {
-	// Temperature field view
-	int num_states = encoded_size;
-
-	// Add front location and veloicty views
-	if (get_extended_state)
-	{
-		num_states += (int)((double)num_vert_width/4.0) + (int)((double)num_vert_width/4.0);	
-	}
-
-	// Add input location and magnitude states
-	num_states += 3;
-
 	// Return calculated number of states
-	return num_states;
+	return encoded_size + 3;
 }
 
 /**
@@ -1060,52 +1047,15 @@ void Finite_Element_Solver::step_meshes()
 }
 
 /**
-* Gets the state fed to PPO agent based on temperature, front location, front velocity, and the input
-* @param The autoencoder encoded temperature field as a vector of doubles
-* @return The normalized state array
+* Mutates the encoded state by appending input location and magnitude data
+* @param The autoencoder encoded temperature field, cure field, and front location as a vector of doubles
 */
-vector<double> Finite_Element_Solver::get_state(vector<double> encoded_temp)
+void Finite_Element_Solver::append_input(vector<double>* encoded_state)
 {
-	// Init state variables
-	vector<double> state(get_num_state(), 0.0);
-
-	// Copy the encoded state
-	for (int i = 0 ; i  < encoded_size; i++)
-	{
-		state[i] = encoded_temp[i];
-	}
-
-	// Get the coarse front location and velocity data
-	if (get_extended_state)
-	{
-		int curr_state_index = encoded_size;
-		int y_width = 0;
-		int y_max_index = num_vert_width-1;
-		int y_curr_index = 0;
-		double avg_loc = 0.0;
-		double avg_vel = 0.0;
-		for (int j = 0; j < (int)((double)num_vert_width/4.0); j++)
-		{
-			y_width = (int) floor((y_max_index-y_curr_index) / ((int)((double)num_vert_width/4.0)-j));
-			for (int y = y_curr_index; y <= (y_curr_index + y_width); y++)
-			{
-				avg_loc += front_loc[y][0];
-				avg_vel += front_vel[y][0];
-			}
-			state[curr_state_index] = avg_loc / ((double)(y_width+1)*length);
-			state[curr_state_index+(int)((double)num_vert_width/4.0)] = avg_vel / ((double)(y_width+1)*current_target);
-			curr_state_index++;
-			y_curr_index += y_width;
-		}
-	}
-
 	// Append the input location and magnitude parameters
-	state[get_num_state()-3] = input_location[0] / length;
-	state[get_num_state()-2] = input_location[1] / width;
-	state[get_num_state()-1] = input_percent;
-
-	// Return the state
-	return state;
+	encoded_state->push_back(input_location[0] / length);
+	encoded_state->push_back(input_location[1] / width);
+	encoded_state->push_back(input_percent);
 }
 
 /**
