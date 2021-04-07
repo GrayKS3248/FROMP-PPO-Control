@@ -106,7 +106,7 @@ class Autoencoder:
         # Return the encoded frame of the proper data type
         return encoded_frame
     
-    def update(self, frame, cure):
+    def update(self, frame, cure, learn):
         
         # Store the current frame
         self.frame_buffer.append(np.array(frame))
@@ -185,10 +185,11 @@ class Autoencoder:
                     curr_MSE_loss = self.criterion_1(rebuilt_frame[0,0,:,:], target[0,0,:,:])
                         
                 # Calculate loss and take optimization step and learning rate step
-                self.optimizer.zero_grad()
-                curr_MSE_loss.backward()
-                self.optimizer.step()
-                self.lr_scheduler.step()
+                if (learn == 1):
+                    self.optimizer.zero_grad()
+                    curr_MSE_loss.backward()
+                    self.optimizer.step()
+                    self.lr_scheduler.step()
                 
                 # Sum the epoch's total loss
                 self.tot_MSE_loss = self.tot_MSE_loss + curr_MSE_loss.item()
@@ -196,8 +197,7 @@ class Autoencoder:
             # Empty frame buffer
             self.frame_buffer = []
             self.cure_buffer = []
-        
-        
+
         return self.tot_MSE_loss
     
     def display_and_save(self, MSE_loss):
@@ -441,7 +441,7 @@ if __name__ == '__main__':
     autoencoder = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 3, 20, False)
     autoencoder.load(path)
     
-    with open(path+"/test_frames", 'rb') as file:
+    with open("results/test_frames", 'rb') as file:
         data = pickle.load(file)
     test_frames = data['data']['Test_frames']
     test_cures = data['data']['Test_cure']

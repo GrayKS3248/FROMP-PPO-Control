@@ -147,6 +147,7 @@ vector<double> get_vector(PyObject* list)
 
 /**
 * Prints the finite element solver and simulation parameters to std out
+* @param file to print parameters to
 * @param size of the encoder bottleneck
 * @param number of autoencoder frames saved per trajecotry
 * @param number of frames per autoencoder optimization epoch
@@ -163,11 +164,14 @@ vector<double> get_vector(PyObject* list)
 * @param RL clipping parameter
 * @param starting learning rate of RL agent
 * @param ending learning rate of RL agent
+* @param boolean flag that indicates if the agent is to learn
+* @param boolean flag that indicates if the autoencoder is to learn 
 */
-void print_params(int encoded_size, int samples_per_trajectory, int samples_per_batch, double ae_start_alpha, double ae_end_alpha, int x_dim, int y_dim, long objective_fnc, int steps_per_trajectory, int trajectories_per_batch, int num_epochs, double gamma, double lamb, double epsilon, double rl_start_alpha, double rl_end_alpha)
+void print_params(int encoded_size, int samples_per_trajectory, int samples_per_batch, double ae_start_alpha, double ae_end_alpha, int x_dim, int y_dim, long objective_fnc, int steps_per_trajectory, int trajectories_per_batch, int num_epochs, double gamma, double lamb, double epsilon, double rl_start_alpha, double rl_end_alpha, bool update_agent, bool update_ae)
 {
 	// Autoencoder hyperparameters
 	cout << "\nAutoencoder Hyperparameters(\n";
+	cout << "  (Train): " << boolalpha << update_ae << "\n";
 	cout << "  (Objective Fnc): " << objective_fnc << "\n";
 	cout << "  (Bottleneck): " << encoded_size << "\n";
 	cout << "  (Image Dimenstions): " << x_dim << " x " << y_dim << "\n";
@@ -178,7 +182,8 @@ void print_params(int encoded_size, int samples_per_trajectory, int samples_per_
 	cout << ")\n";
 	
 	// PPO Agent hyperparameters
-	cout << "\nPPO Agent Hyperparameters(\n";
+	cout << "\nAgent Hyperparameters(\n";
+	cout << "  (Train): " << boolalpha << update_agent << "\n";
 	cout << "  (Steps per Trajectory): " << steps_per_trajectory << "\n";
 	cout << "  (Trajectories per Batch): " << trajectories_per_batch << "\n";
 	cout << "  (Optimizations per Batch): " << num_epochs << "\n";
@@ -711,11 +716,12 @@ void print_training_info(int curr_trajectory, int total_trajectories, double pre
 * @param The autoencoder used to encode temperature state data
 * @param Total number of steps per simulation
 * @param Number of frames sampled each trajecotry by autoencoder
+* @param boolean flag that indicates if the agent is to learn
+* @param boolean flag that indicates if the autoencoder is to learn 
 * @return 0 on success, 1 on failure
 */
-int run(Finite_Element_Solver* FES, bool render, PyObject* agent, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory, PyObject* autoencoder, int tot_num_sim_steps, int samples_per_trajectory)
+int run(Finite_Element_Solver* FES, bool render, PyObject* agent, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory, PyObject* autoencoder, int tot_num_sim_steps, int samples_per_trajectory, bool agent_learn, bool ae_learn)
 {
-
 	// Determine how many frames there are in each trajectory
 	int frames_per_trajectory = get_num_frames_per_trajectory(FES, steps_per_frame);
 
@@ -799,7 +805,7 @@ int run(Finite_Element_Solver* FES, bool render, PyObject* agent, int total_traj
 				PyObject* py_encoded_state = PyObject_CallMethod(autoencoder, "encode", "O", py_norm_temp_mesh);
 				if (py_encoded_state == NULL)
 				{
-					fprintf(stderr, "\nFailed to call update autoencoder function.\n");
+					fprintf(stderr, "\nFailed to call encode function.\n");
 					PyErr_Print();
 					Py_DECREF(py_norm_temp_mesh);
 					return 1;
@@ -811,7 +817,9 @@ int run(Finite_Element_Solver* FES, bool render, PyObject* agent, int total_traj
 				
 				// Get agent action based on total encoded state
 				PyObject* py_state = get_1D_list(encoded_state);
-				PyObject* py_action = PyObject_CallMethod(agent, "get_action", "O", py_state);
+				PyObject* py_action;
+				if (agent_learn) { py_action = PyObject_CallMethod(agent, "get_action", "O", py_state); }
+				else { py_action = PyObject_CallMethod(agent, "get_greedy_action", "O", py_state); }
 				if (py_action == NULL)
 				{
 					fprintf(stderr, "\nFailed to call get action function.\n");
@@ -837,16 +845,20 @@ int run(Finite_Element_Solver* FES, bool render, PyObject* agent, int total_traj
 
 				// Update the agent
 				reward = FES->get_reward();
-				PyObject* py_result = PyObject_CallMethod(agent, "update_agent", "(O,f,f,f,f)", py_state, PyFloat_FromDouble(action_1), PyFloat_FromDouble(action_2), PyFloat_FromDouble(action_3), PyFloat_FromDouble(reward));
-				if (py_result == NULL)
+				if (agent_learn)
 				{
-					fprintf(stderr, "\nFailed to update agent\n");
-					PyErr_Print();
-					Py_DECREF(py_norm_temp_mesh);
-					Py_DECREF(py_encoded_state);
-					Py_DECREF(py_state);
-					Py_DECREF(py_action);
-					return 1;
+					PyObject* py_result = PyObject_CallMethod(agent, "update_agent", "(O,f,f,f,f)", py_state, PyFloat_FromDouble(action_1), PyFloat_FromDouble(action_2), PyFloat_FromDouble(action_3), PyFloat_FromDouble(reward));
+					if (py_result == NULL)
+					{
+						fprintf(stderr, "\nFailed to update agent\n");
+						PyErr_Print();
+						Py_DECREF(py_norm_temp_mesh);
+						Py_DECREF(py_encoded_state);
+						Py_DECREF(py_state);
+						Py_DECREF(py_action);
+						return 1;
+					}
+					Py_DECREF(py_result);
 				}
 	
 				// Update reward
@@ -857,7 +869,6 @@ int run(Finite_Element_Solver* FES, bool render, PyObject* agent, int total_traj
 				Py_DECREF(py_encoded_state);
 				Py_DECREF(py_state);
 				Py_DECREF(py_action);
-				Py_DECREF(py_result);
 			}
 			else
 			{
@@ -882,10 +893,12 @@ int run(Finite_Element_Solver* FES, bool render, PyObject* agent, int total_traj
 				PyObject* py_cure_mesh = get_2D_list(cure_mesh);
 						
 				// Send frame data to autoencoder (it will automatically update when data buffer is full)
-				PyObject* py_MSE_loss = PyObject_CallMethod(autoencoder, "update", "(O,O)", py_norm_temp_mesh, py_cure_mesh);
+				PyObject* py_MSE_loss;
+				if (ae_learn) { py_MSE_loss = PyObject_CallMethod(autoencoder, "update", "(O,O,I)", py_norm_temp_mesh, py_cure_mesh, 1); }
+				else { py_MSE_loss = PyObject_CallMethod(autoencoder, "update", "(O,O,I)", py_norm_temp_mesh, py_cure_mesh, 0); }
 				if (py_MSE_loss == NULL)
 				{
-					fprintf(stderr, "\nFailed to call update autoencoder function.\n");
+					fprintf(stderr, "\nFailed to call autoencoder update function.\n");
 					PyErr_Print();
 					Py_DECREF(py_norm_temp_mesh);
 					Py_DECREF(py_cure_mesh);
@@ -1005,7 +1018,8 @@ int main()
 	const char* agent_path = "results/PPO_1";
 	
 	// Agent training parameter
-	int total_trajectories = 100;
+	bool update_agent = true;
+	int total_trajectories = 2500;
 	int steps_per_trajectory = 100;
 	int trajectories_per_batch = 10;
 	int num_epochs = 10;
@@ -1022,10 +1036,11 @@ int main()
 	const char* ae_path = "validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-2";
 	
 	// Autoencoder training parameters
-	int samples_per_trajectory = 5;
+	bool update_ae = false;
+	int samples_per_trajectory = 20;
 	int samples_per_batch = 100;
-	double ae_start_alpha = 5.0e-5;
-	double ae_end_alpha = 1.0e-6;
+	double ae_start_alpha = 1.0e-4;
+	double ae_end_alpha = 1.0e-5;
 	
 	// Autoencoder NN parameters
 	long num_filter_1 = 8;
@@ -1035,7 +1050,7 @@ int main()
 	long objective_fnc = 3;
 
 	// Rendering parameters
-	bool render = false;
+	bool render = true;
 	double frame_rate = 30.0;
 
 	// Initialize FES
@@ -1068,20 +1083,20 @@ int main()
 	PyObject* autoencoder = init_autoencoder(ae_start_alpha, ae_decay_rate, x_dim, y_dim, num_filter_1, num_filter_2, encoded_size, num_output_layers, samples_per_batch, objective_fnc, load_ae, ae_path);
 	if (autoencoder == NULL) { Py_DECREF(agent); Py_FinalizeEx(); return 1; }
 
-	// Print parameters to stdout
-	print_params(encoded_size, samples_per_trajectory, samples_per_batch, ae_start_alpha, ae_end_alpha, x_dim, y_dim, objective_fnc, steps_per_trajectory, trajectories_per_batch, num_epochs, gamma, lamb, epsilon, rl_start_alpha, rl_end_alpha);
+	// Print parameters to stdout and log
+	print_params(encoded_size, samples_per_trajectory, samples_per_batch, ae_start_alpha, ae_end_alpha, x_dim, y_dim, objective_fnc, steps_per_trajectory, trajectories_per_batch, num_epochs, gamma, lamb, epsilon, rl_start_alpha, rl_end_alpha, update_agent, update_ae);
 	FES.print_params();
 
 	// Train agent
 	cout << "\nTraining agent..." << endl;
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(&FES, render, agent, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory, autoencoder, tot_num_sim_steps, samples_per_trajectory) == 1) { return 1; };
+	if (run(&FES, render, agent, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory, autoencoder, tot_num_sim_steps, samples_per_trajectory, update_agent, update_ae) == 1) { return 1; };
 
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
 	printf("\nTraining Took: %.1f seconds.\n", duration);
 	
-	// Close the py environment
+	// Finish
 	Py_FinalizeEx();
 	cout << "Done!";
 	return 0;

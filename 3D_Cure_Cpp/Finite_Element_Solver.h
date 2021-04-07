@@ -31,7 +31,6 @@ int get_target_vector_arr_size();
 double get_current_time();
 int get_num_state();
 bool get_control_speed();
-void print_params();
 vector<double> get_input_location();
 vector<vector<double>> get_temp_mesh();
 vector<vector<double>> get_norm_temp_mesh();
@@ -50,6 +49,7 @@ bool step(double x_loc_rate_action, double y_loc_rate_action, double mag_action)
 void reset();
 void append_input(vector<double>* encoded_state);
 double get_reward();
+void print_params();
 
 private:
 //******************** USER SET PARAMETERS ********************//
@@ -84,7 +84,7 @@ const double width = 0.01;   // Meters
 const double depth = 0.005;  // Meters
 
 // Temporal parameters
-const double sim_duration = 30.0;   // Seconds
+const double sim_duration = 60.0;   // Seconds
 const double time_step = 0.03;      // Seconds
 
 // Initial conditions
@@ -155,7 +155,7 @@ const double COD_m_fit = 0.8173;                   // Unitless
 
 // Input distribution parameters
 const double radius_of_input = 0.005;       // Meters
-const double laser_power = 0.2;             // Watts
+const double laser_power = 0.75;             // Watts
 const double input_mag_percent_rate = 0.5;  // Decimal Percent / Second
 const double max_input_loc_rate = 0.025;    // Meters / Second
 
@@ -169,9 +169,9 @@ const double COD_trigger_duration_ref = 6.0;        // Seconds
 const double trigger_time_ref = 0.0;                // Seconds
 
 // NN Input conversion factors
-const double mag_scale = 0.0227;        // Unitless
+const double mag_scale = 0.025;         // Unitless
 const double mag_offset = 0.5;          // Unitless
-const double loc_rate_scale = 0.001136; // Unitless
+const double loc_rate_scale = 0.00125;  // Unitless
 const double loc_rate_offset = 0.0;     // Unitless
 
 // Reward constants

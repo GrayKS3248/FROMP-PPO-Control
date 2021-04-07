@@ -353,7 +353,7 @@ int run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_trajectorie
 				PyObject* py_cure_mesh = get_2D_list(cure_mesh);
 						
 				// Send frame data to autoencoder (it will automatically update when data buffer is full)
-				PyObject* py_MSE_loss = PyObject_CallMethod(autoencoder, "update", "(O,O)", py_norm_temp_mesh, py_cure_mesh);
+				PyObject* py_MSE_loss = PyObject_CallMethod(autoencoder, "update", "(O,O,I)", py_norm_temp_mesh, py_cure_mesh, 1);
 				if (py_MSE_loss == NULL)
 				{
 					fprintf(stderr, "\nFailed to call update autoencoder function.\n");
@@ -388,15 +388,15 @@ int run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_trajectorie
 int main()
 {	
 	// Autoencoder load parameters
-	bool load = true;
+	bool load = false;
 	const char* path = "validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-2";
 	
 	// Autoencoder training parameters
-	int total_trajectories = 2;
+	int total_trajectories = 7500;
 	int samples_per_trajectory = 20;
 	int samples_per_batch = 100;
 	double start_alpha = 1.0e-3;
-	double end_alpha = 1.0e-5;
+	double end_alpha = 5.0e-6;
 	
 	// Autoencoder NN parameters
 	long num_filter_1 = 8;

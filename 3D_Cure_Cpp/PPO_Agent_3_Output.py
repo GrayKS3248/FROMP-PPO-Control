@@ -124,7 +124,7 @@ class PPO_Agent:
         action_1 = float(means[0])
         action_2 = float(means[1])
         action_3 = float(means[2])
-        return action_1, action_2, action_3
+        return action_1, action_2, action_3, 0.0, 0.0, 0.0
 
     # Calcuates stochastic action given state and policy.
     # @ param state - The state in which the policy is applied to calculate the action
