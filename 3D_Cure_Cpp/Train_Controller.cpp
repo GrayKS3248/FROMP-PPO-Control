@@ -313,14 +313,14 @@ PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectori
 * @param Number of filters used in first convolutional layer
 * @param Number of filters used in second convolutional layer
 * @param Length of the 1D compressed array in autoencoder
-* @param Number of layers at decoder output
 * @param Number of frames stored before a single stochastic gradient descent step
-* @param Objective fnc type (must be less than or equal to num_output_layers) 1->rebuilt temp, 2->rebuilt temp and front, 3->rebuilt temp, front, and cure
+* @param Number of layers at decoder output
+* @param Objective fnc index (1, 2, 3, 5)
 * @param Whether or not to load a previous AE
 * @param Path to previous AE to load
 * @return PyObject pointer pointing at the initialized autoencoder on success, NULL on failure
 */
-PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, long y_dim, long num_filter_1, long num_filter_2, long encoded_size, long num_output_layers, long frame_buffer, long objective_fnc, bool load_autoencoder, const char* load_path)
+PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, long y_dim, long num_filter_1, long num_filter_2, long encoded_size, long samples_per_batch, long num_output_layers, long objective_fnc, bool load, const char* path)
 {
 	// Define module name
 	PyObject* name = PyUnicode_DecodeFSDefault("Autoencoder");
@@ -368,8 +368,8 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 	PyTuple_SetItem(init_args, 4, PyLong_FromLong(num_filter_1));
 	PyTuple_SetItem(init_args, 5, PyLong_FromLong(num_filter_2));
 	PyTuple_SetItem(init_args, 6, PyLong_FromLong(encoded_size));
+	PyTuple_SetItem(init_args, 8, PyLong_FromLong(samples_per_batch));
 	PyTuple_SetItem(init_args, 7, PyLong_FromLong(num_output_layers));
-	PyTuple_SetItem(init_args, 8, PyLong_FromLong(frame_buffer));
 	PyTuple_SetItem(init_args, 9, PyLong_FromLong(objective_fnc));
 
 	// Initialize autoencoder object
@@ -386,9 +386,9 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 	Py_DECREF(init_args);
 
 	// Load previous AE at path
-	if (load_autoencoder)
+	if (load)
 	{
-		PyObject* load_result = PyObject_CallMethod(object, "load", "s", load_path);
+		PyObject* load_result = PyObject_CallMethod(object, "load", "s", path);
 		if (load_result == NULL)
 		{
 			fprintf(stderr, "\nFailed to call autoencoder load function:\n");

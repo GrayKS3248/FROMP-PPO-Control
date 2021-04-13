@@ -81,14 +81,14 @@ void print_params(int encoded_size, int samples_per_trajectory, int samples_per_
 * @param Number of filters used in first convolutional layer
 * @param Number of filters used in second convolutional layer
 * @param Length of the 1D compressed array in autoencoder
-* @param Number of layers at decoder output
 * @param Number of frames stored before a single stochastic gradient descent step
-* @param Objective fnc type (must be less than or equal to num_output_layers) 1->rebuilt temp, 2->rebuilt temp and front, 3->rebuilt temp, front, and cure
+* @param Number of layers at decoder output
+* @param Objective fnc index (1, 2, 3, 5)
 * @param Whether or not to load a previous AE
 * @param Path to previous AE to load
 * @return PyObject pointer pointing at the initialized autoencoder on success, NULL on failure
 */
-PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, long y_dim, long num_filter_1, long num_filter_2, long encoded_size, long num_output_layers, long frame_buffer, long objective_fnc, bool load_autoencoder, const char* load_path)
+PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, long y_dim, long num_filter_1, long num_filter_2, long encoded_size, long samples_per_batch, long num_output_layers, long objective_fnc, bool load, const char* path)
 {
 	// Define module name
 	PyObject* name = PyUnicode_DecodeFSDefault("Autoencoder");
@@ -136,8 +136,8 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 	PyTuple_SetItem(init_args, 4, PyLong_FromLong(num_filter_1));
 	PyTuple_SetItem(init_args, 5, PyLong_FromLong(num_filter_2));
 	PyTuple_SetItem(init_args, 6, PyLong_FromLong(encoded_size));
-	PyTuple_SetItem(init_args, 7, PyLong_FromLong(num_output_layers));
-	PyTuple_SetItem(init_args, 8, PyLong_FromLong(frame_buffer));
+	PyTuple_SetItem(init_args, 7, PyLong_FromLong(samples_per_batch));
+	PyTuple_SetItem(init_args, 8, PyLong_FromLong(num_output_layers));
 	PyTuple_SetItem(init_args, 9, PyLong_FromLong(objective_fnc));
 
 	// Initialize autoencoder object
@@ -154,9 +154,9 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 	Py_DECREF(init_args);
 
 	// Load previous AE at path
-	if (load_autoencoder)
+	if (load)
 	{
-		PyObject* load_result = PyObject_CallMethod(object, "load", "s", load_path);
+		PyObject* load_result = PyObject_CallMethod(object, "load", "s", path);
 		if (load_result == NULL)
 		{
 			fprintf(stderr, "\nFailed to call autoencoder load function:\n");
@@ -172,29 +172,60 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 
 /**
 * Saves MSE loss training data, last frame buffer, and trained autoencoder NN. Frees autoencoder
-* @param Vector containing MSE training data
+* @param Vector containing training curve
 * @param Pointer to the trained autoencoder
+* @param Whether or not to render
 * @return 0 on success, 1 on failure
 */
-int save_autoencoder_training_data(vector<double> MSE_loss, PyObject* autoencoder)
+int save_autoencoder_training_data(vector<double> training_curve, PyObject* autoencoder, bool render)
 {
 	// Convert autoencoder training results
 	cout << "\n\nConverting autoencoder results..." << endl;
-	PyObject* py_MSE_loss = get_1D_list(MSE_loss);
+	PyObject* py_training_curve = get_1D_list(training_curve);
 	
-	// Run save and display
-	if (PyObject_CallMethod(autoencoder, "display_and_save", "O", py_MSE_loss) == NULL)
+	// Run save
+	PyObject* py_save_path = PyObject_CallMethod(autoencoder, "save", "O", py_training_curve);
+	if (py_save_path == NULL)
 	{
-		fprintf(stderr, "\nFailed to call display and save autoencoder function:\n");
+		fprintf(stderr, "\nFailed to call save autoencoder function:\n");
 		PyErr_Print();
 		if (autoencoder != NULL) { Py_DECREF(autoencoder); }
-		if (py_MSE_loss != NULL) { Py_DECREF(py_MSE_loss); }
+		if (py_training_curve != NULL) { Py_DECREF(py_training_curve); }
 		return 1;
+	}
+	
+	// Run plot
+	PyObject* py_result = PyObject_CallMethod(autoencoder, "draw_training_curve", "(O,O)", py_training_curve, py_save_path);
+	if (py_result == NULL)
+	{
+		fprintf(stderr, "\nFailed to call autoencoder plot function:\n");
+		PyErr_Print();
+		if (autoencoder != NULL) { Py_DECREF(autoencoder); }
+		if (py_training_curve != NULL) { Py_DECREF(py_training_curve); }
+		if (py_save_path != NULL) { Py_DECREF(py_save_path); }
+		return 1;
+	}
+	
+	// Render
+	if (render)
+	{
+		py_result = PyObject_CallMethod(autoencoder, "render", "O", py_save_path);
+		if (py_result == NULL)
+		{
+			fprintf(stderr, "\nFailed to call autoencoder render function:\n");
+			PyErr_Print();
+			if (autoencoder != NULL) { Py_DECREF(autoencoder); }
+			if (py_training_curve != NULL) { Py_DECREF(py_training_curve); }
+			if (py_save_path != NULL) { Py_DECREF(py_save_path); }
+			return 1;
+		}
 	}
 	
 	// Free python memory
 	Py_DECREF(autoencoder);
-	Py_DECREF(py_MSE_loss);
+	Py_DECREF(py_training_curve);
+	Py_DECREF(py_save_path);
+	Py_DECREF(py_result);
 	return 0;
 }
 
@@ -232,9 +263,9 @@ vector<int> get_update_frames(int tot_num_sim_steps, int samples_per_trajectory)
 * Prints to stdout a readout of the current RL agent training process
 * @param the current trajecotry being simulated
 * @param the total number of trajectories to be simulated
-* @param vector containing all MSE losses
+* @param vector containing the training curve
 */
-void print_training_info(int curr_trajectory, int total_trajectories, vector<double> MSE_loss)
+void print_training_info(int curr_trajectory, int total_trajectories, vector<double> training_curve)
 {
 	// Percent complete sub messege
 	int percent_complete = total_trajectories>1 ? 100.0 * curr_trajectory / (total_trajectories-1) : 0.0;
@@ -256,21 +287,21 @@ void print_training_info(int curr_trajectory, int total_trajectories, vector<dou
 		msg2.append(22 - msg2.length(), ' ');
 	}
 	
-	// Autoencoder MSE loss sub messege
-	string msg3 = "| MSE Loss: ";
+	// Autoencoder loss sub messege
+	string msg3 = "| RMS Error: ";
 	stream.str(string());
-	if (MSE_loss.size() <= 0)
+	if (training_curve.size() <= 0)
 	{
 		stream << fixed << setprecision(3) << 0.0;
 	}
 	else
 	{
-		stream << fixed << setprecision(3) << MSE_loss.back();
+		stream << fixed << setprecision(3) << training_curve.back();
 	}
 	msg3.append(stream.str());
-	if (msg3.length() < 19)
+	if (msg3.length() < 20)
 	{
-		msg3.append(19 - msg3.length(), ' ');
+		msg3.append(20 - msg3.length(), ' ');
 	}
 	
 	// Print all sub messeges
@@ -283,13 +314,15 @@ void print_training_info(int curr_trajectory, int total_trajectories, vector<dou
 * @param The autoencoder that is being trained
 * @param The total number of trajectories to be executed
 * @param The number of simulation steps taken per single cycle of control application
+* @param The number of simulation steps taken per frame
+* @param Whether or not to render the save buffer
 * @return 0 on success, 1 on failure
 */
-int run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_trajectories, int steps_per_cycle, int tot_num_sim_steps, int samples_per_trajectory)
+int run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_trajectories, int steps_per_cycle, int tot_num_sim_steps, int samples_per_trajectory, int steps_per_frame, bool render)
 {
 
-	// Declare variable tracking MSE_loss during training
-	vector<double> MSE_loss;
+	// Declare variable tracking training curve
+	vector<double> training_curve;
 
 	// Run a set of episodes
 	for (int i = 0; i < total_trajectories; i++)
@@ -297,7 +330,7 @@ int run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_trajectorie
 		// Declare simulation variables
 		bool done = false;
 		double action_1=0.0, action_2=0.0, action_3=0.0;
-		bool apply_control, update_encoder;
+		bool apply_control, update_encoder, save_frame;
 		int step_in_trajectory = 0;
 		
 		// Select random set of frames to be used to update autoencoder
@@ -306,7 +339,7 @@ int run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_trajectorie
 		int curr_save_frame = update_frames[curr_save_frame_ind];
 
 		// User readout
-		print_training_info(i, total_trajectories, MSE_loss);
+		print_training_info(i, total_trajectories, training_curve);
 
 		// Reset environment
 		FES->reset();
@@ -317,6 +350,7 @@ int run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_trajectorie
 			// Determine what to run this simulation step
 			apply_control = (step_in_trajectory % steps_per_cycle == 0) || (step_in_trajectory==0);
 			update_encoder = step_in_trajectory == curr_save_frame;
+			save_frame = ((step_in_trajectory % steps_per_frame == 0) || (step_in_trajectory==0)) && (i == 0) && render;
 
 			// Run the random controller
 			if (apply_control)
@@ -353,8 +387,8 @@ int run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_trajectorie
 				PyObject* py_cure_mesh = get_2D_list(cure_mesh);
 						
 				// Send frame data to autoencoder (it will automatically update when data buffer is full)
-				PyObject* py_MSE_loss = PyObject_CallMethod(autoencoder, "update", "(O,O,I)", py_norm_temp_mesh, py_cure_mesh, 1);
-				if (py_MSE_loss == NULL)
+				PyObject* py_RMS_loss = PyObject_CallMethod(autoencoder, "learn", "(O,O)", py_norm_temp_mesh, py_cure_mesh);
+				if (py_RMS_loss == NULL)
 				{
 					fprintf(stderr, "\nFailed to call update autoencoder function.\n");
 					PyErr_Print();
@@ -364,10 +398,39 @@ int run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_trajectorie
 				}
 				
 				// Store training data
-				MSE_loss.push_back(PyFloat_AsDouble(py_MSE_loss));
+				if (PyFloat_AsDouble(py_RMS_loss) != -1.0)
+				{
+					training_curve.push_back(PyFloat_AsDouble(py_RMS_loss));
+				}
 				
 				// Free python memory
-				Py_DECREF(py_MSE_loss);
+				Py_DECREF(py_RMS_loss);
+				Py_DECREF(py_norm_temp_mesh);
+				Py_DECREF(py_cure_mesh);
+			}
+			
+			// Save frame
+			if (save_frame)
+			{
+				// Collect frame data
+				vector<vector<double>> norm_temp_mesh = FES->get_norm_temp_mesh();
+				vector<vector<double>> cure_mesh = FES->get_cure_mesh();
+				PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
+				PyObject* py_cure_mesh = get_2D_list(cure_mesh);
+						
+				// Send frame data to autoencoder
+				PyObject* py_result = PyObject_CallMethod(autoencoder, "save_frame", "(O,O)", py_norm_temp_mesh, py_cure_mesh);
+				if (py_result == NULL)
+				{
+					fprintf(stderr, "\nFailed to call update autoencoder function.\n");
+					PyErr_Print();
+					Py_DECREF(py_norm_temp_mesh);
+					Py_DECREF(py_cure_mesh);
+					return 1;
+				}
+				
+				// Free python memory
+				Py_DECREF(py_result);
 				Py_DECREF(py_norm_temp_mesh);
 				Py_DECREF(py_cure_mesh);
 			}
@@ -378,32 +441,36 @@ int run(Finite_Element_Solver* FES, PyObject* autoencoder, int total_trajectorie
 		}
 
 		// Final user readout
-		if (i == total_trajectories - 1) { print_training_info(i, total_trajectories, MSE_loss); }
+		if (i == total_trajectories - 1) { print_training_info(i, total_trajectories, training_curve); }
 	}
 
 	// Save autoencoder and autoencoder training data
-	return save_autoencoder_training_data(MSE_loss, autoencoder);
+	return save_autoencoder_training_data(training_curve, autoencoder, render);
 }
 
 int main()
 {	
 	// Autoencoder load parameters
 	bool load = false;
-	const char* path = "validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-2";
+	const char* path = "";
 	
 	// Autoencoder training parameters
-	int total_trajectories = 7500;
+	int total_trajectories = 5000;
 	int samples_per_trajectory = 20;
 	int samples_per_batch = 100;
 	double start_alpha = 1.0e-3;
-	double end_alpha = 5.0e-6;
+	double end_alpha = 1.0e-5;
 	
 	// Autoencoder NN parameters
 	long num_filter_1 = 8;
 	long num_filter_2 = 16;
-	int encoded_size = 64;
-	long num_output_layers = 3;
-	long objective_fnc = 3;
+	int encoded_size = 128;
+	long num_output_layers = 1;
+	long objective_fnc = 1;
+	
+	// Autoencoder render parameters
+	bool render = true;
+	double frame_rate = 30.0;
 
 	// Initialize FES
 	Finite_Element_Solver FES = Finite_Element_Solver(encoded_size);
@@ -416,11 +483,15 @@ int main()
 	int steps_per_cycle = (int) round(execution_period / FES.get_time_step());
 	int tot_num_sim_steps = (int)floor(FES.get_sim_duration()/FES.get_time_step());
 	
+	// Calculated rendering parameters
+	int steps_per_frame = (int) round(1.0 / (FES.get_time_step() * frame_rate));
+	steps_per_frame = steps_per_frame <= 0 ? 1 : steps_per_frame;
+	
 	// Init py environment
 	Py_Initialize();
 	
 	// Init autoencoder
-	PyObject* autoencoder = init_autoencoder(start_alpha, decay_rate, x_dim, y_dim, num_filter_1, num_filter_2, encoded_size, num_output_layers, samples_per_batch, objective_fnc, load, path);
+	PyObject* autoencoder = init_autoencoder(start_alpha, decay_rate, x_dim, y_dim, num_filter_1, num_filter_2, encoded_size, samples_per_batch, num_output_layers, objective_fnc, load, path);
 	if (autoencoder == NULL) { Py_FinalizeEx(); return 1; }
 
 	// Print simulation parameters
@@ -430,7 +501,7 @@ int main()
 	// Train autoencoder
 	cout << "\nTraining autoencoder...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(&FES, autoencoder, total_trajectories, steps_per_cycle, tot_num_sim_steps, samples_per_trajectory) == 1) { return 1; }
+	if (run(&FES, autoencoder, total_trajectories, steps_per_cycle, tot_num_sim_steps, samples_per_trajectory, steps_per_frame, render) == 1) { return 1; }
 
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;

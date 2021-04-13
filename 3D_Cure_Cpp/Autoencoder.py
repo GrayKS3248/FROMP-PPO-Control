@@ -15,14 +15,17 @@ import os
 
 class Autoencoder:
     
-    def __init__(self, alpha, decay, x_dim_input, y_dim_input, num_filter_1, num_filter_2, bottleneck, num_output_layers, frame_buffer_size, objective_fnc):
+    # OBJECTIVE FNC 1: Target temperature field
+    # OBJECTIVE FNC 2: Target temperature field, and blurred front location
+    # OBJECTIVE FNC 3: Target temperature field, blurred front location, and cure field
+    # OBJECTIVE FNC 5: Target quantized temperature field
+    def __init__(self, alpha, decay, x_dim_input, y_dim_input, num_filter_1, num_filter_2, bottleneck, buffer_size, num_output_layers, objective_fnc):
         
         # Initialize model
         self.model = Autoencoder_NN.NN(x_dim_input, y_dim_input, num_filter_1, num_filter_2, bottleneck, num_output_layers);
             
         # Initialize loss criterion, and optimizer
-        self.criterion_1 = nn.MSELoss()
-        self.criterion_2 = nn.BCELoss()
+        self.criterion = nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=alpha)
         self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer, gamma=decay)
     
@@ -37,176 +40,362 @@ class Autoencoder:
         # Store NN shape parameters
         self.x_dim = x_dim_input
         self.y_dim = y_dim_input
-        self.out_size = bottleneck
+        self.bottleneck = bottleneck
         self.num_output_layers = num_output_layers
-        if num_output_layers > 3:
-            raise RuntimeError('Number of output layers must be greater than 0 and less than 4.')
-            
-        # Memory for MSE loss
-        self.tot_MSE_loss = 0.0
+        if num_output_layers > 5:
+            raise RuntimeError('Number of output layers must be greater than 0 and less than 6.')
         
         # Objective fnc type
         self.objective_fnc = objective_fnc
-        if objective_fnc > num_output_layers:
-            raise RuntimeError('Objective function must be greater than 0 and less than or equal to the number of output layers.')
+        if objective_fnc > num_output_layers or objective_fnc == 4:
+            raise RuntimeError('Objective function must be greater than 0 and less than or equal to the number of output layers. (!= 4)')
         
         # Initialize frame buffer
-        self.frame_buffer_size = frame_buffer_size
-        self.frame_buffer = []
+        self.buffer_size = buffer_size
+        self.temp_buffer = []
         self.cure_buffer = []
         
-        # Test frames
-        self.test_frame_buffer = []
-        self.test_cure_buffer = []
+        # Save frames
+        self.save_temp_buffer = []
+        self.save_cure_buffer = []
         
+    # Loads a given saved autoencoder
+    # @param the path from which the autoencoder will be loaded
     def load(self, path):
+        
         # Copy NN at path to current module
         print("\nLoading: " + path)
         if not os.path.isdir(path):
             raise RuntimeError("Could not find " + path)
         else:
             with open(path+"/output", 'rb') as file:
-                load_data = pickle.load(file)
-            load_autoencoder = load_data['autoencoder']
-            self.model.load_state_dict(load_autoencoder.state_dict())
+                loaded_data = pickle.load(file)
+            loaded_model = loaded_data['autoencoder']
+            self.model.load_state_dict(loaded_model.state_dict())
         
+    # Gets the cpu or gpu on which to run NN
+    # @return device code
     def get_device(self):
+        
         if torch.cuda.is_available():
             device = 'cuda:0'
         else:
             device = 'cpu'
         return device
  
-    def forward(self, frame):
+    # Forward propagates the temperature through the autoencoder
+    # @param the temperature field that informs data reconstruction
+    # @return the reconstructed data
+    def forward(self, temp):
         
         # Convert frame to proper data type
         with torch.no_grad():
-            frame = torch.tensor(frame)
-            frame = frame.reshape(1,1,frame.shape[0],frame.shape[1]).float()
-            frame = frame.to(self.device)
-            rebuilt_frame = self.model.forward(frame).to('cpu')
+            temp = torch.tensor(temp)
+            temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
+            temp = temp.to(self.device)
+            rebuilt_data = self.model.forward(temp).to('cpu')
             
-        # convert encoded frame to proper data type
-        rebuilt_frame = rebuilt_frame.squeeze().numpy()
+            # convert encoded frame to proper data type
+            rebuilt_data = rebuilt_data.squeeze().numpy().tolist()
         
         # Return the encoded frame of the proper data type
-        return rebuilt_frame
+        return rebuilt_data
        
-    def encode(self, frame):
+    # Encodes a given temperature field
+    # @param the temperature field to encode
+    # @return list of the encoded data
+    def encode(self, temp):
         # Convert frame to proper data type
         with torch.no_grad():
-            frame = torch.tensor(frame)
-            frame = frame.reshape(1,1,frame.shape[0],frame.shape[1]).float()
-            frame = frame.to(self.device)
-            encoded_frame = self.model.encode(frame).to('cpu')
+            temp = torch.tensor(temp)
+            temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
+            temp = temp.to(self.device)
+            encoded_data = self.model.encode(temp).to('cpu')
             
-        # convert encoded frame to proper data type
-        encoded_frame = encoded_frame.squeeze().numpy().tolist()
+            # convert encoded frame to proper data type
+            encoded_data = encoded_data.squeeze().numpy().tolist()
         
         # Return the encoded frame of the proper data type
-        return encoded_frame
+        return encoded_data
     
-    def update(self, frame, cure, learn):
+    # Adds temperature and cure frame to save buffers
+    # @param the temperature frame
+    # @param the cure frame
+    def save_frame(self, temp, cure):
         
-        # Store the current frame
-        self.frame_buffer.append(np.array(frame))
-        if len(self.test_frame_buffer) < self.frame_buffer_size:
-            self.test_frame_buffer.append(np.array(frame))
+        self.save_temp_buffer.append(np.array(temp))
+        self.save_cure_buffer.append(np.array(cure))
+    
+    # Calculates the blurred front location
+    # @param cure field used to determine front location
+    # @return blurred front location 
+    def get_front_location(self, cure):
         
-        # Store the current cure
-        if self.objective_fnc >= 3:
-            self.cure_buffer.append(np.array(cure))
-            if len(self.test_cure_buffer) < self.frame_buffer_size:
-                self.test_cure_buffer.append(np.array(cure))
+        # Determine blurring factor
+        blur_half_range = 0.025
+        
+        # Calculate location in mesh where monomer is cured
+        cured_location = (cure >= 0.80)
+        
+        # Step through each column to find front location
+        front_location = np.zeros(cure.shape)
+        for j in range(len(cure[0,:])):
             
+            # If the column is cured at any location, determine the furthest forward cured point (front location)
+            if cured_location[:,j].any():
+                done = False
+                i = len(cure[:,0])-1
+                while not done:
+                    if not cured_location[i,j]:
+                        i = i - 1
+                        
+                    # Set the front location to 1.0 and add some blur around it
+                    else:
+                        start_blur = int(round(i - blur_half_range * len(cure)))
+                        if start_blur < 0:
+                            start_blur = 0
+                        end_blur = int(round(i + blur_half_range * len(cure)))
+                        if end_blur > len(cure) - 1:
+                            end_blur = len(cure) - 1
+                        for ii in range(start_blur, end_blur+1):
+                            if ii < i:
+                                front_location[ii,j] = (ii - int(round(i-blur_half_range*len(cure)))) / (i - int(round(i-blur_half_range*len(cure))))
+                            elif ii == i:
+                                front_location[ii,j] = 1.0
+                            elif ii > i:
+                                front_location[ii,j] = 1.0 - (ii - i) / (int(round(i+blur_half_range*len(cure))) - i)
+                        done = True
+                
+            # If a column has no cured monomer, the front is assumed to be at the begining of the column
+            else:
+                end_blur = int(round(blur_half_range * len(cure)))
+                for i in range(0, end_blur+1):
+                    if i == 0:
+                        front_location[i,j] = 1.0
+                    else:
+                        front_location[i,j] = 1.0 - i / end_blur
+                        
+        # Format data
+        front_location = torch.tensor(front_location)
+        front_location = front_location.reshape(1,1,front_location.shape[0],front_location.shape[1]).float()
+        
+        return front_location
+
+    # Gets the quantized temperature field training target
+    # @param temperature field to be quantized
+    # @return the qunatized version of the parameter temperature field
+    def get_quantized_temp(self, temp):
+        
+        with torch.no_grad():
+            low_target =      ((1.0*(temp>=0.00) + 1.0*(temp<0.10))-1.0)
+            low_mid_target =  ((1.0*(temp>=0.10) + 1.0*(temp<0.65))-1.0)
+            mid_target =      ((1.0*(temp>=0.65) + 1.0*(temp<0.70))-1.0)
+            mid_high_target = ((1.0*(temp>=0.70) + 1.0*(temp<0.75))-1.0)
+            high_target =     ((1.0*(temp>=0.75) + 1.0*(temp<=1.0))-1.0)
+    
+        quantized_temp = torch.cat((low_target, low_mid_target, mid_target, mid_high_target, high_target), 1)
+        return quantized_temp
+    
+    # Calculates the training target given the objective function ID
+    # @param temperature field used to get target
+    # @param cure field used to get target
+    # @return target given input temperature, cure, and objective function ID
+    def get_target(self, temp, cure):
+        
+        # Convert temperature frame to proper data form
+        with torch.no_grad():
+            temp = torch.tensor(temp)
+            temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
+          
+            if self.objective_fnc == 1:
+                target = temp
+            
+            elif self.objective_fnc == 2:
+                front_location = self.get_front_location(cure)
+                target = torch.cat((temp, front_location), 1)
+                
+            elif self.objective_fnc == 3:
+                front_location = self.get_front_location(cure)
+                cure = torch.tensor(cure)
+                cure = cure.reshape(1,1,cure.shape[0],cure.shape[1]).float()
+                target = torch.cat((temp, front_location, cure), 1)
+                
+            elif self.objective_fnc == 5:
+                target = self.get_quantized_temp(temp)
+            
+        target = target.to(self.device)
+        
+        return target
+    
+    # Calcualtes the loss for autoencoder learning
+    # @param Autoencoder rebuilt differentiable data
+    # @param Target of objective function
+    # @return Differentialable training loss
+    def get_loss(self, rebuilt_data, target):
+        
+        # Get rebuilt loss
+        if self.objective_fnc == 5:
+            curr_loss = self.criterion(rebuilt_data, target)
+            
+        elif self.objective_fnc == 3:
+            curr_loss = self.criterion(rebuilt_data[0,0:3,:,:], target[0,0:3,:,:])
+            
+        elif self.objective_fnc == 2:
+            curr_loss = self.criterion(rebuilt_data[0,0:2,:,:], target[0,0:2,:,:])
+            
+        elif self.objective_fnc == 1:
+            curr_loss = self.criterion(rebuilt_data[0,0,:,:], target[0,0,:,:])
+            
+        return curr_loss
+        
+    # Updates the autoencoder
+    # @param temperature field to be added to training buffer
+    # @param cure field to be added to training buffer
+    # @return average epoch training loss or -1 if no optimization epoch occured
+    def learn(self, temp, cure):
+        
+        # Store the current temperature and cure frames in the learning buffers
+        self.temp_buffer.append(np.array(temp))
+        self.cure_buffer.append(np.array(cure))
+        
         # If the frame buffer is full, perform one epoch of stochastic gradient descent
-        if len(self.frame_buffer) >= self.frame_buffer_size:
+        if len(self.temp_buffer) >= self.buffer_size:
             
             # Step through frame buffer
-            self.tot_MSE_loss = 0.0
-            rand_indcies = np.random.permutation(self.frame_buffer_size)
-            
-            for i in range(self.frame_buffer_size):
+            RMS_loss = 0.0
+            rand_indcies = np.random.permutation(self.buffer_size)
+            for i in range(self.buffer_size):
                 
-                # Convert frame to proper data type
-                with torch.no_grad():
-                    # Format frame data
-                    frame = torch.tensor(self.frame_buffer[rand_indcies[i]])
-                    frame = frame.reshape(1,1,frame.shape[0],frame.shape[1]).float()
-                    
-                    # Calculate front location
-                    if self.objective_fnc >= 2:
-                        frame_front_loc = (torch.roll(frame, 1, 2) - frame)
-                        front_exists = frame_front_loc[0,0,0,:]<0.0
-                        front_param = torch.quantile(frame_front_loc[:,:,1:,:], 0.995)
-                        frame_front_loc = (frame_front_loc-front_param).clamp(0.0, 1.0)
-                        frame_front_loc[0,0,0,:]=0.0
-                        frame_front_loc[frame_front_loc>0.0]=1.0
-                        
-                        # Calculate distance from each mesh vertex to nearest front index in column
-                        row_indices = torch.linspace(0,len(frame[0,0,:,0])-1,len(frame[0,0,:,0]))
-                        frame_front_loc_indices = frame_front_loc.argmax(2)[0,0,:]
-                        frame_front_loc_indices[frame_front_loc_indices==0]=(len(frame[0,0,:,0])-1)
-                        front_dist = torch.zeros((1,1,len(frame[0,0,:,0]),len(frame[0,0,0,:])))
-                        for j in range(len(frame[0,0,0,:])):
-                            if front_exists[j].item():
-                                temp = abs(1.0 - row_indices / frame_front_loc_indices[j])
-                            else:
-                                temp = abs(1.0 - row_indices / (len(frame[0,0,:,0])-1))
-                            front_dist[0,0,:,j] = temp / temp.max()
-                        front_dist = (1.0 - front_dist)**10
-                        front_dist[front_dist<0.01] = 0.0
-                        
-                    # Combine and format target data
-                    if self.objective_fnc == 3:
-                        cure = torch.tensor(self.cure_buffer[rand_indcies[i]])
-                        cure = cure.reshape(1,1,cure.shape[0],cure.shape[1]).float()
-                        target = torch.cat((frame, front_dist, cure), 1)
-                        target = target.to(self.device)
-                        
-                    elif self.objective_fnc == 2:
-                        target = torch.cat((frame, front_dist), 1)
-                        target = target.to(self.device)
-                        
-                    elif self.objective_fnc == 1:
-                        target = frame
-                        target = target.to(self.device)
+                # Get temperature and cure at random location from buffer
+                curr_temp = self.temp_buffer[rand_indcies[i]]
+                curr_cure = self.cure_buffer[rand_indcies[i]]
                 
-                # Forward propogate the frame through the autoencoder
-                frame = frame.to(self.device)
-                rebuilt_frame = self.model.forward(frame)
-            
-                # Get rebuilt loss
-                if self.objective_fnc == 3:
-                    curr_MSE_loss = self.criterion_1(rebuilt_frame, target)
-                elif self.objective_fnc == 2:
-                    curr_MSE_loss = self.criterion_1(rebuilt_frame[0,0:2,:,:], target[0,0:2,:,:])
-                elif self.objective_fnc == 1:
-                    curr_MSE_loss = self.criterion_1(rebuilt_frame[0,0,:,:], target[0,0,:,:])
+                # Calculate target
+                target = self.get_target(curr_temp, curr_cure)
                         
-                # Calculate loss and take optimization step and learning rate step
-                if (learn == 1):
-                    self.optimizer.zero_grad()
-                    curr_MSE_loss.backward()
-                    self.optimizer.step()
-                    self.lr_scheduler.step()
+                # Format and forward propagate temperature data
+                curr_temp = torch.tensor(curr_temp)
+                curr_temp = curr_temp.reshape(1,1,curr_temp.shape[0],curr_temp.shape[1]).float()
+                curr_temp = curr_temp.to(self.device)
+                rebuilt_data = self.model.forward(curr_temp)
+        
+                # Get the loss
+                curr_loss = self.get_loss(rebuilt_data, target)
+        
+                # Take optimization step and learning rate step
+                self.optimizer.zero_grad()
+                curr_loss.backward()
+                self.optimizer.step()
+                self.lr_scheduler.step()
                 
                 # Sum the epoch's total loss
-                self.tot_MSE_loss = self.tot_MSE_loss + curr_MSE_loss.item()
+                RMS_loss = RMS_loss + np.sqrt(curr_loss.item())
             
             # Empty frame buffer
-            self.frame_buffer = []
+            self.temp_buffer = []
             self.cure_buffer = []
 
-        return self.tot_MSE_loss
+            # Return the average RMS reconstruction error
+            return RMS_loss / (float(self.num_output_layers) * self.buffer_size)
+        
+        # return -1 if no optimization epoch occured
+        return -1
     
-    def display_and_save(self, MSE_loss):
+    # Calculates the RMS error in the temperature field reconstruction over a set of saved temperature fields
+    # @param the set of temperature fields over which the RMS error is computed
+    # @return RMS error in temperature field reconstruction in percent points
+    def get_temp_error(self, temp_array):
+        print("Getting temperature reconstruction error...")
+        
+        RMS_error = 0.0
+        with torch.no_grad():
+            for i in range(len(temp_array)):
+                
+                # Format temperature field data
+                temp = torch.tensor(temp_array[i])
+                temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
+            
+                # Forward propogate the frame through the autoencoder
+                temp = temp.to(self.device)
+                rebuilt_temp = self.model.forward(temp)[0,0,:,:].to('cpu').numpy().squeeze()
+                
+                # Calcualte temperature reconstruction error
+                RMS_error = RMS_error + np.sqrt(np.mean((rebuilt_temp-temp_array[i])**2.0))
+                
+        # Get RMS reconstruction error
+        return (100.0*RMS_error) / len(temp_array)
+    
+    # Calculates the RMS error in the front location reconstruction over a set of saved temperature fields
+    # @param the set of temperature fields over which the RMS error is computed
+    # @param the set of cure fields over which the RMS error is computed
+    # @return RMS error in front location reconstruction in percent points
+    def get_front_error(self, temp_array, cure_array):
+        print("Getting front location reconstruction error...")
+        
+        RMS_error = 0.0
+        with torch.no_grad():
+            for i in range(len(temp_array)):
+                
+                # Format temperature field data
+                temp = torch.tensor(temp_array[i])
+                temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
+            
+                # Forward propogate the frame through the autoencoder
+                temp = temp.to(self.device)
+                rebuilt_front = self.model.forward(temp)[0,1,:,:].to('cpu').numpy().squeeze()
+                
+                # get the current front location
+                front = self.get_front_location(cure_array[i])[0,0,:,:].to('cpu').numpy().squeeze()
+                
+                # Calcualte temperature reconstruction error
+                RMS_error = RMS_error + np.sqrt(np.mean((rebuilt_front-front)**2.0))
+                
+        # Get RMS reconstruction error
+        return (100.0*RMS_error) / len(temp_array)
+    
+    # Calculates the RMS error in the cure field reconstruction over a set of saved temperature fields
+    # @param the set of temperature fields over which the RMS error is computed
+    # @param the set of cure fields over which the RMS error is computed
+    # @return RMS error in cure field reconstruction in percent points
+    def get_cure_error(self, temp_array, cure_array):
+        print("Getting cure reconstruction error...")
+        
+        RMS_error = 0.0
+        with torch.no_grad():
+            for i in range(len(temp_array)):
+                
+                # Format temperature field data
+                temp = torch.tensor(temp_array[i])
+                temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
+            
+                # Forward propogate the frame through the autoencoder
+                temp = temp.to(self.device)
+                rebuilt_cure = self.model.forward(temp)[0,2,:,:].to('cpu').numpy().squeeze()
+                
+                # Calcualte temperature reconstruction error
+                RMS_error = RMS_error + np.sqrt(np.mean((rebuilt_cure-cure_array[i])**2.0))
+                
+        # Get RMS reconstruction error
+        return (100.0*RMS_error) / len(temp_array)
+    
+    # Saves the training data and trained autoencoder model
+    # @param training loss curve
+    # @return path at which data has been saved
+    def save(self, training_curve):
         print("Saving autoencoder results...")
 
+        # Store data to dictionary
         data = {
-            'MSE_loss' : np.array(MSE_loss),
-            'Test_frames' : self.test_frame_buffer,
-            'Test_cure' : self.test_cure_buffer,
+            'x_dim' : self.x_dim, 
+            'y_dim' : self.y_dim, 
+            'bottleneck' : self.bottleneck, 
+            'num_output_layers' : self.num_output_layers, 
+            'objective_fnc' : self.objective_fnc, 
+            'buffer_size' : self.buffer_size, 
+            'training_curve' : np.array(training_curve),
+            'temp_array' : self.save_temp_buffer,
+            'cure_array' : self.save_temp_buffer,
+            'autoencoder' : self.model,
         }
 
         # Find save paths
@@ -221,20 +410,23 @@ class Autoencoder:
                 curr_folder = curr_folder + 1
 
         # Pickle all important outputs
-        output = { 'data':data, 'autoencoder':self.model}
         save_file = path + "/output"
         with open(save_file, 'wb') as file:
-            pickle.dump(output, file)
+            pickle.dump(data, file)
 
-        # Plot the BCE loss training data
-        print("Plotting autoencoder results...")
-        # Plot value learning curve
+        return path
+
+    # Draw and save the training curve
+    # @param training curve to be drawn
+    # @param path at which training curve is saved
+    def draw_training_curve(self, training_curve, path):
+        print("Plotting autoencoder training curve...")
+        
         plt.clf()
-        title_str = "Autoencoder Learning Curve"
-        plt.title(title_str,fontsize='xx-large')
-        plt.xlabel("Optimization Frame",fontsize='large')
-        plt.ylabel("MSE Loss",fontsize='large')
-        plt.plot([*range(len(data['MSE_loss']))],data['MSE_loss'],lw=2.5,c='r')
+        plt.title("Autoencoder Learning Curve",fontsize='xx-large')
+        plt.xlabel("Optimization Epoch",fontsize='large')
+        plt.ylabel("RMS Reconstruction Error",fontsize='large')
+        plt.plot([*range(len(training_curve))],training_curve,lw=2.5,c='r')
         plt.yscale("log")
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
@@ -243,140 +435,257 @@ class Autoencoder:
         plt.savefig(save_file, dpi = 500)
         plt.close()
     
-    def get_temp_error(self, frames):
-        # Step through all frames and average the temperature field reconstruction error
-        print("Getting temperature field reconstruction error...")
-        temp_error = 0.0
-        with torch.no_grad():
-            for curr_step in range(len(frames)):
-                # Format frame data
-                frame = torch.tensor(frames[curr_step])
-                frame = frame.reshape(1,1,frame.shape[0],frame.shape[1]).float()
-            
-                # Forward propogate the frame through the autoencoder
-                frame = frame.to(self.device)
-                rebuilt_frame = self.model.forward(frame)
-                
-                # Calcualte temperature reconstruction error
-                temp = frame[0,0,:,:].to('cpu').numpy().squeeze()
-                rebuilt_temp = rebuilt_frame[0,0,:,:].to('cpu').numpy().squeeze()
-                temp_error = temp_error + np.mean((rebuilt_temp-temp)**2.0)*100.0
-                
-        # Get average reconstruction error
-        temp_error = temp_error / len(frames)
-        return temp_error
-            
+    # Draws the current frame for autoencoder with objective function 1
+    # @param x grid over which data are plotted
+    # @param y grid over which data are plotted
+    # @param temperature field
+    # @param rebuilt temperature field
+    # @param path to which rendered video is saved (in folder called 'video')
+    # @param frame number
+    def draw_obj_1(self, x_grid, y_grid, temp, rebuilt_temp, path, frame_number):
+        
+        # Make figure
+        plt.cla()
+        plt.clf()
+        fig, (ax0, ax1) = plt.subplots(1, 2, constrained_layout=True)
+        fig.set_size_inches(16,2.6667)
+        
+        # Plot temperature
+        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.tick_params(axis='x',labelsize=12)
+        ax0.tick_params(axis='y',labelsize=12)
+        ax0.set_aspect(0.25, adjustable='box')
+        ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
+        
+        # Plot rebuilt temperature
+        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        cbar1 = fig.colorbar(c1, ax=ax1, pad=0.1)
+        cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
+        cbar1.ax.tick_params(labelsize=12)
+        ax1.tick_params(axis='x',labelsize=12)
+        ax1.tick_params(axis='y',labelsize=12)
+        ax1.set_aspect(0.25, adjustable='box')
+        ax1.set_title('Rebuilt Temperature Field',fontsize='x-large')
+        
+        # Set title and save
+        plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
+        plt.close()
     
-    def render(self, frames, cures, path):
+    # Draws the current frame for autoencoder with objective function 2
+    # @param x grid over which data are plotted
+    # @param y grid over which data are plotted
+    # @param temperature field
+    # @param front location
+    # @param rebuilt temperature field
+    # @param rebuilt front location
+    # @param path to which rendered video is saved (in folder called 'video')
+    # @param frame number
+    def draw_obj_2(self, x_grid, y_grid, temp, front, rebuilt_temp, rebuilt_front, path, frame_number):
+        
+        # Make figure
+        plt.cla()
+        plt.clf()
+        fig, ((ax0, ax1), (ax2, ax3)) = plt.subplots(2, 2, constrained_layout=True)
+        fig.set_size_inches(16,5.333)
+        
+        # Plot temperature
+        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.tick_params(axis='x',labelsize=12)
+        ax0.tick_params(axis='y',labelsize=12)
+        ax0.set_aspect(0.25, adjustable='box')
+        ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
+        
+        # Plot rebuilt temperature
+        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        cbar1 = fig.colorbar(c1, ax=ax1, pad=0.1)
+        cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
+        cbar1.ax.tick_params(labelsize=12)
+        ax1.tick_params(axis='x',labelsize=12)
+        ax1.tick_params(axis='y',labelsize=12)
+        ax1.set_aspect(0.25, adjustable='box')
+        ax1.set_title('Rebuilt Temperature Field',fontsize='x-large')
+        
+        # Plot front location
+        ax2.pcolormesh(x_grid, y_grid, np.transpose(front), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
+        ax2.tick_params(axis='x',labelsize=12)
+        ax2.tick_params(axis='y',labelsize=12)
+        ax2.set_aspect(0.25, adjustable='box')
+        ax2.set_title('True Front Location (Unobserved)',fontsize='x-large')
+        
+        # Plot inferred front location
+        ax3.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_front), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
+        ax3.tick_params(axis='x',labelsize=12)
+        ax3.tick_params(axis='y',labelsize=12)
+        ax3.set_aspect(0.25, adjustable='box')
+        ax3.set_title('Inferred Front Location',fontsize='x-large')
+        
+        # Set title and save
+        plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
+        plt.close()
+    
+    # Draws the current frame for autoencoder with objective function 3
+    # @param x grid over which data are plotted
+    # @param y grid over which data are plotted
+    # @param temperature field
+    # @param front location
+    # @param cure field
+    # @param rebuilt temperature field
+    # @param rebuilt front location
+    # @param rebuilt cure field
+    # @param path to which rendered video is saved (in folder called 'video')
+    # @param frame number
+    def draw_obj_3(self, x_grid, y_grid, temp, front, cure, rebuilt_temp, rebuilt_front, rebuilt_cure, path, frame_number):
+        
+        # Make figure
+        plt.cla()
+        plt.clf()
+        fig, ((ax0, ax1), (ax2, ax3), (ax4, ax5)) = plt.subplots(3, 2, constrained_layout=True)
+        fig.set_size_inches(16,8)
+        
+        # Plot temperature
+        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.tick_params(axis='x',labelsize=12)
+        ax0.tick_params(axis='y',labelsize=12)
+        ax0.set_aspect(0.25, adjustable='box')
+        ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
+        
+        # Plot rebuilt temperature
+        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        cbar1 = fig.colorbar(c1, ax=ax1, pad=0.025)
+        cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
+        cbar1.ax.tick_params(labelsize=12)
+        ax1.tick_params(axis='x',labelsize=12)
+        ax1.tick_params(axis='y',labelsize=12)
+        ax1.set_aspect(0.25, adjustable='box')
+        ax1.set_title('Rebuilt Temperature Field',fontsize='x-large')
+        
+        # Plot front location
+        ax2.pcolormesh(x_grid, y_grid, np.transpose(front), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
+        ax2.tick_params(axis='x',labelsize=12)
+        ax2.tick_params(axis='y',labelsize=12)
+        ax2.set_aspect(0.25, adjustable='box')
+        ax2.set_title('True Front Location (Unobserved)',fontsize='x-large')
+        
+        # Plot inferred front location
+        ax3.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_front), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
+        ax3.tick_params(axis='x',labelsize=12)
+        ax3.tick_params(axis='y',labelsize=12)
+        ax3.set_aspect(0.25, adjustable='box')
+        ax3.set_title('Inferred Front Location',fontsize='x-large')
+        
+        # Cure frame
+        ax4.pcolormesh(x_grid, y_grid, np.transpose(cure), shading='gouraud', cmap='YlOrRd', vmin=0.0, vmax=1.0)
+        ax4.tick_params(axis='x',labelsize=12)
+        ax4.tick_params(axis='y',labelsize=12)
+        ax4.set_aspect(0.25, adjustable='box')
+        ax4.set_title('True Cure Field (Unobserved)',fontsize='x-large')
+        
+        # Inferred cure degree
+        c5 = ax5.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_cure), shading='gouraud', cmap='YlOrRd', vmin=0.0, vmax=1.0)
+        cbar5 = fig.colorbar(c5, ax=ax5, pad=0.025)
+        cbar5.set_label('Degree Cure [-]',labelpad=10,fontsize='large')
+        cbar5.ax.tick_params(labelsize=12)
+        ax5.tick_params(axis='x',labelsize=12)
+        ax5.tick_params(axis='y',labelsize=12)
+        ax5.set_aspect(0.25, adjustable='box')
+        ax5.set_title('Inferred Cure Field',fontsize='x-large')
+        
+        # Set title and save
+        plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
+        plt.close()
+    
+    # Draws the current frame for autoencoder with objective function 5
+    # @param x grid over which data are plotted
+    # @param y grid over which data are plotted
+    # @param temperature field
+    # @param rebuilt quantized temperature field
+    # @param path to which rendered video is saved (in folder called 'video')
+    # @param frame number
+    def draw_obj_5(self, x_grid, y_grid, temp, rebuilt_temp, path, frame_number):
+
+        # Make figure
+        plt.cla()
+        plt.clf()
+        fig, (ax0, ax1) = plt.subplots(1, 2, constrained_layout=True)
+        fig.set_size_inches(16,2.6667)
+        
+        # Plot temperature
+        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.tick_params(axis='x',labelsize=12)
+        ax0.tick_params(axis='y',labelsize=12)
+        ax0.set_aspect(0.25, adjustable='box')
+        ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
+        
+        # Plot rebuilt temperature
+        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        cbar1 = fig.colorbar(c1, ax=ax1, pad=0.1)
+        cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
+        cbar1.ax.tick_params(labelsize=12)
+        ax1.tick_params(axis='x',labelsize=12)
+        ax1.tick_params(axis='y',labelsize=12)
+        ax1.set_aspect(0.25, adjustable='box')
+        ax1.set_title('Rebuilt Quantized Temperature Field',fontsize='x-large')
+        
+        # Set title and save
+        plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
+        plt.close()
+    
+    # Renders video showing reconstruction of all objective functions based on save frame buffer
+    # @param path to which rendered video is saved (in folder called 'video')
+    def render(self, path):
         print("Rendering...")
-        x_grid, y_grid = np.meshgrid(np.linspace(0,1,self.x_dim), np.linspace(0,1,self.y_dim))
         
         # Find save paths
         path = path + "/video"
         if not os.path.isdir(path):
             os.mkdir(path)
         
-        for curr_step in range(len(frames)):
-
-            # Calculate front location
+        x_grid, y_grid = np.meshgrid(np.linspace(0,1,self.x_dim), np.linspace(0,1,self.y_dim))
+        for i in range(len(self.save_temp_buffer)):
             with torch.no_grad():
-                # Format frame data
-                frame = torch.tensor(frames[curr_step])
-                frame = frame.reshape(1,1,frame.shape[0],frame.shape[1]).float()
+                # Get rebuilt data
+                temp = torch.tensor(self.save_temp_buffer[i])
+                temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
+                temp = temp.to(self.device)
+                rebuilt_data = self.model.forward(temp)
                 
-                frame_front_loc = (torch.roll(frame, 1, 2) - frame)
-                front_exists = frame_front_loc[0,0,0,:]<0.0
-                front_param = torch.quantile(frame_front_loc[:,:,1:,:], 0.995)
-                frame_front_loc = (frame_front_loc-front_param).clamp(0.0, 1.0)
-                frame_front_loc[0,0,0,:]=0.0
-                frame_front_loc[frame_front_loc>0.0]=1.0
+                if len(rebuilt_data[0,:,0,0]) == 1:
+                    rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
+                    
+                elif len(rebuilt_data[0,:,0,0]) == 2:
+                    rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
+                    rebuilt_front = rebuilt_data[0,1,:,:].to('cpu').numpy().squeeze()
+                    
+                elif len(rebuilt_data[0,:,0,0]) == 3:
+                    rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
+                    rebuilt_front = rebuilt_data[0,1,:,:].to('cpu').numpy().squeeze()
+                    rebuilt_cure = rebuilt_data[0,2,:,:].to('cpu').numpy().squeeze()
+                    
+                elif len(rebuilt_data[0,:,0,0]) == 3:
+                    rebuilt_low_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
+                    rebuilt_low_mid_temp = rebuilt_data[0,1,:,:].to('cpu').numpy().squeeze()
+                    rebuilt_mid_temp = rebuilt_data[0,2,:,:].to('cpu').numpy().squeeze()
+                    rebuilt_mid_high_temp = rebuilt_data[0,3,:,:].to('cpu').numpy().squeeze()
+                    rebuilt_high_temp = rebuilt_data[0,4,:,:].to('cpu').numpy().squeeze()
+                    rebuilt_temp = 0.10*rebuilt_low_temp + 0.65*rebuilt_low_mid_temp + 0.70*rebuilt_mid_temp + 0.75*rebuilt_mid_high_temp + rebuilt_high_temp
                 
-                # Calculate distance from each mesh vertex to nearest front index in column
-                row_indices = torch.linspace(0,len(frame[0,0,:,0])-1,len(frame[0,0,:,0]))
-                frame_front_loc_indices = frame_front_loc.argmax(2)[0,0,:]
-                frame_front_loc_indices[frame_front_loc_indices==0]=(len(frame[0,0,:,0])-1)
-                front_dist = torch.zeros((1,1,len(frame[0,0,:,0]),len(frame[0,0,0,:])))
-                for j in range(len(frame[0,0,0,:])):
-                    if front_exists[j].item():
-                        temp = abs(1.0 - row_indices / frame_front_loc_indices[j])
-                    else:
-                        temp = abs(1.0 - row_indices / (len(frame[0,0,:,0])-1))
-                    front_dist[0,0,:,j] = temp / temp.max()
-                front_dist = (1.0 - front_dist)**10
-                front_dist[front_dist<0.01] = 0.0           
-                front_dist=front_dist.numpy().squeeze()
-
-            # Make fig for temperature, cure, and input
-            plt.cla()
-            plt.clf()
-            fig, ((ax0, ax1), (ax2, ax3), (ax4, ax5)) = plt.subplots(3, 2)
-            fig.set_size_inches(16,8)
+            # Get temperature field, front location, and cure field
+            temp = self.save_temp_buffer[i]
+            front = self.get_front_location(self.save_cure_buffer[i])[0,0,:,:].to('cpu').numpy().squeeze()
+            cure = self.save_cure_buffer[i]
             
-            # Plot frame
-            c0 = ax0.pcolormesh(x_grid, y_grid, np.transpose(frames[curr_step]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
-            cbar0 = fig.colorbar(c0, ax=ax0)
-            cbar0.set_label('Temperature [-]',labelpad=20,fontsize='large')
-            cbar0.ax.tick_params(labelsize=12)
-            ax0.tick_params(axis='x',labelsize=12)
-            ax0.tick_params(axis='y',labelsize=12)
-            ax0.set_aspect(self.y_dim/self.x_dim, adjustable='box')
-            ax0.set_title('True Temperature Field (Known)',fontsize='x-large')
+            # Draw and save the current frame
+            if len(rebuilt_data[0,:,0,0]) == 1:
+                self.draw_obj_1(x_grid, y_grid, temp, rebuilt_temp, path, i)
             
-            # Rebuilt temperature
-            c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(self.forward(frames[curr_step])[0,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
-            cbar1 = fig.colorbar(c1, ax=ax1)
-            cbar1.set_label('Temperature [-]',labelpad=20,fontsize='large')
-            cbar1.ax.tick_params(labelsize=12)
-            ax1.tick_params(axis='x',labelsize=12)
-            ax1.tick_params(axis='y',labelsize=12)
-            ax1.set_aspect(self.y_dim/self.x_dim, adjustable='box')
-            ax1.set_title('Rebuilt Temperature Field',fontsize='x-large')
+            elif len(rebuilt_data[0,:,0,0]) == 2:
+                self.draw_obj_2(x_grid, y_grid, temp, front, rebuilt_temp, rebuilt_front, path, i)
             
-            # Cure frame
-            c2 = ax2.pcolormesh(x_grid, y_grid, np.transpose(cures[curr_step]), shading='gouraud', cmap='YlOrRd', vmin=0.0, vmax=1.0)
-            cbar2 = fig.colorbar(c2, ax=ax2)
-            cbar2.set_label('Degree Cure [-]',labelpad=20,fontsize='large')
-            cbar2.ax.tick_params(labelsize=12)
-            ax2.tick_params(axis='x',labelsize=12)
-            ax2.tick_params(axis='y',labelsize=12)
-            ax2.set_aspect(self.y_dim/self.x_dim, adjustable='box')
-            ax2.set_title('True Cure Field (Unknown)',fontsize='x-large')
+            elif len(rebuilt_data[0,:,0,0]) == 3:
+                self.draw_obj_3(x_grid, y_grid, temp, front, cure, rebuilt_temp, rebuilt_front, rebuilt_cure, path, i)
             
-            # Inferred cure degree
-            c3 = ax3.pcolormesh(x_grid, y_grid, np.transpose(self.forward(frames[curr_step])[2,:,:]), shading='gouraud', cmap='YlOrRd', vmin=0.0, vmax=1.0)
-            cbar3 = fig.colorbar(c3, ax=ax3)
-            cbar3.set_label('Degree Cure [-]',labelpad=20,fontsize='large')
-            cbar3.ax.tick_params(labelsize=12)
-            ax3.tick_params(axis='x',labelsize=12)
-            ax3.tick_params(axis='y',labelsize=12)
-            ax3.set_aspect(self.y_dim/self.x_dim, adjustable='box')
-            ax3.set_title('Inferred Cure Field',fontsize='x-large')
-            
-            # Front frame
-            c4 = ax4.pcolormesh(x_grid, y_grid, np.transpose(front_dist), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
-            cbar4 = fig.colorbar(c4, ax=ax4)
-            cbar4.set_label('Front Field [-]',labelpad=20,fontsize='large')
-            cbar4.ax.tick_params(labelsize=12)
-            ax4.tick_params(axis='x',labelsize=12)
-            ax4.tick_params(axis='y',labelsize=12)
-            ax4.set_aspect(self.y_dim/self.x_dim, adjustable='box')
-            ax4.set_title('True Front Location (Unknown)',fontsize='x-large')
-            
-            # Inferred front location
-            c5 = ax5.pcolormesh(x_grid, y_grid, np.transpose(self.forward(frames[curr_step])[1,:,:]), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
-            cbar5 = fig.colorbar(c5, ax=ax5)
-            cbar5.set_label('Front Field [-]',labelpad=20,fontsize='large')
-            cbar5.ax.tick_params(labelsize=12)
-            ax5.tick_params(axis='x',labelsize=12)
-            ax5.tick_params(axis='y',labelsize=12)
-            ax5.set_aspect(self.y_dim/self.x_dim, adjustable='box')
-            ax5.set_title('Inferred Front Location',fontsize='x-large')
-            
-            # Set title and save
-            plt.suptitle("Autoencoder Performance for DCPD with GC2",fontsize='xx-large')
-            plt.savefig(path+"/"+str(curr_step).zfill(4)+'.png', dpi=100)
-            plt.close()
-                
+            elif len(rebuilt_data[0,:,0,0]) == 5:
+                self.draw_obj_5(x_grid, y_grid, temp, rebuilt_temp, path, i)
         
 if __name__ == '__main__':
     
@@ -436,17 +745,17 @@ if __name__ == '__main__':
     # plt.close()
     
     ##---------------------------------------------------------------------------------------------------------------------##
-    path = "validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-2"
+    path = "validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_def"
     
-    autoencoder = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 3, 20, False)
+    autoencoder = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 20, 1, 1)
     autoencoder.load(path)
     
-    with open("results/test_frames", 'rb') as file:
+    with open(path+"/test_frames", 'rb') as file:
         data = pickle.load(file)
-    test_frames = data['data']['Test_frames']
-    test_cures = data['data']['Test_cure']
+    temp_array = data['data']['Test_frames']
+    #cure_array = data['data']['Test_cure']
     
-    autoencoder.render(test_frames, test_cures, path)
+    autoencoder.render(temp_array, temp_array, 'results')
     
     ##---------------------------------------------------------------------------------------------------------------------##
     # autoencoder_1 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 1, 20, False)
