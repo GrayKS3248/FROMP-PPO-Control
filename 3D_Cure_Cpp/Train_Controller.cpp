@@ -1015,7 +1015,7 @@ int main()
 	// Agent load parameters
 	bool load_agent = false;
 	bool reset_stdev = false;
-	const char* agent_path = "results/PPO_1";
+	const char* agent_path = "";
 	
 	// Agent training parameter
 	bool update_agent = true;

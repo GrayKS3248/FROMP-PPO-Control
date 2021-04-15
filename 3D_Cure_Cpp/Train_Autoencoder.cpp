@@ -465,8 +465,8 @@ int main()
 	long num_filter_1 = 8;
 	long num_filter_2 = 16;
 	int encoded_size = 128;
-	long num_output_layers = 1;
-	long objective_fnc = 1;
+	long num_output_layers = 6;
+	long objective_fnc = 6;
 	
 	// Autoencoder render parameters
 	bool render = true;
