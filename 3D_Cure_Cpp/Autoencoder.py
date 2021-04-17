@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 import os
+import time
 
 class Autoencoder:
     
@@ -1027,7 +1028,7 @@ class Autoencoder:
             elif len(rebuilt_data[0,:,0,0]) == 8:
                 self.draw_obj_8(x_grid, y_grid, temp, front, cure, render_data, path, i)
         
-if __name__ == '__main__':
+# if __name__ == '__main__':
     
     ##---------------------------------------------------------------------------------------------------------------------##
     # autoencoder_1 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 1, 20, False)
@@ -1085,17 +1086,20 @@ if __name__ == '__main__':
     # plt.close()
     
     ##---------------------------------------------------------------------------------------------------------------------##
-    path = "results/Auto_2"
+    # path = "results/Auto_2"
     
-    autoencoder = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 128, 20, 3, 3)
-    autoencoder.load('results/f8-16_bn128_ob3')
+    # autoencoder = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 128, 20, 3, 3)
+    # autoencoder.load('results/Auto_3')
     
-    with open(path+"/output", 'rb') as file:
-        load_file = pickle.load(file)
-    autoencoder.save_temp_buffer = load_file['temp_array']
-    autoencoder.save_cure_buffer = load_file['cure_array']
+    # with open(path+"/output", 'rb') as file:
+    #     load_file = pickle.load(file)
+    # autoencoder.save_temp_buffer = load_file['temp_array']
+    # autoencoder.save_cure_buffer = load_file['cure_array']
     
-    autoencoder.render('results/Auto_1')
+    # for i in range(len(autoencoder.save_temp_buffer)):
+    #     autoencoder.learn(autoencoder.save_temp_buffer[i], autoencoder.save_cure_buffer[i])
+    
+    #autoencoder.render('results/Auto_1')
     
     ##---------------------------------------------------------------------------------------------------------------------##
     # autoencoder_1 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 1, 20, False)

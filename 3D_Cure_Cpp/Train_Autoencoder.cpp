@@ -497,11 +497,11 @@ int main()
 	double end_alpha = 1.0e-5;
 	
 	// Autoencoder NN parameters
-	long num_filter_1 = 8;
-	long num_filter_2 = 16;
 	int encoded_size = 128;
-	long num_output_layers[3] = {1, 2, 3};
-	long objective_fncs[3] = {1, 2, 3};
+	long num_filter_1[3] =      {8,   8,   8};
+	long num_filter_2[3] =      {16,  16,  16};
+	long num_output_layers[3] = {3,   5,   6};
+	long objective_fncs[3] =    {3,   5,   6};
 	
 	// Autoencoder render parameters
 	bool render = true;
@@ -530,7 +530,7 @@ int main()
 	PyObject* autoencoders[num_autoencoders];
 	for (int i = 0; i < num_autoencoders; i++)
 	{
-		PyObject* curr_autoencoder = init_autoencoder(start_alpha, decay_rate, x_dim, y_dim, num_filter_1, num_filter_2, encoded_size, samples_per_batch, num_output_layers[i], objective_fncs[i], load, path);
+		PyObject* curr_autoencoder = init_autoencoder(start_alpha, decay_rate, x_dim, y_dim, num_filter_1[i], num_filter_2[i], encoded_size, samples_per_batch, num_output_layers[i], objective_fncs[i], load, path);
 		if (curr_autoencoder == NULL) { Py_FinalizeEx(); return 1; }
 		autoencoders[i] = curr_autoencoder;
 	}
