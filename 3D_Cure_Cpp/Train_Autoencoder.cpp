@@ -455,7 +455,7 @@ int main()
 	const char* path = "";
 	
 	// Autoencoder training parameters
-	int total_trajectories = 5000;
+	int total_trajectories = 1;
 	int samples_per_trajectory = 20;
 	int samples_per_batch = 100;
 	double start_alpha = 1.0e-3;
@@ -465,12 +465,12 @@ int main()
 	long num_filter_1 = 8;
 	long num_filter_2 = 16;
 	int encoded_size = 128;
-	long num_output_layers = 6;
-	long objective_fnc = 6;
+	long num_output_layers = 3;
+	long objective_fnc = 3;
 	
 	// Autoencoder render parameters
 	bool render = true;
-	double frame_rate = 30.0;
+	double frame_rate = 1.0;
 
 	// Initialize FES
 	Finite_Element_Solver FES = Finite_Element_Solver(encoded_size);

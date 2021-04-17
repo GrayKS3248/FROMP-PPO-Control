@@ -132,53 +132,35 @@ class Autoencoder:
     def get_front_location(self, cure):
         
         # Determine blurring factor
-        blur_half_range = 0.025
+        blur_half_range = 0.04
         
-        # Calculate location in mesh where monomer is cured
-        cured_location = (cure >= 0.80)
-        
-        # Step through each column to find front location
-        front_location = np.zeros(cure.shape)
-        for j in range(len(cure[0,:])):
-            
-            # If the column is cured at any location, determine the furthest forward cured point (front location)
-            if cured_location[:,j].any():
-                done = False
-                i = len(cure[:,0])-1
-                while not done:
-                    if not cured_location[i,j]:
-                        i = i - 1
-                        
-                    # Set the front location to 1.0 and add some blur around it
-                    else:
-                        start_blur = int(round(i - blur_half_range * len(cure)))
-                        if start_blur < 0:
-                            start_blur = 0
-                        end_blur = int(round(i + blur_half_range * len(cure)))
-                        if end_blur > len(cure) - 1:
-                            end_blur = len(cure) - 1
-                        for ii in range(start_blur, end_blur+1):
-                            if ii < i:
-                                front_location[ii,j] = (ii - int(round(i-blur_half_range*len(cure)))) / (i - int(round(i-blur_half_range*len(cure))))
-                            elif ii == i:
-                                front_location[ii,j] = 1.0
-                            elif ii > i:
-                                front_location[ii,j] = 1.0 - (ii - i) / (int(round(i+blur_half_range*len(cure))) - i)
-                        done = True
+        # Solve for cure front
+        front_location = np.concatenate(((abs(np.diff(cure,axis=0))) > 0.25, np.zeros((1,40))))
+        distance_indices = np.arange(len(cure))
                 
-            # If a column has no cured monomer, the front is assumed to be at the begining of the column
-            else:
-                end_blur = int(round(blur_half_range * len(cure)))
-                for i in range(0, end_blur+1):
-                    if i == 0:
-                        front_location[i,j] = 1.0
-                    else:
-                        front_location[i,j] = 1.0 - i / end_blur
-                        
+        # Apply blur
+        for j in range(len(cure[0,:])):
+            front_slice = distance_indices[(front_location[:,j] == 1.0)]
+            for ind in range(len(front_slice)):
+                i = front_slice[ind]
+                start_blur = int(round(i - blur_half_range * len(cure)))
+                if start_blur < 0:
+                    start_blur = 0
+                end_blur = int(round(i + blur_half_range * len(cure)))
+                if end_blur > len(cure) - 1:
+                    end_blur = len(cure) - 1
+                for ii in range(start_blur, end_blur+1):
+                    if ii < i:
+                        front_location[ii,j] =  max((ii - int(round(i-blur_half_range*len(cure)))) / (i - int(round(i-blur_half_range*len(cure)))), front_location[ii,j])
+                    elif ii == i:
+                        front_location[ii,j] = 1.0
+                    elif ii > i:
+                        front_location[ii,j] = max(1.0 - (ii - i) / (int(round(i+blur_half_range*len(cure))) - i), front_location[ii,j])
+                
         # Format data
         front_location = torch.tensor(front_location)
         front_location = front_location.reshape(1,1,front_location.shape[0],front_location.shape[1]).float()
-        
+                
         return front_location
 
     # Gets the quantized temperature field training target
@@ -419,7 +401,7 @@ class Autoencoder:
             'buffer_size' : self.buffer_size, 
             'training_curve' : np.array(training_curve),
             'temp_array' : self.save_temp_buffer,
-            'cure_array' : self.save_temp_buffer,
+            'cure_array' : self.save_cure_buffer,
             'autoencoder' : self.model,
         }
 
@@ -953,6 +935,8 @@ class Autoencoder:
         print("Rendering...")
         
         # Find save paths
+        if not os.path.isdir(path):
+            os.mkdir(path)
         path = path + "/video"
         if not os.path.isdir(path):
             os.mkdir(path)
@@ -998,7 +982,7 @@ class Autoencoder:
                     rebuilt_mid_temp = rebuilt_data[0,3,:,:].to('cpu').numpy().squeeze()
                     rebuilt_mid_high_temp = rebuilt_data[0,4,:,:].to('cpu').numpy().squeeze()
                     rebuilt_high_temp = rebuilt_data[0,5,:,:].to('cpu').numpy().squeeze()
-                    render_data = [temp, rebuilt_low_temp, rebuilt_low_mid_temp, rebuilt_mid_temp, rebuilt_mid_high_temp, rebuilt_high_temp]
+                    render_data = [rebuilt_temp, rebuilt_low_temp, rebuilt_low_mid_temp, rebuilt_mid_temp, rebuilt_mid_high_temp, rebuilt_high_temp]
                     
                 elif len(rebuilt_data[0,:,0,0]) == 7:
                     rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
@@ -1008,7 +992,7 @@ class Autoencoder:
                     rebuilt_mid_high_temp = rebuilt_data[0,4,:,:].to('cpu').numpy().squeeze()
                     rebuilt_high_temp = rebuilt_data[0,5,:,:].to('cpu').numpy().squeeze()
                     rebuilt_front = rebuilt_data[0,6,:,:].to('cpu').numpy().squeeze()
-                    render_data = [temp, rebuilt_low_temp, rebuilt_low_mid_temp, rebuilt_mid_temp, rebuilt_mid_high_temp, rebuilt_high_temp, rebuilt_front]
+                    render_data = [rebuilt_temp, rebuilt_low_temp, rebuilt_low_mid_temp, rebuilt_mid_temp, rebuilt_mid_high_temp, rebuilt_high_temp, rebuilt_front]
                     
                 elif len(rebuilt_data[0,:,0,0]) == 8:
                     rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
@@ -1019,7 +1003,7 @@ class Autoencoder:
                     rebuilt_high_temp = rebuilt_data[0,5,:,:].to('cpu').numpy().squeeze()
                     rebuilt_front = rebuilt_data[0,6,:,:].to('cpu').numpy().squeeze()
                     rebuilt_cure = rebuilt_data[0,7,:,:].to('cpu').numpy().squeeze()
-                    render_data = [temp, rebuilt_low_temp, rebuilt_low_mid_temp, rebuilt_mid_temp, rebuilt_mid_high_temp, rebuilt_high_temp, rebuilt_front, rebuilt_cure]
+                    render_data = [rebuilt_temp, rebuilt_low_temp, rebuilt_low_mid_temp, rebuilt_mid_temp, rebuilt_mid_high_temp, rebuilt_high_temp, rebuilt_front, rebuilt_cure]
             
             # Draw and save the current frame
             if len(rebuilt_data[0,:,0,0]) == 1:
@@ -1101,10 +1085,10 @@ if __name__ == '__main__':
     # plt.close()
     
     ##---------------------------------------------------------------------------------------------------------------------##
-    path = "results/Auto_1"
+    path = "results/Auto_2"
     
-    autoencoder = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 128, 20, 5, 5)
-    autoencoder.load(path)
+    autoencoder = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 128, 20, 3, 3)
+    autoencoder.load('results/f8-16_bn128_ob3')
     
     with open(path+"/output", 'rb') as file:
         load_file = pickle.load(file)
