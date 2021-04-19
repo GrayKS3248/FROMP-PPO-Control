@@ -93,125 +93,137 @@ vector<int> get_frame_indices(int tot_num_sim_steps, int samples_per_trajectory)
 * @param The number of simulation steps taken per single cycle of control application
 * @param Number of trajectories to be simulated
 * @param Number of training data sampled during on trajecotry
+* @param Number of frames per training epoch
 * @param Path to save training data to
 * @return 0 on success, 1 on failure
 */
-int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_control_cycle, int tot_num_sim_steps, int samples_per_trajectory, string path)
+int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_control_cycle, int tot_num_sim_steps, int samples_per_trajectory, int samples_per_batch, string path)
 {
-	// Open file to save temp to
-	ofstream temp_data;
-	temp_data.open (path+"/temp_data.csv", ofstream::trunc);
-	if(!temp_data.is_open())
+	for (int curr_epoch = 0; curr_epoch < (int)floor(((double)total_trajectories*(double)samples_per_trajectory)/(double)samples_per_batch); curr_epoch++)
 	{
-		cout << "\nFailed to open temp file\n";
-		return 1;
-	}
+		// Open string buffer to name data files
+		stringstream stream;
 	
-	// Open file to save cure to
-	ofstream cure_data;
-	cure_data.open (path+"/cure_data.csv", ofstream::trunc);
-	if(!cure_data.is_open())
-	{
-		cout << "\nFailed to open cure file\n";
-		return 1;
-	}
-	
-	// Run a set of episodes
-	for (int i = 0; i < total_trajectories; i++)
-	{
-		// Declare simulation variables
-		bool done = false;
-		double action_1=0.0, action_2=0.0, action_3=0.0;
-		bool apply_control, save_frame;
-		int trajectory_index = 0;
-		
-		// Select random set of frames to be used to update autoencoder
-		vector<int> frame_indices = get_frame_indices(tot_num_sim_steps, samples_per_trajectory);
-		int frame_count = 0;
-		int frame_index = frame_indices[frame_count];
-
-		// User readout
-		print_training_info(i, total_trajectories);
-
-		// Save data structure
-		vector<vector<double>> temp_frames[samples_per_trajectory];
-		vector<vector<double>> cure_frames[samples_per_trajectory];
-
-		// Reset environment
-		FES->reset();
-		
-		// Simulation for loop
-		while (!done)
+		// Open file to save temp to
+		stream << path << "/temp_data_" << curr_epoch << ".csv";
+		string temp_load_name = stream.str();
+		ofstream temp_data;
+		temp_data.open(temp_load_name, ofstream::trunc);
+		if(!temp_data.is_open())
 		{
-			// Determine what to run this simulation step
-			apply_control = (trajectory_index % steps_per_control_cycle == 0) || (trajectory_index==0);
-			save_frame = trajectory_index == frame_index;
+			cout << "\nFailed to open temp file\n";
+			return 1;
+		}
+		
+		// Open file to save cure to
+		stream.str(string());
+		stream << path << "/cure_data_" << curr_epoch << ".csv";
+		string cure_load_name = stream.str();
+		ofstream cure_data;
+		cure_data.open (cure_load_name, ofstream::trunc);
+		if(!cure_data.is_open())
+		{
+			cout << "\nFailed to open cure file\n";
+			return 1;
+		}
+		
+		// Run a set of episodes
+		for (int curr_traj = 0; curr_traj < (int)floor((double)samples_per_batch/(double)samples_per_trajectory); curr_traj++)
+		{
+			// Declare simulation variables
+			bool done = false;
+			double action_1=0.0, action_2=0.0, action_3=0.0;
+			bool apply_control, save_frame;
+			int trajectory_index = 0;
+			
+			// Select random set of frames to be used to update autoencoder
+			vector<int> frame_indices = get_frame_indices(tot_num_sim_steps, samples_per_trajectory);
+			int frame_count = 0;
+			int frame_index = frame_indices[frame_count];
 
-			// Run the random controller
-			if (apply_control)
+			// User readout
+			print_training_info(curr_traj+curr_epoch*(int)floor((double)samples_per_batch/(double)samples_per_trajectory), total_trajectories);
+
+			// Save data structure
+			vector<vector<double>> temp_frames[samples_per_trajectory];
+			vector<vector<double>> cure_frames[samples_per_trajectory];
+
+			// Reset environment
+			FES->reset();
+			
+			// Simulation for loop
+			while (!done)
 			{
+				// Determine what to run this simulation step
+				apply_control = (trajectory_index % steps_per_control_cycle == 0) || (trajectory_index==0);
+				save_frame = trajectory_index == frame_index;
 
-				// Get a random action
-				action_1 = 20.0 * (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
-				action_2 = 20.0 * (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
-				action_3 = 20.0 * (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
+				// Run the random controller
+				if (apply_control)
+				{
 
-				// Step the environment
-				done = FES->step(action_1, action_2, action_3);
-			}
-			else
-			{
-				// Step the environment
-				done = FES->step(action_1, action_2, action_3);
+					// Get a random action
+					action_1 = 20.0 * (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
+					action_2 = 20.0 * (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
+					action_3 = 20.0 * (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
+
+					// Step the environment
+					done = FES->step(action_1, action_2, action_3);
+				}
+				else
+				{
+					// Step the environment
+					done = FES->step(action_1, action_2, action_3);
+				}
+				
+				// Save data to files
+				if (save_frame)
+				{
+					temp_frames[frame_count] = FES->get_norm_temp_mesh();
+					cure_frames[frame_count] = FES->get_cure_mesh();
+					
+					// Update which frame is to be saved next
+					frame_count++;
+					if (frame_count < samples_per_trajectory)
+					{
+						frame_index = frame_indices[frame_count];
+					}
+				}
+
+				// Update the current state and the step in episode
+				trajectory_index++;
+
 			}
 			
-			// Update the encoder
-			if (save_frame)
+			// Save current trajectory's frames
+			for (int i = 0; i < samples_per_trajectory; i++)
 			{
-				// Collect frame data
-				temp_frames[frame_count] = FES->get_norm_temp_mesh();
-				cure_frames[frame_count] = FES->get_cure_mesh();
-				
-				// Update which frame is to be saved next
-				frame_count++;
-				if (frame_count < samples_per_trajectory)
+				for (int j = 0; j < FES->get_num_vert_length(); j++)
 				{
-					frame_index = frame_indices[frame_count];
+					for(int k = 0; k < FES->get_num_vert_width(); k++)
+					{
+						if (k == FES->get_num_vert_width()-1)
+						{
+							temp_data << temp_frames[i][j][k] << "\n";
+							cure_data << cure_frames[i][j][k] << "\n";
+						}
+						else
+						{
+							temp_data << temp_frames[i][j][k] << ",";
+							cure_data << cure_frames[i][j][k] << ",";
+						}
+					}
 				}
 			}
 
-			// Update the current state and the step in episode
-			trajectory_index++;
-
+			// Final user readout
+			if (curr_traj+curr_epoch*(int)floor((double)samples_per_batch/(double)samples_per_trajectory) == total_trajectories - 1) { print_training_info(curr_traj+curr_epoch*(int)floor((double)samples_per_batch/(double)samples_per_trajectory), total_trajectories); }
 		}
+
+		if (temp_data.is_open()) { temp_data.close(); }
+		if (cure_data.is_open()) { cure_data.close(); }
 		
-		// Save current trajectory's frames
-		for (int i = 0; i < samples_per_trajectory; i++)
-		{
-			for (int j = 0; j < FES->get_num_vert_length(); j++)
-			{
-				for(int k = 0; k < FES->get_num_vert_width(); k++)
-				{
-					if (k == FES->get_num_vert_width()-1)
-					{
-						temp_data << temp_frames[i][j][k] << "\n";
-						cure_data << cure_frames[i][j][k] << "\n";
-					}
-					else
-					{
-						temp_data << temp_frames[i][j][k] << ",";
-						cure_data << cure_frames[i][j][k] << ",";
-					}
-				}
-			}
-		}
-
-		// Final user readout
-		if (i == total_trajectories - 1) { print_training_info(i, total_trajectories); }
 	}
-
-	if (temp_data.is_open()) { temp_data.close(); }
-	if (cure_data.is_open()) { cure_data.close(); }
 	return 0;
 }
 
@@ -220,8 +232,9 @@ int main()
 	// Training data parameters
 	int total_trajectories = 5000;
 	int samples_per_trajectory = 20;  // Number of temerpature and cure frames sampled per trajecotry for AE training
+	int samples_per_batch = 100;      // Number of frames used per training epoch
 	int actions_per_trajectory = 100; // Number of random input actions performed by controller during trajecotry
-	string path = "results";
+	string path = "training_data";
 
 	// Initialize FES
 	Finite_Element_Solver FES = Finite_Element_Solver(1);
@@ -238,7 +251,7 @@ int main()
 	// Train autoencoder
 	cout << "\nCollecting training data...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(&FES, total_trajectories, steps_per_control_cycle, tot_num_sim_steps, samples_per_trajectory, path) == 1) { return 1; }
+	if (run(&FES, total_trajectories, steps_per_control_cycle, tot_num_sim_steps, samples_per_trajectory, samples_per_batch, path) == 1) { return 1; }
 
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;

@@ -490,7 +490,7 @@ int main()
 	const char* path = "";
 	
 	// Autoencoder training parameters
-	int total_trajectories = 5000;
+	int total_trajectories = 20;
 	int samples_per_trajectory = 20;
 	int samples_per_batch = 100;
 	double start_alpha = 1.0e-3;
