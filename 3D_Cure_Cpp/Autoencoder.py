@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 import os
-import time
+from scipy.signal import savgol_filter
 
 class Autoencoder:
     
@@ -62,6 +62,7 @@ class Autoencoder:
         
     # Loads a given saved autoencoder
     # @param the path from which the autoencoder will be loaded
+    # @return the training curve of the loaded autoencoder
     def load(self, path):
         
         # Copy NN at path to current module
@@ -73,6 +74,16 @@ class Autoencoder:
                 loaded_data = pickle.load(file)
             loaded_model = loaded_data['autoencoder']
             self.model.load_state_dict(loaded_model.state_dict())
+            self.x_dim = loaded_data['x_dim']
+            self.y_dim = loaded_data['y_dim']
+            self.bottleneck = loaded_data['bottleneck']
+            self.num_output_layers = loaded_data['num_output_layers']
+            self.objective_fnc = loaded_data['objective_fnc']
+            self.buffer_size = loaded_data['buffer_size']
+            self.save_temp_buffer = loaded_data['temp_array']
+            self.save_cure_buffer = loaded_data['cure_array']
+            
+        return loaded_data['training_curve']
         
     # Gets the cpu or gpu on which to run NN
     # @return device code
@@ -1028,120 +1039,127 @@ class Autoencoder:
             elif len(rebuilt_data[0,:,0,0]) == 8:
                 self.draw_obj_8(x_grid, y_grid, temp, front, cure, render_data, path, i)
         
-# if __name__ == '__main__':
+if __name__ == '__main__':
     
-    ##---------------------------------------------------------------------------------------------------------------------##
-    # autoencoder_1 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 1, 20, False)
-    # autoencoder_1.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64")
-    # autoencoder_2 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 2, 20, False)
-    # autoencoder_2.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-1")
-    # autoencoder_3 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 3, 20, False)
-    # autoencoder_3.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-2")
-    # autoencoder_4 = Autoencoder(1.0e-3, 1.0, 360, 40, 12, 12, 64, 1, 20, False)
-    # autoencoder_4.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-12-12_64")
-    # autoencoder_5 = Autoencoder(1.0e-3, 1.0, 360, 40, 12, 12, 64, 2, 20, False)
-    # autoencoder_5.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-12-12_64_aux-1")
-    # autoencoder_6 = Autoencoder(1.0e-3, 1.0, 360, 40, 12, 12, 64, 3, 20, False)
-    # autoencoder_6.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-12-12_64_aux-2")
-    # autoencoder_7 = Autoencoder(1.0e-3, 1.0, 360, 40, 12, 16, 64, 1, 20, False)
-    # autoencoder_7.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-12-16_64")
-    # autoencoder_8 = Autoencoder(1.0e-3, 1.0, 360, 40, 12, 16, 64, 2, 20, False)
-    # autoencoder_8.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-12-16_64_aux-1")
-    # autoencoder_9 = Autoencoder(1.0e-3, 1.0, 360, 40, 12, 16, 64, 3, 20, False)
-    # autoencoder_9.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-12-16_64_aux-2")
+    ae1 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 32, 100, 1, 1)
+    curve_1 = ae1.load('results/f8-16_bn32_obj1')
+    curve_1 = savgol_filter(curve_1, 25, 3)
+    ae2 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 32, 100, 2, 2)
+    curve_2 = ae2.load('results/f8-16_bn32_obj2')
+    curve_2 = savgol_filter(curve_2, 25, 3)
+    ae3 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 32, 100, 3, 3)
+    curve_3 = ae3.load('results/f8-16_bn32_obj3')
+    curve_3 = savgol_filter(curve_3, 25, 3)
     
-    # with open("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64/test_frames", 'rb') as file:
-    #     test_frames = pickle.load(file)
-    # test_frames = test_frames['data']['Test_frames']
+    ae4 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 100, 1, 1)
+    curve_4 = ae4.load('results/f8-16_bn64_obj1')
+    curve_4 = savgol_filter(curve_4, 25, 3)
+    ae5 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 100, 2, 2)
+    curve_5 = ae5.load('results/f8-16_bn64_obj2')
+    curve_5 = savgol_filter(curve_5, 25, 3)
+    ae6 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 100, 3, 3)
+    curve_6 = ae6.load('results/f8-16_bn64_obj3')
+    curve_6 = savgol_filter(curve_6, 25, 3)
     
-    # temp_error_1 = autoencoder_1.get_temp_error(test_frames)
-    # temp_error_2 = autoencoder_2.get_temp_error(test_frames)
-    # temp_error_3 = autoencoder_3.get_temp_error(test_frames)
-    # temp_error_4 = autoencoder_4.get_temp_error(test_frames)
-    # temp_error_5 = autoencoder_5.get_temp_error(test_frames)
-    # temp_error_6 = autoencoder_6.get_temp_error(test_frames)
-    # temp_error_7 = autoencoder_7.get_temp_error(test_frames)
-    # temp_error_8 = autoencoder_8.get_temp_error(test_frames)
-    # temp_error_9 = autoencoder_9.get_temp_error(test_frames)
+    ae7 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 128, 100, 1, 1)
+    curve_7 = ae7.load('results/f8-16_bn128_obj1')
+    curve_7 = savgol_filter(curve_7, 25, 3)
+    ae8 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 128, 100, 2, 2)
+    curve_8 = ae8.load('results/f8-16_bn128_obj2')
+    curve_8 = savgol_filter(curve_8, 25, 3)
+    ae9 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 128, 100, 3, 3)
+    curve_9 = ae9.load('results/f8-16_bn128_obj3')
+    curve_9 = savgol_filter(curve_9, 25, 3)
     
-    # temp_error_1 = [temp_error_1, temp_error_4, temp_error_7]
-    # temp_error_2 = [temp_error_2, temp_error_5, temp_error_8]
-    # temp_error_3 = [temp_error_3, temp_error_6, temp_error_9]
-    # fig,ax = plt.subplots()
-    # index = np.arange(3)
-    # bar_width=0.3
-    # opacity=0.60
-    # rects_1=plt.bar(index, temp_error_1, bar_width, alpha=opacity, color='r', label='Default', edgecolor='k')
-    # rects_2=plt.bar(index + bar_width, temp_error_2, bar_width, alpha=opacity, color='g', label='Aux 1', edgecolor='k')
-    # rects_2=plt.bar(index + 2.0*bar_width, temp_error_3, bar_width, alpha=opacity, color='b', label='Aux 2', edgecolor='k')
-    # plt.xticks(index+bar_width, ('1-8-16','1-12-12','1-12-16'), fontsize='large')
-    # plt.yticks(fontsize='large')
-    # plt.ylabel('MSE [%]',fontsize='large')
-    # plt.xlabel('Encoder Filter Count',fontsize='large')
-    # plt.legend(fontsize='large',loc='upper left')
-    # plt.title("Temperature Field Reconstruction",fontsize='xx-large')
-    # plt.gcf().set_size_inches(8.5, 5.5)
-    # save_file = "validation/DCPD_GC2_Autoencoder/0%_Cropped/temp_reconstruction.png"
-    # plt.savefig(save_file, dpi = 500)
-    # plt.close()
+    plt.close()
+    plt.clf()
+    plt.title("Autoencoder Learning Curve (Objective 1)",fontsize='xx-large')
+    plt.xlabel("Optimization Epoch",fontsize='large')
+    plt.ylabel("RMS Reconstruction Error",fontsize='large')
+    plt.plot(np.arange(len(curve_1)),curve_1,lw=2.5,c='r',label='bn=32')
+    plt.plot(np.arange(len(curve_4)),curve_4,lw=2.5,c='g',label='bn=64')
+    plt.plot(np.arange(len(curve_7)),curve_7,lw=2.5,c='b',label='bn=128')
+    plt.yscale("log")
+    plt.xticks(fontsize='large')
+    plt.yticks(fontsize='large')
+    plt.legend(fontsize='large', loc='upper right')
+    plt.gcf().set_size_inches(8.5, 5.5)
+    save_file = "results/obj-1_learning.png"
+    plt.savefig(save_file, dpi = 500)
+    plt.close()
+        
+    plt.close()
+    plt.clf()
+    plt.title("Autoencoder Learning Curve (Objective 2)",fontsize='xx-large')
+    plt.xlabel("Optimization Epoch",fontsize='large')
+    plt.ylabel("RMS Reconstruction Error",fontsize='large')
+    plt.plot(np.arange(len(curve_2)),curve_2,lw=2.5,c='r',label='bn=32')
+    plt.plot(np.arange(len(curve_5)),curve_5,lw=2.5,c='g',label='bn=64')
+    plt.plot(np.arange(len(curve_8)),curve_8,lw=2.5,c='b',label='bn=128')
+    plt.yscale("log")
+    plt.xticks(fontsize='large')
+    plt.yticks(fontsize='large')
+    plt.legend(fontsize='large', loc='upper right')
+    plt.gcf().set_size_inches(8.5, 5.5)
+    save_file = "results/obj-2_learning.png"
+    plt.savefig(save_file, dpi = 500)
+    plt.close()
     
-    ##---------------------------------------------------------------------------------------------------------------------##
-    # path = "results/Auto_2"
+    plt.close()
+    plt.clf()
+    plt.title("Autoencoder Learning Curve (Objective 3)",fontsize='xx-large')
+    plt.xlabel("Optimization Epoch",fontsize='large')
+    plt.ylabel("RMS Reconstruction Error",fontsize='large')
+    plt.plot(np.arange(len(curve_3)),curve_3,lw=2.5,c='r',label='bn=32')
+    plt.plot(np.arange(len(curve_6)),curve_6,lw=2.5,c='g',label='bn=64')
+    plt.plot(np.arange(len(curve_9)),curve_9,lw=2.5,c='b',label='bn=128')
+    plt.yscale("log")
+    plt.xticks(fontsize='large')
+    plt.yticks(fontsize='large')
+    plt.legend(fontsize='large', loc='upper right')
+    plt.gcf().set_size_inches(8.5, 5.5)
+    save_file = "results/obj-3_learning.png"
+    plt.savefig(save_file, dpi = 500)
+    plt.close()
     
-    # autoencoder = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 128, 20, 3, 3)
-    # autoencoder.load('results/Auto_3')
+    temp_error_1 = 0.0
+    temp_error_2 = 0.0
+    temp_error_3 = 0.0
+    temp_error_4 = 0.0
+    temp_error_5 = 0.0
+    temp_error_6 = 0.0
+    temp_error_7 = 0.0
+    temp_error_8 = 0.0
+    temp_error_9 = 0.0
+    for i in range(5):
+        render_temp = np.genfromtxt('training_data/DCPD_GC2/temp_data_'+str(i)+'.csv', delimiter=',')
+        render_temp = render_temp.reshape(len(render_temp)//ae1.x_dim, ae1.x_dim, ae1.y_dim)
+        temp_error_1 = temp_error_1 + ae1.get_temp_error(render_temp)
+        temp_error_2 = temp_error_2 + ae2.get_temp_error(render_temp)
+        temp_error_3 = temp_error_3 + ae3.get_temp_error(render_temp)
+        temp_error_4 = temp_error_4 + ae4.get_temp_error(render_temp)
+        temp_error_5 = temp_error_5 + ae5.get_temp_error(render_temp)
+        temp_error_6 = temp_error_6 + ae6.get_temp_error(render_temp)
+        temp_error_7 = temp_error_7 + ae7.get_temp_error(render_temp)
+        temp_error_8 = temp_error_8 + ae8.get_temp_error(render_temp)
+        temp_error_9 = temp_error_9 + ae9.get_temp_error(render_temp)
     
-    # with open(path+"/output", 'rb') as file:
-    #     load_file = pickle.load(file)
-    # autoencoder.save_temp_buffer = load_file['temp_array']
-    # autoencoder.save_cure_buffer = load_file['cure_array']
-    
-    # for i in range(len(autoencoder.save_temp_buffer)):
-    #     autoencoder.learn(autoencoder.save_temp_buffer[i], autoencoder.save_cure_buffer[i])
-    
-    #autoencoder.render('results/Auto_1')
-    
-    ##---------------------------------------------------------------------------------------------------------------------##
-    # autoencoder_1 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 1, 20, False)
-    # autoencoder_1.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_def")
-    # autoencoder_2 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 2, 20, False)
-    # autoencoder_2.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-1")
-    # autoencoder_3 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 3, 20, False)
-    # autoencoder_3.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-2")
-    # autoencoder_4 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 2, 20, False)
-    # autoencoder_4.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-1_retrain-def")
-    # autoencoder_5 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 3, 20, False)
-    # autoencoder_5.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-2_retrain-def")
-    # autoencoder_6 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 3, 20, False)
-    # autoencoder_6.load("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-2_retrain-aux-1")
-    
-    # with open("validation/DCPD_GC2_Autoencoder/0%_Cropped/1-8-16_64_aux-2/test_frames", 'rb') as file:
-    #     test_frames = pickle.load(file)
-    # test_frames = test_frames['data']['Test_frames']
-    
-    # temp_error_1 = autoencoder_1.get_temp_error(test_frames)
-    # temp_error_2 = autoencoder_2.get_temp_error(test_frames)
-    # temp_error_3 = autoencoder_3.get_temp_error(test_frames)
-    # temp_error_4 = autoencoder_4.get_temp_error(test_frames)
-    # temp_error_5 = autoencoder_5.get_temp_error(test_frames)
-    # temp_error_6 = autoencoder_6.get_temp_error(test_frames)
-    
-    # temp_error_1 = [temp_error_1, temp_error_4, temp_error_5]
-    # temp_error_2 = [temp_error_2, temp_error_6]
-    # temp_error_3 = [temp_error_3]
-    # fig,ax = plt.subplots()
-    # bar_width=0.3
-    # opacity=0.60
-    # rects_1=plt.bar(np.array([0,1,2]), temp_error_1, bar_width, alpha=opacity, color='r', label='Default', edgecolor='k')
-    # rects_2=plt.bar(np.array([1.3,2.3]), temp_error_2, bar_width, alpha=opacity, color='g', label='Aux-1', edgecolor='k')
-    # rects_2=plt.bar(np.array([2.6]), temp_error_3, bar_width, alpha=opacity, color='b', label='Aux-2', edgecolor='k')
-    # plt.xticks(np.array([0,1.15,2.3]), ('Default','Aux-1','Aux-2'), fontsize='large')
-    # plt.yticks(fontsize='large')
-    # plt.ylabel('MSE [%]',fontsize='large')
-    # plt.xlabel('Encoder Type (1-8-16_64)',fontsize='large')
-    # plt.legend(fontsize='large',loc='upper right',title='Objective Fnc')
-    # plt.title("Retrained Temperature Field Reconstruction",fontsize='xx-large')
-    # plt.gcf().set_size_inches(8.5, 5.5)
-    # save_file = "validation/DCPD_GC2_Autoencoder/0%_Cropped/retrain.png"
-    # plt.savefig(save_file, dpi = 500)
-    # plt.close()
+    temp_error_1 = [temp_error_1/5.0, temp_error_2/5.0, temp_error_3/5.0]
+    temp_error_2 = [temp_error_4/5.0, temp_error_5/5.0, temp_error_6/5.0]
+    temp_error_3 = [temp_error_7/5.0, temp_error_8/5.0, temp_error_9/5.0]
+    fig,ax = plt.subplots()
+    index = np.arange(3)
+    bar_width=0.3
+    opacity=0.60
+    rects_1=plt.bar(index, temp_error_1, bar_width, alpha=opacity, color='r', label='bn=32', edgecolor='k')
+    rects_2=plt.bar(index + bar_width, temp_error_2, bar_width, alpha=opacity, color='g', label='bn=64', edgecolor='k')
+    rects_2=plt.bar(index + 2.0*bar_width, temp_error_3, bar_width, alpha=opacity, color='b', label='bn=128', edgecolor='k')
+    plt.xticks(index+bar_width, ('Temp','Temp, Front','Temp, Front, Cure'), fontsize='large')
+    plt.yticks(fontsize='large')
+    plt.ylabel('RMS Reconstruction Error [%]',fontsize='large')
+    plt.legend(fontsize='large',loc='upper left')
+    plt.title("Temperature Field Reconstruction",fontsize='xx-large')
+    plt.gcf().set_size_inches(8.5, 5.5)
+    save_file = "results/temp_reconstruction.png"
+    plt.savefig(save_file, dpi = 500)
+    plt.close()

@@ -37,7 +37,7 @@ if __name__ == "__main__":
     # Hyperparameters
     n_filter_1 = [8,  8,  8 ]
     n_filter_2 = [16, 16, 16]
-    bottleneck = [32, 32, 32]
+    bottleneck = [16, 16, 16]
     len_output = [1,  2,  3 ]
     objct_func = [1,  2,  3 ]
     alpha_zero = 1.0e-3;
