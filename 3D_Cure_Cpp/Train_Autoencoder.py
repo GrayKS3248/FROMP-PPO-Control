@@ -35,11 +35,11 @@ if __name__ == "__main__":
     path = 'training_data/DCPD_GC2'
     
     # Hyperparameters
-    n_filter_1 = [8,  8,  8 ]
-    n_filter_2 = [16, 16, 16]
-    bottleneck = [16, 16, 16]
-    len_output = [1,  2,  3 ]
-    objct_func = [1,  2,  3 ]
+    n_filter_1 = [8]
+    n_filter_2 = [16]
+    bottleneck = [32]
+    len_output = [2]
+    objct_func = [2]
     alpha_zero = 1.0e-3;
     alpha_last = 1.0e-5;
     
