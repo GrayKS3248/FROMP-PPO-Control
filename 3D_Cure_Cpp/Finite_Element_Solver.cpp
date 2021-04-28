@@ -187,15 +187,19 @@ Finite_Element_Solver::Finite_Element_Solver(int encoded_size_in)
 	// Input magnitude parameters
 	double sigma = 0.329505114491 * radius_of_input;
 	exp_const = -1.0 / (2.0 * sigma * sigma);
-	double delta_x = (1.0 / 999.0) * radius_of_input;
+	
+	// Calculate peak irradiance (W/m^2) given total laser power (W)
 	double x = 0.0;
-	max_input_mag = 1.01;
-	for (int i = 1; i < 999; i++)
+	double delta_x = 0.001*radius_of_input;
+	double integral = 0.0;
+	while(x <= radius_of_input)
 	{
-		x = ((double)i / 999.0) * radius_of_input;
-		max_input_mag += 2.0 * pow(0.01, ((x * x) / (radius_of_input * radius_of_input)));
+		integral += pow(0.01, (x*x)/(radius_of_input*radius_of_input)) * delta_x;
+		x += delta_x;
 	}
-	max_input_mag = laser_power / (4.0 * (max_input_mag * delta_x / 2.0) * (max_input_mag * delta_x / 2.0));
+	max_input_mag = laser_power / (4.0 * integral * integral);
+	
+	// Randomly select laser power percentage
 	input_percent = (double)rand()/(double)RAND_MAX;
 
 	// Input location parameters

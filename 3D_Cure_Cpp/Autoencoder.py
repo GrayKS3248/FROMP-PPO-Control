@@ -6,13 +6,11 @@ Created on Tue Mar  9 16:11:39 2021
 """
 
 import torch
-import torch.nn as nn
-import Autoencoder_NN as cnn
+from CNN import Model as cnn
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 import os
-from scipy.signal import savgol_filter
 
 class Autoencoder:
     
@@ -20,13 +18,12 @@ class Autoencoder:
     # OBJECTIVE FNC 2: Target temperature field, and blurred front location
     # OBJECTIVE FNC 3: Target temperature field, blurred front location, and cure field
     # OBJECTIVE FNC 5: Target quantized temperature field
-    def __init__(self, alpha, decay, x_dim_input, y_dim_input, num_filter_1, num_filter_2, bottleneck, buffer_size, num_output_layers, objective_fnc):
+    def __init__(self, alpha, decay, x_dim_input, y_dim_input, bottleneck, buffer_size, num_output_layers, objective_fnc, kernal_size):
         
         # Initialize model
-        self.model = cnn.NN(x_dim_input, y_dim_input, num_filter_1, num_filter_2, bottleneck, num_output_layers);
+        self.model = cnn(x_dim_input, y_dim_input, bottleneck, num_output_layers, kernal_size)
             
         # Initialize loss criterion, and optimizer
-        self.criterion = nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=alpha)
         self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer, gamma=decay)
     
@@ -43,6 +40,7 @@ class Autoencoder:
         self.y_dim = y_dim_input
         self.bottleneck = bottleneck
         self.num_output_layers = num_output_layers
+        self.kernal_size = kernal_size
         if num_output_layers > 8 or num_output_layers < 0:
             raise RuntimeError('Number of output layers must be greater than 0 and less than 9.')
         
@@ -72,16 +70,30 @@ class Autoencoder:
         else:
             with open(path+"/output", 'rb') as file:
                 loaded_data = pickle.load(file)
-            loaded_model = loaded_data['autoencoder']
-            self.model.load_state_dict(loaded_model.state_dict())
+
+            # Load hyperparameters
             self.x_dim = loaded_data['x_dim']
             self.y_dim = loaded_data['y_dim']
             self.bottleneck = loaded_data['bottleneck']
             self.num_output_layers = loaded_data['num_output_layers']
+            self.kernal_size = loaded_data['kernal_size']
             self.objective_fnc = loaded_data['objective_fnc']
             self.buffer_size = loaded_data['buffer_size']
             self.save_temp_buffer = loaded_data['temp_array']
             self.save_cure_buffer = loaded_data['cure_array']
+            
+            # Load parameters
+            self.model = cnn.NN(self.x_dim, self.y_dim, self.bottleneck, self.num_output_layers, self.kernal_size)
+            loaded_model = loaded_data['autoencoder']
+            self.model.load_state_dict(loaded_model.state_dict())
+            
+            # Load model onto GPU
+            self.device = self.get_device()
+            self.model.to(self.device)
+            print("\nDevice(")
+            print("  " + self.device)
+            print(")\n")
+            print(self.model) 
             
         return loaded_data['training_curve']
         
@@ -112,6 +124,30 @@ class Autoencoder:
         
         # Return the encoded frame of the proper data type
         return rebuilt_data
+    
+    # Forward propagates the temperature through the autoencoder and collects the feature maps at each layer
+    # @param the temperature field that informs data reconstruction
+    # @return the reconstructed data as np array
+    # @return The first feature map as np array
+    # @return The second feature map as np array
+    # @return The third feature map as np array
+    def forward_features(self, temp):
+        
+        # Convert frame to proper data type
+        with torch.no_grad():
+            temp = torch.tensor(temp)
+            temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
+            temp = temp.to(self.device)
+            rebuilt_data, features_1, features_2, features_3 = self.model.forward_features(temp)
+            
+            # convert encoded frame to proper data type
+            rebuilt_data = rebuilt_data.to('cpu').squeeze().numpy()
+            features_1 = features_1.to('cpu').squeeze().numpy()
+            features_2 = features_2.to('cpu').squeeze().numpy()
+            features_3 = features_3.to('cpu').squeeze().numpy()
+        
+        # Return the encoded frame of the proper data type
+        return rebuilt_data, features_1, features_2, features_3
        
     # Encodes a given temperature field
     # @param the temperature field to encode
@@ -141,13 +177,10 @@ class Autoencoder:
     # Calculates the blurred front location
     # @param cure field used to determine front location
     # @return blurred front location 
-    def get_front_location(self, cure):
-        
-        # Determine blurring factor
-        blur_half_range = 0.04
+    def get_front_location(self, cure, blur_half_range=0.04):
         
         # Solve for cure front
-        front_location = np.concatenate(((abs(np.diff(cure,axis=0))) > 0.25, np.zeros((1,40))))
+        front_location = np.concatenate(((abs(np.diff(cure,axis=0))) > 0.25, np.zeros((1,self.y_dim))))
         distance_indices = np.arange(len(cure))
                 
         # Apply blur
@@ -194,13 +227,16 @@ class Autoencoder:
     # @param temperature field used to get target
     # @param cure field used to get target
     # @return target given input temperature, cure, and objective function ID
+    # @return weight tensor
     def get_target(self, temp, cure):
         
         # Convert temperature frame to proper data form
         with torch.no_grad():
             temp = torch.tensor(temp)
             temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
-          
+            weights = self.get_front_location(cure,blur_half_range=0.10)+0.25
+            weights = weights / torch.mean(weights)
+            
             if self.objective_fnc == 1:
                 target = temp
             
@@ -235,35 +271,35 @@ class Autoencoder:
             
         target = target.to(self.device)
         
-        return target
+        return target, weights.squeeze().to(self.device)
     
     # Calcualtes the loss for autoencoder learning
     # @param Autoencoder rebuilt differentiable data
     # @param Target of objective function
     # @return Differentialable training loss
-    def get_loss(self, rebuilt_data, target):
+    def get_loss(self, rebuilt_data, target, weights):
         
         # Get rebuilt loss
         if self.objective_fnc == 8:
-            curr_loss = self.criterion(rebuilt_data, target)
+            curr_loss = torch.mean(weights * (rebuilt_data - target)**2.0)
         
         elif self.objective_fnc == 7:
-            curr_loss = self.criterion(rebuilt_data[0,0:7,:,:], target[0,0:7,:,:])
+            curr_loss = torch.mean(weights * (rebuilt_data[0,0:7,:,:] - target[0,0:7,:,:])**2.0)
             
         elif self.objective_fnc == 6:
-            curr_loss = self.criterion(rebuilt_data[0,0:6,:,:], target[0,0:6,:,:])
+            curr_loss = torch.mean(weights * (rebuilt_data[0,0:6,:,:] - target[0,0:6,:,:])**2.0)
         
         elif self.objective_fnc == 5:
-            curr_loss = self.criterion(rebuilt_data[0,0:5,:,:], target[0,0:5,:,:])
+            curr_loss = torch.mean(weights * (rebuilt_data[0,0:5,:,:] - target[0,0:5,:,:])**2.0)
             
         elif self.objective_fnc == 3:
-            curr_loss = self.criterion(rebuilt_data[0,0:3,:,:], target[0,0:3,:,:])
+            curr_loss = torch.mean(weights * (rebuilt_data[0,0:3,:,:] - target[0,0:3,:,:])**2.0)
             
         elif self.objective_fnc == 2:
-            curr_loss = self.criterion(rebuilt_data[0,0:2,:,:], target[0,0:2,:,:])
+            curr_loss = torch.mean(weights * (rebuilt_data[0,0:2,:,:] - target[0,0:2,:,:])**2.0)
             
         elif self.objective_fnc == 1:
-            curr_loss = self.criterion(rebuilt_data[0,0,:,:], target[0,0,:,:])
+            curr_loss = torch.mean(weights * (rebuilt_data[0,0,:,:] - target[0,0,:,:])**2.0)
             
         return curr_loss
         
@@ -271,7 +307,7 @@ class Autoencoder:
     # @param temperature field to be added to training buffer
     # @param cure field to be added to training buffer
     # @return average epoch training loss or -1 if no optimization epoch occured
-    def learn(self, temp, cure):
+    def learn(self, temp, cure, weighted=False):
         
         # Store the current temperature and cure frames in the learning buffers
         self.temp_buffer.append(np.array(temp))
@@ -290,7 +326,7 @@ class Autoencoder:
                 curr_cure = self.cure_buffer[rand_indcies[i]]
                 
                 # Calculate target
-                target = self.get_target(curr_temp, curr_cure)
+                target, weights = self.get_target(curr_temp, curr_cure)
                         
                 # Format and forward propagate temperature data
                 curr_temp = torch.tensor(curr_temp)
@@ -299,7 +335,10 @@ class Autoencoder:
                 rebuilt_data = self.model.forward(curr_temp)
         
                 # Get the loss
-                curr_loss = self.get_loss(rebuilt_data, target)
+                if weighted:
+                    curr_loss = self.get_loss(rebuilt_data, target, weights)
+                else:
+                    curr_loss = self.get_loss(rebuilt_data, target, 1.0)
         
                 # Take optimization step and learning rate step
                 self.optimizer.zero_grad()
@@ -331,7 +370,7 @@ class Autoencoder:
             for i in range(len(temp_array)):
                 
                 # Format temperature field data
-                temp = torch.tensor(temp_array[i])
+                temp = torch.tensor(temp_array[i,:,:])
                 temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
             
                 # Forward propogate the frame through the autoencoder
@@ -401,7 +440,7 @@ class Autoencoder:
     # @param training loss curve
     # @return path at which data has been saved
     def save(self, training_curve):
-        print("Saving autoencoder results...")
+        print("\nSaving autoencoder results...")
 
         # Store data to dictionary
         data = {
@@ -410,6 +449,7 @@ class Autoencoder:
             'bottleneck' : self.bottleneck, 
             'num_output_layers' : self.num_output_layers, 
             'objective_fnc' : self.objective_fnc, 
+            'kernal_size' : self.kernal_size,
             'buffer_size' : self.buffer_size, 
             'training_curve' : np.array(training_curve),
             'temp_array' : self.save_temp_buffer,
@@ -1038,152 +1078,220 @@ class Autoencoder:
                 
             elif len(rebuilt_data[0,:,0,0]) == 8:
                 self.draw_obj_8(x_grid, y_grid, temp, front, cure, render_data, path, i)
+               
+    # Plots each layer's feature maps at a given input temperautre
+    # @param temperature field over which to generate feature maps
+    # @param path to which feature maps are saved
+    def plot_feature_maps(self, temp, path):
+        # Generate feature maps
+        _, features_1, features_2, features_3 = self.forward_features(temp)
         
-if __name__ == '__main__':
-    
-    ae1 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 16, 100, 1, 1)
-    curve_1 = ae1.load('validation/DCPD_GC2_Autoencoder/0%_Cropped/f8-16_bn16_obj1')
-    curve_1 = savgol_filter(curve_1, 25, 3)
-    ae2 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 16, 100, 2, 2)
-    curve_2 = ae2.load('validation/DCPD_GC2_Autoencoder/0%_Cropped/f8-16_bn16_obj2')
-    curve_2 = savgol_filter(curve_2, 25, 3)
-    ae3 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 16, 100, 3, 3)
-    curve_3 = ae3.load('validation/DCPD_GC2_Autoencoder/0%_Cropped/f8-16_bn16_obj3')
-    curve_3 = savgol_filter(curve_3, 25, 3)
-    
-    ae4 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 32, 100, 1, 1)
-    curve_4 = ae4.load('validation/DCPD_GC2_Autoencoder/0%_Cropped/f8-16_bn32_obj1')
-    curve_4 = savgol_filter(curve_4, 25, 3)
-    ae5 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 32, 100, 2, 2)
-    curve_5 = ae5.load('validation/DCPD_GC2_Autoencoder/0%_Cropped/f8-16_bn32_obj2')
-    curve_5 = savgol_filter(curve_5, 25, 3)
-    ae6 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 32, 100, 3, 3)
-    curve_6 = ae6.load('validation/DCPD_GC2_Autoencoder/0%_Cropped/f8-16_bn32_obj3')
-    curve_6 = savgol_filter(curve_6, 25, 3)
-    
-    ae7 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 100, 1, 1)
-    curve_7 = ae7.load('validation/DCPD_GC2_Autoencoder/0%_Cropped/f8-16_bn64_obj1')
-    curve_7 = savgol_filter(curve_7, 25, 3)
-    ae8 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 100, 2, 2)
-    curve_8 = ae8.load('validation/DCPD_GC2_Autoencoder/0%_Cropped/f8-16_bn64_obj2')
-    curve_8 = savgol_filter(curve_8, 25, 3)
-    ae9 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 64, 100, 3, 3)
-    curve_9 = ae9.load('validation/DCPD_GC2_Autoencoder/0%_Cropped/f8-16_bn64_obj3')
-    curve_9 = savgol_filter(curve_9, 25, 3)
-    
-    ae10 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 128, 100, 1, 1)
-    curve_10 = ae10.load('validation/DCPD_GC2_Autoencoder/0%_Cropped/f8-16_bn128_obj1')
-    curve_10 = savgol_filter(curve_10, 25, 3)
-    ae11 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 128, 100, 2, 2)
-    curve_11 = ae11.load('validation/DCPD_GC2_Autoencoder/0%_Cropped/f8-16_bn128_obj2')
-    curve_11 = savgol_filter(curve_11, 25, 3)
-    ae12 = Autoencoder(1.0e-3, 1.0, 360, 40, 8, 16, 128, 100, 3, 3)
-    curve_12 = ae12.load('validation/DCPD_GC2_Autoencoder/0%_Cropped/f8-16_bn128_obj3')
-    curve_12 = savgol_filter(curve_12, 25, 3)
-    
-    plt.close()
-    plt.clf()
-    plt.title("Autoencoder Learning Curve (Objective 1)",fontsize='xx-large')
-    plt.xlabel("Optimization Epoch",fontsize='large')
-    plt.ylabel("RMS Reconstruction Error",fontsize='large')
-    plt.plot(np.arange(len(curve_1)),curve_1,lw=2.5,c='r',label='bn=16')
-    plt.plot(np.arange(len(curve_4)),curve_4,lw=2.5,c='g',label='bn=32')
-    plt.plot(np.arange(len(curve_7)),curve_7,lw=2.5,c='b',label='bn=64')
-    plt.plot(np.arange(len(curve_10)),curve_10,lw=2.5,c='m',label='bn=128')
-    plt.yscale("log")
-    plt.xticks(fontsize='large')
-    plt.yticks(fontsize='large')
-    plt.legend(fontsize='large', loc='upper right')
-    plt.gcf().set_size_inches(8.5, 5.5)
-    save_file = "results/obj-1_learning.png"
-    plt.savefig(save_file, dpi = 500)
-    plt.close()
+        # Create grid spaces over which to render
+        temp_x_grid, temp_y_grid = np.meshgrid(np.linspace(0,1,len(temp)), np.linspace(0,1,len(temp[0])))
+        features_1_x_grid, features_1_y_grid = np.meshgrid(np.linspace(0,1,len(features_1[0,:,0])), np.linspace(0,1,len(features_1[0,0,:])))
+        features_2_x_grid, features_2_y_grid = np.meshgrid(np.linspace(0,1,len(features_2[0,:,0])), np.linspace(0,1,len(features_2[0,0,:])))
+        features_3_x_grid, features_3_y_grid = np.meshgrid(np.linspace(0,1,len(features_3[0,:,0])), np.linspace(0,1,len(features_3[0,0,:])))
         
-    plt.close()
-    plt.clf()
-    plt.title("Autoencoder Learning Curve (Objective 2)",fontsize='xx-large')
-    plt.xlabel("Optimization Epoch",fontsize='large')
-    plt.ylabel("RMS Reconstruction Error",fontsize='large')
-    plt.plot(np.arange(len(curve_2)),curve_2,lw=2.5,c='r',label='bn=16')
-    plt.plot(np.arange(len(curve_5)),curve_5,lw=2.5,c='g',label='bn=32')
-    plt.plot(np.arange(len(curve_8)),curve_8,lw=2.5,c='b',label='bn=64')
-    plt.plot(np.arange(len(curve_11)),curve_11,lw=2.5,c='m',label='bn=128')
-    plt.yscale("log")
-    plt.xticks(fontsize='large')
-    plt.yticks(fontsize='large')
-    plt.legend(fontsize='large', loc='upper right')
-    plt.gcf().set_size_inches(8.5, 5.5)
-    save_file = "results/obj-2_learning.png"
-    plt.savefig(save_file, dpi = 500)
-    plt.close()
-    
-    plt.close()
-    plt.clf()
-    plt.title("Autoencoder Learning Curve (Objective 3)",fontsize='xx-large')
-    plt.xlabel("Optimization Epoch",fontsize='large')
-    plt.ylabel("RMS Reconstruction Error",fontsize='large')
-    plt.plot(np.arange(len(curve_3)),curve_3,lw=2.5,c='r',label='bn=16')
-    plt.plot(np.arange(len(curve_6)),curve_6,lw=2.5,c='g',label='bn=32')
-    plt.plot(np.arange(len(curve_9)),curve_9,lw=2.5,c='b',label='bn=64')
-    plt.plot(np.arange(len(curve_12)),curve_12,lw=2.5,c='m',label='bn=128')
-    plt.yscale("log")
-    plt.xticks(fontsize='large')
-    plt.yticks(fontsize='large')
-    plt.legend(fontsize='large', loc='upper right')
-    plt.gcf().set_size_inches(8.5, 5.5)
-    save_file = "results/obj-3_learning.png"
-    plt.savefig(save_file, dpi = 500)
-    plt.close()
-    
-    
-    num = 5
-    temp_error_1 = 0.0
-    temp_error_2 = 0.0
-    temp_error_3 = 0.0
-    temp_error_4 = 0.0
-    temp_error_5 = 0.0
-    temp_error_6 = 0.0
-    temp_error_7 = 0.0
-    temp_error_8 = 0.0
-    temp_error_9 = 0.0
-    temp_error_10 = 0.0
-    temp_error_11 = 0.0
-    temp_error_12 = 0.0
-    for i in range(num):
-        render_temp = np.genfromtxt('training_data/DCPD_GC2/temp_data_'+str(i)+'.csv', delimiter=',')
-        render_temp = render_temp.reshape(len(render_temp)//ae1.x_dim, ae1.x_dim, ae1.y_dim)
-        temp_error_1 = temp_error_1 + ae1.get_temp_error(render_temp)
-        temp_error_2 = temp_error_2 + ae2.get_temp_error(render_temp)
-        temp_error_3 = temp_error_3 + ae3.get_temp_error(render_temp)
-        temp_error_4 = temp_error_4 + ae4.get_temp_error(render_temp)
-        temp_error_5 = temp_error_5 + ae5.get_temp_error(render_temp)
-        temp_error_6 = temp_error_6 + ae6.get_temp_error(render_temp)
-        temp_error_7 = temp_error_7 + ae7.get_temp_error(render_temp)
-        temp_error_8 = temp_error_8 + ae8.get_temp_error(render_temp)
-        temp_error_9 = temp_error_9 + ae9.get_temp_error(render_temp)
-        temp_error_10 = temp_error_10 + ae10.get_temp_error(render_temp)
-        temp_error_11 = temp_error_11 + ae11.get_temp_error(render_temp)
-        temp_error_12 = temp_error_12 + ae12.get_temp_error(render_temp)
-    
-    error_set_1 = [temp_error_1/num, temp_error_2/num, temp_error_3/num]
-    error_set_2 = [temp_error_4/num, temp_error_5/num, temp_error_6/num]
-    error_set_3 = [temp_error_7/num, temp_error_8/num, temp_error_9/num]
-    error_set_4 = [temp_error_10/num, temp_error_11/num, temp_error_12/num]
-    fig,ax = plt.subplots()
-    index = np.arange(3)
-    bar_width=0.20
-    opacity=0.60
-    rects_1=plt.bar(index + 0.0*bar_width, error_set_1, bar_width, alpha=opacity, color='r', label='bn=16', edgecolor='k')
-    rects_2=plt.bar(index + 1.0*bar_width, error_set_2, bar_width, alpha=opacity, color='g', label='bn=32', edgecolor='k')
-    rects_3=plt.bar(index + 2.0*bar_width, error_set_3, bar_width, alpha=opacity, color='b', label='bn=64', edgecolor='k')
-    rects_4=plt.bar(index + 3.0*bar_width, error_set_4, bar_width, alpha=opacity, color='m', label='bn=128', edgecolor='k')
-    plt.xticks(index+1.5*bar_width, ('Temp','Temp, Front','Temp, Front, Cure'), fontsize='large')
-    plt.yticks(fontsize='large')
-    plt.xlabel('Reconstruction Target(s)',fontsize='large')
-    plt.ylabel('RMS Error [%]',fontsize='large')
-    plt.legend(fontsize='large',loc='upper left')
-    plt.title("Temperature Field Reconstruction",fontsize='xx-large')
-    plt.gcf().set_size_inches(8.5, 5.5)
-    save_file = "results/temp_reconstruction.png"
-    plt.savefig(save_file, dpi = 500)
-    plt.close()
+        # Make input layer map
+        plt.cla()
+        plt.clf()
+        fig, ax0 = plt.subplots(1, 1, constrained_layout=True)
+        fig.set_size_inches(8,2.6667)
+        
+        # Plot input
+        ax0.pcolormesh(temp_x_grid, temp_y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.axes.xaxis.set_visible(False)
+        ax0.axes.yaxis.set_visible(False)
+        ax0.set_aspect(0.25, adjustable='box')
+        
+        # Set title and save
+        plt.suptitle('Input Image',fontsize='xx-large')
+        plt.savefig(path+'/input_image.png', dpi=100)
+        plt.close()
+        
+        # Make first features map figure
+        plt.cla()
+        plt.clf()
+        fig, (ax0, ax1) = plt.subplots(1, 2, constrained_layout=True)
+        fig.set_size_inches(16,2.6667)
+        
+        # Plot fm1
+        ax0.pcolormesh(features_1_x_grid, features_1_y_grid, np.transpose(features_1[0,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.axes.xaxis.set_visible(False)
+        ax0.axes.yaxis.set_visible(False)
+        ax0.set_aspect(0.25, adjustable='box')
+        ax0.set_title('Feature Map 1',fontsize='x-large')
+        
+        # Plot fm2
+        ax1.pcolormesh(features_1_x_grid, features_1_y_grid, np.transpose(features_1[1,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax1.axes.xaxis.set_visible(False)
+        ax1.axes.yaxis.set_visible(False)
+        ax1.set_aspect(0.25, adjustable='box')
+        ax1.set_title('Feature Map 2',fontsize='x-large')
+        
+        # Set title and save
+        plt.suptitle('First Convolutional Layer',fontsize='xx-large')
+        plt.savefig(path+'/layer_1_feature_maps.png', dpi=100)
+        plt.close()
+        
+        # Make second features map figure
+        plt.cla()
+        plt.clf()
+        fig, ((ax0, ax1), (ax2, ax3)) = plt.subplots(2, 2, constrained_layout=True)
+        fig.set_size_inches(16,5.3333)
+        
+        # Plot fm1
+        ax0.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[0,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.axes.xaxis.set_visible(False)
+        ax0.axes.yaxis.set_visible(False)
+        ax0.set_aspect(0.25, adjustable='box')
+        ax0.set_title('Feature Map 1',fontsize='x-large')
+        
+        # Plot fm2
+        ax1.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[1,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax1.axes.xaxis.set_visible(False)
+        ax1.axes.yaxis.set_visible(False)
+        ax1.set_aspect(0.25, adjustable='box')
+        ax1.set_title('Feature Map 2',fontsize='x-large')
+        
+        # Plot fm3
+        ax2.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[2,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax2.axes.xaxis.set_visible(False)
+        ax2.axes.yaxis.set_visible(False)
+        ax2.set_aspect(0.25, adjustable='box')
+        ax2.set_title('Feature Map 3',fontsize='x-large')
+        
+        # Plot fm4
+        ax3.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[3,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax3.axes.xaxis.set_visible(False)
+        ax3.axes.yaxis.set_visible(False)
+        ax3.set_aspect(0.25, adjustable='box')
+        ax3.set_title('Feature Map 4',fontsize='x-large')
+        
+        # Set title and save
+        plt.suptitle('Second Convolutional Layer',fontsize='xx-large')
+        plt.savefig(path+'/layer_2_feature_maps.png', dpi=100)
+        plt.close()
+        
+        # Make third features map figure
+        plt.cla()
+        plt.clf()
+        fig, ((ax0, ax1), (ax2, ax3), (ax4, ax5), (ax6, ax7), (ax8, ax9), (ax10, ax11), (ax12, ax13), (ax14, ax15)) = plt.subplots(8, 2, constrained_layout=True)
+        fig.set_size_inches(16,21.3333)
+        
+        # Plot fm1
+        ax0.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[0,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.axes.xaxis.set_visible(False)
+        ax0.axes.yaxis.set_visible(False)
+        ax0.set_aspect(0.25, adjustable='box')
+        ax0.set_title('Feature Map 1',fontsize='x-large')
+        
+        # Plot fm2
+        ax1.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[1,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax1.axes.xaxis.set_visible(False)
+        ax1.axes.yaxis.set_visible(False)
+        ax1.set_aspect(0.25, adjustable='box')
+        ax1.set_title('Feature Map 2',fontsize='x-large')
+        
+        # Plot fm3
+        ax2.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[2,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax2.axes.xaxis.set_visible(False)
+        ax2.axes.yaxis.set_visible(False)
+        ax2.set_aspect(0.25, adjustable='box')
+        ax2.set_title('Feature Map 3',fontsize='x-large')
+        
+        # Plot fm4
+        ax3.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[3,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax3.axes.xaxis.set_visible(False)
+        ax3.axes.yaxis.set_visible(False)
+        ax3.set_aspect(0.25, adjustable='box')
+        ax3.set_title('Feature Map 4',fontsize='x-large')
+        
+        # Plot fm5
+        ax4.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[4,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax4.axes.xaxis.set_visible(False)
+        ax4.axes.yaxis.set_visible(False)
+        ax4.set_aspect(0.25, adjustable='box')
+        ax4.set_title('Feature Map 5',fontsize='x-large')
+        
+        # Plot fm6
+        ax5.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[5,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax5.axes.xaxis.set_visible(False)
+        ax5.axes.yaxis.set_visible(False)
+        ax5.set_aspect(0.25, adjustable='box')
+        ax5.set_title('Feature Map 6',fontsize='x-large')
+        
+        # Plot fm7
+        ax6.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[6,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax6.axes.xaxis.set_visible(False)
+        ax6.axes.yaxis.set_visible(False)
+        ax6.set_aspect(0.25, adjustable='box')
+        ax6.set_title('Feature Map 7',fontsize='x-large')
+        
+        # Plot fm8
+        ax7.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[7,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax7.axes.xaxis.set_visible(False)
+        ax7.axes.yaxis.set_visible(False)
+        ax7.set_aspect(0.25, adjustable='box')
+        ax7.set_title('Feature Map 8',fontsize='x-large')
+        
+        # Plot fm9
+        ax8.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[8,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax8.axes.xaxis.set_visible(False)
+        ax8.axes.yaxis.set_visible(False)
+        ax8.set_aspect(0.25, adjustable='box')
+        ax8.set_title('Feature Map 9',fontsize='x-large')
+        
+        # Plot fm10
+        ax9.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[9,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax9.axes.xaxis.set_visible(False)
+        ax9.axes.yaxis.set_visible(False)
+        ax9.set_aspect(0.25, adjustable='box')
+        ax9.set_title('Feature Map 10',fontsize='x-large')
+        
+        # Plot fm11
+        ax10.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[10,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax10.axes.xaxis.set_visible(False)
+        ax10.axes.yaxis.set_visible(False)
+        ax10.set_aspect(0.25, adjustable='box')
+        ax10.set_title('Feature Map 11',fontsize='x-large')
+        
+        # Plot fm12
+        ax11.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[11,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax11.axes.xaxis.set_visible(False)
+        ax11.axes.yaxis.set_visible(False)
+        ax11.set_aspect(0.25, adjustable='box')
+        ax11.set_title('Feature Map 12',fontsize='x-large')
+        
+        # Plot fm13
+        ax12.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[12,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax12.axes.xaxis.set_visible(False)
+        ax12.axes.yaxis.set_visible(False)
+        ax12.set_aspect(0.25, adjustable='box')
+        ax12.set_title('Feature Map 13',fontsize='x-large')
+        
+        # Plot fm14
+        ax13.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[13,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax13.axes.xaxis.set_visible(False)
+        ax13.axes.yaxis.set_visible(False)
+        ax13.set_aspect(0.25, adjustable='box')
+        ax13.set_title('Feature Map 14',fontsize='x-large')
+        
+        # Plot fm15
+        ax14.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[14,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax14.axes.xaxis.set_visible(False)
+        ax14.axes.yaxis.set_visible(False)
+        ax14.set_aspect(0.25, adjustable='box')
+        ax14.set_title('Feature Map 15',fontsize='x-large')
+        
+        # Plot fm16
+        ax15.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[15,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax15.axes.xaxis.set_visible(False)
+        ax15.axes.yaxis.set_visible(False)
+        ax15.set_aspect(0.25, adjustable='box')
+        ax15.set_title('Feature Map 16',fontsize='x-large')
+        
+        # Set title and save
+        plt.suptitle('Third Convolutional Layer',fontsize='xx-large')
+        plt.savefig(path+'/layer_3_feature_maps.png', dpi=100)
+        plt.close()

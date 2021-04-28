@@ -13,26 +13,26 @@ if __name__ == "__main__":
     
     # Define load paths
     paths = [
-        'results/1-2-4-16_3-3-3_32_W_obj1', 
-        'results/1-2-4-16_3-3-3_32_NW_obj1', 
-        'results/1-2-4-16_3-3-3_64_W_obj1', 
-        'results/1-2-4-16_3-3-3_64_NW_obj1',
-        'results/1-2-4-16_3-3-3_32_W_obj3', 
-        'results/1-2-4-16_3-3-3_32_NW_obj3',
-        'results/1-2-4-16_3-3-3_64_W_obj3', 
-        'results/1-2-4-16_3-3-3_64_NW_obj3', 
-        'results/1-2-4-16_5-5-5_32_W_obj1',
-        'results/1-2-4-16_5-5-5_32_NW_obj1',
-        'results/1-2-4-16_5-5-5_64_W_obj1',
-        'results/1-2-4-16_5-5-5_64_NW_obj1', 
-        'results/1-2-4-16_5-5-5_32_W_obj3', 
-        'results/1-2-4-16_5-5-5_32_NW_obj3',
-        'results/1-2-4-16_5-5-5_64_W_obj3', 
-        'results/1-2-4-16_5-5-5_64_NW_obj3'
+        'results/ks3_obj1_bn32_W', 
+        'results/ks3_obj1_bn32_U', 
+        'results/ks3_obj1_bn64_W', 
+        'results/ks3_obj1_bn64_U',
+        'results/ks3_obj3_bn32_W', 
+        'results/ks3_obj3_bn32_U',
+        'results/ks3_obj3_bn64_W', 
+        'results/ks3_obj3_bn64_U', 
+        'results/ks5_obj1_bn32_W',
+        'results/ks5_obj1_bn32_U',
+        'results/ks5_obj1_bn64_W',
+        'results/ks5_obj1_bn64_U', 
+        'results/ks5_obj3_bn32_W', 
+        'results/ks5_obj3_bn32_U',
+        'results/ks5_obj3_bn64_W', 
+        'results/ks5_obj3_bn64_U'
         ]
     
     # Define labels associated with each loaded autoencoder
-    label_description = '(Kernal-Size Objective-Fnc Bottleneck Weighted/Unweighted)'
+    label_description = 'Kernal Size___Objective___Bottleneck___Weighted/Unweighted'
     labels = [
         '3_1_32_W', 
         '3_1_32_U',
@@ -93,6 +93,10 @@ if __name__ == "__main__":
         objectives.append(autoencoders[i].objective_fnc)
         kernal_sizes.append(autoencoders[i].kernal_size)
         bottlenecks.append(autoencoders[i].bottleneck)
+    
+    # Set font to monospace
+    plt.rcParams['font.family'] = 'monospace'
+    plt.rcParams['font.monospace'] = ['DejaVu Sans Mono']
         
     # Plot all training curves
     plt.close()
@@ -114,14 +118,36 @@ if __name__ == "__main__":
     fig,ax = plt.subplots()
     index = np.arange(len(temp_reconstruction_errors))
     bar_width=0.75
-    rects_1=plt.bar(index, temp_reconstruction_errors, bar_width, alpha=0.60, edgecolor='k')
-    plt.xticks(index, tuple(labels), fontsize='large')
-    plt.yticks(fontsize='large')
-    plt.xlabel('Training Parameters: '+label_description,fontsize='large', labelpad=15)
-    plt.ylabel('RMS Error [%]',fontsize='large', labelpad=15)
+    rects_1=plt.barh(index, temp_reconstruction_errors, bar_width, alpha=0.90, edgecolor='k', color='b')
+    for i, v in enumerate(temp_reconstruction_errors):
+        ax.text(v-0.12*(max(temp_reconstruction_errors)-min(temp_reconstruction_errors)), i-0.20, str(round(v,2)),color='w',fontsize='large')
+    plt.yticks(index, tuple(labels), fontsize='large')
+    plt.xticks(fontsize='large')
+    plt.ylabel(label_description,fontsize='large', labelpad=15)
+    plt.xlabel('RMS Error [%]',fontsize='large', labelpad=15)
     plt.title("Temperature Field Reconstruction",fontsize='xx-large')
-    plt.gcf().set_size_inches(8.5, 5.5)
+    plt.gcf().set_size_inches(11., 8.5)
     save_file = "results/temp_reconstruction.png"
+    plt.savefig(save_file, dpi = 500)
+    plt.close()
+    
+    # Plot ordered temperature reconstruction errors
+    sorted_labels = [x for _, x in sorted(zip(temp_reconstruction_errors, labels))]
+    sorted_labels.reverse()
+    sorted_temp_reconstruction_errors = np.flip(np.sort(temp_reconstruction_errors))
+    fig,ax = plt.subplots()
+    index = np.arange(len(sorted_temp_reconstruction_errors))
+    bar_width=0.75
+    rects_1=plt.barh(index, sorted_temp_reconstruction_errors, bar_width, alpha=0.90, edgecolor='k', color='b')
+    for i, v in enumerate(sorted_temp_reconstruction_errors):
+        ax.text(v-0.12*(max(sorted_temp_reconstruction_errors)-min(sorted_temp_reconstruction_errors)), i-0.20, str(round(v,2)),color='w',fontsize='large')
+    plt.yticks(index, tuple(sorted_labels), fontsize='large')
+    plt.xticks(fontsize='large')
+    plt.ylabel(label_description,fontsize='large', labelpad=15)
+    plt.xlabel('RMS Error [%]',fontsize='large', labelpad=15)
+    plt.title("Temperature Field Reconstruction",fontsize='xx-large')
+    plt.gcf().set_size_inches(11., 8.5)
+    save_file = "results/ordered_temp_reconstruction.png"
     plt.savefig(save_file, dpi = 500)
     plt.close()
         

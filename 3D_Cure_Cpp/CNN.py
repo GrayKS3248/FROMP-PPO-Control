@@ -10,12 +10,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from copy import deepcopy
 
-class NN(nn.Module):
+class Model(nn.Module):
     
     def __init__(self, x_dim_input, y_dim_input, bottleneck, num_output_layers, kernal_size):
         
         # Initialize inherited class
-        super(NN, self).__init__()
+        super(Model, self).__init__()
         
         #Initialize class variables
         self.size = 16 * x_dim_input//8 * y_dim_input//8

@@ -155,7 +155,7 @@ const double COD_m_fit = 0.8173;                   // Unitless
 
 // Input distribution parameters
 const double radius_of_input = 0.005;       // Meters
-const double laser_power = 0.75;             // Watts
+const double laser_power = 0.75;            // Watts
 const double input_mag_percent_rate = 0.5;  // Decimal Percent / Second
 const double max_input_loc_rate = 0.025;    // Meters / Second
 

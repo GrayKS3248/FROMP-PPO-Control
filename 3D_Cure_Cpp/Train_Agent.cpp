@@ -213,7 +213,7 @@ void print_params(int encoded_size, int samples_per_trajectory, int samples_per_
 PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectories_per_batch, long minibatch_size, long num_epochs, double gamma, double lamb, double epsilon, double alpha, double decay_rate, bool  load_agent, bool reset_stdev, const char* agent_path)
 {
 	// Define module name
-	PyObject* name = PyUnicode_DecodeFSDefault("PPO_Agent_3_Output");
+	PyObject* name = PyUnicode_DecodeFSDefault("PPO");
 
 	// Initialize module
 	PyObject* module = PyImport_Import(name);
@@ -238,7 +238,7 @@ PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectori
 	Py_DECREF(module);
 
 	// Get the initialization function from the module dictionary
-	PyObject* init = PyDict_GetItemString(dict, "PPO_Agent");
+	PyObject* init = PyDict_GetItemString(dict, "Agent");
 	if (init == NULL || !PyCallable_Check(init))
 	{
 		fprintf(stderr, "\nFailed to find agent __init__ function.\n");
@@ -310,17 +310,16 @@ PyObject* init_agent(long num_states, long steps_per_trajectory, long trajectori
 * @param Learning rate exponential decay rate
 * @param The x dimension of the frames sent to the autoencoder
 * @param The y dimension of the frames sent to the autoencoder
-* @param Number of filters used in first convolutional layer
-* @param Number of filters used in second convolutional layer
 * @param Length of the 1D compressed array in autoencoder
 * @param Number of frames stored before a single stochastic gradient descent step
 * @param Number of layers at decoder output
-* @param Objective fnc index (1, 2, 3, 5)
+* @param Objective fnc index (1, 2, 3, 5, 6, 7, 8)
+* @param Kernal size
 * @param Whether or not to load a previous AE
 * @param Path to previous AE to load
 * @return PyObject pointer pointing at the initialized autoencoder on success, NULL on failure
 */
-PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, long y_dim, long num_filter_1, long num_filter_2, long encoded_size, long samples_per_batch, long num_output_layers, long objective_fnc, bool load, const char* path)
+PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, long y_dim, long encoded_size, long samples_per_batch, long num_output_layers, long objective_fnc, long kernal_size, bool load, const char* path)
 {
 	// Define module name
 	PyObject* name = PyUnicode_DecodeFSDefault("Autoencoder");
@@ -360,17 +359,16 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 	Py_DECREF(dict);
 
 	// Build the initialization arguments
-	PyObject* init_args = PyTuple_New(10);
+	PyObject* init_args = PyTuple_New(9);
 	PyTuple_SetItem(init_args, 0, PyFloat_FromDouble(start_alpha));
 	PyTuple_SetItem(init_args, 1, PyFloat_FromDouble(decay_rate));
 	PyTuple_SetItem(init_args, 2, PyLong_FromLong(x_dim));
 	PyTuple_SetItem(init_args, 3, PyLong_FromLong(y_dim));
-	PyTuple_SetItem(init_args, 4, PyLong_FromLong(num_filter_1));
-	PyTuple_SetItem(init_args, 5, PyLong_FromLong(num_filter_2));
-	PyTuple_SetItem(init_args, 6, PyLong_FromLong(encoded_size));
-	PyTuple_SetItem(init_args, 8, PyLong_FromLong(samples_per_batch));
-	PyTuple_SetItem(init_args, 7, PyLong_FromLong(num_output_layers));
-	PyTuple_SetItem(init_args, 9, PyLong_FromLong(objective_fnc));
+	PyTuple_SetItem(init_args, 4, PyLong_FromLong(encoded_size));
+	PyTuple_SetItem(init_args, 5, PyLong_FromLong(samples_per_batch));
+	PyTuple_SetItem(init_args, 6, PyLong_FromLong(num_output_layers));
+	PyTuple_SetItem(init_args, 7, PyLong_FromLong(objective_fnc));
+	PyTuple_SetItem(init_args, 8, PyLong_FromLong(kernal_size));
 
 	// Initialize autoencoder object
 	PyObject* object = PyObject_CallObject(init, init_args);
@@ -403,150 +401,462 @@ PyObject* init_autoencoder(double start_alpha, double decay_rate, long x_dim, lo
 }
 
 /**
-* Saves MSE loss training data, last frame buffer, and trained autoencoder NN. Frees autoencoder
-* @param Vector containing MSE training data
+* Initializes the save_render_plot class of the PPO module
+* @return pyobject pointer to loaded class on success, NULL on failure
+*/
+PyObject* init_save_render_plot()
+{
+	// Define module name
+	PyObject* name = PyUnicode_DecodeFSDefault("PPO");
+
+	// Initialize module
+	PyObject* module = PyImport_Import(name);
+	if (module == NULL)
+	{
+		fprintf(stderr, "\nFailed to find PPO module:\n");
+		PyErr_Print();
+		Py_DECREF(name);
+		return NULL;
+	}
+	Py_DECREF(name);
+
+	// Load dictionary of module methods and variables
+	PyObject* dict = PyModule_GetDict(module);
+	if (dict == NULL)
+	{
+		fprintf(stderr, "\nFailed to load PPO module dictionary:\n");
+		PyErr_Print();
+		Py_DECREF(module);
+		return NULL;
+	}
+	Py_DECREF(module);
+
+	// Get the initialization function from the module dictionary
+	PyObject* init = PyDict_GetItemString(dict, "Save_Plot_Render");
+	if (init == NULL || !PyCallable_Check(init))
+	{
+		fprintf(stderr, "\nFailed to find Save_Plot_Render __init__ function:\n");
+		PyErr_Print();
+		Py_DECREF(dict);
+		if (init != NULL) { Py_DECREF(init); }
+		return NULL;
+	}
+	Py_DECREF(dict);
+
+	// Initialize autoencoder object
+	PyObject* object = PyObject_CallNoArgs(init);
+	if (object == NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render __init__ function:\n");
+		PyErr_Print();
+		Py_DECREF(init);
+		return NULL;
+	}
+	Py_DECREF(init);
+	
+	// return the class
+	return object;
+}
+
+/**
+* Stores training curves to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param vector containing the actor reward curve
+* @param vector containing the critic learning curve
+* @return 0 on success, 1 on failure
+*/
+int store_training_curves(PyObject* save_render_plot, vector<double> r_per_episode, vector<double> value_error)
+{
+	// Convert inputs
+	PyObject* py_r_per_episode = get_1D_list(r_per_episode);
+	PyObject* py_value_error = get_1D_list(value_error);
+	
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_training_curves", "(O,O)", py_r_per_episode, py_value_error);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_training_curves function:\n");
+		PyErr_Print();
+		Py_DECREF(py_r_per_episode);
+		Py_DECREF(py_value_error);
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	Py_DECREF(py_r_per_episode);
+	Py_DECREF(py_value_error);
+	return 0;
+}
+
+/**
+* Stores stdev history to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param vector containing x rate stdev data
+* @param vector containing y rate stdev data
+* @param vector containing magnitude stdev data
+* @return 0 on success, 1 on failure
+*/
+int store_stdev_history(PyObject* save_render_plot, vector<double> x_rate_stdev, vector<double> y_rate_stdev, vector<double> mag_stdev)
+{
+	// Convert inputs
+	PyObject* py_x_rate_stdev = get_1D_list(x_rate_stdev);
+	PyObject* py_y_rate_stdev = get_1D_list(y_rate_stdev);
+	PyObject* py_mag_stdev = get_1D_list(mag_stdev);
+	
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_training_curves", "(O,O,O)", py_x_rate_stdev, py_y_rate_stdev, py_mag_stdev);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_stdev_history function:\n");
+		PyErr_Print();
+		Py_DECREF(py_x_rate_stdev);
+		Py_DECREF(py_y_rate_stdev);
+		Py_DECREF(py_mag_stdev);
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	Py_DECREF(py_x_rate_stdev);
+	Py_DECREF(py_y_rate_stdev);
+	Py_DECREF(py_mag_stdev);
+	return 0;
+}
+
+/**
+* Stores input history to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param vector containing input x location history
+* @param vector containing input y location history
+* @param vector containing input magnitude percent history
+* @return 0 on success, 1 on failure
+*/
+int store_input_history(PyObject* save_render_plot, vector<double> input_location_x, vector<double> input_location_y, vector<double> input_percent)
+{
+	// Convert inputs
+	PyObject* py_input_location_x = get_1D_list(input_location_x);
+	PyObject* py_input_location_y = get_1D_list(input_location_y);
+	PyObject* py_input_percent = get_1D_list(input_percent);
+	
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_input_history", "(O,O,O)", py_input_location_x, py_input_location_y, py_input_percent);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_input_history function:\n");
+		PyErr_Print();
+		Py_DECREF(py_input_location_x);
+		Py_DECREF(py_input_location_y);
+		Py_DECREF(py_input_percent);
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	Py_DECREF(py_input_location_x);
+	Py_DECREF(py_input_location_y);
+	Py_DECREF(py_input_percent);
+	return 0;
+}
+
+/**
+* Stores field history to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param vector containing temperature field history
+* @param vector containing cure field history
+* @return 0 on success, 1 on failure
+*/
+int store_field_history(PyObject* save_render_plot, vector<vector<vector<double>>> temperature_field, vector<vector<vector<double>>> cure_field)
+{
+	// Convert inputs
+	PyObject* py_temperature_field = get_3D_list(temperature_field);
+	PyObject* py_cure_field = get_3D_list(cure_field);
+	
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_field_history", "(O,O)", py_temperature_field, py_cure_field);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_field_history function:\n");
+		PyErr_Print();
+		Py_DECREF(py_temperature_field);
+		Py_DECREF(py_cure_field);
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	Py_DECREF(py_temperature_field);
+	Py_DECREF(py_cure_field);
+	return 0;
+}
+
+/**
+* Stores front history to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param vector containing front location history
+* @param vector containing front speed field history
+* @param vector containing front temperature field history
+* @return 0 on success, 1 on failure
+*/
+int store_front_history(PyObject* save_render_plot, vector<vector<vector<double>>> front_location, vector<vector<vector<double>>> front_velocity, vector<vector<vector<double>>> front_temperature)
+{
+	// Convert inputs
+	PyObject* py_front_location = get_3D_list(front_location);
+	PyObject* py_front_velocity = get_3D_list(front_velocity);
+	PyObject* py_front_temperature = get_3D_list(front_temperature);
+	
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_front_history", "(O,O,O)", py_front_location, py_front_velocity, py_front_temperature);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_front_history function:\n");
+		PyErr_Print();
+		Py_DECREF(py_front_location);
+		Py_DECREF(py_front_velocity);
+		Py_DECREF(py_front_temperature);
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	Py_DECREF(py_front_location);
+	Py_DECREF(py_front_velocity);
+	Py_DECREF(py_front_temperature);
+	return 0;
+}
+
+/**
+* Stores target, time, and best reward values to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param vector containing target velocity as a function of time
+* @param vector containing time history
+* @param best trajectory's terminal reward
+* @return 0 on success, 1 on failure
+*/
+int store_target_time_and_best(PyObject* save_render_plot, double target, vector<double> time, double best_reward)
+{
+	// Convert inputs
+	PyObject* py_target = get_1D_list(target);
+	PyObject* py_time = get_1D_list(time);
+	
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_target_time_and_best", "(O,O,d)", py_target, py_time, best_reward);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_target_time_and_best function:\n");
+		PyErr_Print();
+		Py_DECREF(py_target);
+		Py_DECREF(py_time);
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	Py_DECREF(py_target);
+	Py_DECREF(py_time);
+	return 0;
+}
+
+/**
+* Stores top layer of mesh to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param x coordinates of top layer of mesh
+* @param y coordinates of top layer of mesh
+* @return 0 on success, 1 on failure
+*/
+int store_top_mesh(PyObject* save_render_plot, vector<vector<double>> mesh_x_z0, vector<vector<double>> mesh_y_z0)
+{
+	// Convert inputs
+	PyObject* py_mesh_x_z0 = get_2D_list(mesh_x_z0);
+	PyObject* py_mesh_y_z0 = get_2D_list(mesh_y_z0);
+	
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_top_mesh", "(O,O)", py_mesh_x_z0, py_mesh_y_z0);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_top_mesh function:\n");
+		PyErr_Print();
+		Py_DECREF(py_mesh_x_z0);
+		Py_DECREF(py_mesh_y_z0);
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	Py_DECREF(py_mesh_x_z0);
+	Py_DECREF(py_mesh_y_z0);
+	return 0;
+}
+
+/**
+* Stores leftmost layer of mesh to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param y coordinates of leftmost layer of mesh
+* @param z coordinates of leftmost layer of mesh
+* @return 0 on success, 1 on failure
+*/
+int store_left_mesh(PyObject* save_render_plot, vector<vector<double>> mesh_y_x0, vector<vector<double>> mesh_z_x0)
+{
+	// Convert inputs
+	PyObject* py_mesh_y_x0 = get_2D_list(mesh_y_x0);
+	PyObject* py_mesh_z_x0 = get_2D_list(mesh_z_x0);
+	
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_left_mesh", "(O,O)", py_mesh_y_x0, py_mesh_z_x0);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_left_mesh function:\n");
+		PyErr_Print();
+		Py_DECREF(py_mesh_y_x0);
+		Py_DECREF(py_mesh_z_x0);
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	Py_DECREF(py_mesh_y_x0);
+	Py_DECREF(py_mesh_z_x0);
+	return 0;
+}
+
+/**
+* Stores input parameters to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param peak irradiance (W/m^2) of input
+* @param exponential constant used to calculate input field density
+* @return 0 on success, 1 on failure
+*/
+int store_input_params(PyObject* save_render_plot, double max_input_mag, double exp_const)
+{
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_input_params", "(d,d)", max_input_mag, exp_const);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_input_params function:\n");
+		PyErr_Print();
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	return 0;
+
+}
+
+/**
+* Stores simulation options  to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param whether front speed was the control target
+* @param Whether to render the results
+* @return 0 on success, 1 on failure
+*/
+int store_options(PyObject* save_render_plot, bool control_speed, bool render)
+{
+	// Convert inputs
+	int int_control_speed = control_speed ? 1 : 0;
+	int int_render = render ? 1 : 0;
+	
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_training_curves", "(i,i)", int_control_speed, int_render);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_training_curves function:\n");
+		PyErr_Print();
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	return 0;
+}
+
+/**
+* Calls the save, plot, and render functions of the save_render_plot class in the PPO module, decrefs agent and save_render_plot
+* @param pointer to the save_render_plot class in the PPO module
+* @param Python pointer pointing at the trained agent
+* @return 0 on success, 1 on failure
+*/
+int save_agent_results(PyObject* save_render_plot, PyObject* agent)
+{
+	// Save
+	PyObject* result = PyObject_CallMethod(save_render_plot, "save", "O", agent);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's save function:\n");
+		PyErr_Print();
+		if (agent != NULL) { Py_DECREF(agent); }
+		if (save_render_plot != NULL) { Py_DECREF(save_render_plot); }
+		return 1;
+	}
+	Py_DECREF(result);
+	
+	// Plot
+	PyObject* result = PyObject_CallMethodNoArgs(save_render_plot, "plot");
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's plot function:\n");
+		PyErr_Print();
+		if (agent != NULL) { Py_DECREF(agent); }
+		if (save_render_plot != NULL) { Py_DECREF(save_render_plot); }
+		return 1;
+	}
+	Py_DECREF(result);
+	
+	// Render
+	PyObject* result = PyObject_CallMethodNoArgs(save_render_plot, "render");
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's render function:\n");
+		PyErr_Print();
+		if (agent != NULL) { Py_DECREF(agent); }
+		if (save_render_plot != NULL) { Py_DECREF(save_render_plot); }
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	Py_DECREF(agent);
+	Py_DECREF(save_render_plot);
+	return 0;
+}
+
+/**
+* Saves autoencoder and training data, plots training data, decrefs autoencoderZ
+* @param Vector containing training data
 * @param Pointer to the trained autoencoder
 * @return 0 on success, 1 on failure
 */
-int save_autoencoder_training_data(vector<double> MSE_loss, PyObject* autoencoder)
+int save_autoencoder_results(vector<double> training_curve, PyObject* autoencoder)
 {
 	// Convert autoencoder training results
-	cout << "\n\nConverting autoencoder results..." << endl;
-	PyObject* py_MSE_loss = get_1D_list(MSE_loss);
+	PyObject* py_training_curve = get_1D_list(training_curve);
 	
-	// Run save and display
-	if (PyObject_CallMethod(autoencoder, "display_and_save", "O", py_MSE_loss) == NULL)
+	// Run save
+	py_save_path = PyObject_CallMethod(autoencoder, "save", "O", py_training_curve)
+	if (py_save_path == NULL)
 	{
-		fprintf(stderr, "\nFailed to call display and save autoencoder function:\n");
+		fprintf(stderr, "\nFailed to call autoencoder save function:\n");
 		PyErr_Print();
 		if (autoencoder != NULL) { Py_DECREF(autoencoder); }
-		if (py_MSE_loss != NULL) { Py_DECREF(py_MSE_loss); }
+		if (py_training_curve != NULL) { Py_DECREF(py_training_curve); }
+		return 1;
+	}
+	
+	// Run draw
+	if(PyObject_CallMethod(autoencoder, "draw_training_curve", "(O,O)", py_training_curve, py_save_path)==NULL)
+	{
+		fprintf(stderr, "\nFailed to call autoencoder draw training curve function:\n");
+		PyErr_Print();
+		if (autoencoder != NULL) { Py_DECREF(autoencoder); }
+		if (py_training_curve != NULL) { Py_DECREF(py_training_curve); }
+		if (py_save_path != NULL) { Py_DECREF(py_save_path); }
 		return 1;
 	}
 	
 	// Free python memory
 	Py_DECREF(autoencoder);
-	Py_DECREF(py_MSE_loss);
-	return 0;
-}
-
-/**
-* Saves agent training data, best controlled trajectory information, and trained agent NN. Frees agent
-* @return 0 on success, 1 on failure
-*/
-int save_agent_training_data(PyObject* trained_agent, vector<double> r_per_episode, vector<double> x_rate_stdev, vector<double> y_rate_stdev, vector<double> mag_stdev, vector<double> value_error,
-vector<double> best_input_location_x, vector<double> best_input_location_y, vector<double> best_input_percent, vector<double> best_sim_time, vector<double> best_target, vector<vector<vector<double>>> best_temperature_field, 
-vector<vector<vector<double>>> best_cure_field, vector<vector<vector<double>>> best_front_temperature, vector<vector<vector<double>>> best_front_location, vector<vector<vector<double>>> best_front_velocity, 
-double best_episode, Finite_Element_Solver* FES, bool render)
-{
-	// Init save and render module
-	cout << "\nConverting agent results..." << endl;
-	PyObject* module_name = PyUnicode_DecodeFSDefault("Save_Render");
-	PyObject* module = PyImport_Import(module_name);
-	if (module == NULL)
-	{
-		fprintf(stderr, "\nFailed to find agent save and render module.\n");
-		PyErr_Print();
-		Py_DECREF(module_name);
-		return 1;
-	}
-	PyObject* fnc = PyObject_GetAttrString(module,"Run");
-	if (fnc == NULL || !PyCallable_Check(fnc))
-	{
-		fprintf(stderr, "\nFailed to find agent save and render function.\n");
-		PyErr_Print();
-		Py_DECREF(module_name);
-		Py_DECREF(module);
-		if (fnc != NULL) { Py_DECREF(fnc); }
-		return 1;
-	}
-	Py_DECREF(module_name);
-	Py_DECREF(module);
-	
-	// Convert results
-	PyObject* py_r_per_episode = get_1D_list(r_per_episode);
-	PyObject* py_x_rate_stdev = get_1D_list(x_rate_stdev);
-	PyObject* py_y_rate_stdev = get_1D_list(y_rate_stdev);
-	PyObject* py_mag_stdev = get_1D_list(mag_stdev);
-	PyObject* py_value_error = get_1D_list(value_error);
-	PyObject* py_best_input_location_x = get_1D_list(best_input_location_x);
-	PyObject* py_best_input_location_y = get_1D_list(best_input_location_y);
-	PyObject* py_best_input_percent = get_1D_list(best_input_percent);
-	PyObject* py_best_sim_time = get_1D_list(best_sim_time);
-	PyObject* py_best_target = get_1D_list(best_target);
-	PyObject* py_best_temperature_field = get_3D_list(best_temperature_field);
-	PyObject* py_best_cure_field = get_3D_list(best_cure_field);
-	PyObject* py_best_front_temperature = get_3D_list(best_front_temperature);
-	PyObject* py_best_front_location = get_3D_list(best_front_location);
-	PyObject* py_best_front_velocity = get_3D_list(best_front_velocity);
-	PyObject* py_best_episode = PyFloat_FromDouble(best_episode);
-	PyObject* py_mesh_x_z0 =  get_2D_list(FES->get_mesh_x_z0());
-	PyObject* py_mesh_y_z0 =  get_2D_list(FES->get_mesh_y_z0());
-	PyObject* py_max_input_mag = PyFloat_FromDouble(FES->get_max_input_mag());
-	PyObject* py_exp_const = PyFloat_FromDouble(FES->get_exp_const());
-	PyObject* py_mesh_y_x0 =  get_2D_list(FES->get_mesh_y_x0());
-	PyObject* py_mesh_z_x0 =  get_2D_list(FES->get_mesh_z_x0());
-	PyObject* py_control_speed;
-	if (FES->get_control_speed())
-	{
-		py_control_speed = PyLong_FromLong(1);
-	}
-	else
-	{
-		py_control_speed = PyLong_FromLong(0);
-	}
-	PyObject* py_render;
-	if (render)
-	{
-		py_render = PyLong_FromLong(1);
-	}
-	else
-	{
-		py_render = PyLong_FromLong(0);
-	}
-	
-	
-	// Create args for run fucntion
-	PyObject* args = PyTuple_New(25);
-	PyTuple_SetItem(args, 0, trained_agent);
-	PyTuple_SetItem(args, 1, py_r_per_episode);
-	PyTuple_SetItem(args, 2, py_x_rate_stdev);
-	PyTuple_SetItem(args, 3, py_y_rate_stdev);
-	PyTuple_SetItem(args, 4, py_mag_stdev);
-	PyTuple_SetItem(args, 5, py_value_error);
-	PyTuple_SetItem(args, 6, py_best_input_location_x);
-	PyTuple_SetItem(args, 7, py_best_input_location_y);
-	PyTuple_SetItem(args, 8, py_best_input_percent);
-	PyTuple_SetItem(args, 9, py_best_sim_time);
-	PyTuple_SetItem(args, 10, py_best_target);
-	PyTuple_SetItem(args, 11, py_best_temperature_field);
-	PyTuple_SetItem(args, 12, py_best_cure_field);
-	PyTuple_SetItem(args, 13, py_best_front_location);
-	PyTuple_SetItem(args, 14, py_best_front_velocity);
-	PyTuple_SetItem(args, 15, py_best_front_temperature);
-	PyTuple_SetItem(args, 16, py_best_episode);
-	PyTuple_SetItem(args, 17, py_mesh_x_z0);
-	PyTuple_SetItem(args, 18, py_mesh_y_z0);
-	PyTuple_SetItem(args, 19, py_max_input_mag);
-	PyTuple_SetItem(args, 20, py_exp_const);
-	PyTuple_SetItem(args, 21, py_mesh_y_x0);
-	PyTuple_SetItem(args, 22, py_mesh_z_x0);
-	PyTuple_SetItem(args, 23, py_control_speed);
-	PyTuple_SetItem(args, 24, py_render);
-	
-	// Run save and render
-	if ((args==NULL) || (PyObject_CallObject(fnc, args) == NULL))
-	{
-		fprintf(stderr, "\nFailed to call save and render function.\n");
-		PyErr_Print();
-		Py_DECREF(fnc);
-		if (args != NULL) { Py_DECREF(args); }
-		return 1;
-	}
-	
-	// Free memory
-	Py_DECREF(fnc);
-	Py_DECREF(args);
+	Py_DECREF(py_training_curve);
+	Py_DECREF(py_save_path);
 	return 0;
 }
 
