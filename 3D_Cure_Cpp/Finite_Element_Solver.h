@@ -10,49 +10,66 @@
 using namespace std;
 
 class Finite_Element_Solver {
+	
 
+//******************************************************************** CONSTRUCTOR ********************************************************************//
 public:
-//******************** CONSTRUCTOR ****************************//
-Finite_Element_Solver(int encoded_size_in);
+Finite_Element_Solver();
 
-//******************** GETTERS ********************************//
+
+//******************************************************************** GETTERS ********************************************************************//
+// Mesh getters
 int get_num_vert_length();
 int get_num_vert_width();
 int get_num_vert_depth();
-double get_sim_duration();
-double get_time_step();
-double get_input_percent();
-double get_loc_rate_scale();
-double get_mag_scale();
-double get_max_input_mag();
-double get_exp_const();
-double get_current_target();
-int get_target_vector_arr_size();
-double get_current_time();
-int get_num_state();
-bool get_control_speed();
-vector<double> get_input_location();
-vector<vector<double>> get_temp_mesh();
-vector<vector<double>> get_norm_temp_mesh();
-vector<vector<double>> get_cure_mesh();
-vector<vector<double>> get_input_mesh();
-vector<vector<double>> get_front_loc();
-vector<vector<double>> get_front_vel();
-vector<vector<double>> get_front_temp();
 vector<vector<double>> get_mesh_x_z0();
 vector<vector<double>> get_mesh_y_z0();
 vector<vector<double>> get_mesh_y_x0();
 vector<vector<double>> get_mesh_z_x0();
 
-//******************** FUNCTIONS ******************************//
-bool step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
-void reset();
-void append_input(vector<double>* encoded_state);
-double get_reward();
-void print_params();
+// Time getters
+double get_sim_duration();
+double get_time_step();
+double get_current_time();
 
+// Input parameters getters
+double get_max_input_mag();
+double get_exp_const();
+const double get_max_input_mag_percent_rate();
+const double get_max_input_loc_rate();
+
+// Input state getters
+double get_input_percent();
+vector<double> get_input_location();
+vector<vector<double>> get_input_mesh();
+
+// Target getters
+double get_current_target();
+int get_target_vector_arr_size();
+
+//Sim option getter
+bool get_control_speed();
+
+// Temperature and cure getters
+vector<vector<double>> get_temp_mesh();
+vector<vector<double>> get_norm_temp_mesh();
+vector<vector<double>> get_cure_mesh();
+
+// Front state getters
+vector<vector<double>> get_front_loc();
+vector<vector<double>> get_front_vel();
+vector<vector<double>> get_front_temp();
+
+
+//******************************************************************** PUBLIC FUNCTIONS ********************************************************************//
+void print_params();
+void reset();
+bool step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
+double get_reward();
+
+
+//******************************************************************** USER SET PARAMETERS ********************************************************************//
 private:
-//******************** USER SET PARAMETERS ********************//
 // Input type
 const bool control = false;
 
@@ -84,7 +101,7 @@ const double width = 0.01;   // Meters
 const double depth = 0.005;  // Meters
 
 // Temporal parameters
-const double sim_duration = 60.0;   // Seconds
+const double sim_duration = 30.0;   // Seconds
 const double time_step = 0.03;      // Seconds
 
 // Initial conditions
@@ -154,10 +171,10 @@ const double COD_model_fit_order = 2.5141;         // Unitless
 const double COD_m_fit = 0.8173;                   // Unitless
 
 // Input distribution parameters
-const double radius_of_input = 0.005;       // Meters
-const double laser_power = 0.75;            // Watts
-const double input_mag_percent_rate = 0.5;  // Decimal Percent / Second
-const double max_input_loc_rate = 0.025;    // Meters / Second
+const double radius_of_input = 0.005;           // Meters
+const double laser_power = 0.75;                // Watts
+const double max_input_mag_percent_rate = 0.5;  // Decimal Percent / Second
+const double max_input_loc_rate = 0.025;        // Meters / Second
 
 // Set trigger condition references
 const double DCPD_GC1_trigger_flux_ref = 25500.0;   // Watts / Meter ^ 2
@@ -167,12 +184,6 @@ const double DCPD_GC2_trigger_duration_ref = 10.0;  // Seconds
 const double COD_trigger_flux_ref = 20000.0;        // Watts / Meter ^ 2
 const double COD_trigger_duration_ref = 6.0;        // Seconds
 const double trigger_time_ref = 0.0;                // Seconds
-
-// NN Input conversion factors
-const double mag_scale = 0.025;         // Unitless
-const double mag_offset = 0.5;          // Unitless
-const double loc_rate_scale = 0.00125;  // Unitless
-const double loc_rate_offset = 0.0;     // Unitless
 
 // Reward constants
 const double max_reward = 2.0;                   // Unitless
@@ -186,13 +197,11 @@ const double integral_delta = max_integral - length * width * depth * initial_te
 const double front_rate_reward_const = pow(max_reward,0.33333);    // Unitless
 const double temperature_reward_const =  pow(max_reward,0.33333);  // Unitless
 
-//******************** CALCULATED PARAMETERS ********************//
+
+//******************************************************************** CALCULATED PARAMETERS ********************************************************************//
 // Simulation time and target velocity index
 double current_time;
 int current_index;
-
-// State generation parameters
-int encoded_size;
 
 // Monomer physical parameters
 double thermal_diffusivity;
@@ -229,8 +238,8 @@ vector<vector<double>> front_temp;
 
 // Input magnitude parameters
 double exp_const;
-double max_input_mag;
-double input_percent;
+double max_input_mag;  // Watts / m^2
+double input_percent;  // Decimal percent
 
 // Input location parameters
 double min_input_x_loc;
@@ -242,9 +251,10 @@ vector<double> input_location;
 // Input wattage mesh
 vector<vector<double>> input_mesh;
 
-//******************** FUNCTIONS ********************//
+
+//******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
 vector<vector<vector<double>>> get_perturbation(vector<vector<vector<double> > > size_array, double delta);
-void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
+void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_percent_rate_action);
 void step_meshes();
 bool step_time();
 

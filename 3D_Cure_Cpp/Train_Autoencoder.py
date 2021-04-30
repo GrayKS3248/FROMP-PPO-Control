@@ -36,11 +36,11 @@ if __name__ == "__main__":
     path = 'training_data/DCPD_GC2'
     
     # Hyperparameters
-    kernal_size  = [3, 5]
-    objct_func   = [1, 3]
-    len_output   = [1, 3]
-    bottleneck   = [64, 32]
-    weighted_arr = [0, 1]
+    kernal_size  = [3, 3]
+    objct_func   = [1, 1]
+    len_output   = [1, 1]
+    bottleneck   = [64, 64]
+    weighted_arr = [0, 0]
     load_path = ["", ""]
     alpha_zero = 1.0e-3;
     alpha_last = 1.0e-5;

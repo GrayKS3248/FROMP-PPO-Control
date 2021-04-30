@@ -3,12 +3,13 @@
 
 using namespace std;
 
+
+//******************************************************************** CONSTRUCTOR ********************************************************************//
+
 /**
 * Default constructor
-* @param length of encoded state
-* @param boolean flag that indicates whether front location and velocity data are appended to encoded state
 */
-Finite_Element_Solver::Finite_Element_Solver(int encoded_size_in)
+Finite_Element_Solver::Finite_Element_Solver()
 {
 	// Set randomization seed
 	srand(time(NULL));
@@ -16,9 +17,6 @@ Finite_Element_Solver::Finite_Element_Solver(int encoded_size_in)
 	// Simulation time and target velocity index
 	current_time = 0.0;  // Seconds
 	current_index = 0;   // Unitless
-	
-	// State information
-	encoded_size = encoded_size_in;
 	
 	// Monomer physical parameters
 	if (use_DCPD_GC1)
@@ -251,6 +249,9 @@ Finite_Element_Solver::Finite_Element_Solver(int encoded_size_in)
 	}
 }
 
+
+//******************************************************************** MESH GETTERS ********************************************************************//
+
 /**
 * Gets the number of vertices in lengthwise direction
 * @return The number of vertices in the lengthwise direction
@@ -276,282 +277,6 @@ int Finite_Element_Solver::get_num_vert_width()
 int Finite_Element_Solver::get_num_vert_depth()
 {
 	return num_vert_depth;
-}
-
-/**
-* Gets the duration of the simulation
-* @return The duration of the simulation in seconds
-*/
-double Finite_Element_Solver::get_sim_duration()
-{
-	return sim_duration;
-}
-
-/**
-* Gets the time step used in the simulation
-* @return The simulation time step in seconds
-*/
-double Finite_Element_Solver::get_time_step()
-{
-	return time_step;
-}
-
-/**
-* Gets the current input power percent
-* @return The power level of the input in percent
-*/
-double Finite_Element_Solver::get_input_percent()
-{
-	return input_percent;
-}
-
-/**
-* Gets the location rate scaling factor
-* @return The location rate scaling factor that takes NN raw to FES
-*/
-double Finite_Element_Solver::get_loc_rate_scale()
-{
-	return loc_rate_scale;
-}
-
-/**
-* Gets the magnitude scaling factor
-* @return The magnitude scaling factor that takes NN raw to FES
-*/
-double Finite_Element_Solver::get_mag_scale()
-{
-	return mag_scale;
-}
-
-/**
-* Gets the maximum magnitude of the input in W/m^2
-* @return The peak magnitude of the input in W/m^2
-*/
-double Finite_Element_Solver::get_max_input_mag()
-{
-	return max_input_mag;
-}
-
-/**
-* Gets the exponent constant used to calculate input mesh
-* @return The exponent constant used to calculate input mesh in W/m^2
-*/
-double Finite_Element_Solver::get_exp_const()
-{
-	return exp_const;
-}
-
-/**
-* Gets the current target velocity
-* @return The current target front velocity in m/s
-*/
-double Finite_Element_Solver::get_current_target()
-{
-	return current_target;
-}
-
-/**
-* Gets the length of the target velocity array
-* @return The length of the target velocity array
-*/
-int Finite_Element_Solver::get_target_vector_arr_size()
-{
-	return target_vector.size();
-}
-
-/**
-* Gets the current time
-* @return The time in seconds
-*/
-double Finite_Element_Solver::get_current_time()
-{
-	return current_time;
-}
-
-/**
-* Gets the length of the state vector
-*/
-int Finite_Element_Solver::get_num_state()
-{
-	// Return calculated number of states
-	return encoded_size + 3;
-}
-
-/**
-* Gets whether the speed is controlled or not
-* @return Whether the speed is controlled or not
-*/
-bool Finite_Element_Solver::get_control_speed()
-{
-	return control_speed;
-}
-
-/**
-* Prints the finite element solver parameters to std out
-*/
-void Finite_Element_Solver::print_params()
-{
-	// Input parameters
-	cout << "\nInput(\n";
-	if (control)
-	{
-		cout << "  No input.\n";
-	}
-	else
-	{ 
-		cout << "  (Radius): " << 1000.0 * radius_of_input << " mm\n";
-		cout << "  (Power): " << 1000.0 * laser_power << " mW\n";
-		cout << "  (Power Rate): " << 1000.0 * laser_power * input_mag_percent_rate << " mW/s\n";
-		cout << "  (Slew Rate): " << 1000.0 * max_input_loc_rate << " mm/s\n";
-	}
-	cout << ")\n";
-	
-	// Trigger parameters
-	cout << "\nTrigger(\n";
-	if (!trigger)
-	{
-		cout << "  No trigger.\n";
-	}
-	else
-	{ 
-		cout << "  (Flux): " << trigger_flux << " W/m^2\n";
-		cout << "  (Time): " << trigger_time << " s\n";
-		cout << "  (Duration): " << trigger_duration  << " s\n";
-	}
-	cout << ")\n";
-	
-	// Monomer
-	cout << "\nMaterial(\n";
-	if (use_DCPD_GC1)
-	{
-		cout << "  (Monomer): DCPD\n";
-		cout << "  (Catalyst): GC1\n";
-	}
-	else if (use_DCPD_GC2)
-	{ 
-		cout << "  (Monomer): DCPD\n";
-		cout << "  (Catalyst): GC2\n";
-	}
-	else if (use_COD)
-	{
-		cout << "  (Monomer): COD\n";
-		cout << "  (Catalyst): GC2\n";
-	}
-	cout << "  (Initial Temperature): " << initial_temperature-273.15 << "C +- " << initial_temp_delta << " C\n";
-	cout << "  (Initial Cure): " << initial_cure << " +- " << initial_cure_delta << "\n";
-	cout << "  (HTC): " << htc << " W/m^2-K\n";
-	cout << ")\n";
-	
-	// Environment
-	cout << "\nEnvironment(\n";
-	cout << "  (Dimensions): " << 1000.0*length << " x " << 1000.0*width << " x " << 1000.0*depth << " mm\n";
-	cout << "  (Grid): " << num_vert_length << " x " << num_vert_width << " x " << num_vert_depth << "\n";
-	cout << "  (State): " << get_num_state() << "\n";
-	cout << "  (Duration): " << sim_duration << " s\n";
-	cout << "  (Time Step): " << 1000.0*time_step << " ms\n";
-	cout << "  (Ambient Temperature): " << ambient_temperature-273.15 << " C\n";
-	cout << ")\n";
-}
-
-/**
-* Gets the input location
-* @return The input location as a vector {x,y}
-*/
-vector<double> Finite_Element_Solver::get_input_location()
-{
-	return input_location;
-}
-
-/**
-* Gets the top layer of the temperature mesh
-* @return The top layer of the temperature mesh as a 2D vector in x,y
-*/
-vector<vector<double>> Finite_Element_Solver::get_temp_mesh()
-{
-	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
-	for (int i = 0; i < num_vert_length; i++)
-	{
-		for (int j = 0; j < num_vert_width; j++)
-		{
-			ret_val[i][j] = temp_mesh[i][j][0];
-		}
-	}
-	return ret_val;
-}
-
-/**
-* Gets the normalized top layer of the temperature mesh around the front
-* @return The top layer of the temperature mesh around the front as a 2D vector in x,y normalized against in 0.90*T0 to 1.10*Tmax
-*/
-vector<vector<double>> Finite_Element_Solver::get_norm_temp_mesh()
-{
-	// Get the temperature 
-	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
-	for (int i = 0; i < num_vert_length; i++)
-	{
-		for (int j = 0; j < num_vert_width; j++)
-		{
-			ret_val[i][j] = (temp_mesh[i][j][0] - 0.90*initial_temperature) / (1.1*temperature_limit - 0.90*initial_temperature);
-			ret_val[i][j] = ret_val[i][j] > 1.0 ? 1.0 : ret_val[i][j];
-			ret_val[i][j] = ret_val[i][j] < 0.0 ? 0.0 : ret_val[i][j];
-		}
-	}
-	return ret_val;
-
-}
-
-/**
-* Gets the top layer of the cure mesh
-* @return The top layer of the cure mesh as a 2D vector in x,y
-*/
-vector<vector<double>> Finite_Element_Solver::get_cure_mesh()
-{
-	// Get the cure
-	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
-	for (int i = 0; i < num_vert_length; i++)
-	{
-		for (int j = 0; j < num_vert_width; j++)
-		{
-			ret_val[i][j] = cure_mesh[i][j][0];
-		}
-	}
-	return ret_val;
-}
-
-/**
-* Gets the input mesh
-* @return The input mesh as a 2D vector in x,y of watts/m^2
-*/
-vector<vector<double>> Finite_Element_Solver::get_input_mesh()
-{
-	return input_mesh;
-}
-
-/**
-* Gets the current front location
-* @return The current front location as a 2D vector in y,z
-*/
-vector<vector<double>> Finite_Element_Solver::get_front_loc()
-{
-	return front_loc;
-}
-
-/**
-* Gets the current front velocity
-* @return The current front velocity as a 2D vector in y,z
-*/
-vector<vector<double>> Finite_Element_Solver::get_front_vel()
-{
-	return front_vel;
-}
-
-/**
-* Gets the current front temperature
-* @return The current front temperature as a 2D vector in y,z
-*/
-vector<vector<double>> Finite_Element_Solver::get_front_temp()
-{
-	return front_temp;
 }
 
 /**
@@ -622,27 +347,323 @@ vector<vector<double>> Finite_Element_Solver::get_mesh_z_x0()
 	return ret_val;
 }
 
-/**
-* Steps the environment forward one time step
-* @param The raw NN x location rate command
-* @param The raw NN y location rate command
-* @param The raw NN magnitude command
-* @return Whether the sim is done or not
-*/
-bool Finite_Element_Solver::step(double x_loc_rate_action, double y_loc_rate_action, double mag_action)
-{
-	// Step the input, cure, front, and temperature
-	step_input(x_loc_rate_action, y_loc_rate_action, mag_action);
-	step_meshes();
 
-	// Step time_step
-	bool done = step_time();
-	return done;
+//******************************************************************** TIME GETTERS ********************************************************************//
+
+/**
+* Gets the duration of the simulation
+* @return The duration of the simulation in seconds
+*/
+double Finite_Element_Solver::get_sim_duration()
+{
+	return sim_duration;
+}
+
+/**
+* Gets the time step used in the simulation
+* @return The simulation time step in seconds
+*/
+double Finite_Element_Solver::get_time_step()
+{
+	return time_step;
+}
+
+/**
+* Gets the current time
+* @return The time in seconds
+*/
+double Finite_Element_Solver::get_current_time()
+{
+	return current_time;
+}
+
+//******************************************************************** INPUT PARAMETERS GETTERS ********************************************************************//
+
+/**
+* Gets the maximum magnitude of the input in W/m^2
+* @return The peak magnitude of the input in W/m^2
+*/
+double Finite_Element_Solver::get_max_input_mag()
+{
+	return max_input_mag;
+}
+
+/**
+* Gets the exponent constant used to calculate input mesh
+* @return The exponent constant used to calculate input mesh in W/m^2
+*/
+double Finite_Element_Solver::get_exp_const()
+{
+	return exp_const;
+}
+
+/**
+* Gets the maximum possible input magnitude percent rate
+* @return maximum possible input magnitude percent rate in decimal percent per second
+*/
+const double Finite_Element_Solver::get_max_input_mag_percent_rate()
+{
+	return max_input_mag_percent_rate;
+}
+
+/**
+* Gets the maximum possible input single axis movement rate
+* @return the maximum possible input single axis movement rate in m/s
+*/
+const double Finite_Element_Solver::get_max_input_loc_rate()
+{
+	return max_input_loc_rate;
+}
+
+
+//******************************************************************** INPUT STATE GETTERS ********************************************************************//
+
+/**
+* Gets the current input power percent
+* @return The power level of the input in percent
+*/
+double Finite_Element_Solver::get_input_percent()
+{
+	return input_percent;
+}
+
+/**
+* Gets the input location
+* @return The input location as a vector {x,y}
+*/
+vector<double> Finite_Element_Solver::get_input_location()
+{
+	return input_location;
+}
+
+/**
+* Gets the input mesh
+* @return The input mesh as a 2D vector in x,y of watts/m^2
+*/
+vector<vector<double>> Finite_Element_Solver::get_input_mesh()
+{
+	return input_mesh;
+}
+
+
+//******************************************************************** TARGET GETTERS ********************************************************************//
+
+/**
+* Gets the current target
+* @return The current target front
+*/
+double Finite_Element_Solver::get_current_target()
+{
+	return current_target;
+}
+
+/**
+* Gets the length of the target array
+* @return The length of the target array
+*/
+int Finite_Element_Solver::get_target_vector_arr_size()
+{
+	return target_vector.size();
+}
+
+
+//******************************************************************** SIM OPTION GETTERS ********************************************************************//
+
+/**
+* Gets whether the speed is controlled or not
+* @return Whether the speed is controlled or not
+*/
+bool Finite_Element_Solver::get_control_speed()
+{
+	return control_speed;
+}
+
+
+//******************************************************************** TEMP + CURE GETTERS ********************************************************************//
+
+/**
+* Gets the top layer of the temperature mesh
+* @return The top layer of the temperature mesh as a 2D vector in x,y
+*/
+vector<vector<double>> Finite_Element_Solver::get_temp_mesh()
+{
+	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
+	for (int i = 0; i < num_vert_length; i++)
+	{
+		for (int j = 0; j < num_vert_width; j++)
+		{
+			ret_val[i][j] = temp_mesh[i][j][0];
+		}
+	}
+	return ret_val;
+}
+
+/**
+* Gets the normalized top layer of the temperature mesh around the front
+* @return The top layer of the temperature mesh around the front as a 2D vector in x,y normalized against in 0.90*T0 to 1.10*Tmax
+*/
+vector<vector<double>> Finite_Element_Solver::get_norm_temp_mesh()
+{
+	// Get the temperature 
+	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
+	for (int i = 0; i < num_vert_length; i++)
+	{
+		for (int j = 0; j < num_vert_width; j++)
+		{
+			ret_val[i][j] = (temp_mesh[i][j][0] - 0.90*initial_temperature) / (1.1*temperature_limit - 0.90*initial_temperature);
+			ret_val[i][j] = ret_val[i][j] > 1.0 ? 1.0 : ret_val[i][j];
+			ret_val[i][j] = ret_val[i][j] < 0.0 ? 0.0 : ret_val[i][j];
+		}
+	}
+	return ret_val;
+
+}
+
+/**
+* Gets the top layer of the cure mesh
+* @return The top layer of the cure mesh as a 2D vector in x,y
+*/
+vector<vector<double>> Finite_Element_Solver::get_cure_mesh()
+{
+	// Get the cure
+	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
+	for (int i = 0; i < num_vert_length; i++)
+	{
+		for (int j = 0; j < num_vert_width; j++)
+		{
+			ret_val[i][j] = cure_mesh[i][j][0];
+		}
+	}
+	return ret_val;
+}
+
+
+//******************************************************************** FRONT STATE GETTERS ********************************************************************//
+
+/**
+* Gets the current front location
+* @return The current front location as a 2D vector in y,z
+*/
+vector<vector<double>> Finite_Element_Solver::get_front_loc()
+{
+	return front_loc;
+}
+
+/**
+* Gets the current front velocity
+* @return The current front velocity as a 2D vector in y,z
+*/
+vector<vector<double>> Finite_Element_Solver::get_front_vel()
+{
+	return front_vel;
+}
+
+/**
+* Gets the current front temperature
+* @return The current front temperature as a 2D vector in y,z
+*/
+vector<vector<double>> Finite_Element_Solver::get_front_temp()
+{
+	return front_temp;
+}
+
+
+//******************************************************************** PUBLIC FUNCTIONS ********************************************************************//
+
+/**
+* Prints the finite element solver parameters to std out
+*/
+void Finite_Element_Solver::print_params()
+{
+	// Input parameters
+	cout << "\nInput(\n";
+	if (control)
+	{
+		cout << "  No input.\n";
+	}
+	else
+	{ 
+		cout << "  (Radius): " << 1000.0 * radius_of_input << " mm\n";
+		cout << "  (Power): " << 1000.0 * laser_power << " mW\n";
+		cout << "  (Power Rate): " << 1000.0 * laser_power * max_input_mag_percent_rate << " mW/s\n";
+		cout << "  (Slew Rate): " << 1000.0 * max_input_loc_rate << " mm/s\n";
+	}
+	cout << ")\n";
+	
+	// Target parameters
+	double mean = 0.0;
+	for (unsigned int i = 0; i < target_vector.size(); i++)
+	{
+		mean += target_vector[i];
+	}
+	mean = mean / (double)target_vector.size();
+	cout << "\nTarget(\n";
+	if (control_speed)
+	{
+		cout << "  (Type): Front speed\n";
+		if (const_target){cout << "  (Style): Constant target\n";}
+		else if (random_target){cout << "  (Style): Random target\n";}
+		else{cout << "  (Style): Switch target\n";}
+		cout << "  (Mean Target): " << mean  << " m/s\n";
+	}
+	else
+	{
+		cout << "  (Type): Front temperature\n";
+		if (const_target){cout << "  (Style): Constant target\n";}
+		else if (random_target){cout << "  (Style): Random target\n";}
+		else{cout << "  (Style): Switch target\n";}
+		cout << "  (Mean Target): " << mean  << " K\n";
+	}
+
+	
+	// Trigger parameters
+	cout << "\nTrigger(\n";
+	if (!trigger)
+	{
+		cout << "  No trigger.\n";
+	}
+	else
+	{ 
+		cout << "  (Flux): " << trigger_flux << " W/m^2\n";
+		cout << "  (Time): " << trigger_time << " s\n";
+		cout << "  (Duration): " << trigger_duration  << " s\n";
+	}
+	cout << ")\n";
+	
+	// Monomer
+	cout << "\nMaterial(\n";
+	if (use_DCPD_GC1)
+	{
+		cout << "  (Monomer): DCPD\n";
+		cout << "  (Catalyst): GC1\n";
+	}
+	else if (use_DCPD_GC2)
+	{ 
+		cout << "  (Monomer): DCPD\n";
+		cout << "  (Catalyst): GC2\n";
+	}
+	else if (use_COD)
+	{
+		cout << "  (Monomer): COD\n";
+		cout << "  (Catalyst): GC2\n";
+	}
+	cout << "  (Initial Temperature): " << initial_temperature-273.15 << "C +- " << initial_temp_delta << " C\n";
+	cout << "  (Initial Cure): " << initial_cure << " +- " << initial_cure_delta << "\n";
+	cout << "  (HTC): " << htc << " W/m^2-K\n";
+	cout << ")\n";
+	
+	// Environment
+	cout << "\nEnvironment(\n";
+	cout << "  (Dimensions): " << 1000.0*length << " x " << 1000.0*width << " x " << 1000.0*depth << " mm\n";
+	cout << "  (Grid): " << num_vert_length << " x " << num_vert_width << " x " << num_vert_depth << "\n";
+	cout << "  (Duration): " << sim_duration << " s\n";
+	cout << "  (Time Step): " << 1000.0*time_step << " ms\n";
+	cout << "  (Ambient Temperature): " << ambient_temperature-273.15 << " C\n";
+	cout << ")\n\n";
 }
 
 /**
 * Resets the environment to initial conditions
-* @return the initial state vector
 */
 void Finite_Element_Solver::reset()
 {
@@ -764,6 +785,129 @@ void Finite_Element_Solver::reset()
 	}
 }
 
+/**
+* Steps the environment forward one time step
+* @param The raw NN x location rate command
+* @param The raw NN y location rate command
+* @param The raw NN magnitude command
+* @return Whether the sim is done or not
+*/
+bool Finite_Element_Solver::step(double x_loc_rate_action, double y_loc_rate_action, double mag_action)
+{
+	// Step the input, cure, front, and temperature
+	step_input(x_loc_rate_action, y_loc_rate_action, mag_action);
+	step_meshes();
+
+	// Step time_step
+	bool done = step_time();
+	return done;
+}
+
+/**
+* Solves for the reward fed to the PPO agent based on the reward function parameters, temperature, and front velocity
+* @return The calculated reward
+*/
+double Finite_Element_Solver::get_reward()
+{
+	// Initialize reward and punishment variables
+	double input_punishment;
+	double dist_punishment;
+	double overage_punishment;
+	double integral_punishment;
+	double front_shape_punishment;
+	double punishment;
+	double reward = 0.0;
+
+	// Integrate the temp mesh and get the mean front x location
+	double temp_integral = 0.0;
+	double mean_location = 0.0;
+	for (int i = 0; i < num_vert_length; i++)
+	{
+		for (int j = 0; j < num_vert_width; j++)
+		{
+			for (int k = 0; k < num_vert_depth; k++)
+			{
+				temp_integral += temp_mesh[i][j][k];
+				mean_location = i == 0 ? mean_location + front_loc[j][k] : mean_location;
+			}
+		}
+	}
+	temp_integral = temp_integral * x_step * y_step * z_step;
+	mean_location = mean_location / ((double)num_vert_width * (double)num_vert_depth);
+
+	// Find the front's location and velocity mean deviation and max temperature
+	double max_front_temp = 0.0;
+	double mean_loc_deviation = 0.0;
+	double mean_deviation = 0.0;
+	for (int j = 0; j < num_vert_width; j++)
+	{
+		for (int k = 0; k < num_vert_depth; k++)
+		{
+			mean_loc_deviation += abs(front_loc[j][k] - mean_location);
+			if (control_temperature)
+			{
+				mean_deviation += abs(front_temp[j][k] - current_target);
+			}
+			else if (control_speed)
+			{
+				mean_deviation += abs(front_vel[j][k] - current_target);
+			}
+			max_front_temp = front_temp[j][k] > max_front_temp ? front_temp[j][k] : max_front_temp;
+		}
+	}
+	mean_loc_deviation = mean_loc_deviation / ((double)num_vert_width * (double)num_vert_depth);
+	mean_deviation = mean_deviation / ((double)num_vert_width * (double)num_vert_depth * current_target);
+	mean_deviation = mean_deviation > 1.0 ? 1.0 : mean_deviation;
+
+	if (control)
+	{
+		input_punishment = 0.0;
+		dist_punishment = 0.0;
+	}
+	else
+	{
+		input_punishment = -input_punishment_const * max_reward * input_percent;
+
+		// Calculate dist from front punishment
+		double mean_front_loc = 0.0;
+		for (int j = 0; j < num_vert_width; j++)
+		{
+			mean_front_loc += front_loc[j][0];
+		}
+		mean_front_loc = mean_front_loc / num_vert_width;
+		double dist_from_front = abs(mean_front_loc - input_location[0]);
+		dist_from_front = dist_from_front <= (1.25 * radius_of_input) ? 0.0 : dist_from_front/length;
+		dist_punishment = -dist_punishment_const * max_reward * dist_from_front;
+	}
+
+	// Get the integral punishment
+	integral_punishment = -integral_punishment_const * max_reward * (1.0 - (max_integral - temp_integral) / integral_delta);
+
+	// Get the front shape punishment
+	front_shape_punishment = -front_shape_const * mean_loc_deviation;
+
+	// Get the overage punishment
+	overage_punishment = max_front_temp > temperature_limit ? -overage_punishment_const * max_reward * max_front_temp / temperature_limit : 0.0;
+
+	// Get the punishment
+	punishment = input_punishment + dist_punishment + integral_punishment + front_shape_punishment + overage_punishment;
+
+	// Get the total reward
+	if (control_temperature)
+	{
+		reward = pow((1.0 - mean_deviation) * temperature_reward_const, 3.0) + punishment;
+	}
+	else if (control_speed)
+	{
+		reward = pow((1.0 - mean_deviation) * front_rate_reward_const, 3.0) + punishment;
+	}
+
+	return reward;
+}
+
+
+//******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
+
 /** Get smooth 3D perturbation over input fields
 * @ param array used to determine size of output mesh
 * @ param maximum magnitude of perturbation
@@ -829,46 +973,39 @@ vector<vector<vector<double> > > Finite_Element_Solver::get_perturbation(vector<
 /** Step the input through time
 * @param The raw NN x location rate command
 * @param The raw NN y location rate command
-* @param The raw NN magnitude command
+* @param The raw NN magnitude percent rate command
 */
-void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_action)
+void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_percent_rate_action)
 {
 	// Convert the raw PPO x command to usable, clipped x location rate command
-	double cmd_x = loc_rate_offset + loc_rate_scale * x_loc_rate_action;
+	double cmd_x = x_loc_rate_action * max_input_loc_rate;
 	cmd_x = cmd_x > max_input_loc_rate ? max_input_loc_rate : cmd_x;
 	cmd_x = cmd_x < -max_input_loc_rate ? -max_input_loc_rate : cmd_x;
-
-	// Convert the raw PPO y command to usable, clipped y location rate command
-	double cmd_y = loc_rate_offset + loc_rate_scale * y_loc_rate_action;
-	cmd_y = cmd_y > max_input_loc_rate ? max_input_loc_rate : cmd_y;
-	cmd_y = cmd_y < -max_input_loc_rate ? -max_input_loc_rate : cmd_y;
 
 	// Update the input's x location from the converted location rate commands
 	input_location[0] = input_location[0] + cmd_x * time_step;
 	input_location[0] = input_location[0] > max_input_x_loc ? max_input_x_loc : input_location[0];
 	input_location[0] = input_location[0] < min_input_x_loc ? min_input_x_loc : input_location[0];
 
+	// Convert the raw PPO y command to usable, clipped y location rate command
+	double cmd_y = y_loc_rate_action * max_input_loc_rate;
+	cmd_y = cmd_y > max_input_loc_rate ? max_input_loc_rate : cmd_y;
+	cmd_y = cmd_y < -max_input_loc_rate ? -max_input_loc_rate : cmd_y;
+
 	// Update the input's y location from the converted location rate commands
 	input_location[1] = input_location[1] + cmd_y * time_step;
 	input_location[1] = input_location[1] > max_input_y_loc ? max_input_y_loc : input_location[1];
 	input_location[1] = input_location[1] < min_input_y_loc ? min_input_y_loc : input_location[1];
 
-	// Convert the raw PPO command to a usable, clipped input percent command
-	double input_percent_command = mag_offset + mag_scale * mag_action;
-	input_percent_command = input_percent_command > 1.0 ? 1.0 : input_percent_command;
-	input_percent_command = input_percent_command < 0.0 ? 0.0 : input_percent_command;
+	// Convert the raw PPO magnitude percent rate command to usable, clipped magnitude percent rate command
+	double cmd_mag = mag_percent_rate_action * max_input_mag_percent_rate;
+	cmd_mag = cmd_mag > max_input_mag_percent_rate ? max_input_mag_percent_rate : cmd_mag;
+	cmd_mag = cmd_mag < -max_input_mag_percent_rate ? -max_input_mag_percent_rate : cmd_mag;
 
-	// Update the input's magnitude from the converted input percent command
-	if (input_percent_command > input_percent)
-	{
-		input_percent = input_percent + input_mag_percent_rate * time_step;
-		input_percent = input_percent > input_percent_command ? input_percent_command : input_percent;
-	}
-	else if (input_percent_command < input_percent)
-	{
-		input_percent = input_percent - input_mag_percent_rate * time_step;
-		input_percent = input_percent < input_percent_command ? input_percent_command : input_percent;
-	}
+	// Update the input's y location from the converted location rate commands
+	input_percent = input_percent + cmd_mag * time_step;
+	input_percent = input_percent > 1.0 ? 1.0 : input_percent;
+	input_percent = input_percent < 0.0 ? 0.0 : input_percent;
 
 	// Update the input wattage mesh
 	#pragma omp parallel for collapse(2)
@@ -1048,120 +1185,6 @@ void Finite_Element_Solver::step_meshes()
 		double temp_rate = thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(enthalpy_of_reaction*cure_rate)/specific_heat;
 		temp_mesh[i][j][k] = temp_mesh[i][j][k] + temp_rate * time_step;
 	}
-}
-
-/**
-* Mutates the encoded state by appending input location and magnitude data
-* @param The autoencoder encoded temperature field, cure field, and front location as a vector of doubles
-*/
-void Finite_Element_Solver::append_input(vector<double>* encoded_state)
-{
-	// Append the input location and magnitude parameters
-	encoded_state->push_back(input_location[0] / length);
-	encoded_state->push_back(input_location[1] / width);
-	encoded_state->push_back(input_percent);
-}
-
-/**
-* Solves for the reward fed to the PPO agent based on the reward function parameters, temperature, and front velocity
-* @return The calculated reward
-*/
-double Finite_Element_Solver::get_reward()
-{
-	// Initialize reward and punishment variables
-	double input_punishment;
-	double dist_punishment;
-	double overage_punishment;
-	double integral_punishment;
-	double front_shape_punishment;
-	double punishment;
-	double reward = 0.0;
-
-	// Integrate the temp mesh and get the mean front x location
-	double temp_integral = 0.0;
-	double mean_location = 0.0;
-	for (int i = 0; i < num_vert_length; i++)
-	{
-		for (int j = 0; j < num_vert_width; j++)
-		{
-			for (int k = 0; k < num_vert_depth; k++)
-			{
-				temp_integral += temp_mesh[i][j][k];
-				mean_location = i == 0 ? mean_location + front_loc[j][k] : mean_location;
-			}
-		}
-	}
-	temp_integral = temp_integral * x_step * y_step * z_step;
-	mean_location = mean_location / ((double)num_vert_width * (double)num_vert_depth);
-
-	// Find the front's location and velocity mean deviation and max temperature
-	double max_front_temp = 0.0;
-	double mean_loc_deviation = 0.0;
-	double mean_deviation = 0.0;
-	for (int j = 0; j < num_vert_width; j++)
-	{
-		for (int k = 0; k < num_vert_depth; k++)
-		{
-			mean_loc_deviation += abs(front_loc[j][k] - mean_location);
-			if (control_temperature)
-			{
-				mean_deviation += abs(front_temp[j][k] - current_target);
-			}
-			else if (control_speed)
-			{
-				mean_deviation += abs(front_vel[j][k] - current_target);
-			}
-			max_front_temp = front_temp[j][k] > max_front_temp ? front_temp[j][k] : max_front_temp;
-		}
-	}
-	mean_loc_deviation = mean_loc_deviation / ((double)num_vert_width * (double)num_vert_depth);
-	mean_deviation = mean_deviation / ((double)num_vert_width * (double)num_vert_depth * current_target);
-	mean_deviation = mean_deviation > 1.0 ? 1.0 : mean_deviation;
-
-	if (control)
-	{
-		input_punishment = 0.0;
-		dist_punishment = 0.0;
-	}
-	else
-	{
-		input_punishment = -input_punishment_const * max_reward * input_percent;
-
-		// Calculate dist from front punishment
-		double mean_front_loc = 0.0;
-		for (int j = 0; j < num_vert_width; j++)
-		{
-			mean_front_loc += front_loc[j][0];
-		}
-		mean_front_loc = mean_front_loc / num_vert_width;
-		double dist_from_front = abs(mean_front_loc - input_location[0]);
-		dist_from_front = dist_from_front <= (1.25 * radius_of_input) ? 0.0 : dist_from_front/length;
-		dist_punishment = -dist_punishment_const * max_reward * dist_from_front;
-	}
-
-	// Get the integral punishment
-	integral_punishment = -integral_punishment_const * max_reward * (1.0 - (max_integral - temp_integral) / integral_delta);
-
-	// Get the front shape punishment
-	front_shape_punishment = -front_shape_const * mean_loc_deviation;
-
-	// Get the overage punishment
-	overage_punishment = max_front_temp > temperature_limit ? -overage_punishment_const * max_reward * max_front_temp / temperature_limit : 0.0;
-
-	// Get the punishment
-	punishment = input_punishment + dist_punishment + integral_punishment + front_shape_punishment + overage_punishment;
-
-	// Get the total reward
-	if (control_temperature)
-	{
-		reward = pow((1.0 - mean_deviation) * temperature_reward_const, 3.0) + punishment;
-	}
-	else if (control_speed)
-	{
-		reward = pow((1.0 - mean_deviation) * front_rate_reward_const, 3.0) + punishment;
-	}
-
-	return reward;
 }
 
 /**

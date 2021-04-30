@@ -12,7 +12,7 @@ from copy import deepcopy
 
 class Model(nn.Module):
     
-    def __init__(self, x_dim_input, y_dim_input, bottleneck, num_output_layers, kernal_size):
+    def __init__(self, x_dim_input, y_dim_input, bottleneck, num_output_features, kernal_size):
         
         # Initialize inherited class
         super(Model, self).__init__()
@@ -27,7 +27,6 @@ class Model(nn.Module):
         self.conv3 = nn.Conv2d(4, 16, kernal_size, padding=kernal_size//2)
         self.pool = nn.MaxPool2d(2, 2)
         
-        
         #Initialize the encoding linear layers
         self.fc1 = nn.Linear(self.size, bottleneck)
 
@@ -37,7 +36,7 @@ class Model(nn.Module):
         #Initialize the decoding convolutional layers
         self.t_conv1 = nn.ConvTranspose2d(16, 4, 2, stride=2)
         self.t_conv2 = nn.ConvTranspose2d(4,  2, 2, stride=2)
-        self.t_conv3 = nn.ConvTranspose2d(2, num_output_layers, 2, stride=2)
+        self.t_conv3 = nn.ConvTranspose2d(2, num_output_features, 2, stride=2)
 
     def forward(self, x):
         #Feed-forward x

@@ -237,7 +237,7 @@ int main()
 	string path = "training_data";
 
 	// Initialize FES
-	Finite_Element_Solver FES = Finite_Element_Solver(1);
+	Finite_Element_Solver FES = Finite_Element_Solver();
 
 	// Calculated parameters
 	double control_execution_period = (FES.get_sim_duration() / ((double)actions_per_trajectory));
