@@ -1002,7 +1002,7 @@ int main()
 	const char* autoencoder_path = "results/ks3_obj1_bn64_U";
 	
 	// Agent training parameter
-	int total_trajectories = 10000;
+	int total_trajectories = 500;
 	int steps_per_trajectory = 100;
 	int trajectories_per_batch = 20;
 	int epochs_per_batch = 20;
@@ -1012,7 +1012,7 @@ int main()
 	double lamb = 0.95;
 	double epsilon = 0.20;
 	double start_alpha = 1.0e-3;
-	double end_alpha = 1.0e-4;
+	double end_alpha = 7.5e-4;
 
 	// Rendering parameters
 	double frame_rate = 30.0;

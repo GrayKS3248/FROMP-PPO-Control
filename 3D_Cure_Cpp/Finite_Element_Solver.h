@@ -186,17 +186,10 @@ const double COD_trigger_duration_ref = 6.0;        // Seconds
 const double trigger_time_ref = 0.0;                // Seconds
 
 // Reward constants
-const double max_reward = 2.0;                   // Unitless
-const double dist_punishment_const = 0.25;       // Unitless
-const double input_punishment_const = 0.10;      // Unitless
-const double overage_punishment_const = 0.40;    // Unitless
-const double integral_punishment_const = 0.10;   // Unitless
-const double front_shape_const = 10.0 / width;   // Unitless
-const double max_integral = length * width * depth * temperature_limit;                     // Unitless
-const double integral_delta = max_integral - length * width * depth * initial_temperature;  // Unitless
-const double front_rate_reward_const = pow(max_reward,0.33333);    // Unitless
-const double temperature_reward_const =  pow(max_reward,0.33333);  // Unitless
-
+const double input_reward_const = 0.10;         // Unitless
+const double overage_reward_const = 0.25;        // Unitless
+const double front_shape_reward_const = 0.25;   // Unitless
+const double target_reward_const = 1.0;             // Unitless
 
 //******************************************************************** CALCULATED PARAMETERS ********************************************************************//
 // Simulation time and target velocity index
