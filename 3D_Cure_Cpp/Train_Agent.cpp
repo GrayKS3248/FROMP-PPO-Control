@@ -885,9 +885,12 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 				// Gather temperature state data
 				vector<vector<double>> norm_temp_mesh = FES->get_norm_temp_mesh();
 				PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
+				double input_x_loc = FES->get_input_location()[0];
+				double input_y_loc = FES->get_input_location()[1];
+				double input_percent = FES->get_input_percent();
 				
 				// Get agent action based on temperature state data
-				PyObject* py_action = PyObject_CallMethod(agent, "get_action", "O", py_norm_temp_mesh);
+				PyObject* py_action = PyObject_CallMethod(agent, "get_action", "O,f,f,f", py_norm_temp_mesh, input_x_loc, input_y_loc, input_percent);
 				if (py_action == NULL)
 				{
 					fprintf(stderr, "\nFailed to call get action function.\n");
@@ -911,7 +914,7 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 
 				// Update the agent and collect critic loss data
 				reward = FES->get_reward();
-				PyObject* py_critic_loss = PyObject_CallMethod(agent, "update_agent", "(O,f,f,f,f)", py_norm_temp_mesh, action_1, action_2, action_3, reward);
+				PyObject* py_critic_loss = PyObject_CallMethod(agent, "update_agent", "(O,f,f,f,f,f,f,f)", py_norm_temp_mesh, input_x_loc, input_y_loc, input_percent, action_1, action_2, action_3, reward);
 				if (py_critic_loss == NULL)
 				{
 					fprintf(stderr, "\nFailed to update agent\n");

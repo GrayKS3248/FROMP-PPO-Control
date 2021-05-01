@@ -186,10 +186,10 @@ const double COD_trigger_duration_ref = 6.0;        // Seconds
 const double trigger_time_ref = 0.0;                // Seconds
 
 // Reward constants
-const double input_reward_const = 0.10;         // Unitless
-const double overage_reward_const = 0.25;        // Unitless
-const double front_shape_reward_const = 0.25;   // Unitless
-const double target_reward_const = 1.0;             // Unitless
+const double input_reward_const = 0.00;         // Unitless
+const double overage_reward_const = 0.25;       // Unitless
+const double front_shape_reward_const = 0.00;   // Unitless
+const double target_reward_const = 1.0;         // Unitless
 
 //******************************************************************** CALCULATED PARAMETERS ********************************************************************//
 // Simulation time and target velocity index

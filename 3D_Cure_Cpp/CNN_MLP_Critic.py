@@ -32,12 +32,12 @@ class Model(nn.Module):
         self.fc0 = nn.Linear(self.size, bottleneck)
 
         #Initialize the fully connected layers
-        self.fc1 = nn.Linear(bottleneck, bottleneck)
-        self.fc2 = nn.Linear(bottleneck, bottleneck//2)
-        self.fc3 = nn.Linear(bottleneck//2, 1)
+        self.fc1 = nn.Linear(bottleneck+3, bottleneck+3)
+        self.fc2 = nn.Linear(bottleneck+3, (bottleneck+3)//2)
+        self.fc3 = nn.Linear((bottleneck+3)//2, 1)
         
 
-    def forward(self, x):
+    def forward(self, x, y):
         #Feed-forward through encoder
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
@@ -46,6 +46,7 @@ class Model(nn.Module):
         x = torch.sigmoid(self.fc0(x))
         
         #Feed-forward through FC layers
+        x = torch.cat((x,y),1)
         x = torch.tanh(self.fc1(x))
         x = torch.tanh(self.fc2(x))
         x = torch.tanh(self.fc3(x))

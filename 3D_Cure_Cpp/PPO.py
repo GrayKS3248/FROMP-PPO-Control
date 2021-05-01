@@ -30,6 +30,7 @@ class Agent:
 
         # Batch memory
         self.states = [[]]
+        self.inputs = [[]]
         self.actions = [[]]
         self.rewards = [[]]
         self.old_log_probs = [[]]
@@ -112,17 +113,20 @@ class Agent:
     # Calcuates determinisitc action given state and policy.
     # @ param state - The state in which the policy is applied to calculate the action
     # @ return action - The calculated deterministic action based on the state and policy
-    def get_greedy_action(self, state):
+    def get_greedy_action(self, state, input_x, input_y, input_mag):
 
         # Get the gaussian distribution parameters used to sample the action for the old and new policy
         with torch.no_grad():
             # Format input state
             state = torch.tensor(state)
-            state = state.reshape(1,1,state.shape[0],state.shape[1]).float()
-            state = state.to(self.device)
+            state = state.reshape(1,1,state.shape[0],state.shape[1]).float().to(self.device)
+            
+            # Format input 
+            input = torch.tensor([input_x, input_y, input_mag])
+            input = input.reshape(1,input.shape[0]).float().to(self.device)
             
             # Forward propogate formatted state
-            means, stdev_1, stdev_2, stdev_3 = self.actor.forward(state)
+            means, stdev_1, stdev_2, stdev_3 = self.actor.forward(state, input)
             means = means.squeeze().to('cpu')
             
         # Return the means
@@ -135,17 +139,20 @@ class Agent:
     # @ param state - The state in which the policy is applied to calculate the action
     # @ return action - The calculated stochastic action based on the state and policy
     # @ return stdev - The calculated stdev based on the policy
-    def get_action(self, state):
+    def get_action(self, state, input_x, input_y, input_mag):
 
         # Get the gaussian distribution parameters used to sample the action for the old and new policy
         with torch.no_grad():
-            # Format input state
+            # Format state
             state = torch.tensor(state)
-            state = state.reshape(1,1,state.shape[0],state.shape[1]).float()
-            state = state.to(self.device)
+            state = state.reshape(1,1,state.shape[0],state.shape[1]).float().to(self.device)
             
+            # Format input 
+            input = torch.tensor([input_x, input_y, input_mag])
+            input = input.reshape(1,input.shape[0]).float().to(self.device)
+        
             # Forward propogate formatted state
-            means, stdev_1, stdev_2, stdev_3 = self.actor.forward(state)
+            means, stdev_1, stdev_2, stdev_3 = self.actor.forward(state, input)
             means = means.squeeze().to('cpu')
             
             # Sample the first action
@@ -171,10 +178,11 @@ class Agent:
     # @ param action_2 - second action to be added to trajectory memory
     # @ param action_3 - third action to be added to trajectory memory
     # @ param reward - reward to be added to trajectory memory
-    def update_agent(self, state, action_1, action_2, action_3, reward):
+    def update_agent(self, state, input_x, input_y, input_mag, action_1, action_2, action_3, reward):
 
         # Update the state, action, and reward memory
         self.states[-1].append(state)
+        self.inputs[-1].append([input_x, input_y, input_mag])
         self.actions[-1].append([action_1, action_2, action_3])
         self.rewards[-1].append(reward)
         
@@ -182,11 +190,14 @@ class Agent:
         with torch.no_grad():
             # Convert the state type
             state = torch.tensor(state)
-            state = state.reshape(1,1,state.shape[0],state.shape[1]).float()
-            state = state.to(self.device)
+            state = state.reshape(1,1,state.shape[0],state.shape[1]).float().to(self.device)
+            
+            # Format input 
+            input = torch.tensor([input_x, input_y, input_mag])
+            input = input.reshape(1,input.shape[0]).float().to(self.device)
             
             # Calculate the distributions provided by actor
-            means, stdev_1, stdev_2, stdev_3 = self.actor.forward(state)
+            means, stdev_1, stdev_2, stdev_3 = self.actor.forward(state, input)
             means = means.squeeze().to('cpu')
             stdevs = torch.tensor([stdev_1.to('cpu'), stdev_2.to('cpu'), stdev_3.to('cpu')])
             
@@ -196,7 +207,7 @@ class Agent:
             self.old_log_probs[-1].append(dist.log_prob(actions).sum())
             
             # Gather current value estimates. Will be used for advantage estimate and value target calculations
-            self.value_targets[-1].append(self.critic.forward(state).item())
+            self.value_targets[-1].append(self.critic.forward(state, input).item())
 
         # If the current trajectory is complete, calculate advantage estimates, value targets, and add another trajectory column to the batch memory
         if len(self.states[-1]) == self.steps_per_trajectory:
@@ -220,6 +231,7 @@ class Agent:
             if len(self.states) != self.trajectories_per_batch:
                 
                 self.states.append([])
+                self.inputs.append([])
                 self.actions.append([])
                 self.rewards.append([])
                 self.old_log_probs.append([])
@@ -233,6 +245,7 @@ class Agent:
                 # Convert batch data 
                 with torch.no_grad():
                     self.states = torch.reshape(torch.tensor(self.states, dtype=torch.float), (self.steps_per_batch, 1, self.x_dim, self.y_dim)).to(self.device)
+                    self.inputs = torch.reshape(torch.tensor(self.inputs, dtype=torch.float), (self.steps_per_batch, 3)).to(self.device)
                     self.actions = torch.reshape(torch.tensor(self.actions, dtype=torch.double), (self.steps_per_batch,3)).to(self.device)
                     self.rewards = torch.reshape(torch.tensor(self.rewards, dtype=torch.double), (-1,))
                     self.old_log_probs = torch.reshape(torch.tensor(self.old_log_probs, dtype=torch.double), (-1,)).to(self.device)
@@ -243,7 +256,7 @@ class Agent:
                 # Actor optimization
                 for i in range(self.epochs_per_batch):
                     self.actor_optimizer.zero_grad()
-                    means, stdev_1, stdev_2, stdev_3 = self.actor.forward(self.states)
+                    means, stdev_1, stdev_2, stdev_3 = self.actor.forward(self.states, self.inputs)
                     dist_1 = torch.distributions.normal.Normal(means[:,0], stdev_1)
                     dist_2 = torch.distributions.normal.Normal(means[:,1], stdev_2)
                     dist_3 = torch.distributions.normal.Normal(means[:,2], stdev_3)
@@ -258,7 +271,7 @@ class Agent:
                 critic_losses = []
                 for i in range(self.epochs_per_batch):
                     self.critic_optimizer.zero_grad()
-                    value_estimates = self.critic.forward(self.states).double()
+                    value_estimates = self.critic.forward(self.states, self.inputs).double()
                     loss = torch.nn.MSELoss()(value_estimates[:, 0], self.value_targets)
                     with torch.no_grad():
                         critic_losses.append(loss.item())
@@ -268,6 +281,7 @@ class Agent:
                 
                 # After learning, reset the memory
                 self.states = [[]]
+                self.inputs = [[]]
                 self.actions = [[]]
                 self.rewards = [[]]
                 self.old_log_probs = [[]]
@@ -277,12 +291,6 @@ class Agent:
                 return critic_losses
         
         return []
-        
-if __name__ == "__main__":
-    agent = Agent(100, 20, 20, 0.99, 0.95, 0.20, 1e-3, 0.998, "results/ks3_obj1_bn64_U")
-    
-    random_state = np.random.rand(360,40)
-    a1, s1, a2, s2, a3, s3 = agent.get_action(random_state)
     
 class Save_Plot_Render:
 
@@ -684,3 +692,15 @@ class Save_Plot_Render:
         	fig.suptitle(title_str,fontsize='xx-large')
         	plt.savefig(self.video_path+"f_"+str(curr_step).zfill(4)+'.png', dpi=100)
         	plt.close()
+            
+if __name__ == "__main__":
+    agent = Agent(100, 5, 5, 0.99, 0.95, 0.20, 1e-3, 0.998, "results/ks3_obj1_bn64_U")
+    
+    critic_loss = []
+    for i in range(1000):
+        random_state = np.random.rand(360,40)
+        x = np.random.rand()
+        y = np.random.rand()
+        mag = np.random.rand()
+        a1, s1, a2, s2, a3, s3 =  agent.get_action(random_state, x, y, mag)
+        critic_loss.extend(agent.update_agent(random_state, x, y, mag, a1, a2, a3, np.random.rand()))

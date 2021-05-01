@@ -844,7 +844,7 @@ double Finite_Element_Solver::get_reward()
 			mean_front_temperature += front_temp[j][k];
 		}
 	}
-	stdev_front_location = sqrt(stdev_front_location / ((double)num_vert_width * (double)num_vert_depth) * width);
+	stdev_front_location = sqrt(stdev_front_location / ((double)num_vert_width * (double)num_vert_depth)) / width;
 	stdev_front_location = stdev_front_location > 1.0 ? 1.0 : stdev_front_location;
 	mean_front_speed = mean_front_speed / ((double)num_vert_width * (double)num_vert_depth);
 	mean_front_temperature = mean_front_temperature / ((double)num_vert_width * (double)num_vert_depth);
@@ -861,11 +861,11 @@ double Finite_Element_Solver::get_reward()
 	// Get the total reward
 	if (control_temperature)
 	{
-		target_reward = target_reward_const * exp(-0.5 * pow(((mean_front_temperature-current_target)/(0.2*current_target)), 2.0));
+		target_reward = target_reward_const * exp(-0.5 * pow(((mean_front_temperature-current_target)/(0.30*current_target)), 2.0));
 	}
 	else
 	{
-		target_reward = target_reward_const * exp(-0.5 * pow(((mean_front_speed-current_target)/(0.02*current_target)), 2.0));
+		target_reward = target_reward_const * exp(-0.5 * pow(((mean_front_speed-current_target)/(0.03*current_target)), 2.0));
 	}
 
 	return input_reward+overage_reward+front_shape_reward+target_reward;
