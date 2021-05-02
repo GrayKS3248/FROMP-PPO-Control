@@ -215,6 +215,29 @@ PyObject* get_2D_list(vector<vector<double>> arr)
 }
 
 /**
+* Converts 2D vector<vector<int>> to a 2D PyList
+* @param The vector used to create list
+* @return PyObject pointer pointing at the created list
+*/
+PyObject* get_2D_int_list(vector<vector<int>> arr)
+{
+	PyObject *mat, *vec;
+
+	mat = PyList_New(arr.size());
+	for (unsigned int i = 0; i < arr.size(); i++)
+	{
+		vec = PyList_New(arr[0].size());
+		for (unsigned int j = 0; j < arr[0].size(); j++)
+		{
+			PyList_SetItem(vec, j, PyLong_FromLong(arr[i][j]));
+		}
+		PyList_SetItem(mat, i, vec);
+	}
+	
+	return mat;
+}
+
+/**
 * Converts 3D vector<vector<vector<double>>> to a 3D PyList
 * @param The vector used to create list
 * @return PyObject pointer pointing at the created list
@@ -540,26 +563,30 @@ int store_field_history(PyObject* save_render_plot, vector<vector<vector<double>
 /**
 * Stores front history to the save_render_plot class
 * @param pointer to the save_render_plot class in the PPO module
-* @param vector containing front location history
+* @param vector containing front location x indicies history
+* @param vector containing front location y indicies history
 * @param vector containing front speed field history
 * @param vector containing front temperature field history
 * @return 0 on success, 1 on failure
 */
-int store_front_history(PyObject* save_render_plot, vector<vector<vector<double>>> front_location, 
-vector<vector<vector<double>>> front_velocity, vector<vector<vector<double>>> front_temperature)
+
+int store_front_history(PyObject* save_render_plot, vector<vector<int>> front_loc_x_indicies, 
+vector<vector<int>> front_loc_y_indicies, vector<double> front_velocity, vector<double> front_temperature)
 {
 	// Convert inputs
-	PyObject* py_front_location = get_3D_list(front_location);
-	PyObject* py_front_velocity = get_3D_list(front_velocity);
-	PyObject* py_front_temperature = get_3D_list(front_temperature);
+	PyObject* py_front_loc_x_indicies = get_2D_int_list(front_loc_x_indicies);
+	PyObject* py_front_loc_y_indicies = get_2D_int_list(front_loc_y_indicies);
+	PyObject* py_front_velocity = get_1D_list(front_velocity);
+	PyObject* py_front_temperature = get_1D_list(front_temperature);
 	
 	// Call function
-	PyObject* result = PyObject_CallMethod(save_render_plot, "store_front_history", "(O,O,O)", py_front_location, py_front_velocity, py_front_temperature);
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_front_history", "(O,O,O,O)", py_front_loc_x_indicies, py_front_loc_y_indicies, py_front_velocity, py_front_temperature);
 	if (result==NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_front_history function:\n");
 		PyErr_Print();
-		Py_DECREF(py_front_location);
+		Py_DECREF(py_front_loc_x_indicies);
+		Py_DECREF(py_front_loc_y_indicies);
 		Py_DECREF(py_front_velocity);
 		Py_DECREF(py_front_temperature);
 		return 1;
@@ -567,7 +594,8 @@ vector<vector<vector<double>>> front_velocity, vector<vector<vector<double>>> fr
 	
 	// Free memory
 	Py_DECREF(result);
-	Py_DECREF(py_front_location);
+	Py_DECREF(py_front_loc_x_indicies);
+	Py_DECREF(py_front_loc_y_indicies);
 	Py_DECREF(py_front_velocity);
 	Py_DECREF(py_front_temperature);
 	return 0;
@@ -632,37 +660,6 @@ int store_top_mesh(PyObject* save_render_plot, vector<vector<double>> mesh_x_z0,
 	Py_DECREF(result);
 	Py_DECREF(py_mesh_x_z0);
 	Py_DECREF(py_mesh_y_z0);
-	return 0;
-}
-
-/**
-* Stores leftmost layer of mesh to the save_render_plot class
-* @param pointer to the save_render_plot class in the PPO module
-* @param y coordinates of leftmost layer of mesh
-* @param z coordinates of leftmost layer of mesh
-* @return 0 on success, 1 on failure
-*/
-int store_left_mesh(PyObject* save_render_plot, vector<vector<double>> mesh_y_x0, vector<vector<double>> mesh_z_x0)
-{
-	// Convert inputs
-	PyObject* py_mesh_y_x0 = get_2D_list(mesh_y_x0);
-	PyObject* py_mesh_z_x0 = get_2D_list(mesh_z_x0);
-	
-	// Call function
-	PyObject* result = PyObject_CallMethod(save_render_plot, "store_left_mesh", "(O,O)", py_mesh_y_x0, py_mesh_z_x0);
-	if (result==NULL)
-	{
-		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_left_mesh function:\n");
-		PyErr_Print();
-		Py_DECREF(py_mesh_y_x0);
-		Py_DECREF(py_mesh_z_x0);
-		return 1;
-	}
-	
-	// Free memory
-	Py_DECREF(result);
-	Py_DECREF(py_mesh_y_x0);
-	Py_DECREF(py_mesh_z_x0);
 	return 0;
 }
 
@@ -792,11 +789,12 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	vector<double> input_percent;
 	vector<double> time;
 	vector<double> target;
+	vector<double> front_velocity;
+	vector<double> front_temperature;
+	vector<vector<int>> front_loc_x_indicies;
+	vector<vector<int>> front_loc_y_indicies;
 	vector<vector<vector<double>>> temperature_field(FES->get_num_vert_length(), vector<vector<double>>(FES->get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
 	vector<vector<vector<double>>> cure_field(FES->get_num_vert_length(), vector<vector<double>>(FES->get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> front_location(FES->get_num_vert_width(), vector<vector<double>>(FES->get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> front_velocity(FES->get_num_vert_width(), vector<vector<double>>(FES->get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> front_temperature(FES->get_num_vert_width(), vector<vector<double>>(FES->get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
 
 	// Current trajectory data
 	vector<double> curr_input_location_x;
@@ -804,11 +802,12 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	vector<double> curr_input_percent;
 	vector<double> curr_time;
 	vector<double> curr_target;
+	vector<double> curr_front_velocity;
+	vector<double> curr_front_temperature;
+	vector<vector<int>> curr_front_loc_x_indicies;
+	vector<vector<int>> curr_front_loc_y_indicies;
 	vector<vector<vector<double>>> curr_temperature_field(FES->get_num_vert_length(), vector<vector<double>>(FES->get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
 	vector<vector<vector<double>>> curr_cure_field(FES->get_num_vert_length(), vector<vector<double>>(FES->get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> curr_front_location(FES->get_num_vert_width(), vector<vector<double>>(FES->get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> curr_front_velocity(FES->get_num_vert_width(), vector<vector<double>>(FES->get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> curr_front_temperature(FES->get_num_vert_width(), vector<vector<double>>(FES->get_num_vert_depth(), vector<double>(frames_per_trajectory, 0.0)));
 
 	// Simulation set variables
 	double total_reward = 0.0;
@@ -846,9 +845,6 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 				vector<double> input_location = FES->get_input_location();
 				vector<vector<double>> temp_mesh = FES->get_temp_mesh();
 				vector<vector<double>> cure_mesh = FES->get_cure_mesh();
-				vector<vector<double>> front_loc = FES->get_front_loc();
-				vector<vector<double>> front_vel = FES->get_front_vel();
-				vector<vector<double>> front_temp = FES->get_front_temp();
 				
 				// Store simulation data
 				curr_input_location_x.push_back(input_location[0]);
@@ -856,6 +852,10 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 				curr_input_percent.push_back(FES->get_input_percent());
 				curr_time.push_back(FES->get_current_time());
 				curr_target.push_back(FES->get_current_target());
+				curr_front_velocity.push_back(FES->get_front_vel());
+				curr_front_temperature.push_back(FES->get_front_temp());
+				curr_front_loc_x_indicies.push_back(FES->get_front_loc_x_indicies());
+				curr_front_loc_y_indicies.push_back(FES->get_front_loc_y_indicies());
 				
 				// Store environment temperature data
 				for (int i = 0; i < FES->get_num_vert_length(); i++)
@@ -864,17 +864,6 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 					{
 						curr_temperature_field[i][j][curr_target.size()-1] = temp_mesh[i][j];
 						curr_cure_field[i][j][curr_target.size()-1] = cure_mesh[i][j];
-					}
-				}
-				
-				// Store environment front data
-				for (int j = 0; j < FES->get_num_vert_width(); j++)
-				{
-					for (int k = 0; k < FES->get_num_vert_depth(); k++)
-					{
-						curr_front_location[j][k][curr_target.size()-1] = front_loc[j][k];
-						curr_front_velocity[j][k][curr_target.size()-1] = front_vel[j][k];
-						curr_front_temperature[j][k][curr_target.size()-1] = front_temp[j][k];
 					}
 				}
 			}
@@ -959,9 +948,10 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 			target = curr_target;
 			temperature_field = curr_temperature_field;
 			cure_field = curr_cure_field;
-			front_location = curr_front_location;
 			front_velocity = curr_front_velocity;
 			front_temperature = curr_front_temperature;
+			front_loc_x_indicies = curr_front_loc_x_indicies;
+			front_loc_y_indicies = curr_front_loc_y_indicies;
 		}
 
 		// Reset the current trajectory memory
@@ -970,6 +960,10 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 		curr_input_percent.clear();
 		curr_time.clear();
 		curr_target.clear();
+		curr_front_velocity.clear();
+		curr_front_temperature.clear();
+		curr_front_loc_x_indicies.clear();
+		curr_front_loc_y_indicies.clear();
 
 		// Update the logs
 		r_per_episode.push_back(prev_episode_reward/(double)steps_per_trajectory);
@@ -986,10 +980,9 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	if(store_stdev_history(save_render_plot, x_rate_stdev, y_rate_stdev, mag_rate_stdev) == 1) {return 1;}
 	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent) == 1) {return 1;}
 	if(store_field_history(save_render_plot, temperature_field, cure_field) == 1) {return 1;}
-	if(store_front_history(save_render_plot, front_location, front_velocity, front_temperature) == 1) {return 1;}
+	if(store_front_history(save_render_plot, front_loc_x_indicies, front_loc_y_indicies, front_velocity, front_temperature) == 1) {return 1;}
 	if(store_target_and_time(save_render_plot, target, time) == 1) {return 1;}
 	if(store_top_mesh(save_render_plot, FES->get_mesh_x_z0(), FES->get_mesh_y_z0()) == 1) {return 1;}
-	if(store_left_mesh(save_render_plot, FES->get_mesh_y_x0(), FES->get_mesh_z_x0()) == 1) {return 1;}
 	if(store_input_params(save_render_plot, FES->get_max_input_mag(), FES->get_exp_const()) == 1) {return 1;}
 	if(store_options(save_render_plot, FES->get_control_speed()) == 1) {return 1;}
 
@@ -1005,7 +998,7 @@ int main()
 	const char* autoencoder_path = "results/ks3_obj1_bn64_U";
 	
 	// Agent training parameter
-	int total_trajectories = 500;
+	int total_trajectories = 1;
 	int steps_per_trajectory = 100;
 	int trajectories_per_batch = 20;
 	int epochs_per_batch = 20;
@@ -1015,7 +1008,7 @@ int main()
 	double lamb = 0.95;
 	double epsilon = 0.20;
 	double start_alpha = 1.0e-3;
-	double end_alpha = 7.5e-4;
+	double end_alpha = 1.0e-4;
 
 	// Rendering parameters
 	double frame_rate = 30.0;

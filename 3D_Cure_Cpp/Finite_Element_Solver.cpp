@@ -177,10 +177,12 @@ Finite_Element_Solver::Finite_Element_Solver()
 	cure_mesh = get_perturbation(cure_mesh, initial_cure_delta);
 
 	// Init front mesh and parameters
-	front_loc = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	front_vel = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	time_front_last_moved = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	front_temp = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_temperature));
+	front_loc_x_indicies = vector<int>(front_location_indicies_length, -1);
+	front_loc_y_indicies = vector<int>(front_location_indicies_length, -1);
+	front_mean_x_loc = 0.0;
+	front_temp = initial_temperature;
+	front_vel = 0.0;
+	front_vel_history = deque<double>();
 
 	// Input magnitude parameters
 	double sigma = 0.329505114491 * radius_of_input;
@@ -308,40 +310,6 @@ vector<vector<double>> Finite_Element_Solver::get_mesh_y_z0()
 		for (int j = 0; j < num_vert_width; j++)
 		{
 			ret_val[i][j] = mesh_y[i][j][0];
-		}
-	}
-	return ret_val;
-}
-
-/**
-* Gets the left layer of the y mesh
-* @return The left layer of the y mesh as a 2D vector in y,z
-*/
-vector<vector<double>> Finite_Element_Solver::get_mesh_y_x0()
-{
-	vector<vector<double>> ret_val(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	for (int i = 0; i < num_vert_width; i++)
-	{
-		for (int j = 0; j < num_vert_depth; j++)
-		{
-			ret_val[i][j] = mesh_y[0][i][j];
-		}
-	}
-	return ret_val;
-}
-
-/**
-* Gets the left layer of the z mesh
-* @return The left layer of the z mesh as a 2D vector in y,z
-*/
-vector<vector<double>> Finite_Element_Solver::get_mesh_z_x0()
-{
-	vector<vector<double>> ret_val(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	for (int i = 0; i < num_vert_width; i++)
-	{
-		for (int j = 0; j < num_vert_depth; j++)
-		{
-			ret_val[i][j] = mesh_z[0][i][j];
 		}
 	}
 	return ret_val;
@@ -541,28 +509,37 @@ vector<vector<double>> Finite_Element_Solver::get_cure_mesh()
 //******************************************************************** FRONT STATE GETTERS ********************************************************************//
 
 /**
-* Gets the current front location
-* @return The current front location as a 2D vector in y,z
+* Gets the current front location x indicies
+* @return The current front location x indices if front exists, empty vector<int> if front does not exist
 */
-vector<vector<double>> Finite_Element_Solver::get_front_loc()
+vector<int> Finite_Element_Solver::get_front_loc_x_indicies()
 {
-	return front_loc;
+	return front_loc_x_indicies;
+}
+
+/**
+* Gets the current front location y indicies
+* @return The current front location y indices if front exists, empty vector<int> if front does not exist
+*/
+vector<int> Finite_Element_Solver::get_front_loc_y_indicies()
+{
+	return front_loc_y_indicies;
 }
 
 /**
 * Gets the current front velocity
-* @return The current front velocity as a 2D vector in y,z
+* @return The current mean front velocity
 */
-vector<vector<double>> Finite_Element_Solver::get_front_vel()
+double Finite_Element_Solver::get_front_vel()
 {
 	return front_vel;
 }
 
 /**
 * Gets the current front temperature
-* @return The current front temperature as a 2D vector in y,z
+* @return The current front mean temperature
 */
-vector<vector<double>> Finite_Element_Solver::get_front_temp()
+double Finite_Element_Solver::get_front_temp()
 {
 	return front_temp;
 }
@@ -738,10 +715,12 @@ void Finite_Element_Solver::reset()
 	cure_mesh = get_perturbation(cure_mesh, initial_cure_delta);
 
 	// Init front mesh and parameters
-	front_loc = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	front_vel = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	time_front_last_moved = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, 0.0));
-	front_temp = vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_temperature));
+	front_loc_x_indicies = vector<int>(front_location_indicies_length, -1);
+	front_loc_y_indicies = vector<int>(front_location_indicies_length, -1);
+	front_mean_x_loc = 0.0;
+	front_temp = initial_temperature;
+	front_vel = 0.0;
+	front_vel_history = deque<double>();
 
 	// Input magnitude parameters
 	input_percent = (double)rand()/(double)RAND_MAX;
@@ -815,8 +794,7 @@ double Finite_Element_Solver::get_reward()
 	double front_shape_reward;
 	double target_reward;
 
-	// Find the mean front location and the maximum temperature over the entire mesh
-	double mean_front_location = 0.0;
+	// Find the maximum temperature over the entire mesh
 	double max_temperature = 0.0;
 	for (int i = 0; i < num_vert_length; i++)
 	{
@@ -824,30 +802,41 @@ double Finite_Element_Solver::get_reward()
 		{
 			for (int k = 0; k < num_vert_depth; k++)
 			{
-				if(i==0) {mean_front_location += front_loc[j][k];}
-				if(temp_mesh[i][j][k] > max_temperature) {max_temperature = temp_mesh[i][j][k];}
+				if(temp_mesh[i][j][k] > max_temperature)
+				{
+					max_temperature = temp_mesh[i][j][k];
+				}
 			}
 		}
 	}
-	mean_front_location = mean_front_location / ((double)num_vert_width * (double)num_vert_depth);
 	
 	// Find the normalized standard deviation of the front location, mean front speed, mean front temperature
 	double stdev_front_location = 0.0;
-	double mean_front_speed = 0.0;
-	double mean_front_temperature = 0.0;
-	for (int j = 0; j < num_vert_width; j++)
+	int front_instances = 0;
+	for (unsigned int i = 0; i < front_loc_x_indicies.size(); i++)
 	{
-		for (int k = 0; k < num_vert_depth; k++)
+		if (front_loc_x_indicies[i] != -1)
 		{
-			stdev_front_location += (front_loc[j][k] - mean_front_location)*(front_loc[j][k] - mean_front_location);
-			mean_front_speed +=  front_vel[j][k];
-			mean_front_temperature += front_temp[j][k];
+			int front_x_index = front_loc_x_indicies[i];
+			int front_y_index = front_loc_y_indicies[i];
+			double curr_front_x_loc = mesh_x[front_x_index][front_y_index][0];
+			stdev_front_location += (curr_front_x_loc - front_mean_x_loc)*(curr_front_x_loc - front_mean_x_loc);
+			front_instances++;
+		}
+		else
+		{
+			break;
 		}
 	}
-	stdev_front_location = sqrt(stdev_front_location / ((double)num_vert_width * (double)num_vert_depth)) / width;
-	stdev_front_location = stdev_front_location > 1.0 ? 1.0 : stdev_front_location;
-	mean_front_speed = mean_front_speed / ((double)num_vert_width * (double)num_vert_depth);
-	mean_front_temperature = mean_front_temperature / ((double)num_vert_width * (double)num_vert_depth);
+	if (front_instances == 0)
+	{
+		stdev_front_location = 1.0;
+	}
+	else
+	{
+		stdev_front_location = sqrt(stdev_front_location / ((double)front_instances)) / width;
+		stdev_front_location = stdev_front_location > 1.0 ? 1.0 : stdev_front_location;
+	}
 
 	// Get the input reward
 	input_reward = input_reward_const * (1.0 - input_percent);
@@ -861,11 +850,11 @@ double Finite_Element_Solver::get_reward()
 	// Get the total reward
 	if (control_temperature)
 	{
-		target_reward = target_reward_const * exp(-0.5 * pow(((mean_front_temperature-current_target)/(0.30*current_target)), 2.0));
+		target_reward = target_reward_const * exp(-0.5 * pow(((front_temp-current_target)/(0.30*current_target)), 2.0));
 	}
 	else
 	{
-		target_reward = target_reward_const * exp(-0.5 * pow(((mean_front_speed-current_target)/(0.03*current_target)), 2.0));
+		target_reward = target_reward_const * exp(-0.5 * pow(((front_vel-current_target)/(0.03*current_target)), 2.0));
 	}
 
 	return input_reward+overage_reward+front_shape_reward+target_reward;
@@ -994,13 +983,13 @@ void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_ra
 */
 void Finite_Element_Solver::step_meshes()
 {
-	// Front mesh variables
-	const vector<vector<double> > prev_front_loc(front_loc);
-	const vector<vector<double> > prev_last_move(time_front_last_moved);
-
 	// Temperature mesh variables
-	const vector<vector<vector<double> > > prev_temp(temp_mesh);
+	const vector<vector<vector<double>>> prev_temp(temp_mesh);
 
+	// Front location variables
+	vector<vector<bool>> front_x_loc_array = vector<vector<bool>>(num_vert_length, vector<bool>(num_vert_width, false));
+	vector<vector<bool>> front_y_loc_array = vector<vector<bool>>(num_vert_length, vector<bool>(num_vert_width, false));
+	
 	// Update the mesh
 	#pragma omp parallel for collapse(3)
 	for (unsigned int i = 0; i < mesh_x.size(); i++)
@@ -1036,36 +1025,49 @@ void Finite_Element_Solver::step_meshes()
 		cure_mesh[i][j][k] = cure_mesh[i][j][k] + cure_rate * time_step;
 		cure_mesh[i][j][k] = cure_mesh[i][j][k] > 1.0 ? 1.0 : cure_mesh[i][j][k];
 
-		// Update the front location and either temperature or velocity
-		if ((cure_mesh[i][j][k] >= 0.80) && (front_loc[j][k] <= mesh_x[i][j][k]))
+		// Determine front location
+		if (k == 0)
 		{
-			front_loc[j][k] = mesh_x[i][j][k];
-			int search_diameter = (int) round((double) num_vert_length * 0.025);
-			int min_search_ind = i - search_diameter + 1;
-			int max_search_ind = i;
-			if (min_search_ind < 0)
+			// Calculate the derivative of the cure with respect to the x direction
+			double cure_derivative_wrt_x;
+			if (i == 0)
 			{
-				max_search_ind -= min_search_ind;
-				min_search_ind = 0;
+				cure_derivative_wrt_x = abs(cure_mesh[1][j][0] - cure_mesh[0][j][0]) / x_step;
 			}
-			front_temp[j][k] = 0.0;
-			for (int ind = min_search_ind; ind <= max_search_ind; ind++)
+			else if (i == (unsigned int)num_vert_length - 1)
 			{
-				front_temp[j][k] += temp_mesh[ind][j][k];
+				cure_derivative_wrt_x = abs(cure_mesh[num_vert_length-1][j][0] - cure_mesh[num_vert_length-2][j][0]) / x_step;
 			}
-			front_temp[j][k] = front_temp[j][k] / search_diameter;
-			if (front_loc[j][k] >= 0.99*length)
+			else
 			{
-				front_vel[j][k] = 0.0;
+				cure_derivative_wrt_x = abs(cure_mesh[i+1][j][0] - cure_mesh[i-1][j][0]) / (2.0 * x_step);
 			}
-			else if (prev_last_move[j][k] != 0.0 && front_loc[j][k] != prev_front_loc[j][k])
+			
+			// Calculate the derivative of the cure with respect to the y direction
+			double cure_derivative_wrt_y;
+			if (j == 0)
 			{
-				front_vel[j][k] = (front_loc[j][k] - prev_front_loc[j][k]) / (current_time - prev_last_move[j][k]);
-				time_front_last_moved[j][k] = current_time;
+				cure_derivative_wrt_y = abs(cure_mesh[i][1][0] - cure_mesh[i][0][0]) / x_step;
 			}
-			else if (prev_last_move[j][k] == 0.0 && front_loc[j][k] != prev_front_loc[j][k])
+			else if (j == (unsigned int)num_vert_width - 1)
 			{
-				time_front_last_moved[j][k] = current_time;
+				cure_derivative_wrt_y = abs(cure_mesh[i][num_vert_width-1][0] - cure_mesh[i][num_vert_width-2][0]) / x_step;
+			}
+			else
+			{
+				cure_derivative_wrt_y = abs(cure_mesh[i][j+1][0] - cure_mesh[i][j-1][0]) / (2.0 * x_step);
+			}
+			
+			// If a front is detected, store its information
+			if (cure_derivative_wrt_x + cure_derivative_wrt_y >= 0.30 / x_step)
+			{
+				// I know these are really weird data structures for this type of information
+				// however they were selected because they exist inside a parallel loop.
+				// Any other data structure would have to be broadcasted, or be dynamic
+				
+				// Store the x and y indicies of the detected front
+				front_x_loc_array[i][j] = true;
+				front_y_loc_array[i][j] = true;
 			}
 		}
 
@@ -1150,6 +1152,91 @@ void Finite_Element_Solver::step_meshes()
 		// Update the temperature field
 		double temp_rate = thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(enthalpy_of_reaction*cure_rate)/specific_heat;
 		temp_mesh[i][j][k] = temp_mesh[i][j][k] + temp_rate * time_step;
+	}
+	
+	// Calculate the averge front location, compare it to the previous time step's average front location, determine the front velocity
+	double curr_front_mean_x_loc = 0.0;
+	front_loc_x_indicies = vector<int>(front_location_indicies_length, -1);
+	front_loc_y_indicies = vector<int>(front_location_indicies_length, -1);
+	front_temp = 0.0;
+	int num_front_instances = 0;
+	for (int i = 0; i < num_vert_length; i++)
+	for (int j = 0; j < num_vert_width; j++)
+	{
+		if(front_x_loc_array[i][j])
+		{
+			curr_front_mean_x_loc += mesh_x[i][j][0];
+			
+			if (num_front_instances <= front_location_indicies_length)
+			{
+				front_loc_x_indicies[num_front_instances] = i;
+				front_loc_y_indicies[num_front_instances] = j;
+			}
+			
+			front_temp += temp_mesh[i][j][0];
+			
+			num_front_instances++;
+		}
+	}
+	if (num_front_instances != 0)
+	{
+		curr_front_mean_x_loc = curr_front_mean_x_loc / (double)num_front_instances;
+		
+		double current_front_vel = abs((curr_front_mean_x_loc - front_mean_x_loc) / time_step);
+		if (front_vel_history.size() < (unsigned int)front_vel_history_length)
+		{
+			
+			front_vel_history.push_back(current_front_vel);
+			front_vel = 0.0;
+			for (unsigned int i = 0; i < front_vel_history.size(); i++)
+			{
+				front_vel += front_vel_history[i];
+			}
+			front_vel = front_vel / (double)front_vel_history.size();
+		}
+		else
+		{
+			front_vel_history.push_back(current_front_vel);
+			front_vel_history.pop_front();
+			front_vel = 0.0;
+			for (int i = 0; i < front_vel_history_length; i++)
+			{
+				front_vel += front_vel_history[i];
+			}
+			front_vel = front_vel / (double)front_vel_history_length;
+		}
+		
+		front_mean_x_loc = curr_front_mean_x_loc;
+		
+		front_temp = front_temp / (double)num_front_instances;
+		
+	}
+	else
+	{
+		front_mean_x_loc = 0.0;
+		front_temp = initial_temperature;
+		
+		if (front_vel_history.size() < (unsigned int)front_vel_history_length)
+		{
+			front_vel_history.push_back(0.0);
+			front_vel = 0.0;
+			for (unsigned int i = 0; i < front_vel_history.size(); i++)
+			{
+				front_vel += front_vel_history[i];
+			}
+			front_vel = front_vel / (double)front_vel_history.size();
+		}
+		else
+		{
+			front_vel_history.push_back(0.0);
+			front_vel_history.pop_front();
+			front_vel = 0.0;
+			for (int i = 0; i < front_vel_history_length; i++)
+			{
+				front_vel += front_vel_history[i];
+			}
+			front_vel = front_vel / (double)front_vel_history_length;
+		}
 	}
 }
 

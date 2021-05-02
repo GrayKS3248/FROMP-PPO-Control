@@ -3,6 +3,7 @@
 #include <time.h>
 #include <algorithm>
 #include <vector>
+#include <deque>
 #include <tuple>
 #include <iostream>
 #include <chrono>
@@ -24,8 +25,6 @@ int get_num_vert_width();
 int get_num_vert_depth();
 vector<vector<double>> get_mesh_x_z0();
 vector<vector<double>> get_mesh_y_z0();
-vector<vector<double>> get_mesh_y_x0();
-vector<vector<double>> get_mesh_z_x0();
 
 // Time getters
 double get_sim_duration();
@@ -56,9 +55,10 @@ vector<vector<double>> get_norm_temp_mesh();
 vector<vector<double>> get_cure_mesh();
 
 // Front state getters
-vector<vector<double>> get_front_loc();
-vector<vector<double>> get_front_vel();
-vector<vector<double>> get_front_temp();
+vector<int> get_front_loc_x_indicies();
+vector<int> get_front_loc_y_indicies();
+double get_front_vel();
+double get_front_temp();
 
 
 //******************************************************************** PUBLIC FUNCTIONS ********************************************************************//
@@ -71,7 +71,7 @@ double get_reward();
 //******************************************************************** USER SET PARAMETERS ********************************************************************//
 private:
 // Input type
-const bool control = false;
+const bool control = true;
 
 // Trigger type
 const bool trigger = true;
@@ -101,14 +101,18 @@ const double width = 0.01;   // Meters
 const double depth = 0.005;  // Meters
 
 // Temporal parameters
-const double sim_duration = 30.0;   // Seconds
-const double time_step = 0.03;      // Seconds
+const double sim_duration = 60.0;       // Seconds
+const double time_step = 0.03;          // Seconds
+
+// Front calculation parameters
+const int front_location_indicies_length = 20 * num_vert_width; // Unitless
+const int front_vel_history_length = 20;                        // Unitless
 
 // Initial conditions
-const double initial_temperature = 278.15;  // Kelvin
-const double initial_cure = 0.05;           // Decimal Percent
-const double initial_temp_delta = 3.0;      // Kelvin
-const double initial_cure_delta = 0.005;    // Decimal Percent
+const double initial_temperature = 298.15;  // Kelvin
+const double initial_cure = 0.07;           // Decimal Percent
+const double initial_temp_delta = 0.0;//3.0;      // Kelvin
+const double initial_cure_delta = 0.0;//0.005;    // Decimal Percent
 
 // Boundary conditions
 const double htc = 10.0;                    // Watts / (Meter ^ 2 * Kelvin)
@@ -124,7 +128,7 @@ const double DCPD_GC1_target_temp = 473.15;       // Kelvin
 const double DCPD_GC1_temp_rand_scale = 20.0;     // Kelvin
 
 // DCPD GC2 problem definition
-const double DCPD_GC2_target_vel = 0.0015;        // Meters / Second
+const double DCPD_GC2_target_vel = 0.0015035;//0.0015;        // Meters / Second
 const double DCPD_GC2_vel_rand_scale = 0.00025;   // Meters / Second
 const double DCPD_GC2_target_temp = 473.15;       // Kelvin
 const double DCPD_GC2_temp_rand_scale = 20.0;     // Kelvin
@@ -186,9 +190,9 @@ const double COD_trigger_duration_ref = 6.0;        // Seconds
 const double trigger_time_ref = 0.0;                // Seconds
 
 // Reward constants
-const double input_reward_const = 0.00;         // Unitless
-const double overage_reward_const = 0.25;       // Unitless
-const double front_shape_reward_const = 0.00;   // Unitless
+const double input_reward_const = -0.25;         // Unitless
+const double overage_reward_const = 0.10;       // Unitless
+const double front_shape_reward_const = 0.20;   // Unitless
 const double target_reward_const = 1.0;         // Unitless
 
 //******************************************************************** CALCULATED PARAMETERS ********************************************************************//
@@ -224,10 +228,12 @@ vector<vector<vector<double>>> temp_mesh;
 vector<vector<vector<double>>> cure_mesh;
 
 // Front mesh and parameters
-vector<vector<double>> front_loc;
-vector<vector<double>> front_vel;
-vector<vector<double>> time_front_last_moved;
-vector<vector<double>> front_temp;
+vector<int> front_loc_x_indicies;
+vector<int> front_loc_y_indicies;
+double front_mean_x_loc;
+double front_temp;
+double front_vel;
+deque<double> front_vel_history;
 
 // Input magnitude parameters
 double exp_const;
