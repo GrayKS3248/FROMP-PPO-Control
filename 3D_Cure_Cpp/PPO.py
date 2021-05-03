@@ -584,7 +584,7 @@ class Save_Plot_Render:
             fig.set_size_inches(11,8.5)
                
             # Plot temperature
-            c0 = ax0.pcolormesh(1000.0*self.mesh_x_z0, 1000.0*self.mesh_y_z0, self.temperature_field[:,:,curr_step]-273.15, shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
+            c0 = ax0.pcolormesh(1000.0*self.mesh_x_z0, 1000.0*self.mesh_y_z0, self.temperature_field[curr_step,:,:]-273.15, shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
             cbar0 = fig.colorbar(c0, ax=ax0)
             cbar0.set_label('Temperature [C]',labelpad=20,fontsize='large')
             cbar0.ax.tick_params(labelsize=12)
@@ -593,10 +593,10 @@ class Save_Plot_Render:
             ax0.tick_params(axis='x',labelsize=12)
             ax0.tick_params(axis='y',labelsize=12)
             ax0.set_aspect('equal', adjustable='box')
-            ax0.set_title('Max Temperature = '+'{:.2f}'.format(np.max(self.temperature_field[:,:,curr_step]-273.15))+' C',fontsize='large')
+            ax0.set_title('Max Temperature = '+'{:.2f}'.format(np.max(self.temperature_field[curr_step,:,:]-273.15))+' C',fontsize='large')
                
             # Plot cure
-            c1 = ax1.pcolormesh(1000.0*self.mesh_x_z0, 1000.0*self.mesh_y_z0, self.cure_field[:,:,curr_step], shading='gouraud', cmap='YlOrBr', vmin=0.0, vmax=1.0)
+            c1 = ax1.pcolormesh(1000.0*self.mesh_x_z0, 1000.0*self.mesh_y_z0, self.cure_field[curr_step,:,:], shading='gouraud', cmap='YlOrBr', vmin=0.0, vmax=1.0)
             cbar1 = fig.colorbar(c1, ax=ax1)
             cbar1.set_label('Degree Cure [-]', labelpad=20,fontsize='large')
             cbar1.ax.tick_params(labelsize=12)
@@ -641,14 +641,3 @@ if __name__ == "__main__":
     
     with open("results/PPO_1/output", 'rb') as file:
         data = pickle.load(file)
-            
-    # agent = Agent(100, 5, 5, 0.99, 0.95, 0.20, 1e-3, 0.998, "results/ks3_obj1_bn64_U")
-    
-    # critic_loss = []
-    # for i in range(1000):
-    #     random_state = np.random.rand(360,40)
-    #     x = np.random.rand()
-    #     y = np.random.rand()
-    #     mag = np.random.rand()
-    #     a1, s1, a2, s2, a3, s3 =  agent.get_action(random_state, x, y, mag)
-    #     critic_loss.extend(agent.update_agent(random_state, x, y, mag, a1, a2, a3, np.random.rand()))

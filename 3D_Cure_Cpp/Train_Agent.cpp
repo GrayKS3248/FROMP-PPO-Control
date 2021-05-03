@@ -773,9 +773,6 @@ int save_agent_results(PyObject* save_render_plot, PyObject* agent)
 */
 int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory)
 {
-	// Determine how many frames there are in each trajectory
-	int frames_per_trajectory = (int)round((double)FES->get_target_vector_arr_size() / (double)steps_per_frame);
-	
 	// Agent training data storage
 	vector<double> r_per_episode;
 	vector<double> critic_loss;
@@ -793,8 +790,8 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	vector<double> front_temperature;
 	vector<vector<int>> front_loc_x_indicies;
 	vector<vector<int>> front_loc_y_indicies;
-	vector<vector<vector<double>>> temperature_field(FES->get_num_vert_length(), vector<vector<double>>(FES->get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> cure_field(FES->get_num_vert_length(), vector<vector<double>>(FES->get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
+	vector<vector<vector<double>>> temperature_field;
+	vector<vector<vector<double>>> cure_field;
 
 	// Current trajectory data
 	vector<double> curr_input_location_x;
@@ -806,8 +803,8 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	vector<double> curr_front_temperature;
 	vector<vector<int>> curr_front_loc_x_indicies;
 	vector<vector<int>> curr_front_loc_y_indicies;
-	vector<vector<vector<double>>> curr_temperature_field(FES->get_num_vert_length(), vector<vector<double>>(FES->get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
-	vector<vector<vector<double>>> curr_cure_field(FES->get_num_vert_length(), vector<vector<double>>(FES->get_num_vert_width(), vector<double>(frames_per_trajectory, 0.0)));
+	vector<vector<vector<double>>> curr_temperature_field;
+	vector<vector<vector<double>>> curr_cure_field;
 
 	// Simulation set variables
 	double total_reward = 0.0;
@@ -843,35 +840,32 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 			{
 				// Get environment data
 				vector<double> input_location = FES->get_input_location();
-				vector<vector<double>> temp_mesh = FES->get_temp_mesh();
-				vector<vector<double>> cure_mesh = FES->get_cure_mesh();
 				
-				// Store simulation data
+				// Store simulation input data
 				curr_input_location_x.push_back(input_location[0]);
 				curr_input_location_y.push_back(input_location[1]);
 				curr_input_percent.push_back(FES->get_input_percent());
+				
+				// Store simualtion target and time data
 				curr_time.push_back(FES->get_current_time());
 				curr_target.push_back(FES->get_current_target());
+				
+				// Store simulation front data
 				curr_front_velocity.push_back(FES->get_front_vel());
 				curr_front_temperature.push_back(FES->get_front_temp());
 				curr_front_loc_x_indicies.push_back(FES->get_front_loc_x_indicies());
 				curr_front_loc_y_indicies.push_back(FES->get_front_loc_y_indicies());
 				
-				// Store environment temperature data
-				for (int i = 0; i < FES->get_num_vert_length(); i++)
-				{
-					for (int j = 0; j < FES->get_num_vert_width(); j++)
-					{
-						curr_temperature_field[i][j][curr_target.size()-1] = temp_mesh[i][j];
-						curr_cure_field[i][j][curr_target.size()-1] = cure_mesh[i][j];
-					}
-				}
+				// Store simulation field data
+				curr_temperature_field.push_back(FES->get_temp_mesh());
+				curr_cure_field.push_back(FES->get_cure_mesh());
+				
 			}
 			
 			// Run the agent
 			if (run_agent)
 			{
-				// Gather temperature state data
+/* 				// Gather temperature state data
 				vector<vector<double>> norm_temp_mesh = FES->get_norm_temp_mesh();
 				PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
 				double input_x_loc = FES->get_input_location()[0];
@@ -924,7 +918,7 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 				
 				// Release the python memory
 				Py_DECREF(py_norm_temp_mesh);
-				Py_DECREF(py_action);
+				Py_DECREF(py_action); */
 			}
 			
 			// Step the environment 
@@ -965,7 +959,7 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 		curr_front_loc_x_indicies.clear();
 		curr_front_loc_y_indicies.clear();
 
-		// Update the logs
+		// Store actor training data
 		r_per_episode.push_back(prev_episode_reward/(double)steps_per_trajectory);
 		x_rate_stdev.push_back(FES->get_max_input_loc_rate()*stdev_1);
 		y_rate_stdev.push_back(FES->get_max_input_loc_rate()*stdev_2);
@@ -975,7 +969,7 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 		if (i == total_trajectories - 1) { print_training_info(i, total_trajectories, prev_episode_reward, steps_per_trajectory, r_per_episode, best_episode_reward); }
 	}
 	
-	// Store all relevant data to save render and plot module
+	// Send all relevant data to save render and plot module
 	if(store_training_curves(save_render_plot, r_per_episode, critic_loss) == 1) {return 1;}
 	if(store_stdev_history(save_render_plot, x_rate_stdev, y_rate_stdev, mag_rate_stdev) == 1) {return 1;}
 	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent) == 1) {return 1;}

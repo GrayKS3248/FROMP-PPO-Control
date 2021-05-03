@@ -98,21 +98,21 @@ const int num_vert_depth = 6;     // Unitless
 // Spatial parameters
 const double length = 0.05;  // Meters
 const double width = 0.01;   // Meters
-const double depth = 0.005;  // Meters
+const double depth = 0.001;  // Meters
 
 // Temporal parameters
-const double sim_duration = 60.0;       // Seconds
-const double time_step = 0.03;          // Seconds
+const double sim_duration = 50.0;       // Seconds
+const double time_step = 0.01;          // Seconds
 
 // Front calculation parameters
 const int front_location_indicies_length = 20 * num_vert_width; // Unitless
-const int front_vel_history_length = 20;                        // Unitless
+const int front_vel_history_length = 75;                        // Unitless
 
 // Initial conditions
-const double initial_temperature = 298.15;  // Kelvin
+const double initial_temperature = 296.15;  // Kelvin
 const double initial_cure = 0.07;           // Decimal Percent
-const double initial_temp_delta = 0.0;//3.0;      // Kelvin
-const double initial_cure_delta = 0.0;//0.005;    // Decimal Percent
+const double initial_temp_delta = 3.0;      // Kelvin
+const double initial_cure_delta = 0.005;    // Decimal Percent
 
 // Boundary conditions
 const double htc = 10.0;                    // Watts / (Meter ^ 2 * Kelvin)
@@ -128,7 +128,7 @@ const double DCPD_GC1_target_temp = 473.15;       // Kelvin
 const double DCPD_GC1_temp_rand_scale = 20.0;     // Kelvin
 
 // DCPD GC2 problem definition
-const double DCPD_GC2_target_vel = 0.0015035;//0.0015;        // Meters / Second
+const double DCPD_GC2_target_vel = 0.00107844;        // Meters / Second
 const double DCPD_GC2_vel_rand_scale = 0.00025;   // Meters / Second
 const double DCPD_GC2_target_temp = 473.15;       // Kelvin
 const double DCPD_GC2_temp_rand_scale = 20.0;     // Kelvin

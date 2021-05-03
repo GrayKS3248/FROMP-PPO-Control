@@ -107,9 +107,9 @@ int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_contro
 		// Open file to save temp to
 		stream << path << "/temp_data_" << curr_epoch << ".csv";
 		string temp_load_name = stream.str();
-		ofstream temp_data;
-		temp_data.open(temp_load_name, ofstream::trunc);
-		if(!temp_data.is_open())
+		ofstream temp_file;
+		temp_file.open(temp_load_name, ofstream::trunc);
+		if(!temp_file.is_open())
 		{
 			cout << "\nFailed to open temp file\n";
 			return 1;
@@ -119,9 +119,9 @@ int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_contro
 		stream.str(string());
 		stream << path << "/cure_data_" << curr_epoch << ".csv";
 		string cure_load_name = stream.str();
-		ofstream cure_data;
-		cure_data.open (cure_load_name, ofstream::trunc);
-		if(!cure_data.is_open())
+		ofstream cure_file;
+		cure_file.open (cure_load_name, ofstream::trunc);
+		if(!cure_file.is_open())
 		{
 			cout << "\nFailed to open cure file\n";
 			return 1;
@@ -145,8 +145,8 @@ int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_contro
 			print_training_info(curr_traj+curr_epoch*(int)floor((double)samples_per_batch/(double)samples_per_trajectory), total_trajectories);
 
 			// Save data structure
-			vector<vector<double>> temp_frames[samples_per_trajectory];
-			vector<vector<double>> cure_frames[samples_per_trajectory];
+			vector<vector<vector<double>>> temp_frames;
+			vector<vector<vector<double>>> cure_frames;
 
 			// Reset environment
 			FES->reset();
@@ -179,8 +179,8 @@ int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_contro
 				// Save data to files
 				if (save_frame)
 				{
-					temp_frames[frame_count] = FES->get_norm_temp_mesh();
-					cure_frames[frame_count] = FES->get_cure_mesh();
+					temp_frames.push_back(FES->get_norm_temp_mesh());
+					cure_frames.push_back(FES->get_cure_mesh());
 					
 					// Update which frame is to be saved next
 					frame_count++;
@@ -204,13 +204,13 @@ int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_contro
 					{
 						if (k == FES->get_num_vert_width()-1)
 						{
-							temp_data << temp_frames[i][j][k] << "\n";
-							cure_data << cure_frames[i][j][k] << "\n";
+							temp_file << temp_frames[i][j][k] << "\n";
+							cure_file << cure_frames[i][j][k] << "\n";
 						}
 						else
 						{
-							temp_data << temp_frames[i][j][k] << ",";
-							cure_data << cure_frames[i][j][k] << ",";
+							temp_file << temp_frames[i][j][k] << ",";
+							cure_file << cure_frames[i][j][k] << ",";
 						}
 					}
 				}
@@ -220,8 +220,8 @@ int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_contro
 			if (curr_traj+curr_epoch*(int)floor((double)samples_per_batch/(double)samples_per_trajectory) == total_trajectories - 1) { print_training_info(curr_traj+curr_epoch*(int)floor((double)samples_per_batch/(double)samples_per_trajectory), total_trajectories); }
 		}
 
-		if (temp_data.is_open()) { temp_data.close(); }
-		if (cure_data.is_open()) { cure_data.close(); }
+		if (temp_file.is_open()) { temp_file.close(); }
+		if (cure_file.is_open()) { cure_file.close(); }
 		
 	}
 	return 0;
@@ -230,7 +230,7 @@ int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_contro
 int main()
 {	
 	// Training data parameters
-	int total_trajectories = 5000;
+	int total_trajectories = 10;
 	int samples_per_trajectory = 20;  // Number of temerpature and cure frames sampled per trajecotry for AE training
 	int samples_per_batch = 100;      // Number of frames used per training epoch
 	int actions_per_trajectory = 100; // Number of random input actions performed by controller during trajecotry
