@@ -713,7 +713,7 @@ void Finite_Element_Solver::reset()
 	temp_mesh = get_perturbation(temp_mesh, initial_temp_delta);
 	cure_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_cure)));
 	cure_mesh = get_perturbation(cure_mesh, initial_cure_delta);
-
+	
 	// Init front mesh and parameters
 	front_loc_x_indicies = vector<int>(front_location_indicies_length, -1);
 	front_loc_y_indicies = vector<int>(front_location_indicies_length, -1);
@@ -992,40 +992,328 @@ void Finite_Element_Solver::step_meshes()
 	
 	// Update the mesh
 	#pragma omp parallel for collapse(3)
-	for (unsigned int i = 0; i < mesh_x.size(); i++)
-	for (unsigned int j = 0; j < mesh_x[0].size(); j++)
-	for (unsigned int k = 0; k < mesh_x[0][0].size(); k++)
+	for (unsigned int i = 0; i < (unsigned int) num_vert_length; i++)
+	for (unsigned int j = 0; j < (unsigned int) num_vert_width; j++)
+	for (unsigned int k = 0; k < (unsigned int) num_vert_depth; k++)
 	{
-		// Calculate the cure rate
+		//******************************************************************** Calculate the cure rate and step cure mesh ********************************************************************//
 		double cure_rate = 0.0;
-		if (use_DCPD_GC1)
+		
+		// Only calculate the cure rate if curing is incomplete
+		if (cure_mesh[i][j][k] < 1.0)
 		{
-			cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * prev_temp[i][j][k])) *
-			pow((1.0 - cure_mesh[i][j][k]), DCPD_GC1_model_fit_order) * 
-			(1.0 + DCPD_GC1_autocatalysis_const * cure_mesh[i][j][k]);
-		}
-		else if (use_DCPD_GC2)
-		{
-			cure_rate = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * prev_temp[i][j][k])) *  
-			pow((1.0 - cure_mesh[i][j][k]), DCPD_GC2_model_fit_order) * 
-			pow(cure_mesh[i][j][k], DCPD_GC2_m_fit) * 
-			(1.0 / 1+(1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh[i][j][k] - DCPD_GC2_critical_cure))));
-		}
-		else if (use_COD)
-		{
-			cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * prev_temp[i][j][k])) *  
-			pow((1.0 - cure_mesh[i][j][k]), COD_model_fit_order) * 
-			pow(cure_mesh[i][j][k], COD_m_fit);
-		}
-
-		// Update the cure mesh
-		cure_rate = isnan(cure_rate) ? ((1.0 - cure_mesh[i][j][k]) / time_step) : cure_rate;
-		cure_rate = (isinf(cure_rate) || (cure_rate > ((1.0 - cure_mesh[i][j][k]) / time_step))) ? ((1.0 - cure_mesh[i][j][k]) / time_step) : cure_rate;
-		cure_rate = cure_rate < 1.0e-7 ? 0.0 : cure_rate;
-		cure_mesh[i][j][k] = cure_mesh[i][j][k] + cure_rate * time_step;
+			if (use_DCPD_GC1)
+			{
+				cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * prev_temp[i][j][k])) *
+				pow((1.0 - cure_mesh[i][j][k]), DCPD_GC1_model_fit_order) * 
+				(1.0 + DCPD_GC1_autocatalysis_const * cure_mesh[i][j][k]);
+			}
+			else if (use_DCPD_GC2)
+			{
+				cure_rate = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * prev_temp[i][j][k])) *  
+				pow((1.0 - cure_mesh[i][j][k]), DCPD_GC2_model_fit_order) * 
+				pow(cure_mesh[i][j][k], DCPD_GC2_m_fit) * 
+				(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh[i][j][k] - DCPD_GC2_critical_cure))));
+			}
+			else if (use_COD)
+			{
+				cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * prev_temp[i][j][k])) *  
+				pow((1.0 - cure_mesh[i][j][k]), COD_model_fit_order) * 
+				pow(cure_mesh[i][j][k], COD_m_fit);
+			}
+			
+			// Limit cure rate such that a single time step will not yield a degree of cure greater than 1.
+			cure_rate = cure_rate > (1.0 - cure_mesh[i][j][k])/time_step ? (1.0 - cure_mesh[i][j][k])/time_step : cure_rate;
+		}     
+		
+		// Step cure mesh
+		cure_mesh[i][j][k] = cure_mesh[i][j][k] + time_step * cure_rate;
+			
+		// Ensure current cure is in expected range
 		cure_mesh[i][j][k] = cure_mesh[i][j][k] > 1.0 ? 1.0 : cure_mesh[i][j][k];
+		cure_mesh[i][j][k] = cure_mesh[i][j][k] < 1.0e-7 ? 0.0 : cure_mesh[i][j][k];
 
-		// Determine front location
+		//******************************************************************** Calculate the temperature rate and step temp mesh ********************************************************************//
+		double dT2_dx2;
+		double dT2_dy2;
+		double dT2_dz2;
+		double left_flux;
+		double right_flux;
+		double front_flux;
+		double back_flux;
+		double top_flux;
+		double bottom_flux;
+		double term_1;
+		double term_2;
+		double term_3;
+		double term_4;
+		double term_5;
+		double term_6;
+		double term_7;
+
+		// Calculate the second derivative of temperature wrt x in interior of mesh
+		if (i != 0 && i != mesh_x.size()-1)
+		{
+			// Stencil size 7. Stencil = (-1, 0, 1, 2, 3, 4, 5) for 2nd order derivative
+			if (i==1)
+			{
+				term_1 = 137.0 * prev_temp[i-1][j][k] / 180.0;
+				term_2 = -49.0 * prev_temp[i][j][k] / 60.0;
+				term_3 = -17.0 * prev_temp[i+1][j][k] / 12.0;
+				term_4 = 47.0 * prev_temp[i+2][j][k] / 18.0;
+				term_5 = -19.0 * prev_temp[i+3][j][k] / 12.0;
+				term_6 = 31.0 * prev_temp[i+4][j][k] / 60.0;
+				term_7 = -13.0 * prev_temp[i+5][j][k] / 180.0;
+			}
+			// Stencil size 7. Stencil = (-2, -1, 0, 1, 2, 3, 4) for 2nd order derivative
+			else if(i==2)
+			{
+				term_1 = -13.0 * prev_temp[i-2][j][k] / 180.0;
+				term_2 = 19.0 * prev_temp[i-1][j][k] / 15.0;
+				term_3 = -7.0 * prev_temp[i][j][k] / 3.0;
+				term_4 = 10.0 * prev_temp[i+1][j][k] / 9.0;
+				term_5 = 1.0 * prev_temp[i+2][j][k] / 12.0;
+				term_6 = -1.0 * prev_temp[i+3][j][k] / 15.0;
+				term_7 = 1.0 * prev_temp[i+4][j][k] / 90.0;
+			}
+			// Stencil size 7. Stencil = (-4, -3, -2, -1, 0, 1, 2) for 2nd order derivative
+			else if(i==mesh_x.size()-3)
+			{
+				term_1 = 1.0 * prev_temp[i-4][j][k] / 90.0;
+				term_2 = -1.0 * prev_temp[i-3][j][k] / 15.0;
+				term_3 = 1.0 * prev_temp[i-2][j][k] / 12.0;
+				term_4 = 10.0 * prev_temp[i-1][j][k] / 9.0;
+				term_5 = -7.0 * prev_temp[i][j][k] / 3.0;
+				term_6 = 19.0 * prev_temp[i+1][j][k] / 15.0;
+				term_7 = -13.0 * prev_temp[i+2][j][k] / 180.0;
+			}
+			// Stencil size 7. Stencil = (-5, -4, -3, -2, -1, 0, 1) for 2nd order derivative
+			else if(i==mesh_x.size()-2)
+			{
+				term_1 = -13.0 * prev_temp[i-5][j][k] / 180.0;
+				term_2 = 31.0 * prev_temp[i-4][j][k] / 60.0;
+				term_3 = -19.0 * prev_temp[i-3][j][k] / 12.0;
+				term_4 = 47.0 * prev_temp[i-2][j][k] / 18.0;
+				term_5 = -17.0 * prev_temp[i-1][j][k] / 12.0;
+				term_6 = -49.0 * prev_temp[i][j][k] / 60.0;
+				term_7 = 137.0 * prev_temp[i+1][j][k] / 180.0;
+			}
+			
+			// Stencil size 7. Stencil = (-3, -2, -1, 0, 1, 2, 3) for 2nd order derivative
+			else
+			{
+				term_1 = 1.0 * prev_temp[i-3][j][k] / 90.0;
+				term_2 = -3.0 * prev_temp[i-2][j][k] / 20.0;
+				term_3 = 3.0 * prev_temp[i-1][j][k] / 2.0;
+				term_4 = -49.0 * prev_temp[i][j][k] / 18.0;
+				term_5 = 3.0 * prev_temp[i+1][j][k] / 2.0;
+				term_6 = -3.0 * prev_temp[i+2][j][k] / 20.0;
+				term_7 = 1.0 * prev_temp[i+3][j][k] / 90.0;
+			}
+			
+			// Get second derivative based on stencile length 7 finite difference method
+			dT2_dx2 = (term_1+term_2+term_3+term_4+term_5+term_6+term_7) / (x_step*x_step);
+		}
+		
+		// Calculate the second derivative of temperature wrt x at boundaries
+		else
+		{
+			// LHS boundary condition
+			if (i == 0)
+			{
+				// Trigger boundary condition
+				if (current_time >= trigger_time && current_time < trigger_time + trigger_duration)
+				{
+					left_flux = htc*(prev_temp[i][j][k]-ambient_temperature) - trigger_flux;
+				}
+				
+				// Non-trigger boundary condition
+				else
+				{
+					left_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
+				}
+				dT2_dx2 = 2.0*( prev_temp[i+1][j][k]-prev_temp[i][j][k]-(x_step*left_flux/thermal_conductivity) ) / (x_step*x_step);
+			}
+			
+			// RHS boundary condition
+			else if (i == mesh_x.size()-1)
+			{
+				right_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
+				dT2_dx2 = 2.0*( prev_temp[i-1][j][k] - prev_temp[i][j][k] - (x_step*right_flux/thermal_conductivity) ) / (x_step*x_step);
+			}
+		}
+
+		// Calculate the second derivative of temperature wrt y in interior of mesh
+		if (j != 0 && j != mesh_x[0].size()-1)
+		{
+			// Stencil size 7. Stencil = (-1, 0, 1, 2, 3, 4, 5) for 2nd order derivative
+			if (j==1)
+			{
+				term_1 = 137.0 * prev_temp[i][j-1][k] / 180.0;
+				term_2 = -49.0 * prev_temp[i][j][k] / 60.0;
+				term_3 = -17.0 * prev_temp[i][j+1][k] / 12.0;
+				term_4 = 47.0 * prev_temp[i][j+2][k] / 18.0;
+				term_5 = -19.0 * prev_temp[i][j+3][k] / 12.0;
+				term_6 = 31.0 * prev_temp[i][j+4][k] / 60.0;
+				term_7 = -13.0 * prev_temp[i][j+5][k] / 180.0;
+			}
+			// Stencil size 7. Stencil = (-2, -1, 0, 1, 2, 3, 4) for 2nd order derivative
+			else if(j==2)
+			{
+				term_1 = -13.0 * prev_temp[i][j-2][k] / 180.0;
+				term_2 = 19.0 * prev_temp[i][j-1][k] / 15.0;
+				term_3 = -7.0 * prev_temp[i][j][k] / 3.0;
+				term_4 = 10.0 * prev_temp[i][j+1][k] / 9.0;
+				term_5 = 1.0 * prev_temp[i][j+2][k] / 12.0;
+				term_6 = -1.0 * prev_temp[i][j+3][k] / 15.0;
+				term_7 = 1.0 * prev_temp[i][j+4][k] / 90.0;
+			}
+			// Stencil size 7. Stencil = (-4, -3, -2, -1, 0, 1, 2) for 2nd order derivative
+			else if(j==mesh_x[0].size()-3)
+			{
+				term_1 = 1.0 * prev_temp[i][j-4][k] / 90.0;
+				term_2 = -1.0 * prev_temp[i][j-3][k] / 15.0;
+				term_3 = 1.0 * prev_temp[i][j-2][k] / 12.0;
+				term_4 = 10.0 * prev_temp[i][j-1][k] / 9.0;
+				term_5 = -7.0 * prev_temp[i][j][k] / 3.0;
+				term_6 = 19.0 * prev_temp[i][j+1][k] / 15.0;
+				term_7 = -13.0 * prev_temp[i][j+2][k] / 180.0;
+			}
+			// Stencil size 7. Stencil = (-5, -4, -3, -2, -1, 0, 1) for 2nd order derivative
+			else if(j==mesh_x[0].size()-2)
+			{
+				term_1 = -13.0 * prev_temp[i][j-5][k] / 180.0;
+				term_2 = 31.0 * prev_temp[i][j-4][k] / 60.0;
+				term_3 = -19.0 * prev_temp[i][j-3][k] / 12.0;
+				term_4 = 47.0 * prev_temp[i][j-2][k] / 18.0;
+				term_5 = -17.0 * prev_temp[i][j-1][k] / 12.0;
+				term_6 = -49.0 * prev_temp[i][j][k] / 60.0;
+				term_7 = 137.0 * prev_temp[i][j+1][k] / 180.0;
+			}
+			
+			// Stencil size 7. Stencil = (-3, -2, -1, 0, 1, 2, 3) for 2nd order derivative
+			else
+			{
+				term_1 = 1.0 * prev_temp[i][j-3][k] / 90.0;
+				term_2 = -3.0 * prev_temp[i][j-2][k] / 20.0;
+				term_3 = 3.0 * prev_temp[i][j-1][k] / 2.0;
+				term_4 = -49.0 * prev_temp[i][j][k] / 18.0;
+				term_5 = 3.0 * prev_temp[i][j+1][k] / 2.0;
+				term_6 = -3.0 * prev_temp[i][j+2][k] / 20.0;
+				term_7 = 1.0 * prev_temp[i][j+3][k] / 90.0;
+			}
+			
+			// Get second derivative based on stencile length 7 finite difference method
+			dT2_dy2 = (term_1+term_2+term_3+term_4+term_5+term_6+term_7) / (y_step*y_step);
+		}
+		
+		// Calculate the second derivative of temperature wrt y at boundaries
+		else
+		{
+			// Front boundary condition
+			if (j == 0)
+			{
+				front_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
+				dT2_dy2 = 2.0*(prev_temp[i][j+1][k]-prev_temp[i][j][k]-(y_step*front_flux/thermal_conductivity))/(y_step*y_step);
+			}
+			
+			// Back boundary condition
+			else if (j == mesh_x[0].size()-1)
+			{
+				back_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
+				dT2_dy2 = 2.0*(prev_temp[i][j-1][k]-prev_temp[i][j][k]-(y_step*back_flux/thermal_conductivity))/(y_step*y_step);
+			}
+		}
+
+		// Calculate the second derivative of temperature wrt z in interior of mesh
+		if (k != 0 && k != mesh_x[0][0].size()-1)
+		{
+			// Stencil size 7. Stencil = (-1, 0, 1, 2, 3, 4, 5) for 2nd order derivative
+			if (k==1)
+			{
+				term_1 = 137.0 * prev_temp[i][j][k-1] / 180.0;
+				term_2 = -49.0 * prev_temp[i][j][k] / 60.0;
+				term_3 = -17.0 * prev_temp[i][j][k+1] / 12.0;
+				term_4 = 47.0 * prev_temp[i][j][k+2] / 18.0;
+				term_5 = -19.0 * prev_temp[i][j][k+3] / 12.0;
+				term_6 = 31.0 * prev_temp[i][j][k+4] / 60.0;
+				term_7 = -13.0 * prev_temp[i][j][k+5] / 180.0;
+			}
+			// Stencil size 7. Stencil = (-2, -1, 0, 1, 2, 3, 4) for 2nd order derivative
+			else if(k==2)
+			{
+				term_1 = -13.0 * prev_temp[i][j][k-2] / 180.0;
+				term_2 = 19.0 * prev_temp[i][j][k-1] / 15.0;
+				term_3 = -7.0 * prev_temp[i][j][k] / 3.0;
+				term_4 = 10.0 * prev_temp[i][j][k+1] / 9.0;
+				term_5 = 1.0 * prev_temp[i][j][k+2] / 12.0;
+				term_6 = -1.0 * prev_temp[i][j][k+3] / 15.0;
+				term_7 = 1.0 * prev_temp[i][j][k+4] / 90.0;
+			}
+			// Stencil size 7. Stencil = (-4, -3, -2, -1, 0, 1, 2) for 2nd order derivative
+			else if(k==mesh_x[0][0].size()-3)
+			{
+				term_1 = 1.0 * prev_temp[i][j][k-4] / 90.0;
+				term_2 = -1.0 * prev_temp[i][j][k-3] / 15.0;
+				term_3 = 1.0 * prev_temp[i][j][k-2] / 12.0;
+				term_4 = 10.0 * prev_temp[i][j][k-1] / 9.0;
+				term_5 = -7.0 * prev_temp[i][j][k] / 3.0;
+				term_6 = 19.0 * prev_temp[i][j][k+1] / 15.0;
+				term_7 = -13.0 * prev_temp[i][j][k+2] / 180.0;
+			}
+			// Stencil size 7. Stencil = (-5, -4, -3, -2, -1, 0, 1) for 2nd order derivative
+			else if(k==mesh_x[0][0].size()-2)
+			{
+				term_1 = -13.0 * prev_temp[i][j][k-5] / 180.0;
+				term_2 = 31.0 * prev_temp[i][j][k-4] / 60.0;
+				term_3 = -19.0 * prev_temp[i][j][k-3] / 12.0;
+				term_4 = 47.0 * prev_temp[i][j][k-2] / 18.0;
+				term_5 = -17.0 * prev_temp[i][j][k-1] / 12.0;
+				term_6 = -49.0 * prev_temp[i][j][k] / 60.0;
+				term_7 = 137.0 * prev_temp[i][j][k+1] / 180.0;
+			}
+			
+			// Stencil size 7. Stencil = (-3, -2, -1, 0, 1, 2, 3) for 2nd order derivative
+			else
+			{
+				term_1 = 1.0 * prev_temp[i][j][k-3] / 90.0;
+				term_2 = -3.0 * prev_temp[i][j][k-2] / 20.0;
+				term_3 = 3.0 * prev_temp[i][j][k-1] / 2.0;
+				term_4 = -49.0 * prev_temp[i][j][k] / 18.0;
+				term_5 = 3.0 * prev_temp[i][j][k+1] / 2.0;
+				term_6 = -3.0 * prev_temp[i][j][k+2] / 20.0;
+				term_7 = 1.0 * prev_temp[i][j][k+3] / 90.0;
+			}
+			
+			// Get second derivative based on stencile length 7 finite difference method
+			dT2_dz2 = (term_1+term_2+term_3+term_4+term_5+term_6+term_7) / (z_step*z_step);
+		}
+		
+		// Calculate the second derivative of temperature wrt z at boundaries
+		else
+		{
+			// Top boundary condition
+			if (k == 0)
+			{
+				top_flux = htc*(prev_temp[i][j][k]-ambient_temperature) - input_mesh[i][j];
+				dT2_dz2 = 2.0*(prev_temp[i][j][k+1]-prev_temp[i][j][k]-(z_step*top_flux/thermal_conductivity))/(z_step*z_step);
+			}
+			
+			// Bottom boundary condition
+			else if (k == mesh_x[0][0].size()-1)
+			{
+				bottom_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
+				dT2_dz2 = 2.0*(prev_temp[i][j][k-1]-prev_temp[i][j][k]-(z_step*bottom_flux/thermal_conductivity))/(z_step*z_step);
+			}
+		}
+		
+		// Calculate the temperature rate and store it for use in multistep integration
+		double temp_rate = thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(enthalpy_of_reaction*cure_rate)/specific_heat;
+		
+		// Step temp mesh
+		temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * temp_rate;
+	
+		//******************************************************************** Determine front location ********************************************************************//
 		if (k == 0)
 		{
 			// Calculate the derivative of the cure with respect to the x direction
@@ -1061,100 +1349,14 @@ void Finite_Element_Solver::step_meshes()
 			// If a front is detected, store its information
 			if (cure_derivative_wrt_x + cure_derivative_wrt_y >= 0.30 / x_step)
 			{
-				// I know these are really weird data structures for this type of information
-				// however they were selected because they exist inside a parallel loop.
-				// Any other data structure would have to be broadcasted, or be dynamic
-				
 				// Store the x and y indicies of the detected front
 				front_x_loc_array[i][j] = true;
 				front_y_loc_array[i][j] = true;
 			}
 		}
-
-		// Temperature variables
-		double dT2_dx2;
-		double dT2_dy2;
-		double dT2_dz2;
-		double left_flux;
-		double right_flux;
-		double front_flux;
-		double back_flux;
-		double top_flux;
-		double bottom_flux;
-
-		// Calculate the second derivative of temperature wrt x
-		if (i != 0 && i != mesh_x.size()-1)
-		{
-			dT2_dx2 = (prev_temp[i+1][j][k] - 2.0*prev_temp[i][j][k] + prev_temp[i-1][j][k]) / (x_step*x_step);
-		}
-		else
-		{
-			// Boundary conditions
-			if (i == 0)
-			{
-				if (current_time >= trigger_time && current_time < trigger_time + trigger_duration)
-				{
-					left_flux = htc*(prev_temp[i][j][k]-ambient_temperature) - trigger_flux;
-				}
-				else
-				{
-					left_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
-				}
-				dT2_dx2 = 2.0*(prev_temp[i+1][j][k]-prev_temp[i][j][k]-(x_step*left_flux/thermal_conductivity))/(x_step*x_step);
-			}
-			if (i == mesh_x.size()-1)
-			{
-				right_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
-				dT2_dx2 = 2.0*(prev_temp[i-1][j][k]-prev_temp[i][j][k]-(x_step*right_flux/thermal_conductivity))/(x_step*x_step);
-			}
-		}
-
-		// Calculate the second derivative of temperature wrt y
-		if (j != 0 && j != mesh_x[0].size()-1)
-		{
-			dT2_dy2 = (prev_temp[i][j+1][k] - 2.0*prev_temp[i][j][k] + prev_temp[i][j-1][k]) / (y_step*y_step);
-		}
-		else
-		{
-			// Boundary conditions
-			if (j == 0)
-			{
-				front_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
-				dT2_dy2 = 2.0*(prev_temp[i][j+1][k]-prev_temp[i][j][k]-(y_step*front_flux/thermal_conductivity))/(y_step*y_step);
-			}
-			if (j == mesh_x[0].size()-1)
-			{
-				back_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
-				dT2_dy2 = 2.0*(prev_temp[i][j-1][k]-prev_temp[i][j][k]-(y_step*back_flux/thermal_conductivity))/(y_step*y_step);
-			}
-		}
-
-		// Calculate the second derivative of temperature wrt z
-		if (k != 0 && k != mesh_x[0][0].size()-1)
-		{
-			dT2_dz2 = (prev_temp[i][j][k+1] - 2.0*prev_temp[i][j][k] + prev_temp[i][j][k-1]) / (z_step*z_step);
-		}
-		else
-		{
-			// Boundary conditions
-			if (k == 0)
-			{
-				top_flux = htc*(prev_temp[i][j][k]-ambient_temperature) - input_mesh[i][j];
-				dT2_dz2 = 2.0*(prev_temp[i][j][k+1]-prev_temp[i][j][k]-(z_step*top_flux/thermal_conductivity))/(z_step*z_step);
-			}
-			if (k == mesh_x[0][0].size()-1)
-			{
-				bottom_flux = htc*(prev_temp[i][j][k]-ambient_temperature);
-				dT2_dz2 = 2.0*(prev_temp[i][j][k-1]-prev_temp[i][j][k]-(z_step*bottom_flux/thermal_conductivity))/(z_step*z_step);
-			}
-		}
-
-		// Update the temperature field
-		double temp_rate = thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(enthalpy_of_reaction*cure_rate)/specific_heat;
-		temp_mesh[i][j][k] = temp_mesh[i][j][k] + temp_rate * time_step;
 	}
 	
-	// Calculate the averge front location, compare it to the previous time step's average front location, determine the front velocity
+	//******************************************************************** Update the front location and velocity ********************************************************************//
 	double curr_front_mean_x_loc = 0.0;
 	front_loc_x_indicies = vector<int>(front_location_indicies_length, -1);
 	front_loc_y_indicies = vector<int>(front_location_indicies_length, -1);

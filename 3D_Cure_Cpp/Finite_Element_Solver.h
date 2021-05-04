@@ -91,14 +91,14 @@ const bool random_target = false;
 const bool target_switch = false;
 
 // Mesh parameters
-const int num_vert_length = 360;  // Unitless
-const int num_vert_width = 40;    // Unitless
-const int num_vert_depth = 6;     // Unitless
+const int num_vert_length = 240;  // Unitless (GREATER THAN OR EQUAL TO 9)
+const int num_vert_width = 40;    // Unitless (GREATER THAN OR EQUAL TO 9)
+const int num_vert_depth = 9;     // Unitless (GREATER THAN OR EQUAL TO 9)
 
 // Spatial parameters
 const double length = 0.05;  // Meters
 const double width = 0.01;   // Meters
-const double depth = 0.001;  // Meters
+const double depth = 0.005;  // Meters
 
 // Temporal parameters
 const double sim_duration = 50.0;       // Seconds
@@ -111,8 +111,8 @@ const int front_vel_history_length = 75;                        // Unitless
 // Initial conditions
 const double initial_temperature = 296.15;  // Kelvin
 const double initial_cure = 0.07;           // Decimal Percent
-const double initial_temp_delta = 3.0;      // Kelvin
-const double initial_cure_delta = 0.005;    // Decimal Percent
+const double initial_temp_delta = 0.0;//3.0;      // Kelvin
+const double initial_cure_delta = 0.0;//0.005;    // Decimal Percent
 
 // Boundary conditions
 const double htc = 10.0;                    // Watts / (Meter ^ 2 * Kelvin)
