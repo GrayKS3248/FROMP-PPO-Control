@@ -919,6 +919,7 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 				// Release the python memory
 				Py_DECREF(py_norm_temp_mesh);
 				Py_DECREF(py_action); */
+				done = FES->step(action_1, action_2, action_3);
 			}
 			
 			// Step the environment 
