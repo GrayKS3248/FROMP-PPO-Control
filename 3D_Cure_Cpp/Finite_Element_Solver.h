@@ -91,33 +91,33 @@ const bool random_target = false;
 const bool target_switch = false;
 
 // Mesh parameters
-const int num_vert_length = 360;  // Unitless (GREATER THAN OR EQUAL TO 8)
-const int num_vert_width = 40;    // Unitless (GREATER THAN OR EQUAL TO 8)
+const int num_vert_length = 300;  // Unitless (GREATER THAN OR EQUAL TO 8)
+const int num_vert_width = 60;    // Unitless (GREATER THAN OR EQUAL TO 8)
 const int num_vert_depth = 8;     // Unitless (GREATER THAN OR EQUAL TO 8)
 
 // Spatial parameters
-const double length = 0.04;  // Meters
+const double length = 0.05;  // Meters
 const double width = 0.01;   // Meters
-const double depth = 0.005;  // Meters
+const double depth = 0.001;  // Meters
 
 // Temporal parameters
 const double sim_duration = 50.0;        // Seconds
-const double time_step = 0.01;           // Seconds
+const double time_step = 0.03;           // Seconds
 
 // Front calculation parameters
 const double front_delta_parameter = 0.05;                 // Change in degree cure between two adjacent mesh vertices over which a front is detected
-const double front_upper_cure_parameter = 0.80;            // Degree cure over which a front cannot exist
+const double front_upper_cure_parameter = 0.95;            // Degree cure over which a front cannot exist
 const unsigned int front_location_indicies_length = 1000;  // Length of memory to store front indices
-const int front_vel_history_length = 50;                   // Length of memory over which to average front speed
+const int front_vel_history_length = 25;                   // Length of memory over which to average front speed
 
 // Initial conditions
 const double initial_temperature = 296.15;  // Kelvin
 const double initial_cure = 0.07;           // Decimal Percent
-const double initial_temp_delta = 3.0;      // Kelvin
-const double initial_cure_delta = 0.01;     // Decimal Percent
+const double initial_temp_delta = 0.0;      // Kelvin
+const double initial_cure_delta = 0.0;     // Decimal Percent
 
 // Boundary conditions
-const double htc = 10.0;                    // Watts / (Meter ^ 2 * Kelvin)
+const double htc = 0.0;                    // Watts / (Meter ^ 2 * Kelvin)
 const double ambient_temperature = 296.15;  // Kelvin
 
 // Temeprature limit
