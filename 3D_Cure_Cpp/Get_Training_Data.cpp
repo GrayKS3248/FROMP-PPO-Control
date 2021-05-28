@@ -1,9 +1,7 @@
 #define PY_SSIZE_T_CLEAN
 #include "Finite_Element_Solver.h"
-#include <string>
 #include <iomanip>
 #include <sstream>
-#include <fstream>
 
 using namespace std;
 

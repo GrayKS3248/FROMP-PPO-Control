@@ -1,7 +1,6 @@
 #define PY_SSIZE_T_CLEAN
 #include "Finite_Element_Solver.h"
 #include <Python.h>
-#include <string>
 #include <iomanip>
 #include <sstream>
 using namespace std;
@@ -1009,15 +1008,24 @@ int main()
 	double frame_rate = 30.0;
 
 	// Initialize FES
-	Finite_Element_Solver FES = Finite_Element_Solver();
+	Finite_Element_Solver *FES;
+	try
+	{
+		FES = new Finite_Element_Solver();
+	}
+	catch (int e)
+	{
+		cout << "An exception occurred. Exception Nr. " << e << '\n';
+		return 1;
+	}
 
 	// Calculated agent parameters
 	double decay_rate = pow(end_alpha/start_alpha, (double)trajectories_per_batch/(double)total_trajectories);
-	double agent_execution_period = (FES.get_sim_duration() / (double)steps_per_trajectory);
-	int steps_per_agent_cycle = (int) round(agent_execution_period / FES.get_time_step());
+	double agent_execution_period = (FES->get_sim_duration() / (double)steps_per_trajectory);
+	int steps_per_agent_cycle = (int) round(agent_execution_period / FES->get_time_step());
 
 	// Calculated rendering parameters
-	int steps_per_frame = (int) round(1.0 / (FES.get_time_step() * frame_rate));
+	int steps_per_frame = (int) round(1.0 / (FES->get_time_step() * frame_rate));
 	steps_per_frame = steps_per_frame <= 0 ? 1 : steps_per_frame;
 
 	// Init py environment
@@ -1033,11 +1041,11 @@ int main()
 
 	// Print parameters to stdout and log
 	print_params(autoencoder_path, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha);
-	FES.print_params();
+	FES->print_params();
 
 	// Train agent
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(&FES, agent, save_render_plot, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory) == 1) { return 1; };
+	if (run(FES, agent, save_render_plot, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory) == 1) { return 1; };
 	
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
@@ -1045,5 +1053,6 @@ int main()
 	
 	// Finish
 	Py_FinalizeEx();
+	delete FES;
 	return 0;
 }

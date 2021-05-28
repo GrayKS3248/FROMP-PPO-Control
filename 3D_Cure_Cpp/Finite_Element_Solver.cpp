@@ -3,7 +3,6 @@
 
 using namespace std;
 
-
 //******************************************************************** CONSTRUCTOR ********************************************************************//
 
 /**
@@ -11,6 +10,12 @@ using namespace std;
 */
 Finite_Element_Solver::Finite_Element_Solver()
 {
+	// Load configuration data
+	if (load_config() == 1)
+	{
+		throw 1;
+	}
+	
 	// Set randomization seed
 	srand(time(NULL));
 
@@ -869,6 +874,207 @@ double Finite_Element_Solver::get_reward()
 
 //******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
 
+/**
+* Loads FES parameters from .cfg file
+* @return 0 on success, 1 on failure
+*/
+int Finite_Element_Solver::load_config()
+{
+	// Load from config file
+	ifstream config_file;
+	config_file.open("config_files/fes.cfg");
+	string config_dump;
+	string bool_dump;
+	string string_dump;
+	if (config_file.is_open())
+	{
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> bool_dump;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		if (bool_dump.compare("true")==0)
+		{
+			control = false;
+		}
+		else if (bool_dump.compare("false")==0)
+		{
+			control = true;
+		}
+		else
+		{
+			cout << "\nInput configuration not recognized.";
+		}
+		
+		config_file >> config_dump >> bool_dump;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		if (bool_dump.compare("true")==0)
+		{
+			trigger = true;
+		}
+		else if (bool_dump.compare("false")==0)
+		{
+			trigger = false;
+		}
+		else
+		{
+			cout << "\nTrigger configuration not recognized.";
+		}
+		
+		config_file >> config_dump >> string_dump;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		if (string_dump.compare("dcpd_gc1")==0)
+		{
+			use_DCPD_GC1 = true;
+			use_DCPD_GC2 = false;
+			use_COD = false;
+		}
+		else if (string_dump.compare("dcpd_gc2")==0)
+		{
+			use_DCPD_GC1 = false;
+			use_DCPD_GC2 = true;
+			use_COD = false;
+		}
+		else if (string_dump.compare("cod")==0)
+		{
+			use_DCPD_GC1 = false;
+			use_DCPD_GC2 = false;
+			use_COD = true;
+		}
+		else
+		{
+			cout << "\nMaterial configuration not recognized.";
+		}
+		
+		config_file >> config_dump >> string_dump;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		if (string_dump.compare("speed")==0)
+		{
+			control_speed = true;
+			control_temperature = false;
+		}
+		else if (string_dump.compare("temperature")==0)
+		{
+			control_speed = false;
+			control_temperature = true;
+		}
+		else
+		{
+			cout << "\nControl configuration not recognized.";
+		}
+		
+		config_file >> config_dump >> string_dump;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		if (string_dump.compare("const")==0)
+		{
+			const_target = true;
+			random_target = false;
+			target_switch = false;
+		}
+		else if (string_dump.compare("rand")==0)
+		{
+			const_target = false;
+			random_target = true;
+			target_switch = false;
+		}
+		else if (string_dump.compare("switch")==0)
+		{
+			const_target = false;
+			random_target = false;
+			target_switch = true;
+		}
+		else
+		{
+			cout << "\nTarget configuration not recognized.";
+		}
+		
+		config_file >> config_dump >> num_vert_length;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> num_vert_width;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> num_vert_depth;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> length;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> width;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> depth;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> sim_duration;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> time_step;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> initial_temperature;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> initial_cure;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> initial_temp_delta;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> initial_cure_delta;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> htc;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> ambient_temperature;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> radius_of_input;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> laser_power;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> max_input_mag_percent_rate;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> max_input_loc_rate;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> input_reward_const;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> overage_reward_const;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> front_shape_reward_const;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> target_reward_const;
+	}
+	else
+	{
+		cout << "Unable to open config_files/fes.cfg." << endl;
+		return 1;
+	}
+	config_file.close();
+	return 0;
+}
+
 /** Get smooth 3D perturbation over input fields
 * @ param array used to determine size of output mesh
 * @ param maximum magnitude of perturbation
@@ -1480,6 +1686,7 @@ void Finite_Element_Solver::step_meshes()
 				cout << "Tx+1: " <<  prev_temp[i+1][j][k] << "  |  -2.0*Tx: " << -2.0*prev_temp[i][j][k] << "  |  Tx-1: " << prev_temp[i-1][j][k] << "\n";
 			} */
 			
+			if( i==50 && j == 30 && k == 0) {cout  << "dt2_d2x: " << dT2_dx2 << " | dt2_d2y: " << dT2_dy2 << " | dt2_d2z: " << dT2_dz2 << endl;}
 			// Step temp mesh
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * (thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(enthalpy_of_reaction*cure_rate)/specific_heat);
 			

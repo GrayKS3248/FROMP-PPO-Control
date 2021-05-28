@@ -4,9 +4,10 @@
 #include <algorithm>
 #include <vector>
 #include <deque>
-#include <tuple>
 #include <iostream>
 #include <chrono>
+#include <fstream>
+#include <string>
 
 using namespace std;
 
@@ -70,55 +71,11 @@ double get_reward();
 
 //******************************************************************** USER SET PARAMETERS ********************************************************************//
 private:
-// Input type
-const bool control = true;
-
-// Trigger type
-const bool trigger = true;
-
-// Monomer type (only one can be true)
-const bool use_DCPD_GC1 = false;
-const bool use_DCPD_GC2 = true;
-const bool use_COD = false;
-
-// Control type (only one can be true)
-const bool control_speed = true;
-const bool control_temperature = false;
-
-// Target type (only one can be true)
-const bool const_target = true;
-const bool random_target = false;
-const bool target_switch = false;
-
-// Mesh parameters
-const int num_vert_length = 300;  // Unitless (GREATER THAN OR EQUAL TO 8)
-const int num_vert_width = 60;    // Unitless (GREATER THAN OR EQUAL TO 8)
-const int num_vert_depth = 8;     // Unitless (GREATER THAN OR EQUAL TO 8)
-
-// Spatial parameters
-const double length = 0.05;  // Meters
-const double width = 0.01;   // Meters
-const double depth = 0.001;  // Meters
-
-// Temporal parameters
-const double sim_duration = 50.0;        // Seconds
-const double time_step = 0.03;           // Seconds
-
 // Front calculation parameters
 const double front_delta_parameter = 0.05;                 // Change in degree cure between two adjacent mesh vertices over which a front is detected
 const double front_upper_cure_parameter = 0.95;            // Degree cure over which a front cannot exist
 const unsigned int front_location_indicies_length = 1000;  // Length of memory to store front indices
 const int front_vel_history_length = 25;                   // Length of memory over which to average front speed
-
-// Initial conditions
-const double initial_temperature = 296.15;  // Kelvin
-const double initial_cure = 0.07;           // Decimal Percent
-const double initial_temp_delta = 0.0;      // Kelvin
-const double initial_cure_delta = 0.0;     // Decimal Percent
-
-// Boundary conditions
-const double htc = 0.0;                    // Watts / (Meter ^ 2 * Kelvin)
-const double ambient_temperature = 296.15;  // Kelvin
 
 // Temeprature limit
 const double temperature_limit = 523.15;          // Kelvin
@@ -176,12 +133,6 @@ const double COD_activiation_energy = 132000.0;    // Joules / Mol
 const double COD_model_fit_order = 2.5141;         // Unitless
 const double COD_m_fit = 0.8173;                   // Unitless
 
-// Input distribution parameters
-const double radius_of_input = 0.005;           // Meters
-const double laser_power = 0.75;                // Watts
-const double max_input_mag_percent_rate = 0.5;  // Decimal Percent / Second
-const double max_input_loc_rate = 0.025;        // Meters / Second
-
 // Set trigger condition references
 const double DCPD_GC1_trigger_flux_ref = 36000.0;   // Watts / Meter ^ 2
 const double DCPD_GC1_trigger_duration_ref = 10.0;  // Seconds
@@ -191,11 +142,54 @@ const double COD_trigger_flux_ref = 20000.0;        // Watts / Meter ^ 2
 const double COD_trigger_duration_ref = 6.0;        // Seconds
 const double trigger_time_ref = 0.0;                // Seconds
 
+//******************************************************************** CONFIG PARAMETERS ********************************************************************//
+// Simulation options
+bool control;
+bool trigger;
+bool use_DCPD_GC1;
+bool use_DCPD_GC2;
+bool use_COD;
+bool control_speed;
+bool control_temperature;
+bool const_target;
+bool random_target;
+bool target_switch;
+
+// Mesh parameters
+int num_vert_length;
+int num_vert_width;
+int num_vert_depth;
+
+// Spatial parameters
+double length;
+double width;
+double depth;
+
+// Temporal parameters
+double sim_duration;
+double time_step;
+
+// Initial conditions
+double initial_temperature;
+double initial_cure;
+double initial_temp_delta;
+double initial_cure_delta;
+
+// Boundary conditions
+double htc;
+double ambient_temperature;
+
+// Input distribution parameters
+double radius_of_input;
+double laser_power;
+double max_input_mag_percent_rate;
+double max_input_loc_rate;
+
 // Reward constants
-const double input_reward_const = -0.25;         // Unitless
-const double overage_reward_const = 0.10;       // Unitless
-const double front_shape_reward_const = 0.20;   // Unitless
-const double target_reward_const = 1.0;         // Unitless
+double input_reward_const;
+double overage_reward_const;
+double front_shape_reward_const;
+double target_reward_const;
 
 //******************************************************************** CALCULATED PARAMETERS ********************************************************************//
 // Simulation time and target velocity index
@@ -253,11 +247,11 @@ vector<double> input_location;
 // Input wattage mesh
 vector<vector<double>> input_mesh;
 
-
 //******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
 vector<vector<vector<double>>> get_perturbation(vector<vector<vector<double> > > size_array, double delta);
 void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_percent_rate_action);
 void step_meshes();
 bool step_time();
+int load_config();
 
 };
