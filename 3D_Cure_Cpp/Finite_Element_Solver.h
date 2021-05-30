@@ -75,28 +75,7 @@ private:
 const double front_delta_parameter = 0.05;                 // Change in degree cure between two adjacent mesh vertices over which a front is detected
 const double front_upper_cure_parameter = 0.95;            // Degree cure over which a front cannot exist
 const unsigned int front_location_indicies_length = 1000;  // Length of memory to store front indices
-const int front_vel_history_length = 25;                   // Length of memory over which to average front speed
-
-// Temeprature limit
-const double temperature_limit = 523.15;          // Kelvin
-
-// DCPD GC1 problem definition
-const double DCPD_GC1_target_vel = 0.00015;       // Meters / Second
-const double DCPD_GC1_vel_rand_scale = 0.000025;  // Meters / Second
-const double DCPD_GC1_target_temp = 473.15;       // Kelvin
-const double DCPD_GC1_temp_rand_scale = 20.0;     // Kelvin
-
-// DCPD GC2 problem definition
-const double DCPD_GC2_target_vel = 0.00107844;        // Meters / Second
-const double DCPD_GC2_vel_rand_scale = 0.00025;   // Meters / Second
-const double DCPD_GC2_target_temp = 473.15;       // Kelvin
-const double DCPD_GC2_temp_rand_scale = 20.0;     // Kelvin
-
-// COD problem definition
-const double COD_target_vel = 0.00075;             // Meters / Second
-const double COD_vel_rand_scale = 0.0001;         // Meters / Second
-const double COD_target_temp = 408.15;            // Kelvin
-const double COD_temp_rand_scale = 20.0;          // Kelvin
+const int front_vel_history_length = 1500;                   // Length of memory over which to average front speed
 
 // Physical constants
 const double gas_const = 8.314;  // Joules / Mol * Kelvin
@@ -133,15 +112,6 @@ const double COD_activiation_energy = 132000.0;    // Joules / Mol
 const double COD_model_fit_order = 2.5141;         // Unitless
 const double COD_m_fit = 0.8173;                   // Unitless
 
-// Set trigger condition references
-const double DCPD_GC1_trigger_flux_ref = 36000.0;   // Watts / Meter ^ 2
-const double DCPD_GC1_trigger_duration_ref = 10.0;  // Seconds
-const double DCPD_GC2_trigger_flux_ref = 25500.0;   // Watts / Meter ^ 2
-const double DCPD_GC2_trigger_duration_ref = 10.0;  // Seconds
-const double COD_trigger_flux_ref = 20000.0;        // Watts / Meter ^ 2
-const double COD_trigger_duration_ref = 6.0;        // Seconds
-const double trigger_time_ref = 0.0;                // Seconds
-
 //******************************************************************** CONFIG PARAMETERS ********************************************************************//
 // Simulation options
 bool control;
@@ -169,6 +139,13 @@ double depth;
 double sim_duration;
 double time_step;
 
+// Problem definition
+double temperature_limit;
+double target_vel;
+double vel_rand_scale;
+double target_temp;
+double temp_rand_scale;
+
 // Initial conditions
 double initial_temperature;
 double initial_cure;
@@ -178,6 +155,11 @@ double initial_cure_delta;
 // Boundary conditions
 double htc;
 double ambient_temperature;
+
+// Trigger parameters
+double trigger_flux;
+double trigger_time;
+double trigger_duration;
 
 // Input distribution parameters
 double radius_of_input;
@@ -192,6 +174,9 @@ double front_shape_reward_const;
 double target_reward_const;
 
 //******************************************************************** CALCULATED PARAMETERS ********************************************************************//
+// Logging
+ofstream logger;
+
 // Simulation time and target velocity index
 double current_time;
 int current_index;
@@ -205,11 +190,6 @@ double specific_heat;
 // Target temporal vectors and the current target
 vector<double> target_vector;
 double current_target;
-
-// Trigger conditions
-double trigger_flux;      // Watts / Meter ^ 2
-double trigger_time;      // Seconds
-double trigger_duration;  // Seconds
 
 // Mesh and step size
 vector<vector<vector<double>>> mesh_x;

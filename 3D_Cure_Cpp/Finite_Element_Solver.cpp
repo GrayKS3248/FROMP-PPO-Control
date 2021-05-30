@@ -16,6 +16,10 @@ Finite_Element_Solver::Finite_Element_Solver()
 		throw 1;
 	}
 	
+	// Init logger
+	logger.open("results/fes_log.csv", ofstream::out | ofstream::trunc | ofstream::binary);
+	logger << "Time,i,j,k,T_{i-3},T_{i-2},T_{i-1},T_{i},T_{i+1},T_{i+2},T_{i+3},T_{j-3},T_{j-2},T_{j-1},T_{j},T_{j+1},T_{j+2},T_{j+3},T_{k-3},T_{k-2},T_{k-1},T_{k},T_{k+1},T_{k+2},T_{k+3},dt2_d2x,dt2_d2y,dt2_d2z,dT_dt,alpha,da_dt" << endl;
+	
 	// Set randomization seed
 	srand(time(NULL));
 
@@ -52,39 +56,13 @@ Finite_Element_Solver::Finite_Element_Solver()
 	double randomizing_scale = 0.0;
 	if(control_speed)
 	{
-		if(use_DCPD_GC1)
-		{
-			target = DCPD_GC1_target_vel;
-			randomizing_scale = DCPD_GC1_vel_rand_scale;
-		}
-		else if(use_DCPD_GC2)
-		{
-			target = DCPD_GC2_target_vel;
-			randomizing_scale = DCPD_GC2_vel_rand_scale;
-		}
-		else if(use_COD)
-		{
-			target = COD_target_vel;
-			randomizing_scale = COD_vel_rand_scale;
-		}
+		target = target_vel;
+		randomizing_scale = vel_rand_scale;
 	}
 	else if(control_temperature)
 	{
-		if(use_DCPD_GC1)
-		{
-			target = DCPD_GC1_target_temp;
-			randomizing_scale = DCPD_GC1_temp_rand_scale;
-		}
-		else if(use_DCPD_GC2)
-		{
-			target = DCPD_GC2_target_temp;
-			randomizing_scale = DCPD_GC2_temp_rand_scale;
-		}
-		else if(use_COD)
-		{
-			target = COD_target_temp;
-			randomizing_scale = COD_temp_rand_scale;
-		}
+		target = target_temp;
+		randomizing_scale = temp_rand_scale;
 	}
 	target_vector = vector<double>(sim_steps, target);
 	if (random_target)
@@ -106,35 +84,12 @@ Finite_Element_Solver::Finite_Element_Solver()
 	}
 	current_target = target_vector[current_index];
 
-	// Set trigger conditions
+	// Disengage trigger if set to off
 	if (!trigger)
 	{
-		trigger_flux = 0.0;      // Watts / Meter ^ 2
-		trigger_time = 0.0;      // Seconds
-		trigger_duration = 0.0;  // Seconds
-	}
-	else
-	{
-		if (use_DCPD_GC1)
-		{
-			trigger_flux = DCPD_GC1_trigger_flux_ref;          // Watts / Meter ^ 2
-			trigger_time = trigger_time_ref;          // Seconds
-			trigger_duration = DCPD_GC1_trigger_duration_ref;  // Seconds
-		}
-		else if (use_DCPD_GC2)
-		{
-			trigger_flux = DCPD_GC2_trigger_flux_ref;          // Watts / Meter ^ 2
-			trigger_time = trigger_time_ref;          // Seconds
-			trigger_duration = DCPD_GC2_trigger_duration_ref;  // Seconds
-		}
-		else if (use_COD)
-		{
-			trigger_flux = COD_trigger_flux_ref;          // Watts / Meter ^ 2
-			trigger_time = trigger_time_ref;          // Seconds
-			trigger_duration = COD_trigger_duration_ref;  // Seconds
-		}
-		
-
+		trigger_flux = 0.0;
+		trigger_time = 0.0;
+		trigger_duration = 0.0;
 	}
 
 	// Create mesh and calculate step size
@@ -662,39 +617,13 @@ void Finite_Element_Solver::reset()
 	double randomizing_scale = 0.0;
 	if(control_speed)
 	{
-		if(use_DCPD_GC1)
-		{
-			target = DCPD_GC1_target_vel;
-			randomizing_scale = DCPD_GC1_vel_rand_scale;
-		}
-		else if(use_DCPD_GC2)
-		{
-			target = DCPD_GC2_target_vel;
-			randomizing_scale = DCPD_GC2_vel_rand_scale;
-		}
-		else if(use_COD)
-		{
-			target = COD_target_vel;
-			randomizing_scale = COD_vel_rand_scale;
-		}
+		target = target_vel;
+		randomizing_scale = vel_rand_scale;
 	}
 	else if(control_temperature)
 	{
-		if(use_DCPD_GC1)
-		{
-			target = DCPD_GC1_target_temp;
-			randomizing_scale = DCPD_GC1_temp_rand_scale;
-		}
-		else if(use_DCPD_GC2)
-		{
-			target = DCPD_GC2_target_temp;
-			randomizing_scale = DCPD_GC2_temp_rand_scale;
-		}
-		else if(use_COD)
-		{
-			target = COD_target_temp;
-			randomizing_scale = COD_temp_rand_scale;
-		}
+		target = target_temp;
+		randomizing_scale = temp_rand_scale;
 	}
 	target_vector = vector<double>(sim_steps, target);
 	if (random_target)
@@ -1019,6 +948,23 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
+		config_file >> config_dump >> temperature_limit;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> target_vel;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> vel_rand_scale;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> target_temp;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> temp_rand_scale;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
 		config_file >> config_dump >> initial_temperature;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
@@ -1037,6 +983,17 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
 		config_file >> config_dump >> ambient_temperature;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> trigger_flux;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> trigger_time;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> trigger_duration;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1686,7 +1643,16 @@ void Finite_Element_Solver::step_meshes()
 				cout << "Tx+1: " <<  prev_temp[i+1][j][k] << "  |  -2.0*Tx: " << -2.0*prev_temp[i][j][k] << "  |  Tx-1: " << prev_temp[i-1][j][k] << "\n";
 			} */
 			
-			if( i==50 && j == 30 && k == 0) {cout  << "dt2_d2x: " << dT2_dx2 << " | dt2_d2y: " << dT2_dy2 << " | dt2_d2z: " << dT2_dz2 << endl;}
+			if( i==50 && j == 4 && k == 4) 
+			{
+				logger << current_time << "," << i << "," << j << "," << k << ",";
+				logger << prev_temp[i-3][j][k] << "," << prev_temp[i-2][j][k] << "," << prev_temp[i-1][j][k] << "," << prev_temp[i][j][k] << "," << prev_temp[i+1][j][k] << "," << prev_temp[i+2][j][k] << "," << prev_temp[i+3][j][k] << ",";
+				logger << prev_temp[i][j-3][k] << "," << prev_temp[i][j-2][k] << "," << prev_temp[i][j-1][k] << "," << prev_temp[i][j][k] << "," << prev_temp[i][j+1][k] << "," << prev_temp[i][j+2][k] << "," << prev_temp[i][j+3][k] << ",";
+				logger << prev_temp[i][j][k-3] << "," << prev_temp[i][j][k-2] << "," << prev_temp[i][j][k-1] << "," << prev_temp[i][j][k] << "," << prev_temp[i][j][k+1] << "," << prev_temp[i][j][k+2] << "," << prev_temp[i][j][k+3] << ",";
+				logger << dT2_dx2 << "," << dT2_dy2 << "," << dT2_dz2 << "," << (thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(enthalpy_of_reaction*cure_rate)/specific_heat) << ",";
+				logger << cure_mesh[i][j][k] << "," << cure_rate << endl;
+				
+			}
 			// Step temp mesh
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * (thermal_diffusivity*(dT2_dx2+dT2_dy2+dT2_dz2)+(enthalpy_of_reaction*cure_rate)/specific_heat);
 			
@@ -1697,7 +1663,7 @@ void Finite_Element_Solver::step_meshes()
 			//******************************************************************** Determine front location ********************************************************************//
 			if (k == 0)
 			{
-				// Calculate the derivative of the cure with respect to the x direction
+ 				// Calculate the derivative of the cure with respect to the x direction
 				double cure_delta_in_x;
 				if (i == 0)
 				{
