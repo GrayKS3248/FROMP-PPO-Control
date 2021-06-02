@@ -1562,9 +1562,7 @@ void Finite_Element_Solver::step_meshes()
 			double laplacian = get_laplacian(i, j, k, prev_temp);
 			double temp_rate = thermal_diffusivity*laplacian+(enthalpy_of_reaction*cure_rate)/specific_heat;
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * temp_rate;
-			
-			// Implicit temperature integration
-			
+
 			// Ensure current temp is in expected range
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] < 0.0 ? 0.0 : temp_mesh[i][j][k];
 
