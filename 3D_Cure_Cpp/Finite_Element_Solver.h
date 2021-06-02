@@ -202,7 +202,6 @@ double z_step;
 // Temperature and cure meshes
 vector<vector<vector<double>>> temp_mesh;
 vector<vector<vector<double>>> cure_mesh;
-vector<vector<vector<deque<double>>>> cure_rate_history;
 
 // Front mesh and parameters
 vector<int> front_loc_x_indicies;
@@ -230,6 +229,7 @@ vector<vector<double>> input_mesh;
 //******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
 vector<vector<vector<double>>> get_perturbation(vector<vector<vector<double> > > size_array, double delta);
 void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_percent_rate_action);
+double get_laplacian(int i, int j, int k, const vector<vector<vector<double>>> &temperature);
 void step_meshes();
 bool step_time();
 int load_config();

@@ -18,7 +18,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 	
 	// Init logger
 	logger.open("results/fes_log.csv", ofstream::out | ofstream::trunc | ofstream::binary);
-	logger << "Time,i,j,k,T_{i-3},T_{i-2},T_{i-1},T_{i},T_{i+1},T_{i+2},T_{i+3},laplacian,dT_dt,alpha,da_dt" << endl;
+	logger << "Time,T1_{i-3},T1_{i-2},T1_{i-1},T1_{i},T1_{i+1},T1_{i+2},T1_{i+3},laplacian,dT_dt,alpha,da_dt" << endl;
 	
 	// Set randomization seed
 	srand(time(NULL));
@@ -1444,9 +1444,19 @@ double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<ve
 /** Calculates the cure rate at every point in the 3D mesh and uses this data to update the cure, temperature, and front meshes
 */
 void Finite_Element_Solver::step_meshes()
-{
+{	
+	// Cure mesh variables
+	vector<vector<vector<double>>> cure_rate(cure_mesh);
+
 	// Temperature mesh variables
-	const vector<vector<vector<double>>> prev_temp(temp_mesh);
+	vector<vector<vector<double>>> temp_stage_1(temp_mesh);
+	vector<vector<vector<double>>> temp_stage_2(temp_mesh);
+	vector<vector<vector<double>>> temp_stage_3(temp_mesh);
+	vector<vector<vector<double>>> temp_stage_4(temp_mesh);
+	vector<vector<vector<double>>> temp_rate_stage_1(cure_mesh);
+	vector<vector<vector<double>>> temp_rate_stage_2(cure_mesh);
+	vector<vector<vector<double>>> temp_rate_stage_3(cure_mesh);
+	vector<vector<vector<double>>> temp_rate_stage_4(cure_mesh);
 
 	// Reset front location variables
 	front_loc_x_indicies = vector<int>(front_location_indicies_length, -1);
@@ -1455,24 +1465,19 @@ void Finite_Element_Solver::step_meshes()
 	double curr_front_mean_x_loc = 0.0;
 	unsigned int num_front_instances = 0;
 		
-	// Update the mesh
 	#pragma omp parallel
 	{
 		// Initialize front reduction variables 
 		vector<int> local_front_x_index;
 		vector<int> local_front_y_index;
 		
-		// Parallel for loop for mesh update
-		#pragma	omp for collapse(3) nowait
+		// Cure RK4
+		#pragma	omp for collapse(3)
 		for (unsigned int i = 0; i < (unsigned int) num_vert_length; i++)
 		for (unsigned int j = 0; j < (unsigned int) num_vert_width; j++)
 		for (unsigned int k = 0; k < (unsigned int) num_vert_depth; k++)
 		{
-			
-			
-			//******************************************************************** Calculate the cure rate and step cure mesh ********************************************************************//
-			double exponential_term = 0.0;
-			double cure_rate = 0.0;
+			// Cure mesh variables
 			double first_stage_cure_rate = 0.0;
 			double second_stage_cure = 0.0;
 			double second_stage_cure_rate = 0.0;
@@ -1480,23 +1485,21 @@ void Finite_Element_Solver::step_meshes()
 			double third_stage_cure_rate = 0.0;
 			double fourth_stage_cure = 0.0;
 			double fourth_stage_cure_rate = 0.0;
-				
+			
 			// Only calculate the cure rate if curing is incomplete
 			if (cure_mesh[i][j][k] < 1.0)
 			{
 				if (use_DCPD_GC1)
 				{
-					cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * prev_temp[i][j][k])) *
+					cure_rate[i][j][k] = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * temp_stage_1[i][j][k])) *
 					pow((1.0 - cure_mesh[i][j][k]), DCPD_GC1_model_fit_order) * 
 					(1.0 + DCPD_GC1_autocatalysis_const * cure_mesh[i][j][k]);
 				}
 				else if (use_DCPD_GC2)
 				{
-				
-					exponential_term = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * prev_temp[i][j][k]));
-				
+					
 					// Stage 1
-					first_stage_cure_rate = exponential_term *  
+					first_stage_cure_rate = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * temp_stage_1[i][j][k])) *  
 					pow((1.0 - cure_mesh[i][j][k]), DCPD_GC2_model_fit_order) * 
 					pow(cure_mesh[i][j][k], DCPD_GC2_m_fit) * 
 					(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh[i][j][k] - DCPD_GC2_critical_cure))));
@@ -1505,7 +1508,7 @@ void Finite_Element_Solver::step_meshes()
 					second_stage_cure = cure_mesh[i][j][k] + 0.5*time_step*first_stage_cure_rate;
 					if(second_stage_cure<1.0)
 					{
-						second_stage_cure_rate = exponential_term *  
+						second_stage_cure_rate = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * temp_stage_1[i][j][k])) *  
 						pow((1.0 - second_stage_cure), DCPD_GC2_model_fit_order) * 
 						pow(second_stage_cure, DCPD_GC2_m_fit) * 
 						(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(second_stage_cure - DCPD_GC2_critical_cure))));
@@ -1516,7 +1519,7 @@ void Finite_Element_Solver::step_meshes()
 					third_stage_cure = cure_mesh[i][j][k] + 0.5*time_step*second_stage_cure_rate;
 					if(third_stage_cure<1.0)
 					{
-						third_stage_cure_rate = exponential_term *  
+						third_stage_cure_rate = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * temp_stage_1[i][j][k])) *  
 						pow((1.0 - third_stage_cure), DCPD_GC2_model_fit_order) * 
 						pow(third_stage_cure, DCPD_GC2_m_fit) * 
 						(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(third_stage_cure - DCPD_GC2_critical_cure))));
@@ -1527,57 +1530,106 @@ void Finite_Element_Solver::step_meshes()
 					fourth_stage_cure = cure_mesh[i][j][k] + time_step*third_stage_cure_rate;
 					if(fourth_stage_cure<1.0)
 					{
-						fourth_stage_cure = exponential_term *  
+						fourth_stage_cure_rate = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * temp_stage_1[i][j][k])) *  
 						pow((1.0 - fourth_stage_cure), DCPD_GC2_model_fit_order) * 
 						pow(fourth_stage_cure, DCPD_GC2_m_fit) * 
 						(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(fourth_stage_cure - DCPD_GC2_critical_cure))));
 					}
-					else {fourth_stage_cure=0.0;}
+					else {fourth_stage_cure_rate=0.0;}
 
 				}
 				else if (use_COD)
 				{
-					cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * prev_temp[i][j][k])) *  
+					cure_rate[i][j][k] = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * temp_stage_1[i][j][k])) *  
 					pow((1.0 - cure_mesh[i][j][k]), COD_model_fit_order) * 
 					pow(cure_mesh[i][j][k], COD_m_fit);
 				}
 				
 				// Limit cure rate such that a single time step will not yield a degree of cure greater than 1.
-				cure_rate = (first_stage_cure_rate + 2.0*second_stage_cure_rate + 2.0*third_stage_cure_rate + fourth_stage_cure_rate)/6.0;
-				cure_rate = cure_rate > (1.0 - cure_mesh[i][j][k])/time_step ? (1.0 - cure_mesh[i][j][k])/time_step : cure_rate;
-				cure_rate = cure_rate < 0.0 ? 0.0 : cure_rate;
+				cure_rate[i][j][k] = (first_stage_cure_rate + 2.0*second_stage_cure_rate + 2.0*third_stage_cure_rate + fourth_stage_cure_rate)/6.0;
+				cure_rate[i][j][k] = cure_rate[i][j][k] > (1.0 - cure_mesh[i][j][k])/time_step ? (1.0 - cure_mesh[i][j][k])/time_step : cure_rate[i][j][k];
+				cure_rate[i][j][k] = cure_rate[i][j][k] < 0.0 ? 0.0 : cure_rate[i][j][k];
 			}
 			
 			// Step the cure_mesh
-			cure_mesh[i][j][k] = cure_mesh[i][j][k] + time_step * cure_rate;
+			cure_mesh[i][j][k] = cure_mesh[i][j][k] + time_step * cure_rate[i][j][k];
 				
 			// Ensure current cure is in expected range
 			cure_mesh[i][j][k] = cure_mesh[i][j][k] > 1.0 ? 1.0 : cure_mesh[i][j][k];
 			cure_mesh[i][j][k] = cure_mesh[i][j][k] < 0.0 ? 0.0 : cure_mesh[i][j][k];
-
-
+		}
+		
+		// Temperature Stage 1
+		#pragma	omp for collapse(3)
+		for (unsigned int i = 0; i < (unsigned int) num_vert_length; i++)
+		for (unsigned int j = 0; j < (unsigned int) num_vert_width; j++)
+		for (unsigned int k = 0; k < (unsigned int) num_vert_depth; k++)
+		{
 			//******************************************************************** Calculate the temperature rate and step temp mesh ********************************************************************//
-
-			// Get temp rate and step temp mesh
-			double laplacian = get_laplacian(i, j, k, prev_temp);
-			double temp_rate = thermal_diffusivity*laplacian+(enthalpy_of_reaction*cure_rate)/specific_heat;
+			// Calculate stage 1 rate
+			double laplacian_stage_1 = get_laplacian(i, j, k, temp_stage_1);
+			temp_rate_stage_1[i][j][k] = (thermal_diffusivity*(laplacian_stage_1)+(enthalpy_of_reaction*cure_rate[i][j][k])/specific_heat);
+			
+			// Calcualte stage 2 temp
+			temp_stage_2[i][j][k] = temp_stage_1[i][j][k] + 0.5*time_step*temp_rate_stage_1[i][j][k];
+		}
+		
+		// Temperature Stage 2
+		#pragma	omp for collapse(3)
+		for (unsigned int i = 0; i < (unsigned int) num_vert_length; i++)
+		for (unsigned int j = 0; j < (unsigned int) num_vert_width; j++)
+		for (unsigned int k = 0; k < (unsigned int) num_vert_depth; k++)
+		{
+			//******************************************************************** Calculate the temperature rate and step temp mesh ********************************************************************//
+			// Calculate stage 2 rate
+			double laplacian_stage_2 = get_laplacian(i, j, k, temp_stage_2);
+			temp_rate_stage_2[i][j][k] = (thermal_diffusivity*(laplacian_stage_2)+(enthalpy_of_reaction*cure_rate[i][j][k])/specific_heat);
+			
+			// Calcualte stage 3 temp
+			temp_stage_3[i][j][k] = temp_stage_1[i][j][k] + 0.5*time_step*temp_rate_stage_2[i][j][k];
+		}
+		
+		// Temperature Stage 3
+		#pragma	omp for collapse(3)
+		for (unsigned int i = 0; i < (unsigned int) num_vert_length; i++)
+		for (unsigned int j = 0; j < (unsigned int) num_vert_width; j++)
+		for (unsigned int k = 0; k < (unsigned int) num_vert_depth; k++)
+		{
+			//******************************************************************** Calculate the temperature rate and step temp mesh ********************************************************************//
+			// Calculate stage 3 rate
+			double laplacian_stage_3 = get_laplacian(i, j, k, temp_stage_3);
+			temp_rate_stage_3[i][j][k] = (thermal_diffusivity*(laplacian_stage_3)+(enthalpy_of_reaction*cure_rate[i][j][k])/specific_heat);
+			
+			// Calcualte stage 4 temp
+			temp_stage_4[i][j][k] = temp_stage_1[i][j][k] + time_step*temp_rate_stage_3[i][j][k];
+		}
+		
+		// Temperature Stage 4
+		#pragma	omp for collapse(3) nowait
+		for (unsigned int i = 0; i < (unsigned int) num_vert_length; i++)
+		for (unsigned int j = 0; j < (unsigned int) num_vert_width; j++)
+		for (unsigned int k = 0; k < (unsigned int) num_vert_depth; k++)
+		{
+			//******************************************************************** Calculate the temperature rate and step temp mesh ********************************************************************//
+			// Calculate stage 4 rate
+			double laplacian_stage_4 = get_laplacian(i, j, k, temp_stage_4);
+			temp_rate_stage_4[i][j][k] = (thermal_diffusivity*(laplacian_stage_4)+(enthalpy_of_reaction*cure_rate[i][j][k])/specific_heat);
+			
+			// Step temp mesh using RK4
+			double temp_rate = (temp_rate_stage_1[i][j][k] + 2.0*temp_rate_stage_2[i][j][k] + 2.0*temp_rate_stage_3[i][j][k] + temp_rate_stage_4[i][j][k]) / 6.0;
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * temp_rate;
-			
-			// Implicit temperature integration
-			
-			// Ensure current temp is in expected range
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] < 0.0 ? 0.0 : temp_mesh[i][j][k];
 
-			// Logger
+			//******************************************************************** Logger ********************************************************************//
+			
 			if( i==50 && j == 4 && k == 4) 
 			{
-				logger << current_time << "," << i << "," << j << "," << k << ",";
-				logger << prev_temp[i-3][j][k] << "," << prev_temp[i-2][j][k] << "," << prev_temp[i-1][j][k] << "," << prev_temp[i][j][k] << "," << prev_temp[i+1][j][k] << "," << prev_temp[i+2][j][k] << "," << prev_temp[i+3][j][k] << ",";
-				logger << laplacian << "," << temp_rate << ",";
-				logger << cure_mesh[i][j][k] << "," << cure_rate << endl;
+				logger << current_time << ",";
+				logger << temp_stage_1[i-3][j][k] << "," << temp_stage_1[i-2][j][k] << "," << temp_stage_1[i-1][j][k] << "," << temp_stage_1[i][j][k] << "," << temp_stage_1[i+1][j][k] << "," << temp_stage_1[i+2][j][k] << "," << temp_stage_1[i+3][j][k] << ",";
+				logger << (temp_rate-((enthalpy_of_reaction*cure_rate[i][j][k])/specific_heat))/(thermal_diffusivity) << "," << temp_rate << ",";
+				logger << cure_mesh[i][j][k] << "," << cure_rate[i][j][k] << endl;
 				
 			}
-		
 		
 			//******************************************************************** Determine front location ********************************************************************//
 			if (k == 0)
@@ -1623,7 +1675,7 @@ void Finite_Element_Solver::step_meshes()
 			
 		}
 		
-		// Reduce collected front information
+		//******************************************************************** Reduce collected front information ********************************************************************//
 		#pragma omp critical
 		{     
 			for (unsigned int i = 0; i < local_front_x_index.size(); i++)
