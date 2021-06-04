@@ -34,6 +34,9 @@ Finite_Element_Solver::Finite_Element_Solver()
 		thermal_conductivity = DCPD_GC1_thermal_conductivity;
 		enthalpy_of_reaction = DCPD_GC1_enthalpy_of_reaction;
 		specific_heat = DCPD_GC1_specific_heat;
+		
+		// Calcualte the critical temperature
+		cure_critical_temperature = -DCPD_GC1_activiation_energy / (log((pow(1.0-initial_cure,-DCPD_GC1_model_fit_order)*1.0e-3) / ((1.0+DCPD_GC1_autocatalysis_const*initial_cure)*DCPD_GC1_pre_exponential)) * gas_const);
 	}
 	else if (use_DCPD_GC2)
 	{
@@ -41,6 +44,9 @@ Finite_Element_Solver::Finite_Element_Solver()
 		thermal_conductivity = DCPD_GC2_thermal_conductivity;
 		enthalpy_of_reaction = DCPD_GC2_enthalpy_of_reaction;
 		specific_heat = DCPD_GC2_specific_heat;
+		
+		// Calcualte the critical temperature
+		cure_critical_temperature = -DCPD_GC2_activiation_energy / ((log((exp(initial_cure*DCPD_GC2_diffusion_const)/DCPD_GC2_pre_exponential + exp(DCPD_GC2_diffusion_const*DCPD_GC2_critical_cure)/DCPD_GC2_pre_exponential) * pow((1.0-initial_cure), -DCPD_GC2_model_fit_order) * pow(initial_cure, -DCPD_GC2_m_fit))- DCPD_GC2_diffusion_const*DCPD_GC2_critical_cure + log(1.0e-3)) * gas_const);
 	}
 	else if (use_COD)
 	{
@@ -48,6 +54,9 @@ Finite_Element_Solver::Finite_Element_Solver()
 		thermal_conductivity = COD_thermal_conductivity;
 		enthalpy_of_reaction = COD_enthalpy_of_reaction;
 		specific_heat = COD_specific_heat;
+		
+		// Calcualte the critical temperature
+		cure_critical_temperature = 0.0;
 	}
 
 	// Calculate the target temporal vector and define the current target
@@ -1186,7 +1195,7 @@ double*** Finite_Element_Solver::get_lr_bc_temps(const vector<vector<vector<doub
 				if(i == 0)
 				{
 					// Left BC
-					if (current_time >= trigger_time && current_time < trigger_time + trigger_duration)
+					if ((current_time >= trigger_time) && (current_time < trigger_time + trigger_duration))
 					{
 						lr_bc_temps[i][j][k] = temperature[0][j][k] - (x_step/thermal_conductivity)*(htc*(temperature[0][j][k]-ambient_temperature)-trigger_flux);
 					}
@@ -1376,7 +1385,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 	
 	// (-1 0 0) (0 1 1) (0 -1 1) (0 1 -1) (0 -1 -1) (1 0 0)
 	double T_basis_3[6];
-/* 	
+	
 	// Edge BC
 	bool on_edge = ((i==0) && (j==0));
 	on_edge = on_edge || ((i==0) && (j==num_vert_width-1));
@@ -1393,17 +1402,23 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 	if (on_edge)
 	{
 		return get_laplacian_7(i, j, k, temperature, lr_bc_temps, fb_bc_temps, tp_bc_temps);
+	}
+	
+/* 	bool on_boundary = (i==0) || (j==0) || (k==0) || (i==num_vert_length-1) || (j==num_vert_width-1) || (k==num_vert_depth-1);
+	if(on_boundary)
+	{
+		return get_laplacian_7(i, j, k, temperature, lr_bc_temps, fb_bc_temps, tp_bc_temps);
 	} */
 	
-	// Left, front edge
+/* 	// Left, front edge
 	if((i==0) && (j==0))
 	{
 		T_basis_1[0] = lr_bc_temps[0][j+1][k];
-		T_basis_1[1] = (lr_bc_temps[0][j-1][k] + fb_bc_temps[0][i-1][k]) * 0.5;
+		T_basis_1[1] = T_000;//(lr_bc_temps[0][j][k] + fb_bc_temps[0][i][k]) * 0.5;
 		T_basis_1[2] = temperature[i][j][k+1];
 		T_basis_1[3] = temperature[i][j][k-1]; 
 		T_basis_1[4] = temperature[i+1][j+1][k];
-		T_basis_1[5] = fb_bc_temps[0][j-1][k];
+		T_basis_1[5] = fb_bc_temps[0][i+1][k];
 		
 		T_basis_2[0] = lr_bc_temps[0][j][k+1];
 		T_basis_2[1] = lr_bc_temps[0][j][k-1];
@@ -1422,7 +1437,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 	// Left, back edge
 	else if((i==0) && (j==num_vert_width-1))
 	{
-		T_basis_1[0] = lr_bc_temps[0][j+1][k] fb_bc_temps[1][i-1][k];
+		T_basis_1[0] = T_000;//(lr_bc_temps[0][j][k] + fb_bc_temps[1][i][k]) * 0.5;
 		T_basis_1[1] = lr_bc_temps[0][j-1][k];
 		T_basis_1[2] = temperature[i][j][k+1];
 		T_basis_1[3] = temperature[i][j][k-1]; 
@@ -1451,7 +1466,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 		T_basis_1[2] = temperature[i][j][k+1];
 		T_basis_1[3] = temperature[i][j][k-1]; 
 		T_basis_1[4] = lr_bc_temps[1][j+1][k];
-		T_basis_1[5] = lr_bc_temps[1][j-1][k]; fb_bc_temps[0][i+1][k];
+		T_basis_1[5] = T_000;//(lr_bc_temps[1][j][k] + fb_bc_temps[0][i][k]) * 0.5;
 		
 		T_basis_2[0] = temperature[i-1][j][k+1];
 		T_basis_2[1] = temperature[i-1][j][k-1];
@@ -1474,7 +1489,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 		T_basis_1[1] = temperature[i-1][j-1][k];
 		T_basis_1[2] = temperature[i][j][k+1];
 		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = lr_bc_temps[1][j+1][k]; fb_bc_temps[1][i+1][k];
+		T_basis_1[4] = T_000;//(lr_bc_temps[1][j][k] + fb_bc_temps[1][i][k]) * 0.5;
 		T_basis_1[5] = lr_bc_temps[1][j-1][k];
 		
 		T_basis_2[0] = temperature[i-1][j][k+1];
@@ -1502,7 +1517,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 		T_basis_1[5] = temperature[i+1][j-1][k];
 		
 		T_basis_2[0] = lr_bc_temps[0][j][k+1];
-		T_basis_2[1] = lr_bc_temps[0][j][k-1] tp_bc_temps[0][i-1][j];
+		T_basis_2[1] = T_000;//(lr_bc_temps[0][j][k] + tp_bc_temps[0][i][j]) * 0.5;
 		T_basis_2[2] = temperature[i][j+1][k];
 		T_basis_2[3] = temperature[i][j-1][k];
 		T_basis_2[4] = temperature[i+1][j][k+1];
@@ -1525,7 +1540,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 		T_basis_1[4] = temperature[i+1][j+1][k];
 		T_basis_1[5] = temperature[i+1][j-1][k];
 		
-		T_basis_2[0] = lr_bc_temps[0][j][k+1]; tp_bc_temps[1][i-1][j];
+		T_basis_2[0] = T_000;//(lr_bc_temps[0][j][k] + tp_bc_temps[1][i][j]) * 0.5;
 		T_basis_2[1] = lr_bc_temps[0][j][k-1];
 		T_basis_2[2] = temperature[i][j+1][k];
 		T_basis_2[3] = temperature[i][j-1][k];
@@ -1554,7 +1569,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 		T_basis_2[2] = temperature[i][j+1][k];
 		T_basis_2[3] = temperature[i][j-1][k];
 		T_basis_2[4] = lr_bc_temps[1][j][k+1];
-		T_basis_2[5] = lr_bc_temps[1][j][k-1]; tp_bc_temps[0][i+1][j];
+		T_basis_2[5] = T_000;//(lr_bc_temps[1][j][k] + tp_bc_temps[0][i][j]) * 0.5;
 		
 		T_basis_3[0] = temperature[i-1][j][k];
 		T_basis_3[1] = temperature[i][j+1][k+1];
@@ -1577,7 +1592,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 		T_basis_2[1] = temperature[i-1][j][k-1];
 		T_basis_2[2] = temperature[i][j+1][k];
 		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = lr_bc_temps[1][j][k+1]; tp_bc_temps[1][i+1][j];
+		T_basis_2[4] = T_000;//(lr_bc_temps[1][j][k] + tp_bc_temps[1][i][j]) * 0.5;
 		T_basis_2[5] = lr_bc_temps[1][j][k-1];
 		
 		T_basis_3[0] = temperature[i-1][j][k];
@@ -1608,7 +1623,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 		T_basis_3[1] = temperature[i][j+1][k+1];
 		T_basis_3[2] = fb_bc_temps[0][i][k+1];
 		T_basis_3[3] = tp_bc_temps[0][i][j+1];
-		T_basis_3[4] = fb_bc_temps[0][i][k-1] tp_bc_temps[0][i][j-1];
+		T_basis_3[4] = T_000;//(fb_bc_temps[0][i][k] + tp_bc_temps[0][i][j]) * 0.5;
 		T_basis_3[5] = temperature[i+1][j][k];
 	}
 	// Back, top edge
@@ -1631,7 +1646,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 		T_basis_3[0] = temperature[i-1][j][k];
 		T_basis_3[1] = fb_bc_temps[1][i][k+1];
 		T_basis_3[2] = temperature[i][j-1][k+1];
-		T_basis_3[3] = fb_bc_temps[1][i][k-1] tp_bc_temps[0][i][j+1];
+		T_basis_3[3] = T_000;//(fb_bc_temps[1][i][k] + tp_bc_temps[0][i][j]) * 0.5;
 		T_basis_3[4] = tp_bc_temps[0][i][j-1];
 		T_basis_3[5] = temperature[i+1][j][k];
 	}
@@ -1654,7 +1669,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 		
 		T_basis_3[0] = temperature[i-1][j][k];
 		T_basis_3[1] = tp_bc_temps[1][i][j+1];
-		T_basis_3[2] = fb_bc_temps[0][i][k+1] tp_bc_temps[1][i][j-1];
+		T_basis_3[2] = T_000;//(fb_bc_temps[0][i][k] + tp_bc_temps[1][i][j]) * 0.5;
 		T_basis_3[3] = temperature[i][j+1][k-1];
 		T_basis_3[4] = fb_bc_temps[0][i][k-1];
 		T_basis_3[5] = temperature[i+1][j][k];
@@ -1677,12 +1692,12 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 		T_basis_2[5] = temperature[i+1][j][k-1];
 		
 		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = fb_bc_temps[1][i][k+1] tp_bc_temps[1][i][j+1];
+		T_basis_3[1] = T_000;//(fb_bc_temps[1][i][k] + tp_bc_temps[1][i][j]) * 0.5;
 		T_basis_3[2] = tp_bc_temps[1][i][j-1];
 		T_basis_3[3] = fb_bc_temps[1][i][k-1];
 		T_basis_3[4] = temperature[i][j-1][k-1];
 		T_basis_3[5] = temperature[i+1][j][k];
-	}
+	} */
 	// Left face BC
 	else if (i == 0)
 	{
@@ -1861,7 +1876,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 	// Calculate basis 3 laplacian
 	double laplacian_3 = (T_basis_3[1] + T_basis_3[4] - 2.0*T_000)/(y_step*y_step + z_step*z_step) + (T_basis_3[2] + T_basis_3[3] - 2.0*T_000)/(y_step*y_step + z_step*z_step) + (T_basis_3[0] + T_basis_3[5] - 2.0*T_000)/(x_step*x_step);
 	
-	return (laplacian_1 + laplacian_2 + laplacian_3) / 3.0;
+	return ( (x_step / z_step) * laplacian_1 + (x_step / y_step) * laplacian_2 + laplacian_3) / (1.0 + (x_step / z_step) + (x_step / y_step));
 }
 
 /** Calculates the 27-point 3D stencil laplacian
@@ -1875,7 +1890,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 * @return 27-point 3D stencil Lapclacian at (i,j,k)
 */
 double Finite_Element_Solver::get_laplacian_27(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tp_bc_temps)
-{
+{  
 	return 0.0;
 }
 
@@ -2198,8 +2213,8 @@ void Finite_Element_Solver::step_meshes()
 			double fourth_stage_cure = 0.0;
 			double fourth_stage_cure_rate = 0.0;
 				
-			// Only calculate the cure rate if curing is incomplete
-			if (cure_mesh[i][j][k] < 1.0)
+			// Only calculate the cure rate if curing has started but is incomplete
+			if ((prev_temp[i][j][k] >= cure_critical_temperature) && (cure_mesh[i][j][k] < 1.0))
 			{
 				if (use_DCPD_GC1)
 				{
@@ -2218,38 +2233,51 @@ void Finite_Element_Solver::step_meshes()
 					pow(cure_mesh[i][j][k], DCPD_GC2_m_fit) * 
 					(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh[i][j][k] - DCPD_GC2_critical_cure))));
 					
-					// Stage 2
-					second_stage_cure = cure_mesh[i][j][k] + 0.5*time_step*first_stage_cure_rate;
-					if(second_stage_cure<1.0)
+					// FE for shallow cure rates
+					if( first_stage_cure_rate < 5.0e-1)
 					{
-						second_stage_cure_rate = exponential_term *  
-						pow((1.0 - second_stage_cure), DCPD_GC2_model_fit_order) * 
-						pow(second_stage_cure, DCPD_GC2_m_fit) * 
-						(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(second_stage_cure - DCPD_GC2_critical_cure))));
+						cure_rate = first_stage_cure_rate;
 					}
-					else {second_stage_cure_rate=0.0;}
 					
-					// Stage 3
-					third_stage_cure = cure_mesh[i][j][k] + 0.5*time_step*second_stage_cure_rate;
-					if(third_stage_cure<1.0)
+					// RK4 for steep cure rates
+					else
 					{
-						third_stage_cure_rate = exponential_term *  
-						pow((1.0 - third_stage_cure), DCPD_GC2_model_fit_order) * 
-						pow(third_stage_cure, DCPD_GC2_m_fit) * 
-						(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(third_stage_cure - DCPD_GC2_critical_cure))));
+						// Stage 2
+						second_stage_cure = cure_mesh[i][j][k] + 0.5*time_step*first_stage_cure_rate;
+						if(second_stage_cure<1.0)
+						{
+							second_stage_cure_rate = exponential_term *  
+							pow((1.0 - second_stage_cure), DCPD_GC2_model_fit_order) * 
+							pow(second_stage_cure, DCPD_GC2_m_fit) * 
+							(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(second_stage_cure - DCPD_GC2_critical_cure))));
+						}
+						else {second_stage_cure_rate=0.0;}
+						
+						// Stage 3
+						third_stage_cure = cure_mesh[i][j][k] + 0.5*time_step*second_stage_cure_rate;
+						if(third_stage_cure<1.0)
+						{
+							third_stage_cure_rate = exponential_term *  
+							pow((1.0 - third_stage_cure), DCPD_GC2_model_fit_order) * 
+							pow(third_stage_cure, DCPD_GC2_m_fit) * 
+							(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(third_stage_cure - DCPD_GC2_critical_cure))));
+						}
+						else {third_stage_cure_rate=0.0;}
+						
+						// Stage 4
+						fourth_stage_cure = cure_mesh[i][j][k] + time_step*third_stage_cure_rate;
+						if(fourth_stage_cure<1.0)
+						{
+							fourth_stage_cure = exponential_term *  
+							pow((1.0 - fourth_stage_cure), DCPD_GC2_model_fit_order) * 
+							pow(fourth_stage_cure, DCPD_GC2_m_fit) * 
+							(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(fourth_stage_cure - DCPD_GC2_critical_cure))));
+						}
+						else {fourth_stage_cure=0.0;}
+						
+						// Apply RK4 algorithm
+						cure_rate = (first_stage_cure_rate + 2.0*second_stage_cure_rate + 2.0*third_stage_cure_rate + fourth_stage_cure_rate)/6.0;
 					}
-					else {third_stage_cure_rate=0.0;}
-					
-					// Stage 4
-					fourth_stage_cure = cure_mesh[i][j][k] + time_step*third_stage_cure_rate;
-					if(fourth_stage_cure<1.0)
-					{
-						fourth_stage_cure = exponential_term *  
-						pow((1.0 - fourth_stage_cure), DCPD_GC2_model_fit_order) * 
-						pow(fourth_stage_cure, DCPD_GC2_m_fit) * 
-						(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(fourth_stage_cure - DCPD_GC2_critical_cure))));
-					}
-					else {fourth_stage_cure=0.0;}
 
 				}
 				else if (use_COD)
@@ -2259,8 +2287,7 @@ void Finite_Element_Solver::step_meshes()
 					pow(cure_mesh[i][j][k], COD_m_fit);
 				}
 				
-				// Limit cure rate such that a single time step will not yield a degree of cure greater than 1.
-				cure_rate = (first_stage_cure_rate + 2.0*second_stage_cure_rate + 2.0*third_stage_cure_rate + fourth_stage_cure_rate)/6.0;
+				// Limit cure rate such that a single time step will not yield a degree of cure greater than 1.0
 				cure_rate = cure_rate > (1.0 - cure_mesh[i][j][k])/time_step ? (1.0 - cure_mesh[i][j][k])/time_step : cure_rate;
 				cure_rate = cure_rate < 0.0 ? 0.0 : cure_rate;
 			}

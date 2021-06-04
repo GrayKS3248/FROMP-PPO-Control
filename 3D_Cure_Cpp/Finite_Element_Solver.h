@@ -186,6 +186,7 @@ double thermal_diffusivity;
 double thermal_conductivity;
 double enthalpy_of_reaction;
 double specific_heat;
+double cure_critical_temperature;  // The temperature below which the monomer cure rate is considered to be 0
 
 // Target temporal vectors and the current target
 vector<double> target_vector;
