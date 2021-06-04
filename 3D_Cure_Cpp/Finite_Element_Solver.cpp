@@ -1303,14 +1303,13 @@ double Finite_Element_Solver::get_laplacian_7(int i, int j, int k, const vector<
 	// Left BC
 	else if (i == 0)
 	{
-		if (current_time >= trigger_time && current_time < trigger_time + trigger_duration){ T_m100 = T_000 - (x_step/thermal_conductivity)*(htc*(T_000-ambient_temperature)-trigger_flux); }
-		else{ T_m100 = T_000 - (x_step/thermal_conductivity)*(htc*(T_000-ambient_temperature)); }
+		T_m100 = lr_bc_temps[0][j][k];
 		T_p100 = temperature[i+1][j][k];
 	}
 	// Right BC
 	else 
 	{
-		T_p100 = T_000 - (x_step*htc/thermal_conductivity)*(T_000-ambient_temperature);
+		T_p100 = lr_bc_temps[1][j][k];
 		T_m100 = temperature[i-1][j][k];
 	}
 	
@@ -1323,13 +1322,13 @@ double Finite_Element_Solver::get_laplacian_7(int i, int j, int k, const vector<
 	// Front BC
 	else if (j == 0)
 	{
-		T_0m10 = T_000 - (y_step/thermal_conductivity)*(htc*(T_000-ambient_temperature));
+		T_0m10 = fb_bc_temps[0][i][k];
 		T_0p10 = temperature[i][j+1][k];
 	}
 	// Back BC
 	else
 	{
-		T_0p10 = T_000 - (y_step*htc/thermal_conductivity)*(T_000-ambient_temperature);
+		T_0p10 = fb_bc_temps[1][i][k];
 		T_0m10 = temperature[i][j-1][k];
 	}
 	
@@ -1342,13 +1341,13 @@ double Finite_Element_Solver::get_laplacian_7(int i, int j, int k, const vector<
 	// Top BC
 	else if (k == 0)
 	{
-		T_00m1 = T_000 - (z_step/thermal_conductivity)*(htc*(T_000-ambient_temperature));
+		T_00m1 = tp_bc_temps[0][i][j];
 		T_00p1 = temperature[i][j][k+1];
 	}
 	// Bottom BC
 	else
 	{
-		T_00p1 = T_000 - (z_step*htc/thermal_conductivity)*(T_000-ambient_temperature);
+		T_00p1 = tp_bc_temps[1][i][j];
 		T_00m1 = temperature[i][j][k-1];
 	}
 	
@@ -1365,7 +1364,7 @@ double Finite_Element_Solver::get_laplacian_7(int i, int j, int k, const vector<
 * @param Top and bottom virtual temperatures from BC
 * @return 19-point 3D stencil Lapclacian at (i,j,k)
 */
-double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** fb_bc_temps, double*** tp_bc_temps)
+double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tp_bc_temps)
 {
 	double T_000 = temperature[i][j][k];
 	
@@ -1377,7 +1376,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 	
 	// (-1 0 0) (0 1 1) (0 -1 1) (0 1 -1) (0 -1 -1) (1 0 0)
 	double T_basis_3[6];
-	
+/* 	
 	// Edge BC
 	bool on_edge = ((i==0) && (j==0));
 	on_edge = on_edge || ((i==0) && (j==num_vert_width-1));
@@ -1391,43 +1390,317 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 	on_edge = on_edge || ((k==0) && (j==num_vert_width-1));
 	on_edge = on_edge || ((k==num_vert_depth-1) && (j==0));
 	on_edge = on_edge || ((k==num_vert_depth-1) && (j==num_vert_width-1));
-	
-	bool on_face = (i==0) || (j==0) || (k==0) || (i==num_vert_length-1) || (j==num_vert_width-1) || (k==num_vert_depth-1);
-	if (on_face)
+	if (on_edge)
 	{
-		return get_laplacian_7(i, j, k, temperature);
-	}
+		return get_laplacian_7(i, j, k, temperature, lr_bc_temps, fb_bc_temps, tp_bc_temps);
+	} */
 	
-	// Left face BC
-	if (i == 0)
+	// Left, front edge
+	if((i==0) && (j==0))
 	{
-		if (current_time >= trigger_time && current_time < trigger_time + trigger_duration)
-		{
-			T_basis_1[0] = temperature[i][j+1][k] - (x_step/thermal_conductivity)*(htc*(temperature[i][j+1][k]-ambient_temperature)-trigger_flux); 
-			T_basis_1[1] = temperature[i][j-1][k] - (x_step/thermal_conductivity)*(htc*(temperature[i][j-1][k]-ambient_temperature)-trigger_flux); 
-			T_basis_2[0] = temperature[i][j][k+1] - (x_step/thermal_conductivity)*(htc*(temperature[i][j][k+1]-ambient_temperature)-trigger_flux); 
-			T_basis_2[1] = temperature[i][j][k-1] - (x_step/thermal_conductivity)*(htc*(temperature[i][j][k-1]-ambient_temperature)-trigger_flux); 
-			T_basis_3[0] = T_000 - (x_step/thermal_conductivity)*(htc*(T_000-ambient_temperature)-trigger_flux); 
-		}
-		else
-		{
-			T_basis_1[0] = temperature[i][j+1][k] - (x_step/thermal_conductivity)*(htc*(temperature[i][j+1][k]-ambient_temperature)); 
-			T_basis_1[1] = temperature[i][j-1][k] - (x_step/thermal_conductivity)*(htc*(temperature[i][j-1][k]-ambient_temperature)); 
-			T_basis_2[0] = temperature[i][j][k+1] - (x_step/thermal_conductivity)*(htc*(temperature[i][j][k+1]-ambient_temperature)); 
-			T_basis_2[1] = temperature[i][j][k-1] - (x_step/thermal_conductivity)*(htc*(temperature[i][j][k-1]-ambient_temperature)); 
-			T_basis_3[0] = T_000 - (x_step/thermal_conductivity)*(htc*(T_000-ambient_temperature)); 
-		}
+		T_basis_1[0] = lr_bc_temps[0][j+1][k];
+		T_basis_1[1] = (lr_bc_temps[0][j-1][k] + fb_bc_temps[0][i-1][k]) * 0.5;
+		T_basis_1[2] = temperature[i][j][k+1];
+		T_basis_1[3] = temperature[i][j][k-1]; 
+		T_basis_1[4] = temperature[i+1][j+1][k];
+		T_basis_1[5] = fb_bc_temps[0][j-1][k];
 		
+		T_basis_2[0] = lr_bc_temps[0][j][k+1];
+		T_basis_2[1] = lr_bc_temps[0][j][k-1];
+		T_basis_2[2] = temperature[i][j+1][k];
+		T_basis_2[3] = fb_bc_temps[0][i][k];
+		T_basis_2[4] = temperature[i+1][j][k+1];
+		T_basis_2[5] = temperature[i+1][j][k-1];
+		
+		T_basis_3[0] = lr_bc_temps[0][j][k];
+		T_basis_3[1] = temperature[i][j+1][k+1];
+		T_basis_3[2] = fb_bc_temps[0][i][k+1];
+		T_basis_3[3] = temperature[i][j+1][k-1];
+		T_basis_3[4] = fb_bc_temps[0][i][k-1];
+		T_basis_3[5] = temperature[i+1][j][k];
+	}
+	// Left, back edge
+	else if((i==0) && (j==num_vert_width-1))
+	{
+		T_basis_1[0] = lr_bc_temps[0][j+1][k] fb_bc_temps[1][i-1][k];
+		T_basis_1[1] = lr_bc_temps[0][j-1][k];
+		T_basis_1[2] = temperature[i][j][k+1];
+		T_basis_1[3] = temperature[i][j][k-1]; 
+		T_basis_1[4] = fb_bc_temps[1][i+1][k];
+		T_basis_1[5] = temperature[i+1][j-1][k];
+		
+		T_basis_2[0] = lr_bc_temps[0][j][k+1];
+		T_basis_2[1] = lr_bc_temps[0][j][k-1];
+		T_basis_2[2] = fb_bc_temps[1][i][k];
+		T_basis_2[3] = temperature[i][j-1][k];
+		T_basis_2[4] = temperature[i+1][j][k+1];
+		T_basis_2[5] = temperature[i+1][j][k-1];
+		
+		T_basis_3[0] = lr_bc_temps[0][j][k];
+		T_basis_3[1] = fb_bc_temps[1][i][k+1];
+		T_basis_3[2] = temperature[i][j-1][k+1];
+		T_basis_3[3] = fb_bc_temps[1][i][k-1];
+		T_basis_3[4] = temperature[i][j-1][k-1];
+		T_basis_3[5] = temperature[i+1][j][k];
+	}
+	// Right, front edge
+	else if((i==num_vert_length-1) && (j==0))
+	{
+		T_basis_1[0] = temperature[i-1][j+1][k];
+		T_basis_1[1] = fb_bc_temps[0][i-1][k];
+		T_basis_1[2] = temperature[i][j][k+1];
+		T_basis_1[3] = temperature[i][j][k-1]; 
+		T_basis_1[4] = lr_bc_temps[1][j+1][k];
+		T_basis_1[5] = lr_bc_temps[1][j-1][k]; fb_bc_temps[0][i+1][k];
+		
+		T_basis_2[0] = temperature[i-1][j][k+1];
+		T_basis_2[1] = temperature[i-1][j][k-1];
+		T_basis_2[2] = temperature[i][j+1][k];
+		T_basis_2[3] = fb_bc_temps[0][i][k];
+		T_basis_2[4] = lr_bc_temps[1][j][k+1];
+		T_basis_2[5] = lr_bc_temps[1][j][k-1];
+		
+		T_basis_3[0] = temperature[i-1][j][k];
+		T_basis_3[1] = temperature[i][j+1][k+1];
+		T_basis_3[2] = fb_bc_temps[0][i][k+1];
+		T_basis_3[3] = temperature[i][j+1][k-1];
+		T_basis_3[4] = fb_bc_temps[0][i][k-1];
+		T_basis_3[5] = lr_bc_temps[1][j][k];
+	}
+	// Right, back edge
+	else if((i==num_vert_length-1) && (j==num_vert_width-1))
+	{
+		T_basis_1[0] = fb_bc_temps[1][i-1][k];
+		T_basis_1[1] = temperature[i-1][j-1][k];
+		T_basis_1[2] = temperature[i][j][k+1];
+		T_basis_1[3] = temperature[i][j][k-1]; 
+		T_basis_1[4] = lr_bc_temps[1][j+1][k]; fb_bc_temps[1][i+1][k];
+		T_basis_1[5] = lr_bc_temps[1][j-1][k];
+		
+		T_basis_2[0] = temperature[i-1][j][k+1];
+		T_basis_2[1] = temperature[i-1][j][k-1];
+		T_basis_2[2] = fb_bc_temps[1][i][k];
+		T_basis_2[3] = temperature[i][j-1][k];
+		T_basis_2[4] = lr_bc_temps[1][j][k+1];
+		T_basis_2[5] = lr_bc_temps[1][j][k-1];
+		
+		T_basis_3[0] = temperature[i-1][j][k];
+		T_basis_3[1] = fb_bc_temps[1][i][k+1];
+		T_basis_3[2] = temperature[i][j-1][k+1];
+		T_basis_3[3] = fb_bc_temps[1][i][k-1];
+		T_basis_3[4] = temperature[i][j-1][k-1];
+		T_basis_3[5] = lr_bc_temps[1][j][k];
+	}
+	// Left, top edge
+	else if((i==0) && (k==0))
+	{
+		T_basis_1[0] = lr_bc_temps[0][j+1][k];
+		T_basis_1[1] = lr_bc_temps[0][j-1][k];
+		T_basis_1[2] = temperature[i][j][k+1];
+		T_basis_1[3] = tp_bc_temps[0][i][j]; 
+		T_basis_1[4] = temperature[i+1][j+1][k];
+		T_basis_1[5] = temperature[i+1][j-1][k];
+		
+		T_basis_2[0] = lr_bc_temps[0][j][k+1];
+		T_basis_2[1] = lr_bc_temps[0][j][k-1] tp_bc_temps[0][i-1][j];
+		T_basis_2[2] = temperature[i][j+1][k];
+		T_basis_2[3] = temperature[i][j-1][k];
+		T_basis_2[4] = temperature[i+1][j][k+1];
+		T_basis_2[5] = tp_bc_temps[0][i+1][j];
+		
+		T_basis_3[0] = lr_bc_temps[0][j][k];
+		T_basis_3[1] = temperature[i][j+1][k+1];
+		T_basis_3[2] = temperature[i][j-1][k+1];
+		T_basis_3[3] = tp_bc_temps[0][i][j+1];
+		T_basis_3[4] = tp_bc_temps[0][i][j-1];
+		T_basis_3[5] = temperature[i+1][j][k];
+	}
+	// Left, bottom edge
+	else if((i==0) && (k==num_vert_depth-1))
+	{
+		T_basis_1[0] = lr_bc_temps[0][j+1][k];
+		T_basis_1[1] = lr_bc_temps[0][j-1][k];
+		T_basis_1[2] = tp_bc_temps[1][i][j];
+		T_basis_1[3] = temperature[i][j][k-1]; 
+		T_basis_1[4] = temperature[i+1][j+1][k];
+		T_basis_1[5] = temperature[i+1][j-1][k];
+		
+		T_basis_2[0] = lr_bc_temps[0][j][k+1]; tp_bc_temps[1][i-1][j];
+		T_basis_2[1] = lr_bc_temps[0][j][k-1];
+		T_basis_2[2] = temperature[i][j+1][k];
+		T_basis_2[3] = temperature[i][j-1][k];
+		T_basis_2[4] = tp_bc_temps[1][i+1][j];
+		T_basis_2[5] = temperature[i+1][j][k-1];
+		
+		T_basis_3[0] = lr_bc_temps[0][j][k];
+		T_basis_3[1] = tp_bc_temps[1][i][j+1];
+		T_basis_3[2] = tp_bc_temps[1][i][j-1];
+		T_basis_3[3] = temperature[i][j+1][k-1];
+		T_basis_3[4] = temperature[i][j-1][k-1];
+		T_basis_3[5] = temperature[i+1][j][k];
+	}
+	// Right, top edge
+	else if((i==num_vert_length-1) && (k==0))
+	{
+		T_basis_1[0] = temperature[i-1][j+1][k];
+		T_basis_1[1] = temperature[i-1][j-1][k];
+		T_basis_1[2] = temperature[i][j][k+1];
+		T_basis_1[3] = tp_bc_temps[0][i][j]; 
+		T_basis_1[4] = lr_bc_temps[1][j+1][k];
+		T_basis_1[5] = lr_bc_temps[1][j-1][k];
+		
+		T_basis_2[0] = temperature[i-1][j][k+1];
+		T_basis_2[1] = tp_bc_temps[0][i-1][j];
+		T_basis_2[2] = temperature[i][j+1][k];
+		T_basis_2[3] = temperature[i][j-1][k];
+		T_basis_2[4] = lr_bc_temps[1][j][k+1];
+		T_basis_2[5] = lr_bc_temps[1][j][k-1]; tp_bc_temps[0][i+1][j];
+		
+		T_basis_3[0] = temperature[i-1][j][k];
+		T_basis_3[1] = temperature[i][j+1][k+1];
+		T_basis_3[2] = temperature[i][j-1][k+1];
+		T_basis_3[3] = tp_bc_temps[0][i][j+1];
+		T_basis_3[4] = tp_bc_temps[0][i][j-1];
+		T_basis_3[5] = lr_bc_temps[1][j][k];
+	}
+	// Right, bottom edge
+	else if((i==num_vert_length-1) && (k==num_vert_depth-1))
+	{
+		T_basis_1[0] = temperature[i-1][j+1][k];
+		T_basis_1[1] = temperature[i-1][j-1][k];
+		T_basis_1[2] = tp_bc_temps[1][i][j];
+		T_basis_1[3] = temperature[i][j][k-1]; 
+		T_basis_1[4] = lr_bc_temps[1][j+1][k];
+		T_basis_1[5] = lr_bc_temps[1][j-1][k];
+		
+		T_basis_2[0] = tp_bc_temps[1][i-1][j];
+		T_basis_2[1] = temperature[i-1][j][k-1];
+		T_basis_2[2] = temperature[i][j+1][k];
+		T_basis_2[3] = temperature[i][j-1][k];
+		T_basis_2[4] = lr_bc_temps[1][j][k+1]; tp_bc_temps[1][i+1][j];
+		T_basis_2[5] = lr_bc_temps[1][j][k-1];
+		
+		T_basis_3[0] = temperature[i-1][j][k];
+		T_basis_3[1] = tp_bc_temps[1][i][j+1];
+		T_basis_3[2] = tp_bc_temps[1][i][j-1];
+		T_basis_3[3] = temperature[i][j+1][k-1];
+		T_basis_3[4] = temperature[i][j-1][k-1];
+		T_basis_3[5] = lr_bc_temps[1][j][k];
+	}
+	// Front, top edge
+	else if((k==0) && (j==0))
+	{
+		T_basis_1[0] = temperature[i-1][j+1][k];
+		T_basis_1[1] = fb_bc_temps[0][i-1][k];
+		T_basis_1[2] = temperature[i][j][k+1];
+		T_basis_1[3] = tp_bc_temps[0][i][j]; 
+		T_basis_1[4] = temperature[i+1][j+1][k];
+		T_basis_1[5] = fb_bc_temps[0][i+1][k];
+		
+		T_basis_2[0] = temperature[i-1][j][k+1];
+		T_basis_2[1] = tp_bc_temps[0][i-1][j];
+		T_basis_2[2] = temperature[i][j+1][k];
+		T_basis_2[3] = fb_bc_temps[0][i][k];
+		T_basis_2[4] = temperature[i+1][j][k+1];
+		T_basis_2[5] = tp_bc_temps[0][i+1][j];
+		
+		T_basis_3[0] = temperature[i-1][j][k];
+		T_basis_3[1] = temperature[i][j+1][k+1];
+		T_basis_3[2] = fb_bc_temps[0][i][k+1];
+		T_basis_3[3] = tp_bc_temps[0][i][j+1];
+		T_basis_3[4] = fb_bc_temps[0][i][k-1] tp_bc_temps[0][i][j-1];
+		T_basis_3[5] = temperature[i+1][j][k];
+	}
+	// Back, top edge
+	else if((k==0) && (j==num_vert_width-1))
+	{
+		T_basis_1[0] = fb_bc_temps[1][i-1][k];
+		T_basis_1[1] = temperature[i-1][j-1][k];
+		T_basis_1[2] = temperature[i][j][k+1];
+		T_basis_1[3] = tp_bc_temps[0][i][j]; 
+		T_basis_1[4] = fb_bc_temps[1][i+1][k];
+		T_basis_1[5] = temperature[i+1][j-1][k];
+		
+		T_basis_2[0] = temperature[i-1][j][k+1];
+		T_basis_2[1] = tp_bc_temps[0][i-1][j];
+		T_basis_2[2] = fb_bc_temps[1][i][k];
+		T_basis_2[3] = temperature[i][j-1][k];
+		T_basis_2[4] = temperature[i+1][j][k+1];
+		T_basis_2[5] = tp_bc_temps[0][i+1][j];
+		
+		T_basis_3[0] = temperature[i-1][j][k];
+		T_basis_3[1] = fb_bc_temps[1][i][k+1];
+		T_basis_3[2] = temperature[i][j-1][k+1];
+		T_basis_3[3] = fb_bc_temps[1][i][k-1] tp_bc_temps[0][i][j+1];
+		T_basis_3[4] = tp_bc_temps[0][i][j-1];
+		T_basis_3[5] = temperature[i+1][j][k];
+	}
+	// Front, bottom edge
+	else if((k==num_vert_depth-1) && (j==0))
+	{
+		T_basis_1[0] = temperature[i-1][j+1][k];
+		T_basis_1[1] = fb_bc_temps[0][i-1][k];
+		T_basis_1[2] = tp_bc_temps[1][i][j];
+		T_basis_1[3] = temperature[i][j][k-1]; 
+		T_basis_1[4] = temperature[i+1][j+1][k];
+		T_basis_1[5] = fb_bc_temps[0][i+1][k];
+		
+		T_basis_2[0] = tp_bc_temps[1][i-1][j];
+		T_basis_2[1] = temperature[i-1][j][k-1];
+		T_basis_2[2] = temperature[i][j+1][k];
+		T_basis_2[3] = fb_bc_temps[0][i][k];
+		T_basis_2[4] = tp_bc_temps[1][i+1][j];
+		T_basis_2[5] = temperature[i+1][j][k-1];
+		
+		T_basis_3[0] = temperature[i-1][j][k];
+		T_basis_3[1] = tp_bc_temps[1][i][j+1];
+		T_basis_3[2] = fb_bc_temps[0][i][k+1] tp_bc_temps[1][i][j-1];
+		T_basis_3[3] = temperature[i][j+1][k-1];
+		T_basis_3[4] = fb_bc_temps[0][i][k-1];
+		T_basis_3[5] = temperature[i+1][j][k];
+	}
+	// Back, bottom edge
+	else if((k==num_vert_depth-1) && (j==num_vert_width-1))
+	{
+		T_basis_1[0] = fb_bc_temps[1][i-1][k];
+		T_basis_1[1] = temperature[i-1][j-1][k];
+		T_basis_1[2] = tp_bc_temps[1][i][j];
+		T_basis_1[3] = temperature[i][j][k-1]; 
+		T_basis_1[4] = fb_bc_temps[1][i+1][k];
+		T_basis_1[5] = temperature[i+1][j-1][k];
+		
+		T_basis_2[0] = tp_bc_temps[1][i-1][j];
+		T_basis_2[1] = temperature[i-1][j][k-1];
+		T_basis_2[2] = fb_bc_temps[1][i][k];
+		T_basis_2[3] = temperature[i][j-1][k];
+		T_basis_2[4] = tp_bc_temps[1][i+1][j];
+		T_basis_2[5] = temperature[i+1][j][k-1];
+		
+		T_basis_3[0] = temperature[i-1][j][k];
+		T_basis_3[1] = fb_bc_temps[1][i][k+1] tp_bc_temps[1][i][j+1];
+		T_basis_3[2] = tp_bc_temps[1][i][j-1];
+		T_basis_3[3] = fb_bc_temps[1][i][k-1];
+		T_basis_3[4] = temperature[i][j-1][k-1];
+		T_basis_3[5] = temperature[i+1][j][k];
+	}
+	// Left face BC
+	else if (i == 0)
+	{
+		T_basis_1[0] = lr_bc_temps[0][j+1][k];
+		T_basis_1[1] = lr_bc_temps[0][j-1][k];
 		T_basis_1[2] = temperature[i][j][k+1];
 		T_basis_1[3] = temperature[i][j][k-1]; 
 		T_basis_1[4] = temperature[i+1][j+1][k];
 		T_basis_1[5] = temperature[i+1][j-1][k];
 		
+		T_basis_2[0] = lr_bc_temps[0][j][k+1];
+		T_basis_2[1] = lr_bc_temps[0][j][k-1];
 		T_basis_2[2] = temperature[i][j+1][k];
 		T_basis_2[3] = temperature[i][j-1][k];
 		T_basis_2[4] = temperature[i+1][j][k+1];
 		T_basis_2[5] = temperature[i+1][j][k-1];
 		
+		T_basis_3[0] = lr_bc_temps[0][j][k];
 		T_basis_3[1] = temperature[i][j+1][k+1];
 		T_basis_3[2] = temperature[i][j-1][k+1];
 		T_basis_3[3] = temperature[i][j+1][k-1];
@@ -1437,127 +1710,121 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 	// Right face BC
 	else if (i == num_vert_length-1)
 	{
-		T_basis_1[4] = temperature[i][j+1][k] - (x_step*htc/thermal_conductivity)*(temperature[i][j+1][k]-ambient_temperature);
-		T_basis_1[5] = temperature[i][j-1][k] - (x_step*htc/thermal_conductivity)*(temperature[i][j-1][k]-ambient_temperature);
-		T_basis_2[4] = temperature[i][j][k+1] - (x_step*htc/thermal_conductivity)*(temperature[i][j][k+1]-ambient_temperature);
-		T_basis_2[5] = temperature[i][j][k-1] - (x_step*htc/thermal_conductivity)*(temperature[i][j][k-1]-ambient_temperature);
-		T_basis_3[5] = T_000 - (x_step*htc/thermal_conductivity)*(T_000-ambient_temperature);
-		
 		T_basis_1[0] = temperature[i-1][j+1][k];
 		T_basis_1[1] = temperature[i-1][j-1][k];
 		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = temperature[i][j][k-1];
+		T_basis_1[3] = temperature[i][j][k-1]; 
+		T_basis_1[4] = lr_bc_temps[1][j+1][k];
+		T_basis_1[5] = lr_bc_temps[1][j-1][k];
 		
 		T_basis_2[0] = temperature[i-1][j][k+1];
-		T_basis_2[1] = temperature[i-1][j][k-1];	
+		T_basis_2[1] = temperature[i-1][j][k-1];
 		T_basis_2[2] = temperature[i][j+1][k];
 		T_basis_2[3] = temperature[i][j-1][k];
+		T_basis_2[4] = lr_bc_temps[1][j][k+1];
+		T_basis_2[5] = lr_bc_temps[1][j][k-1];
 		
 		T_basis_3[0] = temperature[i-1][j][k];
 		T_basis_3[1] = temperature[i][j+1][k+1];
 		T_basis_3[2] = temperature[i][j-1][k+1];
 		T_basis_3[3] = temperature[i][j+1][k-1];
 		T_basis_3[4] = temperature[i][j-1][k-1];
+		T_basis_3[5] = lr_bc_temps[1][j][k];
 	}
 	// Front face BC
 	else if (j == 0)
 	{
-		T_basis_1[1] = temperature[i-1][j][k] - (y_step/thermal_conductivity)*(htc*(temperature[i-1][j][k]-ambient_temperature));
-		T_basis_1[5] = temperature[i+1][j][k] - (y_step/thermal_conductivity)*(htc*(temperature[i+1][j][k]-ambient_temperature));
-		T_basis_2[3] = T_000 - (y_step*htc/thermal_conductivity)*(T_000-ambient_temperature);
-		T_basis_3[2] = temperature[i][j][k+1] - (y_step/thermal_conductivity)*(htc*(temperature[i][j][k+1]-ambient_temperature));
-		T_basis_3[4] = temperature[i][j][k-1] - (y_step/thermal_conductivity)*(htc*(temperature[i][j][k-1]-ambient_temperature));
-		
 		T_basis_1[0] = temperature[i-1][j+1][k];
+		T_basis_1[1] = fb_bc_temps[0][i-1][k];
 		T_basis_1[2] = temperature[i][j][k+1];
 		T_basis_1[3] = temperature[i][j][k-1]; 
 		T_basis_1[4] = temperature[i+1][j+1][k];
+		T_basis_1[5] = fb_bc_temps[0][i+1][k];
 		
 		T_basis_2[0] = temperature[i-1][j][k+1];
 		T_basis_2[1] = temperature[i-1][j][k-1];
 		T_basis_2[2] = temperature[i][j+1][k];
+		T_basis_2[3] = fb_bc_temps[0][i][k];
 		T_basis_2[4] = temperature[i+1][j][k+1];
 		T_basis_2[5] = temperature[i+1][j][k-1];
 		
 		T_basis_3[0] = temperature[i-1][j][k];
 		T_basis_3[1] = temperature[i][j+1][k+1];
+		T_basis_3[2] = fb_bc_temps[0][i][k+1];
 		T_basis_3[3] = temperature[i][j+1][k-1];
+		T_basis_3[4] = fb_bc_temps[0][i][k-1];
 		T_basis_3[5] = temperature[i+1][j][k];
 	}
 	// Back face BC
 	else if (j == num_vert_width-1)
 	{
-		T_basis_1[0] = temperature[i-1][j][k] - (y_step/thermal_conductivity)*(htc*(temperature[i-1][j][k]-ambient_temperature));
-		T_basis_1[4] = temperature[i+1][j][k] - (y_step/thermal_conductivity)*(htc*(temperature[i+1][j][k]-ambient_temperature));
-		T_basis_2[2] = T_000 - (y_step*htc/thermal_conductivity)*(T_000-ambient_temperature);
-		T_basis_3[1] = temperature[i][j][k+1] - (y_step/thermal_conductivity)*(htc*(temperature[i][j][k+1]-ambient_temperature));
-		T_basis_3[3] = temperature[i][j][k-1] - (y_step/thermal_conductivity)*(htc*(temperature[i][j][k-1]-ambient_temperature));
-
+		T_basis_1[0] = fb_bc_temps[1][i-1][k];
 		T_basis_1[1] = temperature[i-1][j-1][k];
 		T_basis_1[2] = temperature[i][j][k+1];
 		T_basis_1[3] = temperature[i][j][k-1]; 
+		T_basis_1[4] = fb_bc_temps[1][i+1][k];
 		T_basis_1[5] = temperature[i+1][j-1][k];
 		
 		T_basis_2[0] = temperature[i-1][j][k+1];
 		T_basis_2[1] = temperature[i-1][j][k-1];
+		T_basis_2[2] = fb_bc_temps[1][i][k];
 		T_basis_2[3] = temperature[i][j-1][k];
 		T_basis_2[4] = temperature[i+1][j][k+1];
 		T_basis_2[5] = temperature[i+1][j][k-1];
 		
 		T_basis_3[0] = temperature[i-1][j][k];
+		T_basis_3[1] = fb_bc_temps[1][i][k+1];
 		T_basis_3[2] = temperature[i][j-1][k+1];
+		T_basis_3[3] = fb_bc_temps[1][i][k-1];
 		T_basis_3[4] = temperature[i][j-1][k-1];
 		T_basis_3[5] = temperature[i+1][j][k];
 	}
-	
 	// Top face BC
 	else if (k == 0)
 	{
-		T_basis_1[2] = T_000 - (z_step*htc/thermal_conductivity)*(T_000-ambient_temperature);
-		T_basis_2[0] = temperature[i-1][j][k] - (z_step*htc/thermal_conductivity)*(temperature[i-1][j][k]-ambient_temperature);
-		T_basis_2[4] = temperature[i+1][j][k] - (z_step*htc/thermal_conductivity)*(temperature[i+1][j][k]-ambient_temperature);
-		T_basis_3[1] = temperature[i][j+1][k] - (z_step*htc/thermal_conductivity)*(temperature[i][j+1][k]-ambient_temperature);
-		T_basis_3[2] = temperature[i][j-1][k] - (z_step*htc/thermal_conductivity)*(temperature[i][j-1][k]-ambient_temperature);
-		
 		T_basis_1[0] = temperature[i-1][j+1][k];
 		T_basis_1[1] = temperature[i-1][j-1][k];
-		T_basis_1[3] = temperature[i][j][k-1]; 
+		T_basis_1[2] = temperature[i][j][k+1];
+		T_basis_1[3] = tp_bc_temps[0][i][j]; 
 		T_basis_1[4] = temperature[i+1][j+1][k];
 		T_basis_1[5] = temperature[i+1][j-1][k];
 		
-		T_basis_2[1] = temperature[i-1][j][k-1];
+		T_basis_2[0] = temperature[i-1][j][k+1];
+		T_basis_2[1] = tp_bc_temps[0][i-1][j];
 		T_basis_2[2] = temperature[i][j+1][k];
 		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[5] = temperature[i+1][j][k-1];
+		T_basis_2[4] = temperature[i+1][j][k+1];
+		T_basis_2[5] = tp_bc_temps[0][i+1][j];
 		
 		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[3] = temperature[i][j+1][k-1];
-		T_basis_3[4] = temperature[i][j-1][k-1];
+		T_basis_3[1] = temperature[i][j+1][k+1];
+		T_basis_3[2] = temperature[i][j-1][k+1];
+		T_basis_3[3] = tp_bc_temps[0][i][j+1];
+		T_basis_3[4] = tp_bc_temps[0][i][j-1];
 		T_basis_3[5] = temperature[i+1][j][k];
 	}
 	// Bottom face BC
 	else if (k == num_vert_depth-1)
 	{
-		T_basis_1[3] = T_000 - (z_step*htc/thermal_conductivity)*(T_000-ambient_temperature);
-		T_basis_2[1] = temperature[i-1][j][k] - (z_step*htc/thermal_conductivity)*(temperature[i-1][j][k]-ambient_temperature);
-		T_basis_2[5] = temperature[i+1][j][k] - (z_step*htc/thermal_conductivity)*(temperature[i+1][j][k]-ambient_temperature);
-		T_basis_3[3] = temperature[i][j+1][k] - (z_step*htc/thermal_conductivity)*(temperature[i][j+1][k]-ambient_temperature);
-		T_basis_3[4] = temperature[i][j-1][k] - (z_step*htc/thermal_conductivity)*(temperature[i][j-1][k]-ambient_temperature);
-		
 		T_basis_1[0] = temperature[i-1][j+1][k];
 		T_basis_1[1] = temperature[i-1][j-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
+		T_basis_1[2] = tp_bc_temps[1][i][j];
+		T_basis_1[3] = temperature[i][j][k-1]; 
 		T_basis_1[4] = temperature[i+1][j+1][k];
 		T_basis_1[5] = temperature[i+1][j-1][k];
 		
-		T_basis_2[0] = temperature[i-1][j][k+1];
+		T_basis_2[0] = tp_bc_temps[1][i-1][j];
+		T_basis_2[1] = temperature[i-1][j][k-1];
 		T_basis_2[2] = temperature[i][j+1][k];
 		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = temperature[i+1][j][k+1];
+		T_basis_2[4] = tp_bc_temps[1][i+1][j];
+		T_basis_2[5] = temperature[i+1][j][k-1];
 		
 		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = temperature[i][j+1][k+1];
-		T_basis_3[2] = temperature[i][j-1][k+1];
+		T_basis_3[1] = tp_bc_temps[1][i][j+1];
+		T_basis_3[2] = tp_bc_temps[1][i][j-1];
+		T_basis_3[3] = temperature[i][j+1][k-1];
+		T_basis_3[4] = temperature[i][j-1][k-1];
 		T_basis_3[5] = temperature[i+1][j][k];
 	}
 	// Bulk material
@@ -1607,7 +1874,7 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 * @param Top and bottom virtual temperatures from BC
 * @return 27-point 3D stencil Lapclacian at (i,j,k)
 */
-double Finite_Element_Solver::get_laplacian_27(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** fb_bc_temps, double*** tp_bc_temps)
+double Finite_Element_Solver::get_laplacian_27(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tp_bc_temps)
 {
 	return 0.0;
 }
@@ -2009,7 +2276,7 @@ void Finite_Element_Solver::step_meshes()
 			//******************************************************************** Calculate the temperature rate and step temp mesh ********************************************************************//
 
 			// Get temp rate and step temp mesh
-			double laplacian = get_laplacian_19(i, j, k, prev_temp);
+			double laplacian = get_laplacian_19(i, j, k, prev_temp, lr_bc_temps, fb_bc_temps, tb_bc_temps);
 			double temp_rate = thermal_diffusivity*laplacian+(enthalpy_of_reaction*cure_rate)/specific_heat;
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * temp_rate;
 
