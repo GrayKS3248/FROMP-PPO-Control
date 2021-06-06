@@ -982,6 +982,7 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 
 	// Save, plot, and render
 	return save_agent_results(save_render_plot, agent);
+	//return 0;
 }
 
 
@@ -1053,6 +1054,7 @@ int main()
 	
 	// Finish
 	Py_FinalizeEx();
+	FES->finish();
 	delete FES;
 	return 0;
 }

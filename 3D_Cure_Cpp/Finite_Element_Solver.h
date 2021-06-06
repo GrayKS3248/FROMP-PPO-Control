@@ -67,7 +67,7 @@ void print_params();
 void reset();
 bool step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
 double get_reward();
-
+void finish();
 
 //******************************************************************** USER SET PARAMETERS ********************************************************************//
 private:
@@ -203,6 +203,9 @@ double z_step;
 // Temperature and cure meshes
 vector<vector<vector<double>>> temp_mesh;
 vector<vector<vector<double>>> cure_mesh;
+double*** lr_bc_temps;
+double*** fb_bc_temps;
+double*** tb_bc_temps;
 
 // Front mesh and parameters
 vector<int> front_loc_x_indicies;
@@ -230,15 +233,12 @@ vector<vector<double>> input_mesh;
 //******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
 vector<vector<vector<double>>> get_perturbation(vector<vector<vector<double> > > size_array, double delta);
 void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_percent_rate_action);
-double get_laplacian(int i, int j, int k, const vector<vector<vector<double>>> &temperature);
+void get_lr_bc_temps(const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps);
+void get_fb_bc_temps(const vector<vector<vector<double>>> &temperature, double*** fb_bc_temps);
+void get_tb_bc_temps(const vector<vector<vector<double>>> &temperature, double*** tb_bc_temps);
 double get_laplacian_7(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tp_bc_temps);
 double get_laplacian_19(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tp_bc_temps);
-double get_laplacian_27(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tp_bc_temps);
-double*** get_lr_bc_temps(const vector<vector<vector<double>>> &temperature);
-double*** get_fb_bc_temps(const vector<vector<vector<double>>> &temperature);
-double*** get_tb_bc_temps(const vector<vector<vector<double>>> &temperature);
 void step_meshes();
 bool step_time();
 int load_config();
-
 };

@@ -220,6 +220,35 @@ Finite_Element_Solver::Finite_Element_Solver()
 			}
 		}
 	}
+	
+	// Allocate memory for BCs
+	lr_bc_temps = new double**[2];
+	for(int i = 0; i < 2; i++)
+	{
+		lr_bc_temps[i] = new double*[num_vert_width];
+		for(int j = 0; j < num_vert_width; j++)
+		{
+			lr_bc_temps[i][j] = new double[num_vert_depth];
+		}
+	}
+	fb_bc_temps = new double**[2];
+	for(int i = 0; i < 2; i++)
+	{
+		fb_bc_temps[i] = new double*[num_vert_length];
+		for(int j = 0; j < num_vert_length; j++)
+		{
+			fb_bc_temps[i][j] = new double[num_vert_depth];
+		}
+	}
+	tb_bc_temps = new double**[2];
+	for(int i = 0; i < 2; i++)
+	{
+		tb_bc_temps[i] = new double*[num_vert_length];
+		for(int j = 0; j < num_vert_length; j++)
+		{
+			tb_bc_temps[i][j] = new double[num_vert_width];
+		}
+	}
 }
 
 
@@ -807,6 +836,39 @@ double Finite_Element_Solver::get_reward()
 	return input_reward+overage_reward+front_shape_reward+target_reward;
 }
 
+/**
+* Deallocates dynamic memory used by FES
+*/
+void Finite_Element_Solver::finish()
+{
+	for(int i = 0; i != 2; ++i)
+	{
+		for(int j = 0; j != num_vert_width; ++j)
+		{
+			delete[] lr_bc_temps[i][j];
+		}
+		delete[] lr_bc_temps[i];
+	}
+	delete[] lr_bc_temps;
+	for(int i = 0; i != 2; ++i)
+	{
+		for(int j = 0; j != num_vert_length; ++j)
+		{
+			delete[] fb_bc_temps[i][j];
+		}
+		delete[] fb_bc_temps[i];
+	}
+	delete[] fb_bc_temps;
+	for(int i = 0; i != 2; ++i)
+	{
+		for(int j = 0; j != num_vert_length; ++j)
+		{
+			delete[] tb_bc_temps[i][j];
+		}
+		delete[] tb_bc_temps[i];
+	}
+	delete[] tb_bc_temps;
+}
 
 //******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
 
@@ -1178,109 +1240,49 @@ void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_ra
 * @param Temperature field
 * @return Virtual temperatures
 */
-double*** Finite_Element_Solver::get_lr_bc_temps(const vector<vector<vector<double>>> &temperature)
+void Finite_Element_Solver::get_lr_bc_temps(const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps)
 {
-	
-	double*** lr_bc_temps = new double**[2];
-	for(int i = 0; i < 2; i++)
+	for(int j = 0; j < num_vert_width; j++)
+	for(int k = 0; k < num_vert_depth; k++)
 	{
-		lr_bc_temps[i] = new double*[num_vert_width];
-
-		for(int j = 0; j < num_vert_width; j++)
+		if ((current_time >= trigger_time) && (current_time < trigger_time + trigger_duration))
 		{
-			lr_bc_temps[i][j] = new double[num_vert_depth];
-
-			for(int k = 0; k < num_vert_depth; k++)
-			{
-				if(i == 0)
-				{
-					// Left BC
-					if ((current_time >= trigger_time) && (current_time < trigger_time + trigger_duration))
-					{
-						lr_bc_temps[i][j][k] = temperature[0][j][k] - (x_step/thermal_conductivity)*(htc*(temperature[0][j][k]-ambient_temperature)-trigger_flux);
-					}
-					else
-					{
-						lr_bc_temps[i][j][k] = temperature[0][j][k] - (x_step*htc/thermal_conductivity)*(temperature[0][j][k]-ambient_temperature);
-					}
-				}
-				else
-				{
-					// Right BC
-					lr_bc_temps[i][j][k] = temperature[num_vert_length-1][j][k] - (x_step*htc/thermal_conductivity)*(temperature[num_vert_length-1][j][k]-ambient_temperature);
-				}
-			}
+			lr_bc_temps[0][j][k] = temperature[0][j][k] - (x_step/thermal_conductivity)*(htc*(temperature[0][j][k]-ambient_temperature)-trigger_flux);
 		}
+		else
+		{
+			lr_bc_temps[0][j][k] = temperature[0][j][k] - (x_step*htc/thermal_conductivity)*(temperature[0][j][k]-ambient_temperature);
+		}
+		lr_bc_temps[1][j][k] = temperature[num_vert_length-1][j][k] - (x_step*htc/thermal_conductivity)*(temperature[num_vert_length-1][j][k]-ambient_temperature);
 	}
-	return lr_bc_temps;
 }
 
 /** Calculates the virtual temperatures outside of the mesh on the front and back faces based on the boundary conditions
 * @param Temperature field
 * @return Virtual temperatures
 */
-double*** Finite_Element_Solver::get_fb_bc_temps(const vector<vector<vector<double>>> &temperature)
+void Finite_Element_Solver::get_fb_bc_temps(const vector<vector<vector<double>>> &temperature, double*** fb_bc_temps)
 {
-	
-	double*** fb_bc_temps = new double**[2];
-	for(int i = 0; i < 2; i++)
+	for(int j = 0; j < num_vert_length; j++)
+	for(int k = 0; k < num_vert_depth; k++)
 	{
-		fb_bc_temps[i] = new double*[num_vert_length];
-
-		for(int j = 0; j < num_vert_length; j++)
-		{
-			fb_bc_temps[i][j] = new double[num_vert_depth];
-
-			for(int k = 0; k < num_vert_depth; k++)
-			{
-				if(i == 0)
-				{
-					// Front BC
-					fb_bc_temps[i][j][k] = temperature[j][0][k] - (y_step*htc/thermal_conductivity)*(temperature[j][0][k]-ambient_temperature);
-				}
-				else
-				{
-					// Back BC
-					fb_bc_temps[i][j][k] = temperature[j][num_vert_width-1][k] - (y_step*htc/thermal_conductivity)*(temperature[j][num_vert_width-1][k]-ambient_temperature);
-				}
-			}
-		}
+		fb_bc_temps[0][j][k] = temperature[j][0][k] - (y_step*htc/thermal_conductivity)*(temperature[j][0][k]-ambient_temperature);
+		fb_bc_temps[1][j][k] = temperature[j][num_vert_width-1][k] - (y_step*htc/thermal_conductivity)*(temperature[j][num_vert_width-1][k]-ambient_temperature);
 	}
-	return fb_bc_temps;
 }
 
 /** Calculates the virtual temperatures outside of the mesh on the top and bottom faces based on the boundary conditions
 * @param Temperature field
 * @return Virtual temperatures
 */
-double*** Finite_Element_Solver::get_tb_bc_temps(const vector<vector<vector<double>>> &temperature)
+void Finite_Element_Solver::get_tb_bc_temps(const vector<vector<vector<double>>> &temperature, double*** tb_bc_temps)
 {
-	
-	double*** tb_bc_temps = new double**[2];
-	for(int i = 0; i < 2; i++)
+	for(int j = 0; j < num_vert_length; j++)
+	for(int k = 0; k < num_vert_width; k++)
 	{
-		tb_bc_temps[i] = new double*[num_vert_length];
-
-		for(int j = 0; j < num_vert_length; j++)
-		{
-			tb_bc_temps[i][j] = new double[num_vert_width];
-
-			for(int k = 0; k < num_vert_width; k++)
-			{
-				if(i == 0)
-				{
-					// Top BC
-					tb_bc_temps[i][j][k] = temperature[j][k][0] - (z_step*htc/thermal_conductivity)*(temperature[j][k][0]-ambient_temperature);
-				}
-				else
-				{
-					// Bottom BC
-					tb_bc_temps[i][j][k] = temperature[j][k][num_vert_depth-1] - (z_step*htc/thermal_conductivity)*(temperature[j][k][num_vert_depth-1]-ambient_temperature);
-				}
-			}
-		}
+		tb_bc_temps[0][j][k] = temperature[j][k][0] - (z_step*htc/thermal_conductivity)*(temperature[j][k][0]-ambient_temperature);
+		tb_bc_temps[1][j][k] = temperature[j][k][num_vert_depth-1] - (z_step*htc/thermal_conductivity)*(temperature[j][k][num_vert_depth-1]-ambient_temperature);
 	}
-	return tb_bc_temps;
 }
 
 /** Calculates the 7-point 3D stencil laplacian
@@ -1293,7 +1295,7 @@ double*** Finite_Element_Solver::get_tb_bc_temps(const vector<vector<vector<doub
 * @param Top and bottom virtual temperatures from BC
 * @return 7-point 3D stencil Lapclacian at (i,j,k)
 */
-double Finite_Element_Solver::get_laplacian_7(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tp_bc_temps)
+double Finite_Element_Solver::get_laplacian_7(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tb_bc_temps)
 {
 	double T_000 = temperature[i][j][k];
 	double T_p100 = 0.0;
@@ -1350,13 +1352,13 @@ double Finite_Element_Solver::get_laplacian_7(int i, int j, int k, const vector<
 	// Top BC
 	else if (k == 0)
 	{
-		T_00m1 = tp_bc_temps[0][i][j];
+		T_00m1 = tb_bc_temps[0][i][j];
 		T_00p1 = temperature[i][j][k+1];
 	}
 	// Bottom BC
 	else
 	{
-		T_00p1 = tp_bc_temps[1][i][j];
+		T_00p1 = tb_bc_temps[1][i][j];
 		T_00m1 = temperature[i][j][k-1];
 	}
 	
@@ -1373,20 +1375,11 @@ double Finite_Element_Solver::get_laplacian_7(int i, int j, int k, const vector<
 * @param Top and bottom virtual temperatures from BC
 * @return 19-point 3D stencil Lapclacian at (i,j,k)
 */
-double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tp_bc_temps)
+double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tb_bc_temps)
 {
 	double T_000 = temperature[i][j][k];
+	double axes[3][3];
 	
-	// (-1 1 0) (-1 -1 0) (0 0 1) (0 0 -1) (1 1 0) (1 -1 0)
-	double T_basis_1[6];
-	
-	// (-1 0 1) (-1 0 -1) (0 1 0) (0 -1 0) (1 0 1) (1 0 -1)
-	double T_basis_2[6];
-	
-	// (-1 0 0) (0 1 1) (0 -1 1) (0 1 -1) (0 -1 -1) (1 0 0)
-	double T_basis_3[6];
-	
-	// Edge BC
 	bool on_edge = ((i==0) && (j==0));
 	on_edge = on_edge || ((i==0) && (j==num_vert_width-1));
 	on_edge = on_edge || ((i==num_vert_length-1) && (j==0));
@@ -1399,775 +1392,124 @@ double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector
 	on_edge = on_edge || ((k==0) && (j==num_vert_width-1));
 	on_edge = on_edge || ((k==num_vert_depth-1) && (j==0));
 	on_edge = on_edge || ((k==num_vert_depth-1) && (j==num_vert_width-1));
+	
+	// Edges
 	if (on_edge)
 	{
-		return get_laplacian_7(i, j, k, temperature, lr_bc_temps, fb_bc_temps, tp_bc_temps);
+		return get_laplacian_7_1(i, j, k, temperature, lr_bc_temps, fb_bc_temps, tb_bc_temps);
 	}
-	
-/* 	bool on_boundary = (i==0) || (j==0) || (k==0) || (i==num_vert_length-1) || (j==num_vert_width-1) || (k==num_vert_depth-1);
-	if(on_boundary)
-	{
-		return get_laplacian_7(i, j, k, temperature, lr_bc_temps, fb_bc_temps, tp_bc_temps);
-	} */
-	
-/* 	// Left, front edge
-	if((i==0) && (j==0))
-	{
-		T_basis_1[0] = lr_bc_temps[0][j+1][k];
-		T_basis_1[1] = T_000;//(lr_bc_temps[0][j][k] + fb_bc_temps[0][i][k]) * 0.5;
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = temperature[i+1][j+1][k];
-		T_basis_1[5] = fb_bc_temps[0][i+1][k];
-		
-		T_basis_2[0] = lr_bc_temps[0][j][k+1];
-		T_basis_2[1] = lr_bc_temps[0][j][k-1];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = fb_bc_temps[0][i][k];
-		T_basis_2[4] = temperature[i+1][j][k+1];
-		T_basis_2[5] = temperature[i+1][j][k-1];
-		
-		T_basis_3[0] = lr_bc_temps[0][j][k];
-		T_basis_3[1] = temperature[i][j+1][k+1];
-		T_basis_3[2] = fb_bc_temps[0][i][k+1];
-		T_basis_3[3] = temperature[i][j+1][k-1];
-		T_basis_3[4] = fb_bc_temps[0][i][k-1];
-		T_basis_3[5] = temperature[i+1][j][k];
-	}
-	// Left, back edge
-	else if((i==0) && (j==num_vert_width-1))
-	{
-		T_basis_1[0] = T_000;//(lr_bc_temps[0][j][k] + fb_bc_temps[1][i][k]) * 0.5;
-		T_basis_1[1] = lr_bc_temps[0][j-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = fb_bc_temps[1][i+1][k];
-		T_basis_1[5] = temperature[i+1][j-1][k];
-		
-		T_basis_2[0] = lr_bc_temps[0][j][k+1];
-		T_basis_2[1] = lr_bc_temps[0][j][k-1];
-		T_basis_2[2] = fb_bc_temps[1][i][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = temperature[i+1][j][k+1];
-		T_basis_2[5] = temperature[i+1][j][k-1];
-		
-		T_basis_3[0] = lr_bc_temps[0][j][k];
-		T_basis_3[1] = fb_bc_temps[1][i][k+1];
-		T_basis_3[2] = temperature[i][j-1][k+1];
-		T_basis_3[3] = fb_bc_temps[1][i][k-1];
-		T_basis_3[4] = temperature[i][j-1][k-1];
-		T_basis_3[5] = temperature[i+1][j][k];
-	}
-	// Right, front edge
-	else if((i==num_vert_length-1) && (j==0))
-	{
-		T_basis_1[0] = temperature[i-1][j+1][k];
-		T_basis_1[1] = fb_bc_temps[0][i-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = lr_bc_temps[1][j+1][k];
-		T_basis_1[5] = T_000;//(lr_bc_temps[1][j][k] + fb_bc_temps[0][i][k]) * 0.5;
-		
-		T_basis_2[0] = temperature[i-1][j][k+1];
-		T_basis_2[1] = temperature[i-1][j][k-1];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = fb_bc_temps[0][i][k];
-		T_basis_2[4] = lr_bc_temps[1][j][k+1];
-		T_basis_2[5] = lr_bc_temps[1][j][k-1];
-		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = temperature[i][j+1][k+1];
-		T_basis_3[2] = fb_bc_temps[0][i][k+1];
-		T_basis_3[3] = temperature[i][j+1][k-1];
-		T_basis_3[4] = fb_bc_temps[0][i][k-1];
-		T_basis_3[5] = lr_bc_temps[1][j][k];
-	}
-	// Right, back edge
-	else if((i==num_vert_length-1) && (j==num_vert_width-1))
-	{
-		T_basis_1[0] = fb_bc_temps[1][i-1][k];
-		T_basis_1[1] = temperature[i-1][j-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = T_000;//(lr_bc_temps[1][j][k] + fb_bc_temps[1][i][k]) * 0.5;
-		T_basis_1[5] = lr_bc_temps[1][j-1][k];
-		
-		T_basis_2[0] = temperature[i-1][j][k+1];
-		T_basis_2[1] = temperature[i-1][j][k-1];
-		T_basis_2[2] = fb_bc_temps[1][i][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = lr_bc_temps[1][j][k+1];
-		T_basis_2[5] = lr_bc_temps[1][j][k-1];
-		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = fb_bc_temps[1][i][k+1];
-		T_basis_3[2] = temperature[i][j-1][k+1];
-		T_basis_3[3] = fb_bc_temps[1][i][k-1];
-		T_basis_3[4] = temperature[i][j-1][k-1];
-		T_basis_3[5] = lr_bc_temps[1][j][k];
-	}
-	// Left, top edge
-	else if((i==0) && (k==0))
-	{
-		T_basis_1[0] = lr_bc_temps[0][j+1][k];
-		T_basis_1[1] = lr_bc_temps[0][j-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = tp_bc_temps[0][i][j]; 
-		T_basis_1[4] = temperature[i+1][j+1][k];
-		T_basis_1[5] = temperature[i+1][j-1][k];
-		
-		T_basis_2[0] = lr_bc_temps[0][j][k+1];
-		T_basis_2[1] = T_000;//(lr_bc_temps[0][j][k] + tp_bc_temps[0][i][j]) * 0.5;
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = temperature[i+1][j][k+1];
-		T_basis_2[5] = tp_bc_temps[0][i+1][j];
-		
-		T_basis_3[0] = lr_bc_temps[0][j][k];
-		T_basis_3[1] = temperature[i][j+1][k+1];
-		T_basis_3[2] = temperature[i][j-1][k+1];
-		T_basis_3[3] = tp_bc_temps[0][i][j+1];
-		T_basis_3[4] = tp_bc_temps[0][i][j-1];
-		T_basis_3[5] = temperature[i+1][j][k];
-	}
-	// Left, bottom edge
-	else if((i==0) && (k==num_vert_depth-1))
-	{
-		T_basis_1[0] = lr_bc_temps[0][j+1][k];
-		T_basis_1[1] = lr_bc_temps[0][j-1][k];
-		T_basis_1[2] = tp_bc_temps[1][i][j];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = temperature[i+1][j+1][k];
-		T_basis_1[5] = temperature[i+1][j-1][k];
-		
-		T_basis_2[0] = T_000;//(lr_bc_temps[0][j][k] + tp_bc_temps[1][i][j]) * 0.5;
-		T_basis_2[1] = lr_bc_temps[0][j][k-1];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = tp_bc_temps[1][i+1][j];
-		T_basis_2[5] = temperature[i+1][j][k-1];
-		
-		T_basis_3[0] = lr_bc_temps[0][j][k];
-		T_basis_3[1] = tp_bc_temps[1][i][j+1];
-		T_basis_3[2] = tp_bc_temps[1][i][j-1];
-		T_basis_3[3] = temperature[i][j+1][k-1];
-		T_basis_3[4] = temperature[i][j-1][k-1];
-		T_basis_3[5] = temperature[i+1][j][k];
-	}
-	// Right, top edge
-	else if((i==num_vert_length-1) && (k==0))
-	{
-		T_basis_1[0] = temperature[i-1][j+1][k];
-		T_basis_1[1] = temperature[i-1][j-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = tp_bc_temps[0][i][j]; 
-		T_basis_1[4] = lr_bc_temps[1][j+1][k];
-		T_basis_1[5] = lr_bc_temps[1][j-1][k];
-		
-		T_basis_2[0] = temperature[i-1][j][k+1];
-		T_basis_2[1] = tp_bc_temps[0][i-1][j];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = lr_bc_temps[1][j][k+1];
-		T_basis_2[5] = T_000;//(lr_bc_temps[1][j][k] + tp_bc_temps[0][i][j]) * 0.5;
-		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = temperature[i][j+1][k+1];
-		T_basis_3[2] = temperature[i][j-1][k+1];
-		T_basis_3[3] = tp_bc_temps[0][i][j+1];
-		T_basis_3[4] = tp_bc_temps[0][i][j-1];
-		T_basis_3[5] = lr_bc_temps[1][j][k];
-	}
-	// Right, bottom edge
-	else if((i==num_vert_length-1) && (k==num_vert_depth-1))
-	{
-		T_basis_1[0] = temperature[i-1][j+1][k];
-		T_basis_1[1] = temperature[i-1][j-1][k];
-		T_basis_1[2] = tp_bc_temps[1][i][j];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = lr_bc_temps[1][j+1][k];
-		T_basis_1[5] = lr_bc_temps[1][j-1][k];
-		
-		T_basis_2[0] = tp_bc_temps[1][i-1][j];
-		T_basis_2[1] = temperature[i-1][j][k-1];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = T_000;//(lr_bc_temps[1][j][k] + tp_bc_temps[1][i][j]) * 0.5;
-		T_basis_2[5] = lr_bc_temps[1][j][k-1];
-		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = tp_bc_temps[1][i][j+1];
-		T_basis_3[2] = tp_bc_temps[1][i][j-1];
-		T_basis_3[3] = temperature[i][j+1][k-1];
-		T_basis_3[4] = temperature[i][j-1][k-1];
-		T_basis_3[5] = lr_bc_temps[1][j][k];
-	}
-	// Front, top edge
-	else if((k==0) && (j==0))
-	{
-		T_basis_1[0] = temperature[i-1][j+1][k];
-		T_basis_1[1] = fb_bc_temps[0][i-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = tp_bc_temps[0][i][j]; 
-		T_basis_1[4] = temperature[i+1][j+1][k];
-		T_basis_1[5] = fb_bc_temps[0][i+1][k];
-		
-		T_basis_2[0] = temperature[i-1][j][k+1];
-		T_basis_2[1] = tp_bc_temps[0][i-1][j];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = fb_bc_temps[0][i][k];
-		T_basis_2[4] = temperature[i+1][j][k+1];
-		T_basis_2[5] = tp_bc_temps[0][i+1][j];
-		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = temperature[i][j+1][k+1];
-		T_basis_3[2] = fb_bc_temps[0][i][k+1];
-		T_basis_3[3] = tp_bc_temps[0][i][j+1];
-		T_basis_3[4] = T_000;//(fb_bc_temps[0][i][k] + tp_bc_temps[0][i][j]) * 0.5;
-		T_basis_3[5] = temperature[i+1][j][k];
-	}
-	// Back, top edge
-	else if((k==0) && (j==num_vert_width-1))
-	{
-		T_basis_1[0] = fb_bc_temps[1][i-1][k];
-		T_basis_1[1] = temperature[i-1][j-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = tp_bc_temps[0][i][j]; 
-		T_basis_1[4] = fb_bc_temps[1][i+1][k];
-		T_basis_1[5] = temperature[i+1][j-1][k];
-		
-		T_basis_2[0] = temperature[i-1][j][k+1];
-		T_basis_2[1] = tp_bc_temps[0][i-1][j];
-		T_basis_2[2] = fb_bc_temps[1][i][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = temperature[i+1][j][k+1];
-		T_basis_2[5] = tp_bc_temps[0][i+1][j];
-		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = fb_bc_temps[1][i][k+1];
-		T_basis_3[2] = temperature[i][j-1][k+1];
-		T_basis_3[3] = T_000;//(fb_bc_temps[1][i][k] + tp_bc_temps[0][i][j]) * 0.5;
-		T_basis_3[4] = tp_bc_temps[0][i][j-1];
-		T_basis_3[5] = temperature[i+1][j][k];
-	}
-	// Front, bottom edge
-	else if((k==num_vert_depth-1) && (j==0))
-	{
-		T_basis_1[0] = temperature[i-1][j+1][k];
-		T_basis_1[1] = fb_bc_temps[0][i-1][k];
-		T_basis_1[2] = tp_bc_temps[1][i][j];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = temperature[i+1][j+1][k];
-		T_basis_1[5] = fb_bc_temps[0][i+1][k];
-		
-		T_basis_2[0] = tp_bc_temps[1][i-1][j];
-		T_basis_2[1] = temperature[i-1][j][k-1];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = fb_bc_temps[0][i][k];
-		T_basis_2[4] = tp_bc_temps[1][i+1][j];
-		T_basis_2[5] = temperature[i+1][j][k-1];
-		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = tp_bc_temps[1][i][j+1];
-		T_basis_3[2] = T_000;//(fb_bc_temps[0][i][k] + tp_bc_temps[1][i][j]) * 0.5;
-		T_basis_3[3] = temperature[i][j+1][k-1];
-		T_basis_3[4] = fb_bc_temps[0][i][k-1];
-		T_basis_3[5] = temperature[i+1][j][k];
-	}
-	// Back, bottom edge
-	else if((k==num_vert_depth-1) && (j==num_vert_width-1))
-	{
-		T_basis_1[0] = fb_bc_temps[1][i-1][k];
-		T_basis_1[1] = temperature[i-1][j-1][k];
-		T_basis_1[2] = tp_bc_temps[1][i][j];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = fb_bc_temps[1][i+1][k];
-		T_basis_1[5] = temperature[i+1][j-1][k];
-		
-		T_basis_2[0] = tp_bc_temps[1][i-1][j];
-		T_basis_2[1] = temperature[i-1][j][k-1];
-		T_basis_2[2] = fb_bc_temps[1][i][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = tp_bc_temps[1][i+1][j];
-		T_basis_2[5] = temperature[i+1][j][k-1];
-		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = T_000;//(fb_bc_temps[1][i][k] + tp_bc_temps[1][i][j]) * 0.5;
-		T_basis_3[2] = tp_bc_temps[1][i][j-1];
-		T_basis_3[3] = fb_bc_temps[1][i][k-1];
-		T_basis_3[4] = temperature[i][j-1][k-1];
-		T_basis_3[5] = temperature[i+1][j][k];
-	} */
 	// Left face BC
 	else if (i == 0)
 	{
-		T_basis_1[0] = lr_bc_temps[0][j+1][k];
-		T_basis_1[1] = lr_bc_temps[0][j-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = temperature[i+1][j+1][k];
-		T_basis_1[5] = temperature[i+1][j-1][k];
+		axes[0][0] = (lr_bc_temps[0][j+1][k] - 2.0*T_000 + temperature[i+1][j-1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][1] = (lr_bc_temps[0][j-1][k] - 2.0*T_000 + temperature[i+1][j+1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][2] = (temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1]) / (z_step*z_step);
 		
-		T_basis_2[0] = lr_bc_temps[0][j][k+1];
-		T_basis_2[1] = lr_bc_temps[0][j][k-1];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = temperature[i+1][j][k+1];
-		T_basis_2[5] = temperature[i+1][j][k-1];
+		axes[1][0] = (lr_bc_temps[0][j][k+1] - 2.0*T_000 + temperature[i+1][j][k-1]) / (x_step*x_step + z_step*z_step);
+		axes[1][1] = (lr_bc_temps[0][j][k-1] - 2.0*T_000 + temperature[i+1][j][k+1]) / (x_step*x_step + z_step*z_step);
+		axes[1][2] = (temperature[i][j-1][k] - 2.0*T_000 + temperature[i][j+1][k]) / (y_step*y_step);
 		
-		T_basis_3[0] = lr_bc_temps[0][j][k];
-		T_basis_3[1] = temperature[i][j+1][k+1];
-		T_basis_3[2] = temperature[i][j-1][k+1];
-		T_basis_3[3] = temperature[i][j+1][k-1];
-		T_basis_3[4] = temperature[i][j-1][k-1];
-		T_basis_3[5] = temperature[i+1][j][k];
+		axes[2][0] = (temperature[i][j-1][k+1] - 2.0*T_000 + temperature[i][j+1][k-1]) / (y_step*y_step + z_step*z_step);
+		axes[2][1] = (temperature[i][j-1][k-1] - 2.0*T_000 + temperature[i][j+1][k+1]) / (y_step*y_step + z_step*z_step);
+		axes[2][2] = (lr_bc_temps[0][j][k] - 2.0*T_000 + temperature[i+1][j][k]) / (x_step*x_step);
 	}
 	// Right face BC
 	else if (i == num_vert_length-1)
-	{
-		T_basis_1[0] = temperature[i-1][j+1][k];
-		T_basis_1[1] = temperature[i-1][j-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = lr_bc_temps[1][j+1][k];
-		T_basis_1[5] = lr_bc_temps[1][j-1][k];
+	{		
+		axes[0][0] = (temperature[i-1][j+1][k] - 2.0*T_000 + lr_bc_temps[1][j-1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][1] = (temperature[i-1][j-1][k] - 2.0*T_000 + lr_bc_temps[1][j+1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][2] = (temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1]) / (z_step*z_step);
 		
-		T_basis_2[0] = temperature[i-1][j][k+1];
-		T_basis_2[1] = temperature[i-1][j][k-1];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = lr_bc_temps[1][j][k+1];
-		T_basis_2[5] = lr_bc_temps[1][j][k-1];
+		axes[1][0] = (temperature[i-1][j][k+1] - 2.0*T_000 + lr_bc_temps[1][j][k-1]) / (x_step*x_step + z_step*z_step);
+		axes[1][1] = (temperature[i-1][j][k-1] - 2.0*T_000 + lr_bc_temps[1][j][k+1]) / (x_step*x_step + z_step*z_step);
+		axes[1][2] = (temperature[i][j-1][k] - 2.0*T_000 + temperature[i][j+1][k]) / (y_step*y_step);
 		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = temperature[i][j+1][k+1];
-		T_basis_3[2] = temperature[i][j-1][k+1];
-		T_basis_3[3] = temperature[i][j+1][k-1];
-		T_basis_3[4] = temperature[i][j-1][k-1];
-		T_basis_3[5] = lr_bc_temps[1][j][k];
+		axes[2][0] = (temperature[i][j-1][k+1] - 2.0*T_000 + temperature[i][j+1][k-1]) / (y_step*y_step + z_step*z_step);
+		axes[2][1] = (temperature[i][j-1][k-1] - 2.0*T_000 + temperature[i][j+1][k+1]) / (y_step*y_step + z_step*z_step);
+		axes[2][2] = (temperature[i-1][j][k] - 2.0*T_000 + lr_bc_temps[1][j][k]) / (x_step*x_step);
 	}
 	// Front face BC
 	else if (j == 0)
-	{
-		T_basis_1[0] = temperature[i-1][j+1][k];
-		T_basis_1[1] = fb_bc_temps[0][i-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = temperature[i+1][j+1][k];
-		T_basis_1[5] = fb_bc_temps[0][i+1][k];
+	{	
+		axes[0][0] = (temperature[i-1][j+1][k] - 2.0*T_000 + fb_bc_temps[0][i+1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][1] = (fb_bc_temps[0][i-1][k] - 2.0*T_000 + temperature[i+1][j+1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][2] = (temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1]) / (z_step*z_step);
 		
-		T_basis_2[0] = temperature[i-1][j][k+1];
-		T_basis_2[1] = temperature[i-1][j][k-1];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = fb_bc_temps[0][i][k];
-		T_basis_2[4] = temperature[i+1][j][k+1];
-		T_basis_2[5] = temperature[i+1][j][k-1];
+		axes[1][0] = (temperature[i-1][j][k+1] - 2.0*T_000 + temperature[i+1][j][k-1]) / (x_step*x_step + z_step*z_step);
+		axes[1][1] = (temperature[i-1][j][k-1] - 2.0*T_000 + temperature[i+1][j][k+1]) / (x_step*x_step + z_step*z_step);
+		axes[1][2] = (fb_bc_temps[0][i][k] - 2.0*T_000 + temperature[i][j+1][k]) / (y_step*y_step);
 		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = temperature[i][j+1][k+1];
-		T_basis_3[2] = fb_bc_temps[0][i][k+1];
-		T_basis_3[3] = temperature[i][j+1][k-1];
-		T_basis_3[4] = fb_bc_temps[0][i][k-1];
-		T_basis_3[5] = temperature[i+1][j][k];
+		axes[2][0] = (fb_bc_temps[0][i][k+1] - 2.0*T_000 + temperature[i][j+1][k-1]) / (y_step*y_step + z_step*z_step);
+		axes[2][1] = (fb_bc_temps[0][i][k-1] - 2.0*T_000 + temperature[i][j+1][k+1]) / (y_step*y_step + z_step*z_step);
+		axes[2][2] = (temperature[i-1][j][k] - 2.0*T_000 + temperature[i+1][j][k]) / (x_step*x_step);
 	}
 	// Back face BC
 	else if (j == num_vert_width-1)
-	{
-		T_basis_1[0] = fb_bc_temps[1][i-1][k];
-		T_basis_1[1] = temperature[i-1][j-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = fb_bc_temps[1][i+1][k];
-		T_basis_1[5] = temperature[i+1][j-1][k];
+	{	
+		axes[0][0] = (fb_bc_temps[1][i-1][k] - 2.0*T_000 + temperature[i+1][j-1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][1] = (temperature[i-1][j-1][k] - 2.0*T_000 + fb_bc_temps[1][i+1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][2] = (temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1]) / (z_step*z_step);
 		
-		T_basis_2[0] = temperature[i-1][j][k+1];
-		T_basis_2[1] = temperature[i-1][j][k-1];
-		T_basis_2[2] = fb_bc_temps[1][i][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = temperature[i+1][j][k+1];
-		T_basis_2[5] = temperature[i+1][j][k-1];
+		axes[1][0] = (temperature[i-1][j][k+1] - 2.0*T_000 + temperature[i+1][j][k-1]) / (x_step*x_step + z_step*z_step);
+		axes[1][1] = (temperature[i-1][j][k-1] - 2.0*T_000 + temperature[i+1][j][k+1]) / (x_step*x_step + z_step*z_step);
+		axes[1][2] = (temperature[i][j-1][k] - 2.0*T_000 + fb_bc_temps[1][i][k]) / (y_step*y_step);
 		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = fb_bc_temps[1][i][k+1];
-		T_basis_3[2] = temperature[i][j-1][k+1];
-		T_basis_3[3] = fb_bc_temps[1][i][k-1];
-		T_basis_3[4] = temperature[i][j-1][k-1];
-		T_basis_3[5] = temperature[i+1][j][k];
+		axes[2][0] = (temperature[i][j-1][k+1] - 2.0*T_000 + fb_bc_temps[1][i][k-1]) / (y_step*y_step + z_step*z_step);
+		axes[2][1] = (temperature[i][j-1][k-1] - 2.0*T_000 + fb_bc_temps[1][i][k+1]) / (y_step*y_step + z_step*z_step);
+		axes[2][2] = (temperature[i-1][j][k] - 2.0*T_000 + temperature[i+1][j][k]) / (x_step*x_step);
 	}
 	// Top face BC
 	else if (k == 0)
 	{
-		T_basis_1[0] = temperature[i-1][j+1][k];
-		T_basis_1[1] = temperature[i-1][j-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = tp_bc_temps[0][i][j]; 
-		T_basis_1[4] = temperature[i+1][j+1][k];
-		T_basis_1[5] = temperature[i+1][j-1][k];
+		axes[0][0] = (temperature[i-1][j+1][k] - 2.0*T_000 + temperature[i+1][j-1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][1] = (temperature[i-1][j-1][k] - 2.0*T_000 + temperature[i+1][j+1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][2] = (tb_bc_temps[0][i][j] - 2.0*T_000 + temperature[i][j][k+1]) / (z_step*z_step);
 		
-		T_basis_2[0] = temperature[i-1][j][k+1];
-		T_basis_2[1] = tp_bc_temps[0][i-1][j];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = temperature[i+1][j][k+1];
-		T_basis_2[5] = tp_bc_temps[0][i+1][j];
+		axes[1][0] = (temperature[i-1][j][k+1] - 2.0*T_000 + tb_bc_temps[0][i+1][j]) / (x_step*x_step + z_step*z_step);
+		axes[1][1] = (tb_bc_temps[0][i-1][j] - 2.0*T_000 + temperature[i+1][j][k+1]) / (x_step*x_step + z_step*z_step);
+		axes[1][2] = (temperature[i][j-1][k] - 2.0*T_000 + temperature[i][j+1][k]) / (y_step*y_step);
 		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = temperature[i][j+1][k+1];
-		T_basis_3[2] = temperature[i][j-1][k+1];
-		T_basis_3[3] = tp_bc_temps[0][i][j+1];
-		T_basis_3[4] = tp_bc_temps[0][i][j-1];
-		T_basis_3[5] = temperature[i+1][j][k];
+		axes[2][0] = (temperature[i][j-1][k+1] - 2.0*T_000 + tb_bc_temps[0][i][j+1]) / (y_step*y_step + z_step*z_step);
+		axes[2][1] = (tb_bc_temps[0][i][j-1] - 2.0*T_000 + temperature[i][j+1][k+1]) / (y_step*y_step + z_step*z_step);
+		axes[2][2] = (temperature[i-1][j][k] - 2.0*T_000 + temperature[i+1][j][k]) / (x_step*x_step);
 	}
 	// Bottom face BC
 	else if (k == num_vert_depth-1)
 	{
-		T_basis_1[0] = temperature[i-1][j+1][k];
-		T_basis_1[1] = temperature[i-1][j-1][k];
-		T_basis_1[2] = tp_bc_temps[1][i][j];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = temperature[i+1][j+1][k];
-		T_basis_1[5] = temperature[i+1][j-1][k];
+		axes[0][0] = (temperature[i-1][j+1][k] - 2.0*T_000 + temperature[i+1][j-1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][1] = (temperature[i-1][j-1][k] - 2.0*T_000 + temperature[i+1][j+1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][2] = (temperature[i][j][k-1] - 2.0*T_000 + tb_bc_temps[1][i][j]) / (z_step*z_step);
 		
-		T_basis_2[0] = tp_bc_temps[1][i-1][j];
-		T_basis_2[1] = temperature[i-1][j][k-1];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = tp_bc_temps[1][i+1][j];
-		T_basis_2[5] = temperature[i+1][j][k-1];
+		axes[1][0] = (tb_bc_temps[1][i-1][j] - 2.0*T_000 + temperature[i+1][j][k-1]) / (x_step*x_step + z_step*z_step);
+		axes[1][1] = (temperature[i-1][j][k-1] - 2.0*T_000 + tb_bc_temps[1][i+1][j]) / (x_step*x_step + z_step*z_step);
+		axes[1][2] = (temperature[i][j-1][k] - 2.0*T_000 + temperature[i][j+1][k]) / (y_step*y_step);
 		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = tp_bc_temps[1][i][j+1];
-		T_basis_3[2] = tp_bc_temps[1][i][j-1];
-		T_basis_3[3] = temperature[i][j+1][k-1];
-		T_basis_3[4] = temperature[i][j-1][k-1];
-		T_basis_3[5] = temperature[i+1][j][k];
+		axes[2][0] = (tb_bc_temps[1][i][j-1] - 2.0*T_000 + temperature[i][j+1][k-1]) / (y_step*y_step + z_step*z_step);
+		axes[2][1] = (temperature[i][j-1][k-1] - 2.0*T_000 + tb_bc_temps[1][i][j+1]) / (y_step*y_step + z_step*z_step);
+		axes[2][2] = (temperature[i-1][j][k] - 2.0*T_000 + temperature[i+1][j][k]) / (x_step*x_step);
 	}
 	// Bulk material
 	else
 	{
-		T_basis_1[0] = temperature[i-1][j+1][k];
-		T_basis_1[1] = temperature[i-1][j-1][k];
-		T_basis_1[2] = temperature[i][j][k+1];
-		T_basis_1[3] = temperature[i][j][k-1]; 
-		T_basis_1[4] = temperature[i+1][j+1][k];
-		T_basis_1[5] = temperature[i+1][j-1][k];
+		axes[0][0] = (temperature[i-1][j+1][k] - 2.0*T_000 + temperature[i+1][j-1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][1] = (temperature[i-1][j-1][k] - 2.0*T_000 + temperature[i+1][j+1][k]) / (x_step*x_step + y_step*y_step);
+		axes[0][2] = (temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1]) / (z_step*z_step);
 		
-		T_basis_2[0] = temperature[i-1][j][k+1];
-		T_basis_2[1] = temperature[i-1][j][k-1];
-		T_basis_2[2] = temperature[i][j+1][k];
-		T_basis_2[3] = temperature[i][j-1][k];
-		T_basis_2[4] = temperature[i+1][j][k+1];
-		T_basis_2[5] = temperature[i+1][j][k-1];
+		axes[1][0] = (temperature[i-1][j][k+1] - 2.0*T_000 + temperature[i+1][j][k-1]) / (x_step*x_step + z_step*z_step);
+		axes[1][1] = (temperature[i-1][j][k-1] - 2.0*T_000 + temperature[i+1][j][k+1]) / (x_step*x_step + z_step*z_step);
+		axes[1][2] = (temperature[i][j-1][k] - 2.0*T_000 + temperature[i][j+1][k]) / (y_step*y_step);
 		
-		T_basis_3[0] = temperature[i-1][j][k];
-		T_basis_3[1] = temperature[i][j+1][k+1];
-		T_basis_3[2] = temperature[i][j-1][k+1];
-		T_basis_3[3] = temperature[i][j+1][k-1];
-		T_basis_3[4] = temperature[i][j-1][k-1];
-		T_basis_3[5] = temperature[i+1][j][k];
+		axes[2][0] = (temperature[i][j-1][k+1] - 2.0*T_000 + temperature[i][j+1][k-1]) / (y_step*y_step + z_step*z_step);
+		axes[2][1] = (temperature[i][j-1][k-1] - 2.0*T_000 + temperature[i][j+1][k+1]) / (y_step*y_step + z_step*z_step);
+		axes[2][2] = (temperature[i-1][j][k] - 2.0*T_000 + temperature[i+1][j][k]) / (x_step*x_step);
 	}
 	
-	// Calculate basis 1 laplacian
-	double laplacian_1 = (T_basis_1[0] + T_basis_1[5] - 2.0*T_000)/(x_step*x_step + y_step*y_step) + (T_basis_1[1] + T_basis_1[4] - 2.0*T_000)/(x_step*x_step + y_step*y_step) + (T_basis_1[2] + T_basis_1[3] - 2.0*T_000)/(z_step*z_step);
-	
-	// Calculate basis 2 laplacian
-	double laplacian_2 = (T_basis_2[0] + T_basis_2[5] - 2.0*T_000)/(x_step*x_step + z_step*z_step) + (T_basis_2[1] + T_basis_2[4] - 2.0*T_000)/(x_step*x_step + z_step*z_step) + (T_basis_2[2] + T_basis_2[3] - 2.0*T_000)/(y_step*y_step);
-	
-	// Calculate basis 3 laplacian
-	double laplacian_3 = (T_basis_3[1] + T_basis_3[4] - 2.0*T_000)/(y_step*y_step + z_step*z_step) + (T_basis_3[2] + T_basis_3[3] - 2.0*T_000)/(y_step*y_step + z_step*z_step) + (T_basis_3[0] + T_basis_3[5] - 2.0*T_000)/(x_step*x_step);
+	// Calculate laplacians for all 3 bases
+	double laplacian_1 = axes[0][0] + axes[0][1] + axes[0][2];
+	double laplacian_2 = axes[1][0] + axes[1][1] + axes[1][2];
+	double laplacian_3 = axes[2][0] + axes[2][1] + axes[2][2];
 	
 	return ( (x_step / z_step) * laplacian_1 + (x_step / y_step) * laplacian_2 + laplacian_3) / (1.0 + (x_step / z_step) + (x_step / y_step));
-}
-
-/** Calculates the 27-point 3D stencil laplacian
-* @param i index at which the Laplacian is calculated
-* @param j index at which the Laplacian is calculated
-* @param k index at which the Laplacian is calculated
-* @param Temperature field
-* @param Left and right virtual temperatures from BC
-* @param Front and back virtual temperatures from BC
-* @param Top and bottom virtual temperatures from BC
-* @return 27-point 3D stencil Lapclacian at (i,j,k)
-*/
-double Finite_Element_Solver::get_laplacian_27(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tp_bc_temps)
-{  
-	return 0.0;
-}
-
-/** Calculates the Laplacian of the temperature field at a specified location
-* @param i index at which the Laplacian is calculated
-* @param j index at which the Laplacian is calculated
-* @param k index at which the Laplacian is calculated
-* @param Temperature field
-* @return 7-point 1D stencil Lapclacian at (i,j,k)
-*/
-double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<vector<vector<double>>> &temperature)
-{
-	double dT2_dx2;
-	double dT2_dy2;
-	double dT2_dz2;
-	double left_flux;
-	double right_flux;
-	double front_flux;
-	double back_flux;
-	double top_flux;
-	double bottom_flux;
-	double term_1;
-	double term_2;
-	double term_3;
-	double term_4;
-	double term_5;
-	double term_6;
-	double term_7;
-	double t_ijk = temperature[i][j][k];
-
-	// Calculate the second derivative of temperature wrt x in interior of mesh
-	if (i != 0 && i != num_vert_length-1)
-	{
-		// Stencil size 7. Stencil = (-1, 0, 1, 2, 3, 4, 5) for 2nd order derivative
-		if (i==1)
-		{
-			term_1 = 137.0 * temperature[i-1][j][k] / 180.0;
-			term_2 = -49.0 * t_ijk / 60.0;
-			term_3 = -17.0 * temperature[i+1][j][k] / 12.0;
-			term_4 = 47.0 * temperature[i+2][j][k] / 18.0;
-			term_5 = -19.0 * temperature[i+3][j][k] / 12.0;
-			term_6 = 31.0 * temperature[i+4][j][k] / 60.0;
-			term_7 = -13.0 * temperature[i+5][j][k] / 180.0;
-		}
-		// Stencil size 7. Stencil = (-2, -1, 0, 1, 2, 3, 4) for 2nd order derivative
-		else if(i==2)
-		{
-			term_1 = -13.0 * temperature[i-2][j][k] / 180.0;
-			term_2 = 19.0 * temperature[i-1][j][k] / 15.0;
-			term_3 = -7.0 * t_ijk / 3.0;
-			term_4 = 10.0 * temperature[i+1][j][k] / 9.0;
-			term_5 = 1.0 * temperature[i+2][j][k] / 12.0;
-			term_6 = -1.0 * temperature[i+3][j][k] / 15.0;
-			term_7 = 1.0 * temperature[i+4][j][k] / 90.0;
-		}
-		// Stencil size 7. Stencil = (-4, -3, -2, -1, 0, 1, 2) for 2nd order derivative
-		else if(i==num_vert_length-3)
-		{
-			term_1 = 1.0 * temperature[i-4][j][k] / 90.0;
-			term_2 = -1.0 * temperature[i-3][j][k] / 15.0;
-			term_3 = 1.0 * temperature[i-2][j][k] / 12.0;
-			term_4 = 10.0 * temperature[i-1][j][k] / 9.0;
-			term_5 = -7.0 * t_ijk / 3.0;
-			term_6 = 19.0 * temperature[i+1][j][k] / 15.0;
-			term_7 = -13.0 * temperature[i+2][j][k] / 180.0;
-		}
-		// Stencil size 7. Stencil = (-5, -4, -3, -2, -1, 0, 1) for 2nd order derivative
-		else if(i==num_vert_length-2)
-		{
-			term_1 = -13.0 * temperature[i-5][j][k] / 180.0;
-			term_2 = 31.0 * temperature[i-4][j][k] / 60.0;
-			term_3 = -19.0 * temperature[i-3][j][k] / 12.0;
-			term_4 = 47.0 * temperature[i-2][j][k] / 18.0;
-			term_5 = -17.0 * temperature[i-1][j][k] / 12.0;
-			term_6 = -49.0 * t_ijk / 60.0;
-			term_7 = 137.0 * temperature[i+1][j][k] / 180.0;
-		}
-		// Stencil size 7. Stencil = (-3, -2, -1, 0, 1, 2, 3) for 2nd order derivative
-		else
-		{
-			term_1 = 1.0 * temperature[i-3][j][k] / 90.0;
-			term_2 = -3.0 * temperature[i-2][j][k] / 20.0;
-			term_3 = 3.0 * temperature[i-1][j][k] / 2.0;
-			term_4 = -49.0 * t_ijk / 18.0;
-			term_5 = 3.0 * temperature[i+1][j][k] / 2.0;
-			term_6 = -3.0 * temperature[i+2][j][k] / 20.0;
-			term_7 = 1.0 * temperature[i+3][j][k] / 90.0;
-		}
-		// Get second derivative based on stencile length 7 finite difference method
-		dT2_dx2 = (term_1+term_2+term_3+term_4+term_5+term_6+term_7) / (x_step*x_step);
-		
-	}
-
-	// Calculate the second derivative of temperature wrt x at boundaries
-	else
-	{
-		// LHS boundary condition
-		if (i == 0)
-		{
-			// Trigger boundary condition
-			if (current_time >= trigger_time && current_time < trigger_time + trigger_duration) { left_flux = htc*(t_ijk-ambient_temperature) - trigger_flux; }
-			
-			// Non-trigger boundary condition
-			else { left_flux = htc*(t_ijk-ambient_temperature); }
-			
-			dT2_dx2 = 2.0*( temperature[i+1][j][k]-t_ijk-(x_step*left_flux/thermal_conductivity) ) / (x_step*x_step);
-		}
-		
-		// RHS boundary condition
-		else if (i == num_vert_length-1)
-		{
-			right_flux = htc*(t_ijk-ambient_temperature);
-			dT2_dx2 = 2.0*( temperature[i-1][j][k] - t_ijk - (x_step*right_flux/thermal_conductivity) ) / (x_step*x_step);
-		}
-	}
-
-	// Calculate the second derivative of temperature wrt y in interior of mesh
-	if (j != 0 && j != num_vert_width-1)
-	{
-		// Stencil size 7. Stencil = (-1, 0, 1, 2, 3, 4, 5) for 2nd order derivative
-		if (j==1)
-		{
-			term_1 = 137.0 * temperature[i][j-1][k] / 180.0;
-			term_2 = -49.0 * t_ijk / 60.0;
-			term_3 = -17.0 * temperature[i][j+1][k] / 12.0;
-			term_4 = 47.0 * temperature[i][j+2][k] / 18.0;
-			term_5 = -19.0 * temperature[i][j+3][k] / 12.0;
-			term_6 = 31.0 * temperature[i][j+4][k] / 60.0;
-			term_7 = -13.0 * temperature[i][j+5][k] / 180.0;
-		}
-		// Stencil size 7. Stencil = (-2, -1, 0, 1, 2, 3, 4) for 2nd order derivative
-		else if(j==2)
-		{
-			term_1 = -13.0 * temperature[i][j-2][k] / 180.0;
-			term_2 = 19.0 * temperature[i][j-1][k] / 15.0;
-			term_3 = -7.0 * t_ijk / 3.0;
-			term_4 = 10.0 * temperature[i][j+1][k] / 9.0;
-			term_5 = 1.0 * temperature[i][j+2][k] / 12.0;
-			term_6 = -1.0 * temperature[i][j+3][k] / 15.0;
-			term_7 = 1.0 * temperature[i][j+4][k] / 90.0;
-		}
-		// Stencil size 7. Stencil = (-4, -3, -2, -1, 0, 1, 2) for 2nd order derivative
-		else if(j==num_vert_width-3)
-		{
-			term_1 = 1.0 * temperature[i][j-4][k] / 90.0;
-			term_2 = -1.0 * temperature[i][j-3][k] / 15.0;
-			term_3 = 1.0 * temperature[i][j-2][k] / 12.0;
-			term_4 = 10.0 * temperature[i][j-1][k] / 9.0;
-			term_5 = -7.0 * t_ijk / 3.0;
-			term_6 = 19.0 * temperature[i][j+1][k] / 15.0;
-			term_7 = -13.0 * temperature[i][j+2][k] / 180.0;
-		}
-		// Stencil size 7. Stencil = (-5, -4, -3, -2, -1, 0, 1) for 2nd order derivative
-		else if(j==num_vert_width-2)
-		{
-			term_1 = -13.0 * temperature[i][j-5][k] / 180.0;
-			term_2 = 31.0 * temperature[i][j-4][k] / 60.0;
-			term_3 = -19.0 * temperature[i][j-3][k] / 12.0;
-			term_4 = 47.0 * temperature[i][j-2][k] / 18.0;
-			term_5 = -17.0 * temperature[i][j-1][k] / 12.0;
-			term_6 = -49.0 * t_ijk / 60.0;
-			term_7 = 137.0 * temperature[i][j+1][k] / 180.0;
-		}
-		// Stencil size 7. Stencil = (-3, -2, -1, 0, 1, 2, 3) for 2nd order derivative
-		else
-		{
-			term_1 = 1.0 * temperature[i][j-3][k] / 90.0;
-			term_2 = -3.0 * temperature[i][j-2][k] / 20.0;
-			term_3 = 3.0 * temperature[i][j-1][k] / 2.0;
-			term_4 = -49.0 * t_ijk / 18.0;
-			term_5 = 3.0 * temperature[i][j+1][k] / 2.0;
-			term_6 = -3.0 * temperature[i][j+2][k] / 20.0;
-			term_7 = 1.0 * temperature[i][j+3][k] / 90.0;
-		}
-		// Get second derivative based on stencile length 7 finite difference method
-		dT2_dy2 = (term_1+term_2+term_3+term_4+term_5+term_6+term_7) / (y_step*y_step);
-	}
-
-	// Calculate the second derivative of temperature wrt y at boundaries
-	else
-	{
-		// Front boundary condition
-		if (j == 0)
-		{
-			front_flux = htc*(t_ijk-ambient_temperature);
-			dT2_dy2 = 2.0*(temperature[i][j+1][k]-t_ijk-(y_step*front_flux/thermal_conductivity))/(y_step*y_step);
-		}
-		
-		// Back boundary condition
-		else if (j == num_vert_width-1)
-		{
-			back_flux = htc*(t_ijk-ambient_temperature);
-			dT2_dy2 = 2.0*(temperature[i][j-1][k]-t_ijk-(y_step*back_flux/thermal_conductivity))/(y_step*y_step);
-		}
-	}
-
-	// Calculate the second derivative of temperature wrt z in interior of mesh
-	if (k != 0 && k != num_vert_depth-1)
-	{
-		// Stencil size 7. Stencil = (-1, 0, 1, 2, 3, 4, 5) for 2nd order derivative
-		if (k==1)
-		{
-			term_1 = 137.0 * temperature[i][j][k-1] / 180.0;
-			term_2 = -49.0 * t_ijk / 60.0;
-			term_3 = -17.0 * temperature[i][j][k+1] / 12.0;
-			term_4 = 47.0 * temperature[i][j][k+2] / 18.0;
-			term_5 = -19.0 * temperature[i][j][k+3] / 12.0;
-			term_6 = 31.0 * temperature[i][j][k+4] / 60.0;
-			term_7 = -13.0 * temperature[i][j][k+5] / 180.0;
-		}
-		// Stencil size 7. Stencil = (-2, -1, 0, 1, 2, 3, 4) for 2nd order derivative
-		else if(k==2)
-		{
-			term_1 = -13.0 * temperature[i][j][k-2] / 180.0;
-			term_2 = 19.0 * temperature[i][j][k-1] / 15.0;
-			term_3 = -7.0 * t_ijk / 3.0;
-			term_4 = 10.0 * temperature[i][j][k+1] / 9.0;
-			term_5 = 1.0 * temperature[i][j][k+2] / 12.0;
-			term_6 = -1.0 * temperature[i][j][k+3] / 15.0;
-			term_7 = 1.0 * temperature[i][j][k+4] / 90.0;
-		}
-		// Stencil size 7. Stencil = (-4, -3, -2, -1, 0, 1, 2) for 2nd order derivative
-		else if(k==num_vert_depth-3)
-		{
-			term_1 = 1.0 * temperature[i][j][k-4] / 90.0;
-			term_2 = -1.0 * temperature[i][j][k-3] / 15.0;
-			term_3 = 1.0 * temperature[i][j][k-2] / 12.0;
-			term_4 = 10.0 * temperature[i][j][k-1] / 9.0;
-			term_5 = -7.0 * t_ijk / 3.0;
-			term_6 = 19.0 * temperature[i][j][k+1] / 15.0;
-			term_7 = -13.0 * temperature[i][j][k+2] / 180.0;
-		}
-		// Stencil size 7. Stencil = (-5, -4, -3, -2, -1, 0, 1) for 2nd order derivative
-		else if(k==num_vert_depth-2)
-		{
-			term_1 = -13.0 * temperature[i][j][k-5] / 180.0;
-			term_2 = 31.0 * temperature[i][j][k-4] / 60.0;
-			term_3 = -19.0 * temperature[i][j][k-3] / 12.0;
-			term_4 = 47.0 * temperature[i][j][k-2] / 18.0;
-			term_5 = -17.0 * temperature[i][j][k-1] / 12.0;
-			term_6 = -49.0 * t_ijk / 60.0;
-			term_7 = 137.0 * temperature[i][j][k+1] / 180.0;
-		}
-		// Stencil size 7. Stencil = (-3, -2, -1, 0, 1, 2, 3) for 2nd order derivative
-		else
-		{
-			term_1 = 1.0 * temperature[i][j][k-3] / 90.0;
-			term_2 = -3.0 * temperature[i][j][k-2] / 20.0;
-			term_3 = 3.0 * temperature[i][j][k-1] / 2.0;
-			term_4 = -49.0 * t_ijk / 18.0;
-			term_5 = 3.0 * temperature[i][j][k+1] / 2.0;
-			term_6 = -3.0 * temperature[i][j][k+2] / 20.0;
-			term_7 = 1.0 * temperature[i][j][k+3] / 90.0;
-		}
-		// Get second derivative based on stencile length 7 finite difference method
-		dT2_dz2 = (term_1+term_2+term_3+term_4+term_5+term_6+term_7) / (z_step*z_step);
-	}
-
-	// Calculate the second derivative of temperature wrt z at boundaries
-	else
-	{
-		// Top boundary condition
-		if (k == 0)
-		{
-			top_flux = htc*(t_ijk-ambient_temperature) - input_mesh[i][j];
-			dT2_dz2 = 2.0*(temperature[i][j][k+1]-t_ijk-(z_step*top_flux/thermal_conductivity))/(z_step*z_step);
-		}
-		
-		// Bottom boundary condition
-		else if (k == num_vert_depth-1)
-		{
-			bottom_flux = htc*(t_ijk-ambient_temperature);
-			dT2_dz2 = 2.0*(temperature[i][j][k-1]-t_ijk-(z_step*bottom_flux/thermal_conductivity))/(z_step*z_step);
-		}
-	}
-	
-	return dT2_dx2+dT2_dy2+dT2_dz2;
 }
 
 /** Calculates the cure rate at every point in the 3D mesh and uses this data to update the cure, temperature, and front meshes
@@ -2176,9 +1518,9 @@ void Finite_Element_Solver::step_meshes()
 {	
 	// Temperature mesh variables
 	const vector<vector<vector<double>>> prev_temp(temp_mesh);
-	double*** lr_bc_temps = get_lr_bc_temps(prev_temp);
-	double*** fb_bc_temps = get_fb_bc_temps(prev_temp);
-	double*** tb_bc_temps = get_tb_bc_temps(prev_temp);
+	get_lr_bc_temps(prev_temp, lr_bc_temps);
+	get_fb_bc_temps(prev_temp, fb_bc_temps);
+	get_tb_bc_temps(prev_temp, tb_bc_temps);
 
 	// Reset front location variables
 	front_loc_x_indicies = vector<int>(front_location_indicies_length, -1);
@@ -2457,40 +1799,6 @@ void Finite_Element_Solver::step_meshes()
 			front_vel = front_vel / (double)front_vel_history_length;
 		}
 	}
-	
-	//******************************************************************** Deallocate memory ********************************************************************//
-	// Delete lr bc
-	for(int i = 0; i != 2; ++i)
-	{
-		for(int j = 0; j != num_vert_width; ++j)
-		{
-			delete[] lr_bc_temps[i][j];
-		}
-		delete[] lr_bc_temps[i];
-	}
-	delete[] lr_bc_temps;
-
-	// Delete lr bc
-	for(int i = 0; i != 2; ++i)
-	{
-		for(int j = 0; j != num_vert_length; ++j)
-		{
-			delete[] fb_bc_temps[i][j];
-		}
-		delete[] fb_bc_temps[i];
-	}
-	delete[] fb_bc_temps;
-
-	// Delete lr bc
-	for(int i = 0; i != 2; ++i)
-	{
-		for(int j = 0; j != num_vert_length; ++j)
-		{
-			delete[] tb_bc_temps[i][j];
-		}
-		delete[] tb_bc_temps[i];
-	}
-	delete[] tb_bc_temps;
 }
 
 /**
