@@ -55,7 +55,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 		cure_critical_temperature = 0.0;
 	}
 
-	// Calculate the target temporal vector and define the current target
+	// Determine target value
 	int sim_steps = (int)round(sim_duration / time_step);
 	double target = 0.0;
 	double randomizing_scale = 0.0;
@@ -69,7 +69,15 @@ Finite_Element_Solver::Finite_Element_Solver()
 		target = target_temp;
 		randomizing_scale = temp_rand_scale;
 	}
-	target_vector = vector<double>(sim_steps, target);
+	
+	// Allocate memory for target vector
+	target_vector = new double[sim_steps];
+	for(int i = 0; i < sim_steps; i++)
+	{
+		target_vector[i] = target;
+	}
+	
+	// Modify target vector based on user parameters
 	if (random_target)
 	{
 		double new_target = target - 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
@@ -97,51 +105,56 @@ Finite_Element_Solver::Finite_Element_Solver()
 		trigger_duration = 0.0;
 	}
 
-	// Create mesh and calculate step size
-	vector<double> x_range(num_vert_length, 0.0);
-	vector<double> y_range(num_vert_width, 0.0);
-	vector<double> z_range(num_vert_depth, 0.0);
-	mesh_x = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth)));
-	mesh_y = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth)));
-	mesh_z = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth)));
-	for (int i = 0; i < max(num_vert_length, max(num_vert_width, num_vert_depth)); i++)
+	// Allocate memory space for position mesh and assign mesh values
+	mesh_x = new double**[num_vert_length];
+	mesh_y = new double**[num_vert_length];
+	mesh_z = new double**[num_vert_length];
+	for(int i = 0; i < num_vert_length; i++)
 	{
-		if (i < num_vert_length)
+		mesh_x[i] = new double*[num_vert_width];
+		mesh_y[i] = new double*[num_vert_width];
+		mesh_z[i] = new double*[num_vert_width];
+		for(int j = 0; j < num_vert_width; j++)
 		{
-			x_range[i] = ((double)i / (double)(num_vert_length - 1)) * length;
-		}
-		if (i < num_vert_width)
-		{
-			y_range[i] = ((double)i / (double)(num_vert_width - 1)) * width;
-		}
-		if (i < num_vert_depth)
-		{
-			z_range[i] = ((double)i / (double)(num_vert_depth - 1)) * depth;
-		}
-	}
-	for (int i = 0; i < num_vert_length; i++)
-	{
-		for (int j = 0; j < num_vert_width; j++)
-		{
-			for (int k = 0; k < num_vert_depth; k++)
+			mesh_x[i][j] = new double[num_vert_depth];
+			mesh_y[i][j] = new double[num_vert_depth];
+			mesh_z[i][j] = new double[num_vert_depth];
+			for(int k = 0; k < num_vert_depth; k++)
 			{
-				mesh_x[i][j][k] = x_range[i];
-				mesh_y[i][j][k] = y_range[j];
-				mesh_z[i][j][k] = z_range[k];
+				mesh_x[i][j][k] = ((double)i / (double)(num_vert_length - 1)) * length;
+				mesh_y[i][j][k] = ((double)j / (double)(num_vert_width - 1)) * width;
+				mesh_z[i][j][k] = ((double)k / (double)(num_vert_depth - 1)) * depth;
 			}
 		}
 	}
+
+	// Determine step sizes
 	x_step = mesh_x[1][0][0];
 	y_step = mesh_y[0][1][0];
 	z_step = mesh_z[0][0][1];
 
-	// Init and perturb temperature mesh
-	temp_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_temperature)));
-	temp_mesh = get_perturbation(temp_mesh, initial_temp_delta);
-	
-	// Init and perturb cure mesh
-	cure_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_cure)));
-	cure_mesh = get_perturbation(cure_mesh, initial_cure_delta);
+	// Allocate memory space for temp and cure mesh
+	temp_mesh = new double**[num_vert_length];
+	cure_mesh = new double**[num_vert_length];
+	for(int i = 0; i < num_vert_length; i++)
+	{
+		temp_mesh[i] = new double*[num_vert_width];
+		cure_mesh[i] = new double*[num_vert_width];
+		for(int j = 0; j < num_vert_width; j++)
+		{
+			temp_mesh[i][j] = new double[num_vert_depth];
+			cure_mesh[i][j] = new double[num_vert_depth];
+			for(int k = 0; k < num_vert_depth; k++)
+			{
+				temp_mesh[i][j][k] = initial_temperature;
+				cure_mesh[i][j][k] = initial_cure;
+			}
+		}
+	}
+
+	// Perturb temperature and cure meshes
+	perturb_mesh(temp_mesh, initial_temp_delta);
+	perturb_mesh(cure_mesh, initial_cure_delta);
 
 	// Init front mesh and parameters
 	front_loc_x_indicies = vector<int>(front_location_indicies_length, -1);
@@ -1102,7 +1115,7 @@ int Finite_Element_Solver::load_config()
 * @ param maximum magnitude of perturbation
 * @ return sum of size_array and smooth continuous perturbation of magnitude delta
 */
-vector<vector<vector<double> > > Finite_Element_Solver::get_perturbation(vector<vector<vector<double> > > size_array, double delta)
+void Finite_Element_Solver::perturb_mesh(double*** arr, double delta);
 {
 	// Get magnitude and biases
 	double mag_1 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;
@@ -1121,42 +1134,22 @@ vector<vector<vector<double> > > Finite_Element_Solver::get_perturbation(vector<
 	double max_z_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
 
 	// Get x*y*z over perturbation field
-	double x, y, z, xyz;
-	double scale = 0.0;
+	double x, y, z, xyz, perturbation;
+	double scale = (mag_1 + mag_2 + mag_3);
 	vector<vector<vector<double> > > perturbation = vector<vector<vector<double> > >(size_array.size(), vector<vector<double> >(size_array[0].size(), vector<double>(size_array[0][0].size(), 0.0)));
-	for (unsigned int i = 0; i < size_array.size(); i++)
+	
+	for (unsigned int i = 0; i < num_vert_length; i++)
+	for (unsigned int j = 0; j < num_vert_width; j++)
+	for (unsigned int k = 0; k < num_vert_depth; k++)
 	{
-		x = -2.0*min_mag+min_x_bias + (2.0*max_mag+max_x_bias + 2.0*min_mag-min_x_bias) * ((double)i / (double)size_array.size());
-		for (unsigned int j = 0; j < size_array[0].size(); j++)
-		{
-			y = -2.0*min_mag+min_y_bias + (2.0*max_mag+max_y_bias + 2.0*min_mag-min_y_bias) * ((double)j / (double)size_array[0].size());
-			for (unsigned int k = 0; k < size_array[0][0].size(); k++)
-			{
-				z =-2.0*min_mag+min_z_bias + (2.0*max_mag+max_z_bias + 2.0*min_mag-min_z_bias) * ((double)k / (double)size_array[0][0].size());
-				xyz = x * y * z;
-				perturbation[i][j][k] = mag_1 * sin(xyz + bias_1) + mag_2 * sin(2.0*xyz + bias_2) + mag_3 * sin(3.0*xyz + bias_3);
-				if (abs(perturbation[i][j][k]) > scale)
-				{
-					scale = abs(perturbation[i][j][k]);
-				}
-			}
-		}
+		x = -2.0*min_mag+min_x_bias + (2.0*max_mag+max_x_bias + 2.0*min_mag-min_x_bias) * ((double)i / (num_vert_length-1));
+		y = -2.0*min_mag+min_y_bias + (2.0*max_mag+max_y_bias + 2.0*min_mag-min_y_bias) * ((double)j / (num_vert_width-1));
+		z =-2.0*min_mag+min_z_bias + (2.0*max_mag+max_z_bias + 2.0*min_mag-min_z_bias) * ((double)k / (num_vert_depth-1));
+		xyz = x * y * z;
+		
+		perturbation = mag_1 * sin(xyz + bias_1) + mag_2 * sin(2.0*xyz + bias_2) + mag_3 * sin(3.0*xyz + bias_3);
+		arr[i][j][k] = arr[i][j][k] + (delta * perturbation) / scale;
 	}
-
-	// Scale the perturbations and sum them to the original array
-	for (unsigned int i = 0; i < size_array.size(); i++)
-	{
-		for (unsigned int j = 0; j < size_array[0].size(); j++)
-		{
-			for (unsigned int k = 0; k < size_array[0][0].size(); k++)
-			{
-				perturbation[i][j][k] = size_array[i][j][k] + (delta * perturbation[i][j][k]) / scale;
-			}
-		}
-	}
-
-	// Return perturbed array
-	return perturbation;
 }
 
 /** Step the input through time

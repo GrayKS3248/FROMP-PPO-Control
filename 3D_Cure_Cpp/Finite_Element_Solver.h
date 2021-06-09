@@ -124,6 +124,10 @@ double laplacian_consts_2nd[3][5] = { { 11.0/12.0, -5.0/3.0,  1.0/2.0,  1.0/3.0,
 				      { -1.0/12.0,  4.0/3.0, -5.0/2.0,  4.0/3.0, -1.0/12.0 }, 
 				      { -1.0/12.0,  1.0/3.0,  1.0/2.0, -5.0/3.0, 11.0/12.0 } };
 
+//******************************************************************** TEMP FINE/COARSE MESH PARAMETERS ********************************************************************//
+
+
+
 //******************************************************************** CONFIG PARAMETERS ********************************************************************//
 // Simulation options
 bool control;
@@ -198,20 +202,20 @@ double specific_heat;
 double cure_critical_temperature;  // The temperature below which the monomer cure rate is considered to be 0
 
 // Target temporal vectors and the current target
-vector<double> target_vector;
+double* target_vector;
 double current_target;
 
 // Mesh and step size
-vector<vector<vector<double>>> mesh_x;
-vector<vector<vector<double>>> mesh_y;
-vector<vector<vector<double>>> mesh_z;
+double*** mesh_x;
+double*** mesh_y;
+double*** mesh_z;
 double x_step;
 double y_step;
 double z_step;
 
 // Temperature and cure meshes
-vector<vector<vector<double>>> temp_mesh;
-vector<vector<vector<double>>> cure_mesh;
+double*** temp_mesh;
+double*** cure_mesh;
 double*** lr_bc_temps;
 double*** fb_bc_temps;
 double*** tb_bc_temps;
@@ -234,13 +238,13 @@ double min_input_x_loc;
 double max_input_x_loc;
 double min_input_y_loc;
 double max_input_y_loc;
-vector<double> input_location;
+double* input_location;
 
 // Input wattage mesh
-vector<vector<double>> input_mesh;
+double** input_mesh;
 
 //******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
-vector<vector<vector<double>>> get_perturbation(vector<vector<vector<double> > > size_array, double delta);
+void perturb_mesh(double*** arr, double delta);
 void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_percent_rate_action);
 void get_lr_bc_temps(const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps);
 void get_fb_bc_temps(const vector<vector<vector<double>>> &temperature, double*** fb_bc_temps);
