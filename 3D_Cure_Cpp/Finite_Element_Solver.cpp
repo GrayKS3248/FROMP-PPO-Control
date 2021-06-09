@@ -18,7 +18,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 	
 	// Init logger
 	logger.open("results/fes_log.csv", ofstream::out | ofstream::trunc | ofstream::binary);
-	logger << "Time,i,j,k,T_{i-3},T_{i-2},T_{i-1},T_{i},T_{i+1},T_{i+2},T_{i+3},laplacian,dT_dt,alpha,da_dt" << endl;
+	logger << "Time,T_{i-3},T_{i-2},T_{i-1},T_{i},T_{i+1},T_{i+2},T_{i+3},7,7_3,19,19_n,27,27_n,dT_dt,alpha,da_dt" << endl;
 	
 	// Set randomization seed
 	srand(time(NULL));
@@ -1285,7 +1285,7 @@ void Finite_Element_Solver::get_tb_bc_temps(const vector<vector<vector<double>>>
 	}
 }
 
-/** Calculates the 7-point 3D stencil laplacian
+/** Calculates the 7-point stencil, 3rd order, 3D laplacian
 * @param i index at which the Laplacian is calculated
 * @param j index at which the Laplacian is calculated
 * @param k index at which the Laplacian is calculated
@@ -1293,223 +1293,93 @@ void Finite_Element_Solver::get_tb_bc_temps(const vector<vector<vector<double>>>
 * @param Left and right virtual temperatures from BC
 * @param Front and back virtual temperatures from BC
 * @param Top and bottom virtual temperatures from BC
-* @return 7-point 3D stencil Lapclacian at (i,j,k)
+* @return 7-point stencil, 3rd order, 3D laplacian at (i,j,k)
 */
-double Finite_Element_Solver::get_laplacian_7(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tb_bc_temps)
+double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<vector<vector<double>>> &temperature)
 {
 	double T_000 = temperature[i][j][k];
-	double T_p100 = 0.0;
-	double T_m100 = 0.0;
-	double T_0p10 = 0.0;
-	double T_0m10 = 0.0;
-	double T_00p1 = 0.0;
-	double T_00m1 = 0.0;
+	double d2t_dx2 = 0.0;
+	double d2t_dy2 = 0.0;
+	double d2t_dz2 = 0.0;
 	
-	// X direction
-	if (i != 0 && i != num_vert_length-1)
+	// Right face BC
+	if (i==0)
 	{
-		T_m100 = temperature[i-1][j][k];
-		T_p100 = temperature[i+1][j][k];
-	}
-	// Left BC
-	else if (i == 0)
-	{
-		T_m100 = lr_bc_temps[0][j][k];
-		T_p100 = temperature[i+1][j][k];
-	}
-	// Right BC
-	else 
-	{
-		T_p100 = lr_bc_temps[1][j][k];
-		T_m100 = temperature[i-1][j][k];
-	}
-	
-	// Y direction
-	if (j != 0 && j != num_vert_width-1)
-	{
-		T_0m10 = temperature[i][j-1][k];
-		T_0p10 = temperature[i][j+1][k];
-	}
-	// Front BC
-	else if (j == 0)
-	{
-		T_0m10 = fb_bc_temps[0][i][k];
-		T_0p10 = temperature[i][j+1][k];
-	}
-	// Back BC
-	else
-	{
-		T_0p10 = fb_bc_temps[1][i][k];
-		T_0m10 = temperature[i][j-1][k];
-	}
-	
-	// Z direction
-	if (k != 0 && k != num_vert_depth-1)
-	{
-		T_00m1 = temperature[i][j][k-1];
-		T_00p1 = temperature[i][j][k+1];
-	}
-	// Top BC
-	else if (k == 0)
-	{
-		T_00m1 = tb_bc_temps[0][i][j];
-		T_00p1 = temperature[i][j][k+1];
-	}
-	// Bottom BC
-	else
-	{
-		T_00p1 = tb_bc_temps[1][i][j];
-		T_00m1 = temperature[i][j][k-1];
-	}
-	
-	return (T_p100 + T_m100 - 2.0*T_000)/(x_step*x_step) + (T_0p10 + T_0m10 - 2.0*T_000)/(y_step*y_step) + (T_00p1 + T_00m1 - 2.0*T_000)/(z_step*z_step);
-}
-
-/** Calculates the 19-point 3D stencil laplacian
-* @param i index at which the Laplacian is calculated
-* @param j index at which the Laplacian is calculated
-* @param k index at which the Laplacian is calculated
-* @param Temperature field
-* @param Left and right virtual temperatures from BC
-* @param Front and back virtual temperatures from BC
-* @param Top and bottom virtual temperatures from BC
-* @return 19-point 3D stencil Lapclacian at (i,j,k)
-*/
-double Finite_Element_Solver::get_laplacian_19(int i, int j, int k, const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps, double*** fb_bc_temps, double*** tb_bc_temps)
-{
-	double T_000 = temperature[i][j][k];
-	double axes[3][3];
-	
-	bool on_edge = ((i==0) && (j==0));
-	on_edge = on_edge || ((i==0) && (j==num_vert_width-1));
-	on_edge = on_edge || ((i==num_vert_length-1) && (j==0));
-	on_edge = on_edge || ((i==num_vert_length-1) && (j==num_vert_width-1));
-	on_edge = on_edge || ((i==0) && (k==0));
-	on_edge = on_edge || ((i==0) && (k==num_vert_depth-1));
-	on_edge = on_edge || ((i==num_vert_length-1) && (k==0));
-	on_edge = on_edge || ((i==num_vert_length-1) && (k==num_vert_depth-1));
-	on_edge = on_edge || ((k==0) && (j==0));
-	on_edge = on_edge || ((k==0) && (j==num_vert_width-1));
-	on_edge = on_edge || ((k==num_vert_depth-1) && (j==0));
-	on_edge = on_edge || ((k==num_vert_depth-1) && (j==num_vert_width-1));
-	
-	// Edges
-	if (on_edge)
-	{
-		return get_laplacian_7_1(i, j, k, temperature, lr_bc_temps, fb_bc_temps, tb_bc_temps);
+		d2t_dx2 = lr_bc_temps[0][j][k] - 2.0*T_000 + temperature[i+1][j][k];
 	}
 	// Left face BC
-	else if (i == 0)
+	else if(i==num_vert_length-1)
 	{
-		axes[0][0] = (lr_bc_temps[0][j+1][k] - 2.0*T_000 + temperature[i+1][j-1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][1] = (lr_bc_temps[0][j-1][k] - 2.0*T_000 + temperature[i+1][j+1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][2] = (temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1]) / (z_step*z_step);
-		
-		axes[1][0] = (lr_bc_temps[0][j][k+1] - 2.0*T_000 + temperature[i+1][j][k-1]) / (x_step*x_step + z_step*z_step);
-		axes[1][1] = (lr_bc_temps[0][j][k-1] - 2.0*T_000 + temperature[i+1][j][k+1]) / (x_step*x_step + z_step*z_step);
-		axes[1][2] = (temperature[i][j-1][k] - 2.0*T_000 + temperature[i][j+1][k]) / (y_step*y_step);
-		
-		axes[2][0] = (temperature[i][j-1][k+1] - 2.0*T_000 + temperature[i][j+1][k-1]) / (y_step*y_step + z_step*z_step);
-		axes[2][1] = (temperature[i][j-1][k-1] - 2.0*T_000 + temperature[i][j+1][k+1]) / (y_step*y_step + z_step*z_step);
-		axes[2][2] = (lr_bc_temps[0][j][k] - 2.0*T_000 + temperature[i+1][j][k]) / (x_step*x_step);
-	}
-	// Right face BC
-	else if (i == num_vert_length-1)
-	{		
-		axes[0][0] = (temperature[i-1][j+1][k] - 2.0*T_000 + lr_bc_temps[1][j-1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][1] = (temperature[i-1][j-1][k] - 2.0*T_000 + lr_bc_temps[1][j+1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][2] = (temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1]) / (z_step*z_step);
-		
-		axes[1][0] = (temperature[i-1][j][k+1] - 2.0*T_000 + lr_bc_temps[1][j][k-1]) / (x_step*x_step + z_step*z_step);
-		axes[1][1] = (temperature[i-1][j][k-1] - 2.0*T_000 + lr_bc_temps[1][j][k+1]) / (x_step*x_step + z_step*z_step);
-		axes[1][2] = (temperature[i][j-1][k] - 2.0*T_000 + temperature[i][j+1][k]) / (y_step*y_step);
-		
-		axes[2][0] = (temperature[i][j-1][k+1] - 2.0*T_000 + temperature[i][j+1][k-1]) / (y_step*y_step + z_step*z_step);
-		axes[2][1] = (temperature[i][j-1][k-1] - 2.0*T_000 + temperature[i][j+1][k+1]) / (y_step*y_step + z_step*z_step);
-		axes[2][2] = (temperature[i-1][j][k] - 2.0*T_000 + lr_bc_temps[1][j][k]) / (x_step*x_step);
-	}
-	// Front face BC
-	else if (j == 0)
-	{	
-		axes[0][0] = (temperature[i-1][j+1][k] - 2.0*T_000 + fb_bc_temps[0][i+1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][1] = (fb_bc_temps[0][i-1][k] - 2.0*T_000 + temperature[i+1][j+1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][2] = (temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1]) / (z_step*z_step);
-		
-		axes[1][0] = (temperature[i-1][j][k+1] - 2.0*T_000 + temperature[i+1][j][k-1]) / (x_step*x_step + z_step*z_step);
-		axes[1][1] = (temperature[i-1][j][k-1] - 2.0*T_000 + temperature[i+1][j][k+1]) / (x_step*x_step + z_step*z_step);
-		axes[1][2] = (fb_bc_temps[0][i][k] - 2.0*T_000 + temperature[i][j+1][k]) / (y_step*y_step);
-		
-		axes[2][0] = (fb_bc_temps[0][i][k+1] - 2.0*T_000 + temperature[i][j+1][k-1]) / (y_step*y_step + z_step*z_step);
-		axes[2][1] = (fb_bc_temps[0][i][k-1] - 2.0*T_000 + temperature[i][j+1][k+1]) / (y_step*y_step + z_step*z_step);
-		axes[2][2] = (temperature[i-1][j][k] - 2.0*T_000 + temperature[i+1][j][k]) / (x_step*x_step);
-	}
-	// Back face BC
-	else if (j == num_vert_width-1)
-	{	
-		axes[0][0] = (fb_bc_temps[1][i-1][k] - 2.0*T_000 + temperature[i+1][j-1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][1] = (temperature[i-1][j-1][k] - 2.0*T_000 + fb_bc_temps[1][i+1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][2] = (temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1]) / (z_step*z_step);
-		
-		axes[1][0] = (temperature[i-1][j][k+1] - 2.0*T_000 + temperature[i+1][j][k-1]) / (x_step*x_step + z_step*z_step);
-		axes[1][1] = (temperature[i-1][j][k-1] - 2.0*T_000 + temperature[i+1][j][k+1]) / (x_step*x_step + z_step*z_step);
-		axes[1][2] = (temperature[i][j-1][k] - 2.0*T_000 + fb_bc_temps[1][i][k]) / (y_step*y_step);
-		
-		axes[2][0] = (temperature[i][j-1][k+1] - 2.0*T_000 + fb_bc_temps[1][i][k-1]) / (y_step*y_step + z_step*z_step);
-		axes[2][1] = (temperature[i][j-1][k-1] - 2.0*T_000 + fb_bc_temps[1][i][k+1]) / (y_step*y_step + z_step*z_step);
-		axes[2][2] = (temperature[i-1][j][k] - 2.0*T_000 + temperature[i+1][j][k]) / (x_step*x_step);
-	}
-	// Top face BC
-	else if (k == 0)
-	{
-		axes[0][0] = (temperature[i-1][j+1][k] - 2.0*T_000 + temperature[i+1][j-1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][1] = (temperature[i-1][j-1][k] - 2.0*T_000 + temperature[i+1][j+1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][2] = (tb_bc_temps[0][i][j] - 2.0*T_000 + temperature[i][j][k+1]) / (z_step*z_step);
-		
-		axes[1][0] = (temperature[i-1][j][k+1] - 2.0*T_000 + tb_bc_temps[0][i+1][j]) / (x_step*x_step + z_step*z_step);
-		axes[1][1] = (tb_bc_temps[0][i-1][j] - 2.0*T_000 + temperature[i+1][j][k+1]) / (x_step*x_step + z_step*z_step);
-		axes[1][2] = (temperature[i][j-1][k] - 2.0*T_000 + temperature[i][j+1][k]) / (y_step*y_step);
-		
-		axes[2][0] = (temperature[i][j-1][k+1] - 2.0*T_000 + tb_bc_temps[0][i][j+1]) / (y_step*y_step + z_step*z_step);
-		axes[2][1] = (tb_bc_temps[0][i][j-1] - 2.0*T_000 + temperature[i][j+1][k+1]) / (y_step*y_step + z_step*z_step);
-		axes[2][2] = (temperature[i-1][j][k] - 2.0*T_000 + temperature[i+1][j][k]) / (x_step*x_step);
-	}
-	// Bottom face BC
-	else if (k == num_vert_depth-1)
-	{
-		axes[0][0] = (temperature[i-1][j+1][k] - 2.0*T_000 + temperature[i+1][j-1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][1] = (temperature[i-1][j-1][k] - 2.0*T_000 + temperature[i+1][j+1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][2] = (temperature[i][j][k-1] - 2.0*T_000 + tb_bc_temps[1][i][j]) / (z_step*z_step);
-		
-		axes[1][0] = (tb_bc_temps[1][i-1][j] - 2.0*T_000 + temperature[i+1][j][k-1]) / (x_step*x_step + z_step*z_step);
-		axes[1][1] = (temperature[i-1][j][k-1] - 2.0*T_000 + tb_bc_temps[1][i+1][j]) / (x_step*x_step + z_step*z_step);
-		axes[1][2] = (temperature[i][j-1][k] - 2.0*T_000 + temperature[i][j+1][k]) / (y_step*y_step);
-		
-		axes[2][0] = (tb_bc_temps[1][i][j-1] - 2.0*T_000 + temperature[i][j+1][k-1]) / (y_step*y_step + z_step*z_step);
-		axes[2][1] = (temperature[i][j-1][k-1] - 2.0*T_000 + tb_bc_temps[1][i][j+1]) / (y_step*y_step + z_step*z_step);
-		axes[2][2] = (temperature[i-1][j][k] - 2.0*T_000 + temperature[i+1][j][k]) / (x_step*x_step);
+		d2t_dx2 = temperature[i-1][j][k] - 2.0*T_000 + lr_bc_temps[1][j][k];
 	}
 	// Bulk material
 	else
 	{
-		axes[0][0] = (temperature[i-1][j+1][k] - 2.0*T_000 + temperature[i+1][j-1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][1] = (temperature[i-1][j-1][k] - 2.0*T_000 + temperature[i+1][j+1][k]) / (x_step*x_step + y_step*y_step);
-		axes[0][2] = (temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1]) / (z_step*z_step);
-		
-		axes[1][0] = (temperature[i-1][j][k+1] - 2.0*T_000 + temperature[i+1][j][k-1]) / (x_step*x_step + z_step*z_step);
-		axes[1][1] = (temperature[i-1][j][k-1] - 2.0*T_000 + temperature[i+1][j][k+1]) / (x_step*x_step + z_step*z_step);
-		axes[1][2] = (temperature[i][j-1][k] - 2.0*T_000 + temperature[i][j+1][k]) / (y_step*y_step);
-		
-		axes[2][0] = (temperature[i][j-1][k+1] - 2.0*T_000 + temperature[i][j+1][k-1]) / (y_step*y_step + z_step*z_step);
-		axes[2][1] = (temperature[i][j-1][k-1] - 2.0*T_000 + temperature[i][j+1][k+1]) / (y_step*y_step + z_step*z_step);
-		axes[2][2] = (temperature[i-1][j][k] - 2.0*T_000 + temperature[i+1][j][k]) / (x_step*x_step);
+		int start_p = -3;
+		start_p = (i==1) ? -1 : start_p;
+		start_p = (i==2) ? -2 : start_p;
+		start_p = (i==num_vert_length-3) ? -4 : start_p;
+		start_p = (i==num_vert_length-2) ? -5 : start_p;
+		for (int p = start_p; p < start_p + 7; p++)
+		{
+			d2t_dx2 += laplacian_consts[abs(start_p)-1][p-start_p] * temperature[i+p][j][k];
+		}
 	}
+	d2t_dx2 = d2t_dx2 / (x_step*x_step);
 	
-	// Calculate laplacians for all 3 bases
-	double laplacian_1 = axes[0][0] + axes[0][1] + axes[0][2];
-	double laplacian_2 = axes[1][0] + axes[1][1] + axes[1][2];
-	double laplacian_3 = axes[2][0] + axes[2][1] + axes[2][2];
 	
-	return ( (x_step / z_step) * laplacian_1 + (x_step / y_step) * laplacian_2 + laplacian_3) / (1.0 + (x_step / z_step) + (x_step / y_step));
+	// Front face BC
+	if (j==0)
+	{
+		d2t_dy2 = fb_bc_temps[0][i][k] - 2.0*T_000 + temperature[i][j+1][k];
+	}
+	// Back face BC
+	else if(j==num_vert_width-1)
+	{
+		d2t_dy2 = temperature[i][j-1][k] - 2.0*T_000 + fb_bc_temps[1][i][k];
+	}
+	// Bulk material
+	else
+	{
+		int start_q = -3;
+		start_q = (j==1) ? -1 : start_q;
+		start_q = (j==2) ? -2 : start_q;
+		start_q = (j==num_vert_width-3) ? -4 : start_q;
+		start_q = (j==num_vert_width-2) ? -5 : start_q;
+		for (int q = start_q; q < start_q + 7; q++)
+		{
+			d2t_dy2 += laplacian_consts[abs(start_q)-1][q-start_q] * temperature[i][j+q][k];
+		}
+	}
+	d2t_dy2 = d2t_dy2 / (y_step*y_step);
+	
+	
+	// Top face BC
+	if (k==0)
+	{
+		d2t_dz2 = tb_bc_temps[0][i][j] - 2.0*T_000 + temperature[i][j][k+1];
+	}
+	// Bottom face BC
+	else if(k==num_vert_depth-1)
+	{
+		d2t_dz2 = temperature[i][j][k-1] - 2.0*T_000 + tb_bc_temps[1][i][j];
+	}
+	// Bulk material
+	else
+	{
+		int start_r = -3;
+		start_r = (k==1) ? -1 : start_r;
+		start_r = (k==2) ? -2 : start_r;
+		start_r = (k==num_vert_depth-3) ? -4 : start_r;
+		start_r = (k==num_vert_depth-2) ? -5 : start_r;
+		for (int r = start_r; r < start_r + 7; r++)
+		{
+			d2t_dz2 += laplacian_consts[abs(start_r)-1][r-start_r] * temperature[i][j][k+r];
+		}
+	}
+	d2t_dz2 = d2t_dz2 / (z_step*z_step);
+	
+	return d2t_dx2 + d2t_dy2 + d2t_dz2;
 }
 
 /** Calculates the cure rate at every point in the 3D mesh and uses this data to update the cure, temperature, and front meshes
@@ -1645,7 +1515,7 @@ void Finite_Element_Solver::step_meshes()
 			//******************************************************************** Calculate the temperature rate and step temp mesh ********************************************************************//
 
 			// Get temp rate and step temp mesh
-			double laplacian = get_laplacian_19(i, j, k, prev_temp, lr_bc_temps, fb_bc_temps, tb_bc_temps);
+			double laplacian = get_laplacian(i, j, k, prev_temp);
 			double temp_rate = thermal_diffusivity*laplacian+(enthalpy_of_reaction*cure_rate)/specific_heat;
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * temp_rate;
 
@@ -1653,12 +1523,25 @@ void Finite_Element_Solver::step_meshes()
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] < 0.0 ? 0.0 : temp_mesh[i][j][k];
 
 			// Logger
-			if( i==50 && j == 4 && k == 4) 
+			if( i==50 && j == 20 && k == 4) 
 			{
-				logger << current_time << "," << i << "," << j << "," << k << ",";
+/* 				cout << "\n7        " << get_laplacian_7(i, j, k, prev_temp, lr_bc_temps, fb_bc_temps, tb_bc_temps);
+				cout << "\n7_3      " << get_laplacian(i, j, k, prev_temp);
+				cout << "\n19       " << get_laplacian_19(i, j, k, prev_temp, lr_bc_temps, fb_bc_temps, tb_bc_temps);
+				cout << "\n19_norm  " << get_laplacian_19_norm(i, j, k, prev_temp, lr_bc_temps, fb_bc_temps, tb_bc_temps);
+				cout << "\n27       " << get_laplacian_27(i, j, k, prev_temp, lr_bc_temps, fb_bc_temps, tb_bc_temps);
+				cout << "\n27_norm  " << get_laplacian_27_norm(i, j, k, prev_temp, lr_bc_temps, fb_bc_temps, tb_bc_temps) << "\n"; */
+/* 				
+				logger << current_time << ",";
 				logger << prev_temp[i-3][j][k] << "," << prev_temp[i-2][j][k] << "," << prev_temp[i-1][j][k] << "," << prev_temp[i][j][k] << "," << prev_temp[i+1][j][k] << "," << prev_temp[i+2][j][k] << "," << prev_temp[i+3][j][k] << ",";
-				logger << laplacian << "," << temp_rate << ",";
-				logger << cure_mesh[i][j][k] << "," << cure_rate << endl;
+				logger << get_laplacian_7(i, j, k, prev_temp, lr_bc_temps, fb_bc_temps, tb_bc_temps) << ","; 
+				logger << get_laplacian(i, j, k, prev_temp) << ","; 
+				logger << get_laplacian_19(i, j, k, prev_temp, lr_bc_temps, fb_bc_temps, tb_bc_temps) << ","; 
+				logger << get_laplacian_19_norm(i, j, k, prev_temp, lr_bc_temps, fb_bc_temps, tb_bc_temps) << ","; 
+				logger << get_laplacian_27(i, j, k, prev_temp, lr_bc_temps, fb_bc_temps, tb_bc_temps) << ","; 
+				logger << get_laplacian_27_norm(i, j, k, prev_temp, lr_bc_temps, fb_bc_temps, tb_bc_temps) << ","; 
+				logger << temp_rate << ",";
+				logger << cure_mesh[i][j][k] << "," << cure_rate << endl; */
 				
 			}
 		
