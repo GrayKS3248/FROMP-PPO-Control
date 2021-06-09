@@ -111,7 +111,7 @@ const double COD_pre_exponential = 2.13e19;        // 1 / Seconds
 const double COD_activiation_energy = 132000.0;    // Joules / Mol
 const double COD_model_fit_order = 2.5141;         // Unitless
 const double COD_m_fit = 0.8173;                   // Unitless
-
+				  
 // Laplacian calculation consts for 3rd order 7-stencil
 double laplacian_consts_3rd[5][7] = { { 137.0/180.0, -49.0/60.0, -17.0/12.0, 47.0/18.0, -19.0/12.0,  31.0/60.0, -13.0/180.0 }, 
 				  { -13.0/180.0,  19.0/15.0,  -7.0/3.0,  10.0/9.0,    1.0/12.0,  -1.0/15.0,   1.0/90.0 }, 
@@ -186,9 +186,6 @@ double front_shape_reward_const;
 double target_reward_const;
 
 //******************************************************************** CALCULATED PARAMETERS ********************************************************************//
-// Logging
-ofstream logger;
-
 // Simulation time and target velocity index
 double current_time;
 int current_index;
@@ -248,9 +245,6 @@ void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_p
 void get_lr_bc_temps(const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps);
 void get_fb_bc_temps(const vector<vector<vector<double>>> &temperature, double*** fb_bc_temps);
 void get_tb_bc_temps(const vector<vector<vector<double>>> &temperature, double*** tb_bc_temps);
-double get_laplacian_3rd(int i, int j, int k, const vector<vector<vector<double>>> &temperature);
-double get_laplacian_2nd(int i, int j, int k, const vector<vector<vector<double>>> &temperature);
-double get_laplacian_1st(int i, int j, int k, const vector<vector<vector<double>>> &temperature);
 double get_laplacian(int i, int j, int k, const vector<vector<vector<double>>> &temperature);
 void step_meshes();
 bool step_time();
