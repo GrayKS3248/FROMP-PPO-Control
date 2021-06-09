@@ -1285,15 +1285,264 @@ void Finite_Element_Solver::get_tb_bc_temps(const vector<vector<vector<double>>>
 	}
 }
 
+/** Calculates the 7-point stencil, 1st order, 3D laplacian
+* @param i index at which the Laplacian is calculated
+* @param j index at which the Laplacian is calculated
+* @param k index at which the Laplacian is calculated
+* @param Temperature field
+* @return 7-point stencil, 1st order, 3D laplacian at (i,j,k)
+*/
+double Finite_Element_Solver::get_laplacian_1st(int i, int j, int k, const vector<vector<vector<double>>> &temperature)
+{
+	double T_000 = temperature[i][j][k];
+	double d2t_dx2 = 0.0;
+	double d2t_dy2 = 0.0;
+	double d2t_dz2 = 0.0;
+	
+	// Right face BC
+	if (i==0)
+	{
+		d2t_dx2 = lr_bc_temps[0][j][k] - 2.0*T_000 + temperature[i+1][j][k];
+	}
+	// Left face BC
+	else if(i==num_vert_length-1)
+	{
+		d2t_dx2 = temperature[i-1][j][k] - 2.0*T_000 + lr_bc_temps[1][j][k];
+	}
+	// Bulk material
+	else
+	{
+		d2t_dx2 = temperature[i-1][j][k] - 2.0*T_000 + temperature[i+1][j][k];
+	}
+	d2t_dx2 = d2t_dx2 / (x_step*x_step);
+	
+	
+	// Front face BC
+	if (j==0)
+	{
+		d2t_dy2 = fb_bc_temps[0][i][k] - 2.0*T_000 + temperature[i][j+1][k];
+	}
+	// Back face BC
+	else if(j==num_vert_width-1)
+	{
+		d2t_dy2 = temperature[i][j-1][k] - 2.0*T_000 + fb_bc_temps[1][i][k];
+	}
+	// Bulk material
+	else
+	{
+		d2t_dy2 = temperature[i][j-1][k] - 2.0*T_000 + temperature[i][j+1][k];
+	}
+	d2t_dy2 = d2t_dy2 / (y_step*y_step);
+	
+	
+	// Top face BC
+	if (k==0)
+	{
+		d2t_dz2 = tb_bc_temps[0][i][j] - 2.0*T_000 + temperature[i][j][k+1];
+	}
+	// Bottom face BC
+	else if(k==num_vert_depth-1)
+	{
+		d2t_dz2 = temperature[i][j][k-1] - 2.0*T_000 + tb_bc_temps[1][i][j];
+	}
+	// Bulk material
+	else
+	{
+		d2t_dz2 = temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1];
+	}
+	d2t_dz2 = d2t_dz2 / (z_step*z_step);
+	
+	return d2t_dx2 + d2t_dy2 + d2t_dz2;
+}
+
+/** Calculates the 7-point stencil, 2nd order, 3D laplacian
+* @param i index at which the Laplacian is calculated
+* @param j index at which the Laplacian is calculated
+* @param k index at which the Laplacian is calculated
+* @param Temperature field
+* @return 7-point stencil, 2nd order, 3D laplacian at (i,j,k)
+*/
+double Finite_Element_Solver::get_laplacian_2nd(int i, int j, int k, const vector<vector<vector<double>>> &temperature)
+{
+	double T_000 = temperature[i][j][k];
+	double d2t_dx2 = 0.0;
+	double d2t_dy2 = 0.0;
+	double d2t_dz2 = 0.0;
+	
+	// Right face BC
+	if (i==0)
+	{
+		d2t_dx2 = lr_bc_temps[0][j][k] - 2.0*T_000 + temperature[i+1][j][k];
+	}
+	// Left face BC
+	else if(i==num_vert_length-1)
+	{
+		d2t_dx2 = temperature[i-1][j][k] - 2.0*T_000 + lr_bc_temps[1][j][k];
+	}
+	// Bulk material
+	else
+	{
+		int start_p = -2;
+		start_p = (i==1) ? -1 : start_p;
+		start_p = (i==num_vert_length-2) ? -3 : start_p;
+		for (int p = start_p; p < start_p + 5; p++)
+		{
+			d2t_dx2 += laplacian_consts_2nd[abs(start_p)-1][p-start_p] * temperature[i+p][j][k];
+		}
+	}
+	d2t_dx2 = d2t_dx2 / (x_step*x_step);
+	
+	
+	// Front face BC
+	if (j==0)
+	{
+		d2t_dy2 = fb_bc_temps[0][i][k] - 2.0*T_000 + temperature[i][j+1][k];
+	}
+	// Back face BC
+	else if(j==num_vert_width-1)
+	{
+		d2t_dy2 = temperature[i][j-1][k] - 2.0*T_000 + fb_bc_temps[1][i][k];
+	}
+	// Bulk material
+	else
+	{
+		int start_q = -2;
+		start_q = (j==1) ? -1 : start_q;
+		start_q = (j==num_vert_width-2) ? -3 : start_q;
+		for (int q = start_q; q < start_q + 5; q++)
+		{
+			d2t_dy2 += laplacian_consts_2nd[abs(start_q)-1][q-start_q] * temperature[i][j+q][k];
+		}
+	}
+	d2t_dy2 = d2t_dy2 / (y_step*y_step);
+	
+	
+	// Top face BC
+	if (k==0)
+	{
+		d2t_dz2 = tb_bc_temps[0][i][j] - 2.0*T_000 + temperature[i][j][k+1];
+	}
+	// Bottom face BC
+	else if(k==num_vert_depth-1)
+	{
+		d2t_dz2 = temperature[i][j][k-1] - 2.0*T_000 + tb_bc_temps[1][i][j];
+	}
+	// Bulk material
+	else
+	{
+		int start_r = -2;
+		start_r = (k==1) ? -1 : start_r;
+		start_r = (k==num_vert_depth-2) ? -3 : start_r;
+		for (int r = start_r; r < start_r + 5; r++)
+		{
+			d2t_dz2 += laplacian_consts_2nd[abs(start_r)-1][r-start_r] * temperature[i][j][k+r];
+		}
+	}
+	d2t_dz2 = d2t_dz2 / (z_step*z_step);
+	
+	return d2t_dx2 + d2t_dy2 + d2t_dz2;
+}
+
 /** Calculates the 7-point stencil, 3rd order, 3D laplacian
 * @param i index at which the Laplacian is calculated
 * @param j index at which the Laplacian is calculated
 * @param k index at which the Laplacian is calculated
 * @param Temperature field
-* @param Left and right virtual temperatures from BC
-* @param Front and back virtual temperatures from BC
-* @param Top and bottom virtual temperatures from BC
 * @return 7-point stencil, 3rd order, 3D laplacian at (i,j,k)
+*/
+double Finite_Element_Solver::get_laplacian_3rd(int i, int j, int k, const vector<vector<vector<double>>> &temperature)
+{
+	double T_000 = temperature[i][j][k];
+	double d2t_dx2 = 0.0;
+	double d2t_dy2 = 0.0;
+	double d2t_dz2 = 0.0;
+	
+	// Right face BC
+	if (i==0)
+	{
+		d2t_dx2 = lr_bc_temps[0][j][k] - 2.0*T_000 + temperature[i+1][j][k];
+	}
+	// Left face BC
+	else if(i==num_vert_length-1)
+	{
+		d2t_dx2 = temperature[i-1][j][k] - 2.0*T_000 + lr_bc_temps[1][j][k];
+	}
+	// Bulk material
+	else
+	{
+		int start_p = -3;
+		start_p = (i==1) ? -1 : start_p;
+		start_p = (i==2) ? -2 : start_p;
+		start_p = (i==num_vert_length-3) ? -4 : start_p;
+		start_p = (i==num_vert_length-2) ? -5 : start_p;
+		for (int p = start_p; p < start_p + 7; p++)
+		{
+			d2t_dx2 += laplacian_consts_3rd[abs(start_p)-1][p-start_p] * temperature[i+p][j][k];
+		}
+	}
+	d2t_dx2 = d2t_dx2 / (x_step*x_step);
+	
+	
+	// Front face BC
+	if (j==0)
+	{
+		d2t_dy2 = fb_bc_temps[0][i][k] - 2.0*T_000 + temperature[i][j+1][k];
+	}
+	// Back face BC
+	else if(j==num_vert_width-1)
+	{
+		d2t_dy2 = temperature[i][j-1][k] - 2.0*T_000 + fb_bc_temps[1][i][k];
+	}
+	// Bulk material
+	else
+	{
+		int start_q = -3;
+		start_q = (j==1) ? -1 : start_q;
+		start_q = (j==2) ? -2 : start_q;
+		start_q = (j==num_vert_width-3) ? -4 : start_q;
+		start_q = (j==num_vert_width-2) ? -5 : start_q;
+		for (int q = start_q; q < start_q + 7; q++)
+		{
+			d2t_dy2 += laplacian_consts_3rd[abs(start_q)-1][q-start_q] * temperature[i][j+q][k];
+		}
+	}
+	d2t_dy2 = d2t_dy2 / (y_step*y_step);
+	
+	
+	// Top face BC
+	if (k==0)
+	{
+		d2t_dz2 = tb_bc_temps[0][i][j] - 2.0*T_000 + temperature[i][j][k+1];
+	}
+	// Bottom face BC
+	else if(k==num_vert_depth-1)
+	{
+		d2t_dz2 = temperature[i][j][k-1] - 2.0*T_000 + tb_bc_temps[1][i][j];
+	}
+	// Bulk material
+	else
+	{
+		int start_r = -3;
+		start_r = (k==1) ? -1 : start_r;
+		start_r = (k==2) ? -2 : start_r;
+		start_r = (k==num_vert_depth-3) ? -4 : start_r;
+		start_r = (k==num_vert_depth-2) ? -5 : start_r;
+		for (int r = start_r; r < start_r + 7; r++)
+		{
+			d2t_dz2 += laplacian_consts_3rd[abs(start_r)-1][r-start_r] * temperature[i][j][k+r];
+		}
+	}
+	d2t_dz2 = d2t_dz2 / (z_step*z_step);
+	
+	return d2t_dx2 + d2t_dy2 + d2t_dz2;
+}
+
+/** Calculates the 7-point stencil 3D laplacian. 1st order in z direction, 2nd order in y direction, and 3rd order in x direction
+* @param i index at which the Laplacian is calculated
+* @param j index at which the Laplacian is calculated
+* @param k index at which the Laplacian is calculated
+* @param Temperature field
+* @return 7-point stencil, 3rd order, 3D laplacian at (i,j,k). 1st order in z direction, 2nd order in y direction, and 3rd order in x direction
 */
 double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<vector<vector<double>>> &temperature)
 {
@@ -1322,7 +1571,7 @@ double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<ve
 		start_p = (i==num_vert_length-2) ? -5 : start_p;
 		for (int p = start_p; p < start_p + 7; p++)
 		{
-			d2t_dx2 += laplacian_consts[abs(start_p)-1][p-start_p] * temperature[i+p][j][k];
+			d2t_dx2 += laplacian_consts_3rd[abs(start_p)-1][p-start_p] * temperature[i+p][j][k];
 		}
 	}
 	d2t_dx2 = d2t_dx2 / (x_step*x_step);
@@ -1341,14 +1590,12 @@ double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<ve
 	// Bulk material
 	else
 	{
-		int start_q = -3;
+		int start_q = -2;
 		start_q = (j==1) ? -1 : start_q;
-		start_q = (j==2) ? -2 : start_q;
-		start_q = (j==num_vert_width-3) ? -4 : start_q;
-		start_q = (j==num_vert_width-2) ? -5 : start_q;
-		for (int q = start_q; q < start_q + 7; q++)
+		start_q = (j==num_vert_width-2) ? -3 : start_q;
+		for (int q = start_q; q < start_q + 5; q++)
 		{
-			d2t_dy2 += laplacian_consts[abs(start_q)-1][q-start_q] * temperature[i][j+q][k];
+			d2t_dy2 += laplacian_consts_2nd[abs(start_q)-1][q-start_q] * temperature[i][j+q][k];
 		}
 	}
 	d2t_dy2 = d2t_dy2 / (y_step*y_step);
@@ -1367,15 +1614,7 @@ double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<ve
 	// Bulk material
 	else
 	{
-		int start_r = -3;
-		start_r = (k==1) ? -1 : start_r;
-		start_r = (k==2) ? -2 : start_r;
-		start_r = (k==num_vert_depth-3) ? -4 : start_r;
-		start_r = (k==num_vert_depth-2) ? -5 : start_r;
-		for (int r = start_r; r < start_r + 7; r++)
-		{
-			d2t_dz2 += laplacian_consts[abs(start_r)-1][r-start_r] * temperature[i][j][k+r];
-		}
+		d2t_dz2 = temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1];
 	}
 	d2t_dz2 = d2t_dz2 / (z_step*z_step);
 	
