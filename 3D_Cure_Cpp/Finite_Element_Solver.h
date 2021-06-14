@@ -118,15 +118,26 @@ double laplacian_consts_2nd[3][5] = { { 11.0/12.0, -5.0/3.0,  1.0/2.0,  1.0/3.0,
 				      { -1.0/12.0,  1.0/3.0,  1.0/2.0, -5.0/3.0, 11.0/12.0 } };
 
 //******************************************************************** TEMP FINE/COARSE MESH PARAMETERS ********************************************************************//
-double fine_time_step = 0.001;
+double time_step_fine = 0.001;
+double length_fine = 0.01;
+int fine_steps_per_coarse_step_x = 4;
+int fine_steps_per_coarse_step_y = 2;
+int fine_steps_per_coarse_step_z = 2;
 
-double sub_length = 0.01;
+int num_vert_length_fine;
+int num_vert_width_fine;
+int num_vert_depth_fine;
 
-int num_vert_length_fine = 300;
-int num_vert_width_fine = 40;
-int num_vert_depth_fine = 6;
+int fine_mesh_start_x_index;
+int coarse_mesh_start_x_index;
 
-double start_fine_x;
+int coarse_steps_per_fine_mesh_x;
+int coarse_steps_per_fine_mesh_y;
+int coarse_steps_per_fine_mesh_z;
+
+double*** temp_mesh_fine;
+double*** cure_mesh_fine;
+double*** laplacian_mesh_fine;
 
 //******************************************************************** CONFIG PARAMETERS ********************************************************************//
 // Simulation options
@@ -254,7 +265,10 @@ double** input_mesh;
 
 //******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
 void perturb_mesh(double*** arr, double delta);
+void copy_coarse_to_fine();
 void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_percent_rate_action);
+void slide_fine_mesh_right();
+void copy_fine_to_coarse();
 void update_lr_bc_temps();
 void update_fb_bc_temps();
 void update_tb_bc_temps();

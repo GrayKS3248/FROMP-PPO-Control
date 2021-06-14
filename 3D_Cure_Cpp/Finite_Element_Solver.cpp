@@ -171,6 +171,36 @@ Finite_Element_Solver::Finite_Element_Solver()
 	// Perturb temperature and cure meshes
 	perturb_mesh(temp_mesh, initial_temp_delta);
 	perturb_mesh(cure_mesh, initial_cure_delta);
+	
+	// Determine fine mesh resolution
+	num_vert_length_fine = (int)round((length_fine * (double)num_vert_length * (double)fine_steps_per_coarse_step_x) / length);
+	num_vert_width_fine = fine_steps_per_coarse_step_y*num_vert_width;
+	num_vert_depth_fine = fine_steps_per_coarse_step_z*num_vert_depth;
+	 
+	// Allocate memory space for fine temperature and cure mesh
+	temp_mesh_fine = new double**[num_vert_length_fine];
+	laplacian_mesh_fine = new double**[num_vert_length_fine];
+	cure_mesh_fine = new double**[num_vert_length_fine];
+	for(int i = 0; i < num_vert_length_fine; i++)
+	{
+		temp_mesh_fine[i] = new double*[num_vert_width_fine];
+		laplacian_mesh_fine[i] = new double*[num_vert_width_fine];
+		cure_mesh_fine[i] = new double*[num_vert_width_fine];
+		for(int j = 0; j < num_vert_width_fine; j++)
+		{
+			temp_mesh_fine[i][j] = new double[num_vert_depth_fine];
+			laplacian_mesh_fine[i][j] = new double[num_vert_depth_fine];
+			cure_mesh_fine[i][j] = new double[num_vert_depth_fine];
+		}
+	}
+
+	// Get total number of coarse mesh vertices make up fine mesh section
+	coarse_steps_per_fine_mesh_x = (int)round((length_fine * (double)num_vert_length) / length);  // MUST BE WHOLE NUMBER
+	coarse_steps_per_fine_mesh_y = num_vert_width;
+	coarse_steps_per_fine_mesh_z = num_vert_depth;
+
+	// Copy over the coarse mesh to the fine mesh
+	copy_coarse_to_fine();
 
 	// Init front mesh and parameters
 	front_indices = new int*[2];
@@ -362,6 +392,22 @@ Finite_Element_Solver::~Finite_Element_Solver()
 	delete[] mesh_x;
 	delete[] mesh_y;
 	delete[] mesh_z;
+	
+	for(int i = 0; i != num_vert_length_fine; ++i)
+	{
+		for(int j = 0; j != num_vert_width_fine; ++j)
+		{
+			delete[] cure_mesh_fine[i][j];
+			delete[] temp_mesh_fine[i][j];
+			delete[] laplacian_mesh_fine[i][j];
+		}
+		delete[] cure_mesh_fine[i];
+		delete[] temp_mesh_fine[i];
+		delete[] laplacian_mesh_fine[i];
+	}
+	delete[] cure_mesh_fine;
+	delete[] temp_mesh_fine;
+	delete[] laplacian_mesh_fine;
 	
 	for(int i = 0; i != 2; ++i)
 	{
@@ -850,8 +896,10 @@ void Finite_Element_Solver::reset()
 	perturb_mesh(temp_mesh, initial_temp_delta);
 	perturb_mesh(cure_mesh, initial_cure_delta);
 	
-	// Init front mesh and parameters
+	// Copy over the coarse mesh to the fine mesh
+	copy_coarse_to_fine();
 	
+	// Init front mesh and parameters
 	for(int i = 0; i < front_location_indicies_length; i++)
 	{
 		front_indices[0][i] = -1;
@@ -1282,6 +1330,31 @@ void Finite_Element_Solver::perturb_mesh(double*** arr, double delta)
 	}
 }
 
+/** Copies the coarse mesh data to the fine mesh with the fine mesh starting at the right most point.
+*/
+void Finite_Element_Solver::copy_coarse_to_fine()
+{
+	// Assign the starting index of the fine and coarse meshes
+	fine_mesh_start_x_index = 0;
+	coarse_mesh_start_x_index = 0;
+	
+	// Assign coarse mesh values to their respective fine mesh counterparts
+	for(int i = 0; i < num_vert_length_fine; i++)
+	for(int j = 0; j < num_vert_width_fine; j++)
+	for(int k = 0; k < num_vert_depth_fine; k++)
+	{	
+		// Determine location in coarse mesh
+		int curr_coarse_x_index = (int)floor((double)i / (double)fine_steps_per_coarse_step_x);
+		int curr_coarse_y_index = (int)floor((double)j / (double)fine_steps_per_coarse_step_y);
+		int curr_coarse_z_index = (int)floor((double)k / (double)fine_steps_per_coarse_step_z);
+		
+		// Assign coarse values to fine mesh
+		temp_mesh_fine[i][j][k] = temp_mesh[curr_coarse_x_index][curr_coarse_y_index][curr_coarse_z_index];
+		cure_mesh_fine[i][j][k] = cure_mesh[curr_coarse_x_index][curr_coarse_y_index][curr_coarse_z_index];
+	}
+	
+}
+
 /** Step the input through time
 * @param The raw NN x location rate command
 * @param The raw NN y location rate command
@@ -1348,6 +1421,88 @@ void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_ra
 		{
 			input_mesh[i][j] = local_input_power;
 		}
+	}
+}
+
+/** Slides the fine mesh right by one corase mesh element
+*/
+void Finite_Element_Solver::slide_fine_mesh_right()
+{
+	// Ensure fine mesh is not slid off of simulation domain
+	int coarse_mesh_x_slice_being_added = coarse_mesh_start_x_index + coarse_steps_per_fine_mesh_x;
+	if(coarse_mesh_x_slice_being_added >= num_vert_length)
+	{
+		return;
+	}
+	coarse_mesh_start_x_index++;
+	
+	int i = 0;
+	for(int ind = fine_mesh_start_x_index; ind < fine_mesh_start_x_index + fine_steps_per_coarse_step_x; ind++)
+	{
+		// Wrap the i index around the fine mesh
+		if(ind >= num_vert_length_fine)
+		{
+			i = ind - num_vert_length_fine;
+		}
+		else
+		{
+			i = ind;
+		}
+			
+		for(int j = 0; j < num_vert_width_fine; j++)
+		for(int k = 0; k < num_vert_depth_fine; k++)
+		{
+			// Determine location in coarse mesh
+			int curr_coarse_y_index = (int)floor((double)j / (double)fine_steps_per_coarse_step_y);
+			int curr_coarse_z_index = (int)floor((double)k / (double)fine_steps_per_coarse_step_z);
+			
+			// Assign coarse values to fine mesh
+			temp_mesh_fine[i][j][k] = temp_mesh[coarse_mesh_x_slice_being_added][curr_coarse_y_index][curr_coarse_z_index];
+			cure_mesh_fine[i][j][k] = cure_mesh[coarse_mesh_x_slice_being_added][curr_coarse_y_index][curr_coarse_z_index];
+		}
+	}
+
+	
+	// Update the fine mesh starting index
+	fine_mesh_start_x_index = i + 1;
+}
+
+/** Copies the fine mesh data to the coarse mesh
+*/
+void Finite_Element_Solver::copy_fine_to_coarse()
+{	
+	for(int i = 0; i < coarse_steps_per_fine_mesh_x; i++)
+	for(int j = 0; j < coarse_steps_per_fine_mesh_y; j++)
+	for(int k = 0; k < coarse_steps_per_fine_mesh_z; k++)
+	{
+		double temp_avg = 0.0;
+		double cure_avg = 0.0;
+		
+		int start_fine_x_index = i * fine_steps_per_coarse_step_x + fine_mesh_start_x_index;
+		int start_fine_y_index = j * fine_steps_per_coarse_step_y;
+		int start_fine_z_index = k * fine_steps_per_coarse_step_z;
+		
+		int p = 0;
+		for(int ind = start_fine_x_index; ind < start_fine_x_index + fine_steps_per_coarse_step_x; ind++)
+		for(int q = start_fine_y_index; q < start_fine_y_index + fine_steps_per_coarse_step_y; q++)
+		for(int r = start_fine_z_index; r < start_fine_z_index + fine_steps_per_coarse_step_z; r++)
+		{
+			// Wrap the i index around the fine mesh
+			if(ind >= num_vert_length_fine)
+			{
+				p = ind - num_vert_length_fine;
+			}
+			else
+			{
+				p = ind;
+			}
+			
+			temp_avg += temp_mesh_fine[p][q][r];
+			cure_avg += cure_mesh_fine[p][q][r];
+		}
+		
+		temp_mesh[coarse_mesh_start_x_index+i][j][k] = temp_avg / ((double)(fine_steps_per_coarse_step_x*fine_steps_per_coarse_step_y*fine_steps_per_coarse_step_z));
+		cure_mesh[coarse_mesh_start_x_index+i][j][k] = cure_avg / ((double)(fine_steps_per_coarse_step_x*fine_steps_per_coarse_step_y*fine_steps_per_coarse_step_z));
 	}
 }
 
@@ -1485,6 +1640,9 @@ void Finite_Element_Solver::step_meshes()
 	update_lr_bc_temps();
 	update_fb_bc_temps();
 	update_tb_bc_temps();
+
+	slide_fine_mesh_right();
+	copy_fine_to_coarse();
 
 	// Reset front variables
 	for(int i = 0; i < front_location_indicies_length; i++)
