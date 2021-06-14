@@ -3,7 +3,7 @@
 
 using namespace std;
 
-//******************************************************************** CONSTRUCTOR ********************************************************************//
+//******************************************************************** CONSTRUCTOR/DESTRUCTOR ********************************************************************//
 
 /**
 * Default constructor
@@ -15,6 +15,10 @@ Finite_Element_Solver::Finite_Element_Solver()
 	{
 		throw 1;
 	}
+	
+	// Set front detection parameters
+	front_location_indicies_length = 10 * num_vert_width;
+	front_filter_alpha = 1.0 - exp(-time_step/front_time_const);
 	
 	// Set randomization seed
 	srand(time(NULL));
@@ -56,7 +60,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 	}
 
 	// Determine target value
-	int sim_steps = (int)round(sim_duration / time_step);
+	int sim_steps = get_steps_per_episode();
 	double target = 0.0;
 	double randomizing_scale = 0.0;
 	if(control_speed)
@@ -81,18 +85,26 @@ Finite_Element_Solver::Finite_Element_Solver()
 	if (random_target)
 	{
 		double new_target = target - 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
-		for (unsigned int i = 0; i < target_vector.size(); i++)
+		for (int i = 0; i < sim_steps; i++)
 		{
 			target_vector[i] = new_target;
 		}
 	}
 	else if (target_switch)
 	{
-		int switch_location = (int) floor((0.20 * (double)rand()/(double)RAND_MAX + 0.40) * (double)(target_vector.size() - 1));
-		double switch_vel = target_vector[switch_location] + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
-		for (unsigned int i = switch_location; i < target_vector.size(); i++)
+		int switch_location = (int) floor((0.20 * (double)rand()/(double)RAND_MAX + 0.40) * (double)(sim_steps - 1));
+		double switch_target_1 = target + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
+		double switch_target_2 = target + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
+		for (int i = 0; i < sim_steps; i++)
 		{
-			target_vector[i] = switch_vel;
+			if(i < switch_location)
+			{
+				target_vector[i] = switch_target_1;
+			}
+			else
+			{
+				target_vector[i] = switch_target_2;
+			}
 		}
 	}
 	current_target = target_vector[current_index];
@@ -135,18 +147,22 @@ Finite_Element_Solver::Finite_Element_Solver()
 
 	// Allocate memory space for temp and cure mesh
 	temp_mesh = new double**[num_vert_length];
+	laplacian_mesh = new double**[num_vert_length];
 	cure_mesh = new double**[num_vert_length];
 	for(int i = 0; i < num_vert_length; i++)
 	{
 		temp_mesh[i] = new double*[num_vert_width];
+		laplacian_mesh[i] = new double*[num_vert_width];
 		cure_mesh[i] = new double*[num_vert_width];
 		for(int j = 0; j < num_vert_width; j++)
 		{
 			temp_mesh[i][j] = new double[num_vert_depth];
+			laplacian_mesh[i][j] = new double[num_vert_depth];
 			cure_mesh[i][j] = new double[num_vert_depth];
 			for(int k = 0; k < num_vert_depth; k++)
 			{
 				temp_mesh[i][j][k] = initial_temperature;
+				laplacian_mesh[i][j][k] = 0.0;
 				cure_mesh[i][j][k] = initial_cure;
 			}
 		}
@@ -157,12 +173,28 @@ Finite_Element_Solver::Finite_Element_Solver()
 	perturb_mesh(cure_mesh, initial_cure_delta);
 
 	// Init front mesh and parameters
-	front_loc_x_indicies = vector<int>(front_location_indicies_length, -1);
-	front_loc_y_indicies = vector<int>(front_location_indicies_length, -1);
+	front_indices = new int*[2];
+	front_indices[0] = new int[front_location_indicies_length];
+	front_indices[1] = new int[front_location_indicies_length]; 
+	for(int i = 0; i < front_location_indicies_length; i++)
+	{
+		front_indices[0][i] = -1;
+		front_indices[1][i] = -1;
+	}
+	threadwise_index = new int[omp_get_max_threads()];
+	threadwise_front_indices = new int**[2];
+	threadwise_front_indices[0] = new int*[omp_get_max_threads()];
+	threadwise_front_indices[1] = new int*[omp_get_max_threads()];
+	for(int i = 0; i < omp_get_max_threads(); i++)
+	{
+		threadwise_index[i] = 0;
+		
+		threadwise_front_indices[0][i] = new int[front_location_indicies_length];
+		threadwise_front_indices[1][i] = new int[front_location_indicies_length];
+	}
 	front_mean_x_loc = 0.0;
 	front_temp = initial_temperature;
 	front_vel = 0.0;
-	front_vel_history = deque<double>();
 
 	// Input magnitude parameters
 	double sigma = 0.329505114491 * radius_of_input;
@@ -187,7 +219,9 @@ Finite_Element_Solver::Finite_Element_Solver()
 	max_input_x_loc = length;
 	min_input_y_loc = 0.0;
 	max_input_y_loc = width;
-	input_location = vector<double>(2, 0.0);
+	input_location = new double[2];
+	input_location[0] = 0.0;
+	input_location[1] = 0.0;
 	
 	// Select a random input location
 	int length_pos = (int)floor((double)rand()/(double)RAND_MAX * num_vert_length);
@@ -211,8 +245,18 @@ Finite_Element_Solver::Finite_Element_Solver()
 		input_location[1] = min_input_y_loc;
 	}
 
+	// Allocate memory space for input mesh
+	input_mesh = new double*[num_vert_length];
+	for(int i = 0; i < num_vert_length; i++)
+	{
+		input_mesh[i] = new double[num_vert_width];
+		for(int j = 0; j < num_vert_width; j++)
+		{
+			input_mesh[i][j] = 0.0;
+		}
+	}
+
 	// Initiate input wattage mesh
-	input_mesh = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
 	double local_input_power = 0.0;
 	for (int i = 0; i < num_vert_length; i++)
 	{
@@ -260,6 +304,96 @@ Finite_Element_Solver::Finite_Element_Solver()
 	}
 }
 
+/**
+* Destructor
+*/
+Finite_Element_Solver::~Finite_Element_Solver()
+{
+	// 1D arrays
+	delete[] input_location;
+	delete[] target_vector;
+	delete[] threadwise_index;
+	
+	// 2D arrays
+	for(int i = 0; i != num_vert_length; ++i)
+	{
+		delete[] input_mesh[i];
+	}
+	delete[] input_mesh;
+	
+	for(int i = 0; i != 2; ++i)
+	{
+		delete[] front_indices[i];
+	}
+	delete[] front_indices;
+	
+	// 3D arrays
+	for(int i = 0; i != 2; ++i)
+	{
+		for(int j = 0; j != omp_get_max_threads(); ++j)
+		{
+			delete[] threadwise_front_indices[i][j];
+		}
+		delete[] threadwise_front_indices[i];
+	}
+	delete[] threadwise_front_indices;
+	
+	for(int i = 0; i != num_vert_length; ++i)
+	{
+		for(int j = 0; j != num_vert_width; ++j)
+		{
+			delete[] cure_mesh[i][j];
+			delete[] temp_mesh[i][j];
+			delete[] laplacian_mesh[i][j];
+			delete[] mesh_x[i][j];
+			delete[] mesh_y[i][j];
+			delete[] mesh_z[i][j];
+		}
+		delete[] cure_mesh[i];
+		delete[] temp_mesh[i];
+		delete[] laplacian_mesh[i];
+		delete[] mesh_x[i];
+		delete[] mesh_y[i];
+		delete[] mesh_z[i];
+	}
+	delete[] cure_mesh;
+	delete[] temp_mesh;
+	delete[] laplacian_mesh;
+	delete[] mesh_x;
+	delete[] mesh_y;
+	delete[] mesh_z;
+	
+	for(int i = 0; i != 2; ++i)
+	{
+		for(int j = 0; j != num_vert_width; ++j)
+		{
+			delete[] lr_bc_temps[i][j];
+		}
+		delete[] lr_bc_temps[i];
+	}
+	delete[] lr_bc_temps;
+	
+	for(int i = 0; i != 2; ++i)
+	{
+		for(int j = 0; j != num_vert_length; ++j)
+		{
+			delete[] fb_bc_temps[i][j];
+		}
+		delete[] fb_bc_temps[i];
+	}
+	delete[] fb_bc_temps;
+	
+	for(int i = 0; i != 2; ++i)
+	{
+		for(int j = 0; j != num_vert_length; ++j)
+		{
+			delete[] tb_bc_temps[i][j];
+		}
+		delete[] tb_bc_temps[i];
+	}
+	delete[] tb_bc_temps;
+}
+
 
 //******************************************************************** MESH GETTERS ********************************************************************//
 
@@ -296,7 +430,7 @@ int Finite_Element_Solver::get_num_vert_depth()
 */
 vector<vector<double>> Finite_Element_Solver::get_mesh_x_z0()
 {
-	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
+	vector<vector<double>> ret_val = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
 	for (int i = 0; i < num_vert_length; i++)
 	{
 		for (int j = 0; j < num_vert_width; j++)
@@ -313,7 +447,7 @@ vector<vector<double>> Finite_Element_Solver::get_mesh_x_z0()
 */
 vector<vector<double>> Finite_Element_Solver::get_mesh_y_z0()
 {
-	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
+	vector<vector<double>> ret_val = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
 	for (int i = 0; i < num_vert_length; i++)
 	{
 		for (int j = 0; j < num_vert_width; j++)
@@ -378,7 +512,7 @@ double Finite_Element_Solver::get_exp_const()
 * Gets the maximum possible input magnitude percent rate
 * @return maximum possible input magnitude percent rate in decimal percent per second
 */
-const double Finite_Element_Solver::get_max_input_mag_percent_rate()
+double Finite_Element_Solver::get_max_input_mag_percent_rate()
 {
 	return max_input_mag_percent_rate;
 }
@@ -387,7 +521,7 @@ const double Finite_Element_Solver::get_max_input_mag_percent_rate()
 * Gets the maximum possible input single axis movement rate
 * @return the maximum possible input single axis movement rate in m/s
 */
-const double Finite_Element_Solver::get_max_input_loc_rate()
+double Finite_Element_Solver::get_max_input_loc_rate()
 {
 	return max_input_loc_rate;
 }
@@ -410,16 +544,11 @@ double Finite_Element_Solver::get_input_percent()
 */
 vector<double> Finite_Element_Solver::get_input_location()
 {
-	return input_location;
-}
-
-/**
-* Gets the input mesh
-* @return The input mesh as a 2D vector in x,y of watts/m^2
-*/
-vector<vector<double>> Finite_Element_Solver::get_input_mesh()
-{
-	return input_mesh;
+	vector<double> ret_val = vector<double>(2, 0.0);
+	ret_val[0] = input_location[0];
+	ret_val[1] = input_location[1];
+	
+	return ret_val;
 }
 
 
@@ -435,12 +564,12 @@ double Finite_Element_Solver::get_current_target()
 }
 
 /**
-* Gets the length of the target array
+* Gets the number of discrete time steps per episode
 * @return The length of the target array
 */
-int Finite_Element_Solver::get_target_vector_arr_size()
+int Finite_Element_Solver::get_steps_per_episode()
 {
-	return target_vector.size();
+	return (int)round(sim_duration / time_step);
 }
 
 
@@ -464,7 +593,7 @@ bool Finite_Element_Solver::get_control_speed()
 */
 vector<vector<double>> Finite_Element_Solver::get_temp_mesh()
 {
-	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
+	vector<vector<double>> ret_val = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
 	for (int i = 0; i < num_vert_length; i++)
 	{
 		for (int j = 0; j < num_vert_width; j++)
@@ -481,8 +610,7 @@ vector<vector<double>> Finite_Element_Solver::get_temp_mesh()
 */
 vector<vector<double>> Finite_Element_Solver::get_norm_temp_mesh()
 {
-	// Get the temperature 
-	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
+	vector<vector<double>> ret_val = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
 	for (int i = 0; i < num_vert_length; i++)
 	{
 		for (int j = 0; j < num_vert_width; j++)
@@ -493,7 +621,6 @@ vector<vector<double>> Finite_Element_Solver::get_norm_temp_mesh()
 		}
 	}
 	return ret_val;
-
 }
 
 /**
@@ -502,8 +629,7 @@ vector<vector<double>> Finite_Element_Solver::get_norm_temp_mesh()
 */
 vector<vector<double>> Finite_Element_Solver::get_cure_mesh()
 {
-	// Get the cure
-	vector<vector<double>> ret_val(num_vert_length, vector<double>(num_vert_width, 0.0));
+	vector<vector<double>> ret_val = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
 	for (int i = 0; i < num_vert_length; i++)
 	{
 		for (int j = 0; j < num_vert_width; j++)
@@ -523,7 +649,12 @@ vector<vector<double>> Finite_Element_Solver::get_cure_mesh()
 */
 vector<int> Finite_Element_Solver::get_front_loc_x_indicies()
 {
-	return front_loc_x_indicies;
+	vector<int> ret_val = vector<int>(front_location_indicies_length, 0.0);
+	for(int i = 0; i < front_location_indicies_length; i++)
+	{
+		ret_val[i] = front_indices[0][i];
+	}
+	return ret_val;
 }
 
 /**
@@ -532,7 +663,12 @@ vector<int> Finite_Element_Solver::get_front_loc_x_indicies()
 */
 vector<int> Finite_Element_Solver::get_front_loc_y_indicies()
 {
-	return front_loc_y_indicies;
+	vector<int> ret_val = vector<int>(front_location_indicies_length, 0.0);
+	for(int i = 0; i < front_location_indicies_length; i++)
+	{
+		ret_val[i] = front_indices[1][i];
+	}
+	return ret_val;
 }
 
 /**
@@ -578,11 +714,11 @@ void Finite_Element_Solver::print_params()
 	
 	// Target parameters
 	double mean = 0.0;
-	for (unsigned int i = 0; i < target_vector.size(); i++)
+	for (int i = 0; i < get_steps_per_episode(); i++)
 	{
 		mean += target_vector[i];
 	}
-	mean = mean / (double)target_vector.size();
+	mean = mean / (double)get_steps_per_episode();
 	cout << "\nTarget(\n";
 	if (control_speed)
 	{
@@ -654,11 +790,11 @@ void Finite_Element_Solver::print_params()
 void Finite_Element_Solver::reset()
 {
 	// Simulation time and target velocity index
-	current_time = 0.0;      // Seconds
-	current_index = 0;       // Unitless
+	current_time = 0.0;
+	current_index = 0;
 
 	// Calculate the target temporal vector and define the current target
-	int sim_steps = (int)round(sim_duration / time_step);
+	int sim_steps = get_steps_per_episode();
 	double target = 0.0;
 	double randomizing_scale = 0.0;
 	if(control_speed)
@@ -671,47 +807,68 @@ void Finite_Element_Solver::reset()
 		target = target_temp;
 		randomizing_scale = temp_rand_scale;
 	}
-	target_vector = vector<double>(sim_steps, target);
+	for(int i = 0; i < sim_steps; i++)
+	{
+		target_vector[i] = target;
+	}
 	if (random_target)
 	{
 		double new_target = target - 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
-		for (unsigned int i = 0; i < target_vector.size(); i++)
+		for (int i = 0; i < sim_steps; i++)
 		{
 			target_vector[i] = new_target;
 		}
 	}
 	else if (target_switch)
 	{
-		int switch_location = (int) floor((0.20 * (double)rand()/(double)RAND_MAX + 0.40) * (double)(target_vector.size() - 1));
-		double switch_vel = target_vector[switch_location] + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
-		for (unsigned int i = switch_location; i < target_vector.size(); i++)
+		int switch_location = (int) floor((0.20 * (double)rand()/(double)RAND_MAX + 0.40) * (double)(sim_steps - 1));
+		double switch_target_1 = target + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
+		double switch_target_2 = target + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
+		for (int i = 0; i < sim_steps; i++)
 		{
-			target_vector[i] = switch_vel;
+			if(i < switch_location)
+			{
+				target_vector[i] = switch_target_1;
+			}
+			else
+			{
+				target_vector[i] = switch_target_2;
+			}
 		}
 	}
 	current_target = target_vector[current_index];
 
-	// Init and perturb temperature mesh
-	temp_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_temperature)));
-	temp_mesh = get_perturbation(temp_mesh, initial_temp_delta);
-
-	// Init and perturn cure mesh
-	cure_mesh = vector<vector<vector<double>>>(num_vert_length, vector<vector<double>>(num_vert_width, vector<double>(num_vert_depth, initial_cure)));
-	cure_mesh = get_perturbation(cure_mesh, initial_cure_delta);
+	// Perturb temp and cure mesh
+	for(int i = 0; i < num_vert_length; i++)
+	for(int j = 0; j < num_vert_width; j++)
+	for(int k = 0; k < num_vert_depth; k++)
+	{
+		temp_mesh[i][j][k] = initial_temperature;
+		laplacian_mesh[i][j][k] = 0.0;
+		cure_mesh[i][j][k] = initial_cure;
+	}
+	perturb_mesh(temp_mesh, initial_temp_delta);
+	perturb_mesh(cure_mesh, initial_cure_delta);
 	
 	// Init front mesh and parameters
-	front_loc_x_indicies = vector<int>(front_location_indicies_length, -1);
-	front_loc_y_indicies = vector<int>(front_location_indicies_length, -1);
+	
+	for(int i = 0; i < front_location_indicies_length; i++)
+	{
+		front_indices[0][i] = -1;
+		front_indices[1][i] = -1;
+	}
+	for(int i = 0; i < omp_get_max_threads(); i++)
+	{
+		threadwise_index[i] = 0;
+	}
 	front_mean_x_loc = 0.0;
 	front_temp = initial_temperature;
 	front_vel = 0.0;
-	front_vel_history = deque<double>();
 
 	// Input magnitude parameters
 	input_percent = (double)rand()/(double)RAND_MAX;
 
 	// Input location parameters
-	input_location = vector<double>(2, 0.0);
 	if (control)
 	{
 		input_location[0] = min_input_x_loc;
@@ -798,12 +955,12 @@ double Finite_Element_Solver::get_reward()
 	// Find the normalized standard deviation of the front location, mean front speed, mean front temperature
 	double stdev_front_location = 0.0;
 	int front_instances = 0;
-	for (unsigned int i = 0; i < front_loc_x_indicies.size(); i++)
+	for (int i = 0; i < front_location_indicies_length; i++)
 	{
-		if (front_loc_x_indicies[i] != -1)
+		if (front_indices[0][i] != -1)
 		{
-			int front_x_index = front_loc_x_indicies[i];
-			int front_y_index = front_loc_y_indicies[i];
+			int front_x_index = front_indices[0][i];
+			int front_y_index = front_indices[1][i];
 			double curr_front_x_loc = mesh_x[front_x_index][front_y_index][0];
 			stdev_front_location += (curr_front_x_loc - front_mean_x_loc)*(curr_front_x_loc - front_mean_x_loc);
 			front_instances++;
@@ -843,40 +1000,6 @@ double Finite_Element_Solver::get_reward()
 	}
 
 	return input_reward+overage_reward+front_shape_reward+target_reward;
-}
-
-/**
-* Deallocates dynamic memory used by FES
-*/
-void Finite_Element_Solver::finish()
-{
-	for(int i = 0; i != 2; ++i)
-	{
-		for(int j = 0; j != num_vert_width; ++j)
-		{
-			delete[] lr_bc_temps[i][j];
-		}
-		delete[] lr_bc_temps[i];
-	}
-	delete[] lr_bc_temps;
-	for(int i = 0; i != 2; ++i)
-	{
-		for(int j = 0; j != num_vert_length; ++j)
-		{
-			delete[] fb_bc_temps[i][j];
-		}
-		delete[] fb_bc_temps[i];
-	}
-	delete[] fb_bc_temps;
-	for(int i = 0; i != 2; ++i)
-	{
-		for(int j = 0; j != num_vert_length; ++j)
-		{
-			delete[] tb_bc_temps[i][j];
-		}
-		delete[] tb_bc_temps[i];
-	}
-	delete[] tb_bc_temps;
 }
 
 //******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
@@ -1043,6 +1166,14 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
+		config_file >> config_dump >> front_time_const;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+
+		config_file >> config_dump >> front_cure_rate;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
 		config_file >> config_dump >> initial_temperature;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
@@ -1110,12 +1241,12 @@ int Finite_Element_Solver::load_config()
 	return 0;
 }
 
-/** Get smooth 3D perturbation over input fields
-* @ param array used to determine size of output mesh
+/** Perturb mesh with smooth, 3D noise
+* @ param array being perturbed
 * @ param maximum magnitude of perturbation
 * @ return sum of size_array and smooth continuous perturbation of magnitude delta
 */
-void Finite_Element_Solver::perturb_mesh(double*** arr, double delta);
+void Finite_Element_Solver::perturb_mesh(double*** arr, double delta)
 {
 	// Get magnitude and biases
 	double mag_1 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;
@@ -1136,11 +1267,10 @@ void Finite_Element_Solver::perturb_mesh(double*** arr, double delta);
 	// Get x*y*z over perturbation field
 	double x, y, z, xyz, perturbation;
 	double scale = (mag_1 + mag_2 + mag_3);
-	vector<vector<vector<double> > > perturbation = vector<vector<vector<double> > >(size_array.size(), vector<vector<double> >(size_array[0].size(), vector<double>(size_array[0][0].size(), 0.0)));
 	
-	for (unsigned int i = 0; i < num_vert_length; i++)
-	for (unsigned int j = 0; j < num_vert_width; j++)
-	for (unsigned int k = 0; k < num_vert_depth; k++)
+	for (int i = 0; i < num_vert_length; i++)
+	for (int j = 0; j < num_vert_width; j++)
+	for (int k = 0; k < num_vert_depth; k++)
 	{
 		x = -2.0*min_mag+min_x_bias + (2.0*max_mag+max_x_bias + 2.0*min_mag-min_x_bias) * ((double)i / (num_vert_length-1));
 		y = -2.0*min_mag+min_y_bias + (2.0*max_mag+max_y_bias + 2.0*min_mag-min_y_bias) * ((double)j / (num_vert_width-1));
@@ -1194,9 +1324,6 @@ void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_ra
 	input_percent = input_percent + cmd_mag * time_step;
 	input_percent = input_percent > 1.0 ? 1.0 : input_percent;
 	input_percent = input_percent < 0.0 ? 0.0 : input_percent;
-
-	// Reset the input mesh to 0
-	input_mesh = vector<vector<double>>(num_vert_length, vector<double>(num_vert_width, 0.0));
 	
 	// Detemine the range of x and y indices within which the input resides
 	int start_x = input_x_index - (int)round((double)radius_of_input/x_step) - 1;
@@ -1209,7 +1336,6 @@ void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_ra
 	end_y = end_y > num_vert_width ? num_vert_width : end_y;
 	
 	// Update the input wattage mesh
-	#pragma omp parallel for collapse(2)
 	for (int i = start_x; i < end_x; i++)
 	for (int j = start_y; j < end_y; j++)
 	{
@@ -1225,52 +1351,46 @@ void Finite_Element_Solver::step_input(double x_loc_rate_action, double y_loc_ra
 	}
 }
 
-/** Calculates the virtual temperatures outside of the mesh on the left and right faces based on the boundary conditions
-* @param Temperature field
-* @return Virtual temperatures
+/** Updates the virtual temperatures outside of the mesh on the left and right faces based on the boundary conditions
 */
-void Finite_Element_Solver::get_lr_bc_temps(const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps)
+void Finite_Element_Solver::update_lr_bc_temps()
 {
 	for(int j = 0; j < num_vert_width; j++)
 	for(int k = 0; k < num_vert_depth; k++)
 	{
 		if ((current_time >= trigger_time) && (current_time < trigger_time + trigger_duration))
 		{
-			lr_bc_temps[0][j][k] = temperature[0][j][k] - (x_step/thermal_conductivity)*(htc*(temperature[0][j][k]-ambient_temperature)-trigger_flux);
+			lr_bc_temps[0][j][k] = temp_mesh[0][j][k] - (x_step/thermal_conductivity)*(htc*(temp_mesh[0][j][k]-ambient_temperature)-trigger_flux);
 		}
 		else
 		{
-			lr_bc_temps[0][j][k] = temperature[0][j][k] - (x_step*htc/thermal_conductivity)*(temperature[0][j][k]-ambient_temperature);
+			lr_bc_temps[0][j][k] = temp_mesh[0][j][k] - (x_step*htc/thermal_conductivity)*(temp_mesh[0][j][k]-ambient_temperature);
 		}
-		lr_bc_temps[1][j][k] = temperature[num_vert_length-1][j][k] - (x_step*htc/thermal_conductivity)*(temperature[num_vert_length-1][j][k]-ambient_temperature);
+		lr_bc_temps[1][j][k] = temp_mesh[num_vert_length-1][j][k] - (x_step*htc/thermal_conductivity)*(temp_mesh[num_vert_length-1][j][k]-ambient_temperature);
 	}
 }
 
-/** Calculates the virtual temperatures outside of the mesh on the front and back faces based on the boundary conditions
-* @param Temperature field
-* @return Virtual temperatures
+/** Updates the virtual temperatures outside of the mesh on the front and back faces based on the boundary conditions
 */
-void Finite_Element_Solver::get_fb_bc_temps(const vector<vector<vector<double>>> &temperature, double*** fb_bc_temps)
+void Finite_Element_Solver::update_fb_bc_temps()
 {
 	for(int j = 0; j < num_vert_length; j++)
 	for(int k = 0; k < num_vert_depth; k++)
 	{
-		fb_bc_temps[0][j][k] = temperature[j][0][k] - (y_step*htc/thermal_conductivity)*(temperature[j][0][k]-ambient_temperature);
-		fb_bc_temps[1][j][k] = temperature[j][num_vert_width-1][k] - (y_step*htc/thermal_conductivity)*(temperature[j][num_vert_width-1][k]-ambient_temperature);
+		fb_bc_temps[0][j][k] = temp_mesh[j][0][k] - (y_step*htc/thermal_conductivity)*(temp_mesh[j][0][k]-ambient_temperature);
+		fb_bc_temps[1][j][k] = temp_mesh[j][num_vert_width-1][k] - (y_step*htc/thermal_conductivity)*(temp_mesh[j][num_vert_width-1][k]-ambient_temperature);
 	}
 }
 
-/** Calculates the virtual temperatures outside of the mesh on the top and bottom faces based on the boundary conditions
-* @param Temperature field
-* @return Virtual temperatures
+/** Updates the virtual temperatures outside of the mesh on the top and bottom faces based on the boundary conditions
 */
-void Finite_Element_Solver::get_tb_bc_temps(const vector<vector<vector<double>>> &temperature, double*** tb_bc_temps)
+void Finite_Element_Solver::update_tb_bc_temps()
 {
 	for(int j = 0; j < num_vert_length; j++)
 	for(int k = 0; k < num_vert_width; k++)
 	{
-		tb_bc_temps[0][j][k] = temperature[j][k][0] - (z_step*htc/thermal_conductivity)*(temperature[j][k][0]-ambient_temperature);
-		tb_bc_temps[1][j][k] = temperature[j][k][num_vert_depth-1] - (z_step*htc/thermal_conductivity)*(temperature[j][k][num_vert_depth-1]-ambient_temperature);
+		tb_bc_temps[0][j][k] = temp_mesh[j][k][0] - (z_step*htc/thermal_conductivity)*(temp_mesh[j][k][0]-ambient_temperature);
+		tb_bc_temps[1][j][k] = temp_mesh[j][k][num_vert_depth-1] - (z_step*htc/thermal_conductivity)*(temp_mesh[j][k][num_vert_depth-1]-ambient_temperature);
 	}
 }
 
@@ -1278,12 +1398,11 @@ void Finite_Element_Solver::get_tb_bc_temps(const vector<vector<vector<double>>>
 * @param i index at which the Laplacian is calculated
 * @param j index at which the Laplacian is calculated
 * @param k index at which the Laplacian is calculated
-* @param Temperature field
 * @return 7-point stencil, 3rd order, 3D laplacian at (i,j,k). 1st order in z direction, 2nd order in y direction, and 3rd order in x direction
 */
-double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<vector<vector<double>>> &temperature)
+double Finite_Element_Solver::get_laplacian(int i, int j, int k)
 {
-	double T_000 = temperature[i][j][k];
+	double T_000 = temp_mesh[i][j][k];
 	double d2t_dx2 = 0.0;
 	double d2t_dy2 = 0.0;
 	double d2t_dz2 = 0.0;
@@ -1291,12 +1410,12 @@ double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<ve
 	// Right face BC
 	if (i==0)
 	{
-		d2t_dx2 = lr_bc_temps[0][j][k] - 2.0*T_000 + temperature[i+1][j][k];
+		d2t_dx2 = lr_bc_temps[0][j][k] - 2.0*T_000 + temp_mesh[i+1][j][k];
 	}
 	// Left face BC
 	else if(i==num_vert_length-1)
 	{
-		d2t_dx2 = temperature[i-1][j][k] - 2.0*T_000 + lr_bc_temps[1][j][k];
+		d2t_dx2 = temp_mesh[i-1][j][k] - 2.0*T_000 + lr_bc_temps[1][j][k];
 	}
 	// Bulk material
 	else
@@ -1308,7 +1427,7 @@ double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<ve
 		start_p = (i==num_vert_length-2) ? -5 : start_p;
 		for (int p = start_p; p < start_p + 7; p++)
 		{
-			d2t_dx2 += laplacian_consts_3rd[abs(start_p)-1][p-start_p] * temperature[i+p][j][k];
+			d2t_dx2 += laplacian_consts_3rd[abs(start_p)-1][p-start_p] * temp_mesh[i+p][j][k];
 		}
 	}
 	d2t_dx2 = d2t_dx2 / (x_step*x_step);
@@ -1317,12 +1436,12 @@ double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<ve
 	// Front face BC
 	if (j==0)
 	{
-		d2t_dy2 = fb_bc_temps[0][i][k] - 2.0*T_000 + temperature[i][j+1][k];
+		d2t_dy2 = fb_bc_temps[0][i][k] - 2.0*T_000 + temp_mesh[i][j+1][k];
 	}
 	// Back face BC
 	else if(j==num_vert_width-1)
 	{
-		d2t_dy2 = temperature[i][j-1][k] - 2.0*T_000 + fb_bc_temps[1][i][k];
+		d2t_dy2 = temp_mesh[i][j-1][k] - 2.0*T_000 + fb_bc_temps[1][i][k];
 	}
 	// Bulk material
 	else
@@ -1332,7 +1451,7 @@ double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<ve
 		start_q = (j==num_vert_width-2) ? -3 : start_q;
 		for (int q = start_q; q < start_q + 5; q++)
 		{
-			d2t_dy2 += laplacian_consts_2nd[abs(start_q)-1][q-start_q] * temperature[i][j+q][k];
+			d2t_dy2 += laplacian_consts_2nd[abs(start_q)-1][q-start_q] * temp_mesh[i][j+q][k];
 		}
 	}
 	d2t_dy2 = d2t_dy2 / (y_step*y_step);
@@ -1341,17 +1460,17 @@ double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<ve
 	// Top face BC
 	if (k==0)
 	{
-		d2t_dz2 = tb_bc_temps[0][i][j] - 2.0*T_000 + temperature[i][j][k+1];
+		d2t_dz2 = tb_bc_temps[0][i][j] - 2.0*T_000 + temp_mesh[i][j][k+1];
 	}
 	// Bottom face BC
 	else if(k==num_vert_depth-1)
 	{
-		d2t_dz2 = temperature[i][j][k-1] - 2.0*T_000 + tb_bc_temps[1][i][j];
+		d2t_dz2 = temp_mesh[i][j][k-1] - 2.0*T_000 + tb_bc_temps[1][i][j];
 	}
 	// Bulk material
 	else
 	{
-		d2t_dz2 = temperature[i][j][k-1] - 2.0*T_000 + temperature[i][j][k+1];
+		d2t_dz2 = temp_mesh[i][j][k-1] - 2.0*T_000 + temp_mesh[i][j][k+1];
 	}
 	d2t_dz2 = d2t_dz2 / (z_step*z_step);
 	
@@ -1363,30 +1482,41 @@ double Finite_Element_Solver::get_laplacian(int i, int j, int k, const vector<ve
 void Finite_Element_Solver::step_meshes()
 {	
 	// Temperature mesh variables
-	const vector<vector<vector<double>>> prev_temp(temp_mesh);
-	get_lr_bc_temps(prev_temp, lr_bc_temps);
-	get_fb_bc_temps(prev_temp, fb_bc_temps);
-	get_tb_bc_temps(prev_temp, tb_bc_temps);
+	update_lr_bc_temps();
+	update_fb_bc_temps();
+	update_tb_bc_temps();
 
-	// Reset front location variables
-	front_loc_x_indicies = vector<int>(front_location_indicies_length, -1);
-	front_loc_y_indicies = vector<int>(front_location_indicies_length, -1);
-	front_temp = 0.0;
+	// Reset front variables
+	for(int i = 0; i < front_location_indicies_length; i++)
+	{
+		front_indices[0][i] = -1;
+		front_indices[1][i] = -1;
+	}
+	for(int i = 0; i < omp_get_max_threads(); i++)
+	{
+		threadwise_index[i] = 0;
+	}
+	double curr_front_temp = 0.0;
 	double curr_front_mean_x_loc = 0.0;
-	unsigned int num_front_instances = 0;
-		
+	int num_front_instances = 0;
+
 	// Update the mesh
 	#pragma omp parallel
-	{
-		// Initialize front reduction variables 
-		vector<int> local_front_x_index;
-		vector<int> local_front_y_index;
+	{		
+		// Parallel for loop laplacian calculation
+		#pragma	omp for collapse(3)
+		for (int i = 0; i < num_vert_length; i++)
+		for (int j = 0; j < num_vert_width; j++)
+		for (int k = 0; k < num_vert_depth; k++)
+		{
+			laplacian_mesh[i][j][k] = get_laplacian(i, j, k);
+		}
 		
 		// Parallel for loop for mesh update
 		#pragma	omp for collapse(3) nowait
-		for (unsigned int i = 0; i < (unsigned int) num_vert_length; i++)
-		for (unsigned int j = 0; j < (unsigned int) num_vert_width; j++)
-		for (unsigned int k = 0; k < (unsigned int) num_vert_depth; k++)
+		for (int i = 0; i < num_vert_length; i++)
+		for (int j = 0; j < num_vert_width; j++)
+		for (int k = 0; k < num_vert_depth; k++)
 		{
 			//******************************************************************** Calculate the cure rate and step cure mesh ********************************************************************//
 			double exponential_term = 0.0;
@@ -1400,18 +1530,18 @@ void Finite_Element_Solver::step_meshes()
 			double fourth_stage_cure_rate = 0.0;
 				
 			// Only calculate the cure rate if curing has started but is incomplete
-			if ((prev_temp[i][j][k] >= cure_critical_temperature) && (cure_mesh[i][j][k] < 1.0))
+			if ((temp_mesh[i][j][k] >= cure_critical_temperature) && (cure_mesh[i][j][k] < 1.0))
 			{
 				if (use_DCPD_GC1)
 				{
-					cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * prev_temp[i][j][k])) *
+					cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * temp_mesh[i][j][k])) *
 					pow((1.0 - cure_mesh[i][j][k]), DCPD_GC1_model_fit_order) * 
 					(1.0 + DCPD_GC1_autocatalysis_const * cure_mesh[i][j][k]);
 				}
 				else if (use_DCPD_GC2)
 				{
 				
-					exponential_term = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * prev_temp[i][j][k]));
+					exponential_term = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * temp_mesh[i][j][k]));
 				
 					// Stage 1
 					first_stage_cure_rate = exponential_term *  
@@ -1468,14 +1598,14 @@ void Finite_Element_Solver::step_meshes()
 				}
 				else if (use_COD)
 				{
-					cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * prev_temp[i][j][k])) *  
+					cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * temp_mesh[i][j][k])) *  
 					pow((1.0 - cure_mesh[i][j][k]), COD_model_fit_order) * 
 					pow(cure_mesh[i][j][k], COD_m_fit);
 				}
 				
 				// Limit cure rate such that a single time step will not yield a degree of cure greater than 1.0
 				cure_rate = cure_rate > (1.0 - cure_mesh[i][j][k])/time_step ? (1.0 - cure_mesh[i][j][k])/time_step : cure_rate;
-				cure_rate = cure_rate < 0.0 ? 0.0 : cure_rate;
+				cure_rate = cure_rate < 0.0 ? 0.0 : cure_rate;	
 			}
 			
 			// Step the cure_mesh
@@ -1485,91 +1615,51 @@ void Finite_Element_Solver::step_meshes()
 			cure_mesh[i][j][k] = cure_mesh[i][j][k] > 1.0 ? 1.0 : cure_mesh[i][j][k];
 			cure_mesh[i][j][k] = cure_mesh[i][j][k] < 0.0 ? 0.0 : cure_mesh[i][j][k];
 
-
 			//******************************************************************** Calculate the temperature rate and step temp mesh ********************************************************************//
 
-			// Get temp rate and step temp mesh
-			double laplacian = get_laplacian(i, j, k, prev_temp);
-			double temp_rate = thermal_diffusivity*laplacian+(enthalpy_of_reaction*cure_rate)/specific_heat;
-			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * temp_rate;
-
-			// Ensure current temp is in expected range
+			// Step temp mesh and ensure current temp is in expected range
+			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * (thermal_diffusivity*laplacian_mesh[i][j][k]+(enthalpy_of_reaction*cure_rate)/specific_heat);
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] < 0.0 ? 0.0 : temp_mesh[i][j][k];
-		
-			//******************************************************************** Determine front location ********************************************************************//
-			if (k == 0)
-			{
- 				// Calculate the derivative of the cure with respect to the x direction
-				double cure_delta_in_x;
-				if (i == 0)
-				{
-					cure_delta_in_x = abs(cure_mesh[1][j][0] - cure_mesh[0][j][0]);
-				}
-				else if (i == (unsigned int)num_vert_length - 1)
-				{
-					cure_delta_in_x = abs(cure_mesh[num_vert_length-1][j][0] - cure_mesh[num_vert_length-2][j][0]);
-				}
-				else
-				{
-					cure_delta_in_x = 0.50 * abs(cure_mesh[i+1][j][0] - cure_mesh[i-1][j][0]);
-				}
-				
-				// Calculate the derivative of the cure with respect to the y direction
-				double cure_delta_in_y;
-				if (j == 0)
-				{
-					cure_delta_in_y = abs(cure_mesh[i][1][0] - cure_mesh[i][0][0]);
-				}
-				else if (j == (unsigned int)num_vert_width - 1)
-				{
-					cure_delta_in_y = abs(cure_mesh[i][num_vert_width-1][0] - cure_mesh[i][num_vert_width-2][0]);
-				}
-				else
-				{
-					cure_delta_in_y = 0.50 * abs(cure_mesh[i][j+1][0] - cure_mesh[i][j-1][0]);
-				}
-				
-				// If a front is detected, store its information
-				if ((cure_delta_in_x > front_delta_parameter || cure_delta_in_y > front_delta_parameter) && cure_mesh[i][j][k] <= front_upper_cure_parameter)
-				{
-					// Store the x and y indicies of the detected front
-					local_front_x_index.push_back(i);
-					local_front_y_index.push_back(j);
-				}
-			}
 			
+			// Determine front location based on cure rates
+			if(k==0 && (cure_rate >= front_cure_rate))
+			{
+				int thread_num = omp_get_thread_num();
+				if(threadwise_index[thread_num] < front_location_indicies_length)
+				{
+					threadwise_front_indices[0][thread_num][threadwise_index[thread_num]] = i;
+					threadwise_front_indices[1][thread_num][threadwise_index[thread_num]] = j;
+					threadwise_index[thread_num]++;	
+				}
+
+			}
 		}
 		
 		// Reduce collected front information
 		#pragma omp critical
 		{     
-			for (unsigned int i = 0; i < local_front_x_index.size(); i++)
+			int thread_num = omp_get_thread_num();
+			for(int i = 0; i < front_location_indicies_length; i++)
 			{
-				if(num_front_instances < front_location_indicies_length)
+				if( (i <= threadwise_index[thread_num]-1) && (num_front_instances < front_location_indicies_length) )
 				{
-					// Update front location data
-					front_loc_x_indicies[num_front_instances] = local_front_x_index[i];
-					front_loc_y_indicies[num_front_instances] = local_front_y_index[i];
-					curr_front_mean_x_loc = curr_front_mean_x_loc + mesh_x[local_front_x_index[i]][local_front_y_index[i]][0];
+					int curr_x_index = threadwise_front_indices[0][thread_num][i];
+					int curr_y_index = threadwise_front_indices[1][thread_num][i];
 					
-					// Sum temperature around front
-					int start_index = local_front_x_index[i] - 1;
-					start_index = start_index < 0 ? 0 : start_index;
-					int end_index = start_index + 2;
-					end_index = end_index > num_vert_length ? num_vert_length : end_index;
-					start_index = end_index - start_index < 2 ? end_index - 2 : start_index;
-					for (int j = start_index; j < end_index; j++)
-					{
-						front_temp = front_temp + temp_mesh[j][local_front_y_index[i]][0];
-					}
+					front_indices[0][num_front_instances] = curr_x_index;
+					front_indices[1][num_front_instances] = curr_y_index;
 					
-					// Interate instance count
-					num_front_instances = num_front_instances + 1;
+					curr_front_temp += temp_mesh[curr_x_index][curr_y_index][0];
+					curr_front_mean_x_loc += mesh_x[curr_x_index][curr_y_index][0];
+					
+					num_front_instances++;
+				}
+				else
+				{
+					break;
 				}
 			}
-			
 		}
-
 	}
 	
 	//******************************************************************** Update the front location and velocity ********************************************************************//
@@ -1577,60 +1667,20 @@ void Finite_Element_Solver::step_meshes()
 	{
 		// Average mean front x location and temperature
 		curr_front_mean_x_loc = curr_front_mean_x_loc / (double)num_front_instances;
-		front_temp = front_temp / ((double)num_front_instances*2.0);
 		
-		// Calculate front speed
-		double current_front_vel = abs((curr_front_mean_x_loc - front_mean_x_loc) / time_step);
-		if (front_vel_history.size() < (unsigned int)front_vel_history_length)
-		{
-			
-			front_vel_history.push_back(current_front_vel);
-			front_vel = 0.0;
-			for (unsigned int i = 0; i < front_vel_history.size(); i++)
-			{
-				front_vel += front_vel_history[i];
-			}
-			front_vel = front_vel / (double)front_vel_history.size();
-		}
-		else
-		{
-			front_vel_history.push_back(current_front_vel);
-			front_vel_history.pop_front();
-			front_vel = 0.0;
-			for (int i = 0; i < front_vel_history_length; i++)
-			{
-				front_vel += front_vel_history[i];
-			}
-			front_vel = front_vel / (double)front_vel_history_length;
-		}
+		// Calculate front speed, temp, and update front location
+		front_vel += front_filter_alpha * (abs((curr_front_mean_x_loc - front_mean_x_loc) / time_step) - front_vel);
+		front_temp += front_filter_alpha * ((curr_front_temp / ((double)num_front_instances)) - front_temp);
 		front_mean_x_loc = curr_front_mean_x_loc;
 	}
 	
 	else
 	{
-		front_temp = initial_temperature;
-		
-		if (front_vel_history.size() < (unsigned int)front_vel_history_length)
-		{
-			front_vel_history.push_back(0.0);
-			front_vel = 0.0;
-			for (unsigned int i = 0; i < front_vel_history.size(); i++)
-			{
-				front_vel += front_vel_history[i];
-			}
-			front_vel = front_vel / (double)front_vel_history.size();
-		}
-		else
-		{
-			front_vel_history.push_back(0.0);
-			front_vel_history.pop_front();
-			front_vel = 0.0;
-			for (int i = 0; i < front_vel_history_length; i++)
-			{
-				front_vel += front_vel_history[i];
-			}
-			front_vel = front_vel / (double)front_vel_history_length;
-		}
+
+		// Calculate front speed, temp, and update front location
+		front_vel += front_filter_alpha * (0.0 - front_vel);
+		front_temp += front_filter_alpha * (initial_temperature - front_temp);
+		front_mean_x_loc = 0.0;
 	}
 }
 
@@ -1641,7 +1691,7 @@ void Finite_Element_Solver::step_meshes()
 bool Finite_Element_Solver::step_time()
 {
 	// Update the current time and check for simulation completion
-	bool done = (current_index == (int)target_vector.size() - 1);
+	bool done = (current_index == get_steps_per_episode() - 1);
 	if (!done)
 	{
 		current_time = current_time + time_step;

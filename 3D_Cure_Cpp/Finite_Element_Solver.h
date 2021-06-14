@@ -1,9 +1,9 @@
 #pragma once
 #include <math.h>
 #include <time.h>
+#include <omp.h>
 #include <algorithm>
 #include <vector>
-#include <deque>
 #include <iostream>
 #include <chrono>
 #include <fstream>
@@ -14,9 +14,10 @@ using namespace std;
 class Finite_Element_Solver {
 	
 
-//******************************************************************** CONSTRUCTOR ********************************************************************//
+//******************************************************************** CONSTRUCTOR/DESTRUCTOR ********************************************************************//
 public:
 Finite_Element_Solver();
+~Finite_Element_Solver();
 
 
 //******************************************************************** GETTERS ********************************************************************//
@@ -35,17 +36,16 @@ double get_current_time();
 // Input parameters getters
 double get_max_input_mag();
 double get_exp_const();
-const double get_max_input_mag_percent_rate();
-const double get_max_input_loc_rate();
+double get_max_input_mag_percent_rate();
+double get_max_input_loc_rate();
 
 // Input state getters
 double get_input_percent();
 vector<double> get_input_location();
-vector<vector<double>> get_input_mesh();
 
 // Target getters
 double get_current_target();
-int get_target_vector_arr_size();
+int get_steps_per_episode();
 
 //Sim option getter
 bool get_control_speed();
@@ -67,16 +67,9 @@ void print_params();
 void reset();
 bool step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
 double get_reward();
-void finish();
 
 //******************************************************************** USER SET PARAMETERS ********************************************************************//
 private:
-// Front calculation parameters
-const double front_delta_parameter = 0.05;                 // Change in degree cure between two adjacent mesh vertices over which a front is detected
-const double front_upper_cure_parameter = 0.95;            // Degree cure over which a front cannot exist
-const unsigned int front_location_indicies_length = 400;   // Length of memory to store front indices
-const int front_vel_history_length = 1500;                 // Length of memory over which to average front speed
-
 // Physical constants
 const double gas_const = 8.314;  // Joules / Mol * Kelvin
 
@@ -125,8 +118,15 @@ double laplacian_consts_2nd[3][5] = { { 11.0/12.0, -5.0/3.0,  1.0/2.0,  1.0/3.0,
 				      { -1.0/12.0,  1.0/3.0,  1.0/2.0, -5.0/3.0, 11.0/12.0 } };
 
 //******************************************************************** TEMP FINE/COARSE MESH PARAMETERS ********************************************************************//
+double fine_time_step = 0.001;
 
+double sub_length = 0.01;
 
+int num_vert_length_fine = 300;
+int num_vert_width_fine = 40;
+int num_vert_depth_fine = 6;
+
+double start_fine_x;
 
 //******************************************************************** CONFIG PARAMETERS ********************************************************************//
 // Simulation options
@@ -162,6 +162,10 @@ double vel_rand_scale;
 double target_temp;
 double temp_rand_scale;
 
+// Front detection
+double front_time_const;
+double front_cure_rate;
+
 // Initial conditions
 double initial_temperature;
 double initial_cure;
@@ -194,6 +198,10 @@ double target_reward_const;
 double current_time;
 int current_index;
 
+// Front calculation parameters
+int front_location_indicies_length;  // Length of memory to store front indices
+double front_filter_alpha;
+
 // Monomer physical parameters
 double thermal_diffusivity;
 double thermal_conductivity;
@@ -215,18 +223,19 @@ double z_step;
 
 // Temperature and cure meshes
 double*** temp_mesh;
+double*** laplacian_mesh;
 double*** cure_mesh;
 double*** lr_bc_temps;
 double*** fb_bc_temps;
 double*** tb_bc_temps;
 
 // Front mesh and parameters
-vector<int> front_loc_x_indicies;
-vector<int> front_loc_y_indicies;
+int** front_indices;
+int*** threadwise_front_indices;
+int* threadwise_index;
 double front_mean_x_loc;
 double front_temp;
 double front_vel;
-deque<double> front_vel_history;
 
 // Input magnitude parameters
 double exp_const;
@@ -246,10 +255,10 @@ double** input_mesh;
 //******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
 void perturb_mesh(double*** arr, double delta);
 void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_percent_rate_action);
-void get_lr_bc_temps(const vector<vector<vector<double>>> &temperature, double*** lr_bc_temps);
-void get_fb_bc_temps(const vector<vector<vector<double>>> &temperature, double*** fb_bc_temps);
-void get_tb_bc_temps(const vector<vector<vector<double>>> &temperature, double*** tb_bc_temps);
-double get_laplacian(int i, int j, int k, const vector<vector<vector<double>>> &temperature);
+void update_lr_bc_temps();
+void update_fb_bc_temps();
+void update_tb_bc_temps();
+double get_laplacian(int i, int j, int k);
 void step_meshes();
 bool step_time();
 int load_config();

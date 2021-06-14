@@ -5,60 +5,6 @@
 #include <sstream>
 using namespace std;
 
-
-//******************************************************************** DEBUGGUNG FUNCTIONS ********************************************************************//
-/**
-* Prints to std out a representation of a 2D vector
-* @param The array to be printed
-*/
-void print_2D(vector<vector<double> > arr, unsigned int len)
-{
-	// Find the largest order number
-	int max_order = 0;
-	int curr_order = 0;
-	for (unsigned int i = 0; i < len; i++)
-	{
-		for (unsigned int j = 0; j < arr[0].size(); j++)
-		{
-			curr_order = (int) floor(log10(abs(arr[i][j])));
-			max_order = curr_order > max_order ? curr_order : max_order;
-		}
-	}
-
-	for (unsigned int i = 0; i <len; i++)
-	{
-		for (unsigned int j = 0; j < arr[0].size(); j++)
-		{
-			if (arr[i][j] == 0.0)
-			{
-				for (int i = 0; i <= max_order; i++)
-				{
-					cout << " ";
-				}
-			}
-			else
-			{
-				curr_order = (int) floor(log10(abs(arr[i][j])));
-				curr_order = curr_order < 0 ? 0 : curr_order;
-				for (int i = 0; i < max_order-curr_order; i++)
-				{
-					cout << " ";
-				}
-			}
-			if (arr[i][j] > 0.0)
-			{
-				printf(" %.2f ", arr[i][j]);
-			}
-			else
-			{
-				printf("%.2f ", arr[i][j]);
-			}
-		}
-		cout << endl;
-	}
-}
-
-
 //******************************************************************** USER INTERFACE FUNCTIONS ********************************************************************//
 /**
 * Prints the finite element solver and simulation parameters to std out
@@ -809,6 +755,7 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	double total_reward = 0.0;
 	double best_episode_reward = 0.0;
 	double prev_episode_reward = 0.0;
+	vector<double> input_location;
 
 	// Run a set of episodes
 	for (int i = 0; i < total_trajectories; i++)
@@ -838,7 +785,7 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 			if (save_frame)
 			{
 				// Get environment data
-				vector<double> input_location = FES->get_input_location();
+				input_location = FES->get_input_location();
 				
 				// Store simulation input data
 				curr_input_location_x.push_back(input_location[0]);
@@ -1009,14 +956,14 @@ int main()
 	double frame_rate = 30.0;
 
 	// Initialize FES
-	Finite_Element_Solver *FES;
+	Finite_Element_Solver* FES;
 	try
 	{
 		FES = new Finite_Element_Solver();
 	}
 	catch (int e)
 	{
-		cout << "An exception occurred. Exception Nr. " << e << '\n';
+		cout << "An exception occurred. Exception num " << e << '\n';
 		return 1;
 	}
 
@@ -1054,7 +1001,5 @@ int main()
 	
 	// Finish
 	Py_FinalizeEx();
-	FES->finish();
-	delete FES;
 	return 0;
 }
