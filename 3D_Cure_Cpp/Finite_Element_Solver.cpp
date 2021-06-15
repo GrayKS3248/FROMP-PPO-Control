@@ -199,8 +199,16 @@ Finite_Element_Solver::Finite_Element_Solver()
 	coarse_steps_per_fine_mesh_y = num_vert_width;
 	coarse_steps_per_fine_mesh_z = num_vert_depth;
 
+	// Get the step size of the fine mesh
+	x_step_fine = (1.0 / (double)(num_vert_length_fine - 1)) * length_fine;
+	y_step_fine = (1.0 / (double)(num_vert_width_fine - 1)) * width;
+	z_step_fine = (1.0 / (double)(num_vert_depth_fine - 1)) * depth;
+
 	// Copy over the coarse mesh to the fine mesh
 	copy_coarse_to_fine();
+	
+	// Handle fine time stepping parameters
+	fine_time_step = time_step / (double)fine_time_steps_per_coarse;
 
 	// Init front mesh and parameters
 	front_indices = new int*[2];
@@ -304,7 +312,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 		}
 	}
 	
-	// Allocate memory for BCs
+	// Allocate memory for coarse BCs
 	lr_bc_temps = new double**[2];
 	for(int i = 0; i < 2; i++)
 	{
@@ -332,6 +340,35 @@ Finite_Element_Solver::Finite_Element_Solver()
 			tb_bc_temps[i][j] = new double[num_vert_width];
 		}
 	}
+	
+	// Allocate memory for fine BCs
+	lr_bc_temps_fine = new double**[2];
+	for(int i = 0; i < 2; i++)
+	{
+		lr_bc_temps_fine[i] = new double*[num_vert_width_fine];
+		for(int j = 0; j < num_vert_width_fine; j++)
+		{
+			lr_bc_temps_fine[i][j] = new double[num_vert_depth_fine];
+		}
+	}
+	fb_bc_temps_fine = new double**[2];
+	for(int i = 0; i < 2; i++)
+	{
+		fb_bc_temps_fine[i] = new double*[num_vert_length_fine];
+		for(int j = 0; j < num_vert_length_fine; j++)
+		{
+			fb_bc_temps_fine[i][j] = new double[num_vert_depth_fine];
+		}
+	}
+	tb_bc_temps_fine = new double**[2];
+	for(int i = 0; i < 2; i++)
+	{
+		tb_bc_temps_fine[i] = new double*[num_vert_length_fine];
+		for(int j = 0; j < num_vert_length_fine; j++)
+		{
+			tb_bc_temps_fine[i][j] = new double[num_vert_width_fine];
+		}
+	}
 }
 
 /**
@@ -344,20 +381,21 @@ Finite_Element_Solver::~Finite_Element_Solver()
 	delete[] target_vector;
 	delete[] threadwise_index;
 	
-	// 2D arrays
+	// Input mesh
 	for(int i = 0; i != num_vert_length; ++i)
 	{
 		delete[] input_mesh[i];
 	}
 	delete[] input_mesh;
 	
+	// Front indices
 	for(int i = 0; i != 2; ++i)
 	{
 		delete[] front_indices[i];
 	}
 	delete[] front_indices;
 	
-	// 3D arrays
+	// Threadwise front indicies
 	for(int i = 0; i != 2; ++i)
 	{
 		for(int j = 0; j != omp_get_max_threads(); ++j)
@@ -368,6 +406,7 @@ Finite_Element_Solver::~Finite_Element_Solver()
 	}
 	delete[] threadwise_front_indices;
 	
+	// Coarse mesh
 	for(int i = 0; i != num_vert_length; ++i)
 	{
 		for(int j = 0; j != num_vert_width; ++j)
@@ -392,7 +431,8 @@ Finite_Element_Solver::~Finite_Element_Solver()
 	delete[] mesh_x;
 	delete[] mesh_y;
 	delete[] mesh_z;
-	
+
+	// Fine mesh
 	for(int i = 0; i != num_vert_length_fine; ++i)
 	{
 		for(int j = 0; j != num_vert_width_fine; ++j)
@@ -409,6 +449,7 @@ Finite_Element_Solver::~Finite_Element_Solver()
 	delete[] temp_mesh_fine;
 	delete[] laplacian_mesh_fine;
 	
+	// Coarse BCs
 	for(int i = 0; i != 2; ++i)
 	{
 		for(int j = 0; j != num_vert_width; ++j)
@@ -438,6 +479,37 @@ Finite_Element_Solver::~Finite_Element_Solver()
 		delete[] tb_bc_temps[i];
 	}
 	delete[] tb_bc_temps;
+	
+	// Fine BCs
+	for(int i = 0; i != 2; ++i)
+	{
+		for(int j = 0; j != num_vert_width_fine; ++j)
+		{
+			delete[] lr_bc_temps_fine[i][j];
+		}
+		delete[] lr_bc_temps_fine[i];
+	}
+	delete[] lr_bc_temps_fine;
+	
+	for(int i = 0; i != 2; ++i)
+	{
+		for(int j = 0; j != num_vert_length_fine; ++j)
+		{
+			delete[] fb_bc_temps_fine[i][j];
+		}
+		delete[] fb_bc_temps_fine[i];
+	}
+	delete[] fb_bc_temps_fine;
+	
+	for(int i = 0; i != 2; ++i)
+	{
+		for(int j = 0; j != num_vert_length_fine; ++j)
+		{
+			delete[] tb_bc_temps_fine[i][j];
+		}
+		delete[] tb_bc_temps_fine[i];
+	}
+	delete[] tb_bc_temps_fine;
 }
 
 
@@ -1510,6 +1582,8 @@ void Finite_Element_Solver::copy_fine_to_coarse()
 */
 void Finite_Element_Solver::update_lr_bc_temps()
 {
+	// Coarse mesh BCs
+	// TODO: DO NOT CALCULATE COARSE BCs OVER FINE MESH
 	for(int j = 0; j < num_vert_width; j++)
 	for(int k = 0; k < num_vert_depth; k++)
 	{
@@ -1523,17 +1597,67 @@ void Finite_Element_Solver::update_lr_bc_temps()
 		}
 		lr_bc_temps[1][j][k] = temp_mesh[num_vert_length-1][j][k] - (x_step*htc/thermal_conductivity)*(temp_mesh[num_vert_length-1][j][k]-ambient_temperature);
 	}
+	
+	// Fine mesh BCs
+	for(int j = 0; j < num_vert_width_fine; j++)
+	for(int k = 0; k < num_vert_depth_fine; k++)
+	{
+		// Determine location in coarse mesh
+		int curr_coarse_y_index = (int)floor((double)j / (double)fine_steps_per_coarse_step_y);
+		int curr_coarse_z_index = (int)floor((double)k / (double)fine_steps_per_coarse_step_z);
+		
+		// Left BC if fine mesh is on left edge of domain
+		if(coarse_mesh_start_x_index == 0)
+		{
+			if ((current_time >= trigger_time) && (current_time < trigger_time + trigger_duration))
+			{
+				lr_bc_temps_fine[0][j][k] = temp_mesh_fine[0][j][k] - (x_step_fine/thermal_conductivity)*(htc*(temp_mesh_fine[0][j][k]-ambient_temperature)-trigger_flux);
+			}
+			else
+			{
+				lr_bc_temps_fine[0][j][k] = temp_mesh_fine[0][j][k] - (x_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[0][j][k]-ambient_temperature);
+			}
+		}
+		// Left BC if fine mesh is in middle of domain
+		else
+		{
+			
+			lr_bc_temps_fine[0][j][k] = temp_mesh[coarse_mesh_start_x_index-1][curr_coarse_y_index][curr_coarse_z_index];
+		}
+		
+		// Right BC if fine mesh is on right edge of domain
+		if(coarse_mesh_start_x_index + coarse_steps_per_fine_mesh_x == num_vert_length)
+		{
+			lr_bc_temps_fine[1][j][k] = temp_mesh_fine[num_vert_length_fine-1][j][k] - (x_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[num_vert_length_fine-1][j][k]-ambient_temperature);
+		}
+		// Right BC if fine mesh is in middle of domain
+		else
+		{
+			lr_bc_temps_fine[1][j][k] = temp_mesh[coarse_mesh_start_x_index + coarse_steps_per_fine_mesh_x][curr_coarse_y_index][curr_coarse_z_index];
+		}
+		
+	}
 }
 
 /** Updates the virtual temperatures outside of the mesh on the front and back faces based on the boundary conditions
 */
 void Finite_Element_Solver::update_fb_bc_temps()
 {
+	// Coarse mesh BCs
+	// TODO: DO NOT CALCULATE COARSE BCs OVER FINE MESH
 	for(int j = 0; j < num_vert_length; j++)
 	for(int k = 0; k < num_vert_depth; k++)
 	{
 		fb_bc_temps[0][j][k] = temp_mesh[j][0][k] - (y_step*htc/thermal_conductivity)*(temp_mesh[j][0][k]-ambient_temperature);
 		fb_bc_temps[1][j][k] = temp_mesh[j][num_vert_width-1][k] - (y_step*htc/thermal_conductivity)*(temp_mesh[j][num_vert_width-1][k]-ambient_temperature);
+	}
+	
+	// Fine mesh BCs
+	for(int j = 0; j < num_vert_length_fine; j++)
+	for(int k = 0; k < num_vert_depth_fine; k++)
+	{
+		fb_bc_temps_fine[0][j][k] = temp_mesh_fine[j][0][k] - (y_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[j][0][k]-ambient_temperature);
+		fb_bc_temps_fine[1][j][k] = temp_mesh_fine[j][num_vert_width_fine-1][k] - (y_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[j][num_vert_width_fine-1][k]-ambient_temperature);
 	}
 }
 
@@ -1541,11 +1665,21 @@ void Finite_Element_Solver::update_fb_bc_temps()
 */
 void Finite_Element_Solver::update_tb_bc_temps()
 {
+	// Coarse mesh BCs
+	// TODO: DO NOT CALCULATE COARSE BCs OVER FINE MESH
 	for(int j = 0; j < num_vert_length; j++)
 	for(int k = 0; k < num_vert_width; k++)
 	{
 		tb_bc_temps[0][j][k] = temp_mesh[j][k][0] - (z_step*htc/thermal_conductivity)*(temp_mesh[j][k][0]-ambient_temperature);
 		tb_bc_temps[1][j][k] = temp_mesh[j][k][num_vert_depth-1] - (z_step*htc/thermal_conductivity)*(temp_mesh[j][k][num_vert_depth-1]-ambient_temperature);
+	}
+	
+	// Fine mesh BCs
+	for(int j = 0; j < num_vert_length_fine; j++)
+	for(int k = 0; k < num_vert_width_fine; k++)
+	{
+		tb_bc_temps_fine[0][j][k] = temp_mesh_fine[j][k][0] - (z_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[j][k][0]-ambient_temperature);
+		tb_bc_temps_fine[1][j][k] = temp_mesh_fine[j][k][num_vert_depth_fine-1] - (z_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[j][k][num_vert_depth_fine-1]-ambient_temperature);
 	}
 }
 
@@ -1641,8 +1775,8 @@ void Finite_Element_Solver::step_meshes()
 	update_fb_bc_temps();
 	update_tb_bc_temps();
 
-	slide_fine_mesh_right();
-	copy_fine_to_coarse();
+	//slide_fine_mesh_right();
+	//copy_fine_to_coarse();
 
 	// Reset front variables
 	for(int i = 0; i < front_location_indicies_length; i++)
@@ -1660,23 +1794,133 @@ void Finite_Element_Solver::step_meshes()
 
 	// Update the mesh
 	#pragma omp parallel
-	{		
-		// Parallel for loop laplacian calculation
+	{	
+		//******************************************************************** Left side coarse ********************************************************************//
+		// Calculate the laplacian mesh for the left side of the coarse mesh
 		#pragma	omp for collapse(3)
-		for (int i = 0; i < num_vert_length; i++)
+		for (int i = 0; i < coarse_mesh_start_x_index; i++)
 		for (int j = 0; j < num_vert_width; j++)
 		for (int k = 0; k < num_vert_depth; k++)
 		{
 			laplacian_mesh[i][j][k] = get_laplacian(i, j, k);
 		}
 		
-		// Parallel for loop for mesh update
+		
+		// Update the temperature and cure mesh for the left side of the coarse mesh
 		#pragma	omp for collapse(3) nowait
+		for (int i = 0; i < coarse_mesh_start_x_index; i++)
+		for (int j = 0; j < num_vert_width; j++)
+		for (int k = 0; k < num_vert_depth; k++)
+		{
+			double cure_rate = 0.0;
+				
+			// Only calculate the cure rate if curing has started but is incomplete
+			if ((temp_mesh[i][j][k] >= cure_critical_temperature) && (cure_mesh[i][j][k] < 1.0))
+			{
+				if (use_DCPD_GC1)
+				{
+					cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * temp_mesh[i][j][k])) *
+					pow((1.0 - cure_mesh[i][j][k]), DCPD_GC1_model_fit_order) * 
+					(1.0 + DCPD_GC1_autocatalysis_const * cure_mesh[i][j][k]);
+				}
+				else if (use_DCPD_GC2)
+				{
+					cure_rate = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * temp_mesh[i][j][k])) *  
+					pow((1.0 - cure_mesh[i][j][k]), DCPD_GC2_model_fit_order) * 
+					pow(cure_mesh[i][j][k], DCPD_GC2_m_fit) * 
+					(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh[i][j][k] - DCPD_GC2_critical_cure))));
+
+				}
+				else if (use_COD)
+				{
+					cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * temp_mesh[i][j][k])) *  
+					pow((1.0 - cure_mesh[i][j][k]), COD_model_fit_order) * 
+					pow(cure_mesh[i][j][k], COD_m_fit);
+				}
+				
+				// Limit cure rate such that a single time step will not yield a degree of cure greater than 1.0
+				cure_rate = cure_rate > (1.0 - cure_mesh[i][j][k])/time_step ? (1.0 - cure_mesh[i][j][k])/time_step : cure_rate;
+				cure_rate = cure_rate < 0.0 ? 0.0 : cure_rate;	
+			}
+			
+			// Step the cure_mesh
+			cure_mesh[i][j][k] = cure_mesh[i][j][k] + time_step * cure_rate;
+				
+			// Ensure current cure is in expected range
+			cure_mesh[i][j][k] = cure_mesh[i][j][k] > 1.0 ? 1.0 : cure_mesh[i][j][k];
+			cure_mesh[i][j][k] = cure_mesh[i][j][k] < 0.0 ? 0.0 : cure_mesh[i][j][k];
+
+			// Step temp mesh and ensure current temp is in expected range
+			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * (thermal_diffusivity*laplacian_mesh[i][j][k]+(enthalpy_of_reaction*cure_rate)/specific_heat);
+			temp_mesh[i][j][k] = temp_mesh[i][j][k] < 0.0 ? 0.0 : temp_mesh[i][j][k];
+		}
+		
+		//******************************************************************** Right side coarse ********************************************************************//
+		// Calculate the laplacian mesh for the right side of the coarse mesh
+		#pragma	omp for collapse(3)
+		for (int i = coarse_mesh_start_x_index + coarse_steps_per_fine_mesh_x; i < num_vert_length; i++)
+		for (int j = 0; j < num_vert_width; j++)
+		for (int k = 0; k < num_vert_depth; k++)
+		{
+			laplacian_mesh[i][j][k] = get_laplacian(i, j, k);
+		}
+		
+		
+		// Update the temperature and cure mesh for the right side of the coarse mesh
+		#pragma	omp for collapse(3) nowait
+		for (int i = coarse_mesh_start_x_index + coarse_steps_per_fine_mesh_x; i < num_vert_length; i++)
+		for (int j = 0; j < num_vert_width; j++)
+		for (int k = 0; k < num_vert_depth; k++)
+		{
+			double cure_rate = 0.0;
+				
+			// Only calculate the cure rate if curing has started but is incomplete
+			if ((temp_mesh[i][j][k] >= cure_critical_temperature) && (cure_mesh[i][j][k] < 1.0))
+			{
+				if (use_DCPD_GC1)
+				{
+					cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * temp_mesh[i][j][k])) *
+					pow((1.0 - cure_mesh[i][j][k]), DCPD_GC1_model_fit_order) * 
+					(1.0 + DCPD_GC1_autocatalysis_const * cure_mesh[i][j][k]);
+				}
+				else if (use_DCPD_GC2)
+				{
+					cure_rate = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * temp_mesh[i][j][k])) *  
+					pow((1.0 - cure_mesh[i][j][k]), DCPD_GC2_model_fit_order) * 
+					pow(cure_mesh[i][j][k], DCPD_GC2_m_fit) * 
+					(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh[i][j][k] - DCPD_GC2_critical_cure))));
+
+				}
+				else if (use_COD)
+				{
+					cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * temp_mesh[i][j][k])) *  
+					pow((1.0 - cure_mesh[i][j][k]), COD_model_fit_order) * 
+					pow(cure_mesh[i][j][k], COD_m_fit);
+				}
+				
+				// Limit cure rate such that a single time step will not yield a degree of cure greater than 1.0
+				cure_rate = cure_rate > (1.0 - cure_mesh[i][j][k])/time_step ? (1.0 - cure_mesh[i][j][k])/time_step : cure_rate;
+				cure_rate = cure_rate < 0.0 ? 0.0 : cure_rate;	
+			}
+			
+			// Step the cure_mesh
+			cure_mesh[i][j][k] = cure_mesh[i][j][k] + time_step * cure_rate;
+				
+			// Ensure current cure is in expected range
+			cure_mesh[i][j][k] = cure_mesh[i][j][k] > 1.0 ? 1.0 : cure_mesh[i][j][k];
+			cure_mesh[i][j][k] = cure_mesh[i][j][k] < 0.0 ? 0.0 : cure_mesh[i][j][k];
+
+			// Step temp mesh and ensure current temp is in expected range
+			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * (thermal_diffusivity*laplacian_mesh[i][j][k]+(enthalpy_of_reaction*cure_rate)/specific_heat);
+			temp_mesh[i][j][k] = temp_mesh[i][j][k] < 0.0 ? 0.0 : temp_mesh[i][j][k];
+		}
+		
+		// Parallel for loop for mesh update
+		/* #pragma	omp for collapse(3) nowait
 		for (int i = 0; i < num_vert_length; i++)
 		for (int j = 0; j < num_vert_width; j++)
 		for (int k = 0; k < num_vert_depth; k++)
 		{
-			//******************************************************************** Calculate the cure rate and step cure mesh ********************************************************************//
 			double exponential_term = 0.0;
 			double cure_rate = 0.0;
 			double first_stage_cure_rate = 0.0;
@@ -1773,8 +2017,6 @@ void Finite_Element_Solver::step_meshes()
 			cure_mesh[i][j][k] = cure_mesh[i][j][k] > 1.0 ? 1.0 : cure_mesh[i][j][k];
 			cure_mesh[i][j][k] = cure_mesh[i][j][k] < 0.0 ? 0.0 : cure_mesh[i][j][k];
 
-			//******************************************************************** Calculate the temperature rate and step temp mesh ********************************************************************//
-
 			// Step temp mesh and ensure current temp is in expected range
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * (thermal_diffusivity*laplacian_mesh[i][j][k]+(enthalpy_of_reaction*cure_rate)/specific_heat);
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] < 0.0 ? 0.0 : temp_mesh[i][j][k];
@@ -1791,7 +2033,7 @@ void Finite_Element_Solver::step_meshes()
 				}
 
 			}
-		}
+		} */
 		
 		// Reduce collected front information
 		#pragma omp critical

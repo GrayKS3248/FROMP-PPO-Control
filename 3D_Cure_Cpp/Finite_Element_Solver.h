@@ -118,8 +118,9 @@ double laplacian_consts_2nd[3][5] = { { 11.0/12.0, -5.0/3.0,  1.0/2.0,  1.0/3.0,
 				      { -1.0/12.0,  1.0/3.0,  1.0/2.0, -5.0/3.0, 11.0/12.0 } };
 
 //******************************************************************** TEMP FINE/COARSE MESH PARAMETERS ********************************************************************//
-double time_step_fine = 0.001;
+
 double length_fine = 0.01;
+int fine_time_steps_per_coarse = 10;
 int fine_steps_per_coarse_step_x = 4;
 int fine_steps_per_coarse_step_y = 2;
 int fine_steps_per_coarse_step_z = 2;
@@ -134,6 +135,11 @@ int coarse_mesh_start_x_index;
 int coarse_steps_per_fine_mesh_x;
 int coarse_steps_per_fine_mesh_y;
 int coarse_steps_per_fine_mesh_z;
+
+double fine_time_step;
+double x_step_fine;
+double y_step_fine;
+double z_step_fine;
 
 double*** temp_mesh_fine;
 double*** cure_mesh_fine;
@@ -236,9 +242,14 @@ double z_step;
 double*** temp_mesh;
 double*** laplacian_mesh;
 double*** cure_mesh;
+
+// Boundary temperatures
 double*** lr_bc_temps;
 double*** fb_bc_temps;
 double*** tb_bc_temps;
+double*** lr_bc_temps_fine;
+double*** fb_bc_temps_fine;
+double*** tb_bc_temps_fine;
 
 // Front mesh and parameters
 int** front_indices;
