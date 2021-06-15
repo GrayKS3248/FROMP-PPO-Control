@@ -16,10 +16,6 @@ Finite_Element_Solver::Finite_Element_Solver()
 		throw 1;
 	}
 	
-	// Set front detection parameters
-	front_location_indicies_length = 10 * num_vert_width;
-	front_filter_alpha = 1.0 - exp(-time_step/front_time_const);
-	
 	// Set randomization seed
 	srand(time(NULL));
 
@@ -177,6 +173,10 @@ Finite_Element_Solver::Finite_Element_Solver()
 	num_vert_width_fine = fine_steps_per_coarse_step_y*num_vert_width;
 	num_vert_depth_fine = fine_steps_per_coarse_step_z*num_vert_depth;
 	 
+	// Set front detection parameters
+	front_location_indicies_length = 10 * num_vert_width_fine;
+	front_filter_alpha = 1.0 - exp(-time_step/front_time_const);
+	 
 	// Allocate memory space for fine temperature and cure mesh
 	temp_mesh_fine = new double**[num_vert_length_fine];
 	laplacian_mesh_fine = new double**[num_vert_length_fine];
@@ -208,7 +208,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 	copy_coarse_to_fine();
 	
 	// Handle fine time stepping parameters
-	fine_time_step = time_step / (double)fine_time_steps_per_coarse;
+	time_step_fine = time_step / (double)fine_time_steps_per_coarse;
 
 	// Init front mesh and parameters
 	front_indices = new int*[2];
@@ -223,12 +223,15 @@ Finite_Element_Solver::Finite_Element_Solver()
 	threadwise_front_indices = new int**[2];
 	threadwise_front_indices[0] = new int*[omp_get_max_threads()];
 	threadwise_front_indices[1] = new int*[omp_get_max_threads()];
+	threadwise_front_x_loc = new double*[omp_get_max_threads()];
+	threadwise_front_temp = new double*[omp_get_max_threads()];
 	for(int i = 0; i < omp_get_max_threads(); i++)
 	{
 		threadwise_index[i] = 0;
-		
 		threadwise_front_indices[0][i] = new int[front_location_indicies_length];
 		threadwise_front_indices[1][i] = new int[front_location_indicies_length];
+		threadwise_front_x_loc[i] = new double[front_location_indicies_length];
+		threadwise_front_temp[i] = new double[front_location_indicies_length];
 	}
 	front_mean_x_loc = 0.0;
 	front_temp = initial_temperature;
@@ -405,6 +408,15 @@ Finite_Element_Solver::~Finite_Element_Solver()
 		delete[] threadwise_front_indices[i];
 	}
 	delete[] threadwise_front_indices;
+	
+	// Threadwise front location and temperatures
+	for(int i = 0; i != omp_get_max_threads(); ++i)
+	{
+		delete[] threadwise_front_x_loc[i];
+		delete[] threadwise_front_temp[i];
+	}
+	delete[] threadwise_front_x_loc;
+	delete[] threadwise_front_temp;
 	
 	// Coarse mesh
 	for(int i = 0; i != num_vert_length; ++i)
@@ -1269,6 +1281,23 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
+		config_file >> config_dump >> length_fine;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> fine_time_steps_per_coarse;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> fine_steps_per_coarse_step_x;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> fine_steps_per_coarse_step_y;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> fine_steps_per_coarse_step_z;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+
 		config_file >> config_dump >> temperature_limit;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
@@ -1369,32 +1398,32 @@ int Finite_Element_Solver::load_config()
 void Finite_Element_Solver::perturb_mesh(double*** arr, double delta)
 {
 	// Get magnitude and biases
-	double mag_1 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;
-	double mag_2 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;
-	double mag_3 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;
-	double bias_1 = 4.0 * M_PI * (double)rand()/(double)RAND_MAX - 2.0 * M_PI;
-	double bias_2 = 4.0 * M_PI * (double)rand()/(double)RAND_MAX - 2.0 * M_PI;
-	double bias_3 = 4.0 * M_PI * (double)rand()/(double)RAND_MAX - 2.0 * M_PI;
-	double min_mag = (double)rand()/(double)RAND_MAX;
-	double max_mag = (double)rand()/(double)RAND_MAX;
-	double min_x_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
-	double max_x_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
-	double min_y_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
-	double max_y_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
-	double min_z_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
-	double max_z_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;
+	double mag_1 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;			// -1.0 to 1.0
+	double mag_2 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;			// -1.0 to 1.0
+	double mag_3 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;			// -1.0 to 1.0
+	double bias_1 = 4.0 * M_PI * (double)rand()/(double)RAND_MAX - 2.0 * M_PI;	// -2pi to 2pi
+	double bias_2 = 4.0 * M_PI * (double)rand()/(double)RAND_MAX - 2.0 * M_PI;	// -2pi to 2pi
+	double bias_3 = 4.0 * M_PI * (double)rand()/(double)RAND_MAX - 2.0 * M_PI;	// -2pi to 2pi
+	double min_mag = (double)rand()/(double)RAND_MAX;				// 0.0 to 1.0
+	double max_mag = (double)rand()/(double)RAND_MAX;				// 0.0 to 1.0
+	double min_x_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;			// -1.0 to 1.0
+	double max_x_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;			// -1.0 to 1.0
+	double min_y_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;			// -1.0 to 1.0
+	double max_y_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;			// -1.0 to 1.0
+	double min_z_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;			// -1.0 to 1.0
+	double max_z_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;			// -1.0 to 1.0
 
 	// Get x*y*z over perturbation field
 	double x, y, z, xyz, perturbation;
-	double scale = (mag_1 + mag_2 + mag_3);
+	double scale = abs(mag_1) + abs(mag_2) + abs(mag_3);
 	
 	for (int i = 0; i < num_vert_length; i++)
 	for (int j = 0; j < num_vert_width; j++)
 	for (int k = 0; k < num_vert_depth; k++)
 	{
-		x = -2.0*min_mag+min_x_bias + (2.0*max_mag+max_x_bias + 2.0*min_mag-min_x_bias) * ((double)i / (num_vert_length-1));
-		y = -2.0*min_mag+min_y_bias + (2.0*max_mag+max_y_bias + 2.0*min_mag-min_y_bias) * ((double)j / (num_vert_width-1));
-		z =-2.0*min_mag+min_z_bias + (2.0*max_mag+max_z_bias + 2.0*min_mag-min_z_bias) * ((double)k / (num_vert_depth-1));
+		x = -2.0*min_mag + min_x_bias + (2.0*max_mag + max_x_bias + 2.0*min_mag - min_x_bias) * ((double)i / (num_vert_length-1));
+		y = -2.0*min_mag + min_y_bias + (2.0*max_mag + max_y_bias + 2.0*min_mag - min_y_bias) * ((double)j / (num_vert_width-1));
+		z = -2.0*min_mag + min_z_bias + (2.0*max_mag + max_z_bias + 2.0*min_mag - min_z_bias) * ((double)k / (num_vert_depth-1));
 		xyz = x * y * z;
 		
 		perturbation = mag_1 * sin(xyz + bias_1) + mag_2 * sin(2.0*xyz + bias_2) + mag_3 * sin(3.0*xyz + bias_3);
@@ -1543,6 +1572,7 @@ void Finite_Element_Solver::slide_fine_mesh_right()
 */
 void Finite_Element_Solver::copy_fine_to_coarse()
 {	
+	
 	for(int i = 0; i < coarse_steps_per_fine_mesh_x; i++)
 	for(int j = 0; j < coarse_steps_per_fine_mesh_y; j++)
 	for(int k = 0; k < coarse_steps_per_fine_mesh_z; k++)
@@ -1578,24 +1608,45 @@ void Finite_Element_Solver::copy_fine_to_coarse()
 	}
 }
 
+/** Compute the location in the fine temperature mesh at which the ith temperature value is stored
+* @param x location associated index
+* @return Index of fine mesh at which the x location index value is stored
+*/
+int Finite_Element_Solver::get_ind(int i)
+{
+	int i_access = i + fine_mesh_start_x_index;
+	if( i_access >= num_vert_length_fine )
+	{
+		i_access = i_access - num_vert_length_fine;
+	}
+	
+	return i_access;
+}
+
 /** Updates the virtual temperatures outside of the mesh on the left and right faces based on the boundary conditions
 */
 void Finite_Element_Solver::update_lr_bc_temps()
 {
 	// Coarse mesh BCs
-	// TODO: DO NOT CALCULATE COARSE BCs OVER FINE MESH
 	for(int j = 0; j < num_vert_width; j++)
 	for(int k = 0; k < num_vert_depth; k++)
 	{
-		if ((current_time >= trigger_time) && (current_time < trigger_time + trigger_duration))
+		if(coarse_mesh_start_x_index != 0)
 		{
-			lr_bc_temps[0][j][k] = temp_mesh[0][j][k] - (x_step/thermal_conductivity)*(htc*(temp_mesh[0][j][k]-ambient_temperature)-trigger_flux);
+			if ((current_time >= trigger_time) && (current_time < trigger_time + trigger_duration))
+			{
+				lr_bc_temps[0][j][k] = temp_mesh[0][j][k] - (x_step/thermal_conductivity)*(htc*(temp_mesh[0][j][k]-ambient_temperature)-trigger_flux);
+			}
+			else
+			{
+				lr_bc_temps[0][j][k] = temp_mesh[0][j][k] - (x_step*htc/thermal_conductivity)*(temp_mesh[0][j][k]-ambient_temperature);
+			}
 		}
-		else
+		
+		if(coarse_mesh_start_x_index + coarse_steps_per_fine_mesh_x != num_vert_length)
 		{
-			lr_bc_temps[0][j][k] = temp_mesh[0][j][k] - (x_step*htc/thermal_conductivity)*(temp_mesh[0][j][k]-ambient_temperature);
+			lr_bc_temps[1][j][k] = temp_mesh[num_vert_length-1][j][k] - (x_step*htc/thermal_conductivity)*(temp_mesh[num_vert_length-1][j][k]-ambient_temperature);
 		}
-		lr_bc_temps[1][j][k] = temp_mesh[num_vert_length-1][j][k] - (x_step*htc/thermal_conductivity)*(temp_mesh[num_vert_length-1][j][k]-ambient_temperature);
 	}
 	
 	// Fine mesh BCs
@@ -1611,11 +1662,11 @@ void Finite_Element_Solver::update_lr_bc_temps()
 		{
 			if ((current_time >= trigger_time) && (current_time < trigger_time + trigger_duration))
 			{
-				lr_bc_temps_fine[0][j][k] = temp_mesh_fine[0][j][k] - (x_step_fine/thermal_conductivity)*(htc*(temp_mesh_fine[0][j][k]-ambient_temperature)-trigger_flux);
+				lr_bc_temps_fine[0][j][k] = temp_mesh_fine[get_ind(0)][j][k] - (x_step_fine/thermal_conductivity)*(htc*(temp_mesh_fine[get_ind(0)][j][k]-ambient_temperature)-trigger_flux);
 			}
 			else
 			{
-				lr_bc_temps_fine[0][j][k] = temp_mesh_fine[0][j][k] - (x_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[0][j][k]-ambient_temperature);
+				lr_bc_temps_fine[0][j][k] = temp_mesh_fine[get_ind(0)][j][k] - (x_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[get_ind(0)][j][k]-ambient_temperature);
 			}
 		}
 		// Left BC if fine mesh is in middle of domain
@@ -1628,7 +1679,7 @@ void Finite_Element_Solver::update_lr_bc_temps()
 		// Right BC if fine mesh is on right edge of domain
 		if(coarse_mesh_start_x_index + coarse_steps_per_fine_mesh_x == num_vert_length)
 		{
-			lr_bc_temps_fine[1][j][k] = temp_mesh_fine[num_vert_length_fine-1][j][k] - (x_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[num_vert_length_fine-1][j][k]-ambient_temperature);
+			lr_bc_temps_fine[1][j][k] = temp_mesh_fine[get_ind(num_vert_length_fine-1)][j][k] - (x_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[get_ind(num_vert_length_fine-1)][j][k]-ambient_temperature);
 		}
 		// Right BC if fine mesh is in middle of domain
 		else
@@ -1644,20 +1695,22 @@ void Finite_Element_Solver::update_lr_bc_temps()
 void Finite_Element_Solver::update_fb_bc_temps()
 {
 	// Coarse mesh BCs
-	// TODO: DO NOT CALCULATE COARSE BCs OVER FINE MESH
 	for(int j = 0; j < num_vert_length; j++)
 	for(int k = 0; k < num_vert_depth; k++)
 	{
-		fb_bc_temps[0][j][k] = temp_mesh[j][0][k] - (y_step*htc/thermal_conductivity)*(temp_mesh[j][0][k]-ambient_temperature);
-		fb_bc_temps[1][j][k] = temp_mesh[j][num_vert_width-1][k] - (y_step*htc/thermal_conductivity)*(temp_mesh[j][num_vert_width-1][k]-ambient_temperature);
+		if( !((j > coarse_mesh_start_x_index) && (j < coarse_mesh_start_x_index+coarse_steps_per_fine_mesh_x-1)) )
+		{
+			fb_bc_temps[0][j][k] = temp_mesh[j][0][k] - (y_step*htc/thermal_conductivity)*(temp_mesh[j][0][k]-ambient_temperature);
+			fb_bc_temps[1][j][k] = temp_mesh[j][num_vert_width-1][k] - (y_step*htc/thermal_conductivity)*(temp_mesh[j][num_vert_width-1][k]-ambient_temperature);
+		}
 	}
 	
 	// Fine mesh BCs
 	for(int j = 0; j < num_vert_length_fine; j++)
 	for(int k = 0; k < num_vert_depth_fine; k++)
 	{
-		fb_bc_temps_fine[0][j][k] = temp_mesh_fine[j][0][k] - (y_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[j][0][k]-ambient_temperature);
-		fb_bc_temps_fine[1][j][k] = temp_mesh_fine[j][num_vert_width_fine-1][k] - (y_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[j][num_vert_width_fine-1][k]-ambient_temperature);
+		fb_bc_temps_fine[0][get_ind(j)][k] = temp_mesh_fine[get_ind(j)][0][k] - (y_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[get_ind(j)][0][k]-ambient_temperature);
+		fb_bc_temps_fine[1][get_ind(j)][k] = temp_mesh_fine[get_ind(j)][num_vert_width_fine-1][k] - (y_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[get_ind(j)][num_vert_width_fine-1][k]-ambient_temperature);
 	}
 }
 
@@ -1666,24 +1719,26 @@ void Finite_Element_Solver::update_fb_bc_temps()
 void Finite_Element_Solver::update_tb_bc_temps()
 {
 	// Coarse mesh BCs
-	// TODO: DO NOT CALCULATE COARSE BCs OVER FINE MESH
 	for(int j = 0; j < num_vert_length; j++)
 	for(int k = 0; k < num_vert_width; k++)
 	{
-		tb_bc_temps[0][j][k] = temp_mesh[j][k][0] - (z_step*htc/thermal_conductivity)*(temp_mesh[j][k][0]-ambient_temperature);
-		tb_bc_temps[1][j][k] = temp_mesh[j][k][num_vert_depth-1] - (z_step*htc/thermal_conductivity)*(temp_mesh[j][k][num_vert_depth-1]-ambient_temperature);
+		if( !((j > coarse_mesh_start_x_index) && (j < coarse_mesh_start_x_index+coarse_steps_per_fine_mesh_x-1)) )
+		{
+			tb_bc_temps[0][j][k] = temp_mesh[j][k][0] - (z_step*htc/thermal_conductivity)*(temp_mesh[j][k][0]-ambient_temperature);
+			tb_bc_temps[1][j][k] = temp_mesh[j][k][num_vert_depth-1] - (z_step*htc/thermal_conductivity)*(temp_mesh[j][k][num_vert_depth-1]-ambient_temperature);
+		}
 	}
 	
 	// Fine mesh BCs
 	for(int j = 0; j < num_vert_length_fine; j++)
 	for(int k = 0; k < num_vert_width_fine; k++)
 	{
-		tb_bc_temps_fine[0][j][k] = temp_mesh_fine[j][k][0] - (z_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[j][k][0]-ambient_temperature);
-		tb_bc_temps_fine[1][j][k] = temp_mesh_fine[j][k][num_vert_depth_fine-1] - (z_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[j][k][num_vert_depth_fine-1]-ambient_temperature);
+		tb_bc_temps_fine[0][get_ind(j)][k] = temp_mesh_fine[get_ind(j)][k][0] - (z_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[get_ind(j)][k][0]-ambient_temperature);
+		tb_bc_temps_fine[1][get_ind(j)][k] = temp_mesh_fine[get_ind(j)][k][num_vert_depth_fine-1] - (z_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[get_ind(j)][k][num_vert_depth_fine-1]-ambient_temperature);
 	}
 }
 
-/** Calculates the 7-point stencil 3D laplacian. 1st order in z direction, 2nd order in y direction, and 3rd order in x direction
+/** Calculates the 7-point stencil 3D laplacian of the coarse mesh. 1st order in z direction, 2nd order in y direction, and 3rd order in x direction
 * @param i index at which the Laplacian is calculated
 * @param j index at which the Laplacian is calculated
 * @param k index at which the Laplacian is calculated
@@ -1766,6 +1821,90 @@ double Finite_Element_Solver::get_laplacian(int i, int j, int k)
 	return d2t_dx2 + d2t_dy2 + d2t_dz2;
 }
 
+/** Calculates the 7-point stencil 3D laplacian of the fine mesh. 1st order in z direction, 2nd order in y direction, and 3rd order in x direction
+* @param i index at which the Laplacian is calculated
+* @param j index at which the Laplacian is calculated
+* @param k index at which the Laplacian is calculated
+* @return 7-point stencil, 3rd order, 3D laplacian at (i,j,k). 1st order in z direction, 2nd order in y direction, and 3rd order in x direction
+*/
+double Finite_Element_Solver::get_laplacian_fine(int i, int j, int k)
+{
+	int i_ind = get_ind(i);
+	double T_000 = temp_mesh_fine[i_ind][j][k];
+	double d2t_dx2 = 0.0;
+	double d2t_dy2 = 0.0;
+	double d2t_dz2 = 0.0;
+	
+	// Right face BC
+	if (i==0)
+	{
+		d2t_dx2 = lr_bc_temps_fine[0][j][k] - 2.0*T_000 + temp_mesh_fine[get_ind(i+1)][j][k];
+	}
+	// Left face BC
+	else if(i==num_vert_length_fine-1)
+	{
+		d2t_dx2 = temp_mesh_fine[get_ind(i-1)][j][k] - 2.0*T_000 + lr_bc_temps_fine[1][j][k];
+	}
+	// Bulk material
+	else
+	{
+		int start_p = -3;
+		start_p = (i==1) ? -1 : start_p;
+		start_p = (i==2) ? -2 : start_p;
+		start_p = (i==num_vert_length_fine-3) ? -4 : start_p;
+		start_p = (i==num_vert_length_fine-2) ? -5 : start_p;
+		for (int p = start_p; p < start_p + 7; p++)
+		{
+			d2t_dx2 += laplacian_consts_3rd[abs(start_p)-1][p-start_p] * temp_mesh_fine[get_ind(i+p)][j][k];
+		}
+	}
+	d2t_dx2 = d2t_dx2 / (x_step_fine*x_step_fine);
+	
+	
+	// Front face BC
+	if (j==0)
+	{
+		d2t_dy2 = fb_bc_temps_fine[0][i_ind][k] - 2.0*T_000 + temp_mesh_fine[i_ind][j+1][k];
+	}
+	// Back face BC
+	else if(j==num_vert_width_fine-1)
+	{
+		d2t_dy2 = temp_mesh_fine[i_ind][j-1][k] - 2.0*T_000 + fb_bc_temps_fine[1][i_ind][k];
+	}
+	// Bulk material
+	else
+	{
+		int start_q = -2;
+		start_q = (j==1) ? -1 : start_q;
+		start_q = (j==num_vert_width_fine-2) ? -3 : start_q;
+		for (int q = start_q; q < start_q + 5; q++)
+		{
+			d2t_dy2 += laplacian_consts_2nd[abs(start_q)-1][q-start_q] * temp_mesh_fine[i_ind][j+q][k];
+		}
+	}
+	d2t_dy2 = d2t_dy2 / (y_step_fine*y_step_fine);
+	
+	
+	// Top face BC
+	if (k==0)
+	{
+		d2t_dz2 = tb_bc_temps_fine[0][i_ind][j] - 2.0*T_000 + temp_mesh_fine[i_ind][j][k+1];
+	}
+	// Bottom face BC
+	else if(k==num_vert_depth_fine-1)
+	{
+		d2t_dz2 = temp_mesh_fine[i_ind][j][k-1] - 2.0*T_000 + tb_bc_temps_fine[1][i_ind][j];
+	}
+	// Bulk material
+	else
+	{
+		d2t_dz2 = temp_mesh_fine[i_ind][j][k-1] - 2.0*T_000 + temp_mesh_fine[i_ind][j][k+1];
+	}
+	d2t_dz2 = d2t_dz2 / (z_step_fine*z_step_fine);
+	
+	return d2t_dx2 + d2t_dy2 + d2t_dz2;
+}
+
 /** Calculates the cure rate at every point in the 3D mesh and uses this data to update the cure, temperature, and front meshes
 */
 void Finite_Element_Solver::step_meshes()
@@ -1774,9 +1913,6 @@ void Finite_Element_Solver::step_meshes()
 	update_lr_bc_temps();
 	update_fb_bc_temps();
 	update_tb_bc_temps();
-
-	//slide_fine_mesh_right();
-	//copy_fine_to_coarse();
 
 	// Reset front variables
 	for(int i = 0; i < front_location_indicies_length; i++)
@@ -1795,7 +1931,7 @@ void Finite_Element_Solver::step_meshes()
 	// Update the mesh
 	#pragma omp parallel
 	{	
-		//******************************************************************** Left side coarse ********************************************************************//
+		//***************************************************************************************** Left coarse *****************************************************************************************//
 		// Calculate the laplacian mesh for the left side of the coarse mesh
 		#pragma	omp for collapse(3)
 		for (int i = 0; i < coarse_mesh_start_x_index; i++)
@@ -1855,7 +1991,7 @@ void Finite_Element_Solver::step_meshes()
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] < 0.0 ? 0.0 : temp_mesh[i][j][k];
 		}
 		
-		//******************************************************************** Right side coarse ********************************************************************//
+		//***************************************************************************************** Right coarse *****************************************************************************************//
 		// Calculate the laplacian mesh for the right side of the coarse mesh
 		#pragma	omp for collapse(3)
 		for (int i = coarse_mesh_start_x_index + coarse_steps_per_fine_mesh_x; i < num_vert_length; i++)
@@ -1915,125 +2051,153 @@ void Finite_Element_Solver::step_meshes()
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] < 0.0 ? 0.0 : temp_mesh[i][j][k];
 		}
 		
-		// Parallel for loop for mesh update
-		/* #pragma	omp for collapse(3) nowait
-		for (int i = 0; i < num_vert_length; i++)
-		for (int j = 0; j < num_vert_width; j++)
-		for (int k = 0; k < num_vert_depth; k++)
-		{
-			double exponential_term = 0.0;
-			double cure_rate = 0.0;
-			double first_stage_cure_rate = 0.0;
-			double second_stage_cure = 0.0;
-			double second_stage_cure_rate = 0.0;
-			double third_stage_cure = 0.0;
-			double third_stage_cure_rate = 0.0;
-			double fourth_stage_cure = 0.0;
-			double fourth_stage_cure_rate = 0.0;
-				
-			// Only calculate the cure rate if curing has started but is incomplete
-			if ((temp_mesh[i][j][k] >= cure_critical_temperature) && (cure_mesh[i][j][k] < 1.0))
+		//***************************************************************************************** Fine mesh *****************************************************************************************//
+		for(int subtime_ind = 0; subtime_ind < fine_time_steps_per_coarse; subtime_ind++)
+		{		
+			// Calculate the laplacian mesh for the fine section
+			#pragma	omp for collapse(3)
+			for (int i = 0; i < num_vert_length_fine; i++)
+			for (int j = 0; j < num_vert_width_fine; j++)
+			for (int k = 0; k < num_vert_depth_fine; k++)
 			{
-				if (use_DCPD_GC1)
+				laplacian_mesh_fine[get_ind(i)][j][k] = get_laplacian_fine(i, j, k);
+				if(isnan(laplacian_mesh_fine[get_ind(i)][j][k]))
 				{
-					cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * temp_mesh[i][j][k])) *
-					pow((1.0 - cure_mesh[i][j][k]), DCPD_GC1_model_fit_order) * 
-					(1.0 + DCPD_GC1_autocatalysis_const * cure_mesh[i][j][k]);
+					cout << "\n\nLaplacian NAN: (" << i << ", " << j << ", " << k << ") " << get_ind(i) << "\n";
+					cin.get();
 				}
-				else if (use_DCPD_GC2)
-				{
+			}
+		
+			// Update the temperature and cure mesh for the fine mesh
+			#pragma	omp for collapse(3) nowait
+			for (int i = 0; i < num_vert_length_fine; i++)
+			for (int j = 0; j < num_vert_width_fine; j++)
+			for (int k = 0; k < num_vert_depth_fine; k++)
+			{
+				int i_ind = get_ind(i);
 				
-					exponential_term = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * temp_mesh[i][j][k]));
-				
-					// Stage 1
-					first_stage_cure_rate = exponential_term *  
-					pow((1.0 - cure_mesh[i][j][k]), DCPD_GC2_model_fit_order) * 
-					pow(cure_mesh[i][j][k], DCPD_GC2_m_fit) * 
-					(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh[i][j][k] - DCPD_GC2_critical_cure))));
+				double exponential_term = 0.0;
+				double cure_rate = 0.0;
+				double first_stage_cure_rate = 0.0;
+				double second_stage_cure = 0.0;
+				double second_stage_cure_rate = 0.0;
+				double third_stage_cure = 0.0;
+				double third_stage_cure_rate = 0.0;
+				double fourth_stage_cure = 0.0;
+				double fourth_stage_cure_rate = 0.0;
 					
-					// FE for shallow cure rates
-					if( first_stage_cure_rate < 5.0e-1)
+				// Only calculate the cure rate if curing has started but is incomplete
+				if ((temp_mesh_fine[i_ind][j][k] >= cure_critical_temperature) && (cure_mesh_fine[i_ind][j][k] < 1.0))
+				{
+					if (use_DCPD_GC1)
 					{
-						cure_rate = first_stage_cure_rate;
+						cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * temp_mesh_fine[i_ind][j][k])) *
+						pow((1.0 - cure_mesh_fine[i_ind][j][k]), DCPD_GC1_model_fit_order) * 
+						(1.0 + DCPD_GC1_autocatalysis_const * cure_mesh_fine[i_ind][j][k]);
+					}
+					else if (use_DCPD_GC2)
+					{
+					
+						exponential_term = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * temp_mesh_fine[i_ind][j][k]));
+					
+						// Stage 1
+						first_stage_cure_rate = exponential_term *  
+						pow((1.0 - cure_mesh_fine[i_ind][j][k]), DCPD_GC2_model_fit_order) * 
+						pow(cure_mesh_fine[i_ind][j][k], DCPD_GC2_m_fit) * 
+						(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh_fine[i_ind][j][k] - DCPD_GC2_critical_cure))));
+						
+						// FE for shallow cure rates
+						if( first_stage_cure_rate < 5.0e-1)
+						{
+							cure_rate = first_stage_cure_rate;
+						}
+						
+						// RK4 for steep cure rates
+						else
+						{
+							// Stage 2
+							second_stage_cure = cure_mesh_fine[i_ind][j][k] + 0.5*time_step_fine*first_stage_cure_rate;
+							if(second_stage_cure<1.0)
+							{
+								second_stage_cure_rate = exponential_term *  
+								pow((1.0 - second_stage_cure), DCPD_GC2_model_fit_order) * 
+								pow(second_stage_cure, DCPD_GC2_m_fit) * 
+								(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(second_stage_cure - DCPD_GC2_critical_cure))));
+							}
+							else {second_stage_cure_rate=0.0;}
+							
+							// Stage 3
+							third_stage_cure = cure_mesh_fine[i_ind][j][k] + 0.5*time_step_fine*second_stage_cure_rate;
+							if(third_stage_cure<1.0)
+							{
+								third_stage_cure_rate = exponential_term *  
+								pow((1.0 - third_stage_cure), DCPD_GC2_model_fit_order) * 
+								pow(third_stage_cure, DCPD_GC2_m_fit) * 
+								(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(third_stage_cure - DCPD_GC2_critical_cure))));
+							}
+							else {third_stage_cure_rate=0.0;}
+							
+							// Stage 4
+							fourth_stage_cure = cure_mesh_fine[i_ind][j][k] + time_step_fine*third_stage_cure_rate;
+							if(fourth_stage_cure<1.0)
+							{
+								fourth_stage_cure = exponential_term *  
+								pow((1.0 - fourth_stage_cure), DCPD_GC2_model_fit_order) * 
+								pow(fourth_stage_cure, DCPD_GC2_m_fit) * 
+								(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(fourth_stage_cure - DCPD_GC2_critical_cure))));
+							}
+							else {fourth_stage_cure=0.0;}
+							
+							// Apply RK4 algorithm
+							cure_rate = (first_stage_cure_rate + 2.0*second_stage_cure_rate + 2.0*third_stage_cure_rate + fourth_stage_cure_rate)/6.0;
+							if(isnan(cure_rate) )
+							{
+								cout << "\n\nCure rate NAN: (" << i << ", " << j << ", " << k << ") " << get_ind(i) << "\n";
+								cin.get();
+							}
+						}
+
+					}
+					else if (use_COD)
+					{
+						cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * temp_mesh_fine[i_ind][j][k])) *  
+						pow((1.0 - cure_mesh_fine[i_ind][j][k]), COD_model_fit_order) * 
+						pow(cure_mesh_fine[i_ind][j][k], COD_m_fit);
 					}
 					
-					// RK4 for steep cure rates
-					else
+					// Limit cure rate such that a single time step will not yield a degree of cure greater than 1.0
+					cure_rate = cure_rate > (1.0 - cure_mesh_fine[i_ind][j][k])/time_step_fine ? (1.0 - cure_mesh_fine[i_ind][j][k])/time_step_fine : cure_rate;
+					cure_rate = cure_rate < 0.0 ? 0.0 : cure_rate;	
+				}
+				
+				// Step the cure_mesh
+				cure_mesh_fine[i_ind][j][k] = cure_mesh_fine[i_ind][j][k] + time_step_fine * cure_rate;
+					
+				// Ensure current cure is in expected range
+				cure_mesh_fine[i_ind][j][k] = cure_mesh_fine[i_ind][j][k] > 1.0 ? 1.0 : cure_mesh_fine[i_ind][j][k];
+				cure_mesh_fine[i_ind][j][k] = cure_mesh_fine[i_ind][j][k] < 0.0 ? 0.0 : cure_mesh_fine[i_ind][j][k];
+
+				// Step temp mesh and ensure current temp is in expected range
+				temp_mesh_fine[i_ind][j][k] = temp_mesh_fine[i_ind][j][k] + time_step_fine * (thermal_diffusivity*laplacian_mesh_fine[i_ind][j][k]+(enthalpy_of_reaction*cure_rate)/specific_heat);
+				temp_mesh_fine[i_ind][j][k] = temp_mesh_fine[i_ind][j][k] < 0.0 ? 0.0 : temp_mesh_fine[i_ind][j][k];
+				
+				if((subtime_ind==(fine_time_steps_per_coarse-1)) && (k==0) && (cure_rate >= front_cure_rate))
+				{
+					int thread_num = omp_get_thread_num();
+					if(threadwise_index[thread_num] < front_location_indicies_length)
 					{
-						// Stage 2
-						second_stage_cure = cure_mesh[i][j][k] + 0.5*time_step*first_stage_cure_rate;
-						if(second_stage_cure<1.0)
-						{
-							second_stage_cure_rate = exponential_term *  
-							pow((1.0 - second_stage_cure), DCPD_GC2_model_fit_order) * 
-							pow(second_stage_cure, DCPD_GC2_m_fit) * 
-							(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(second_stage_cure - DCPD_GC2_critical_cure))));
-						}
-						else {second_stage_cure_rate=0.0;}
+						threadwise_front_indices[0][thread_num][threadwise_index[thread_num]] = (int)floor((double)i / (double)fine_steps_per_coarse_step_x) + coarse_mesh_start_x_index;
+						threadwise_front_indices[1][thread_num][threadwise_index[thread_num]] = (int)floor((double)j / (double)fine_steps_per_coarse_step_y);
 						
-						// Stage 3
-						third_stage_cure = cure_mesh[i][j][k] + 0.5*time_step*second_stage_cure_rate;
-						if(third_stage_cure<1.0)
-						{
-							third_stage_cure_rate = exponential_term *  
-							pow((1.0 - third_stage_cure), DCPD_GC2_model_fit_order) * 
-							pow(third_stage_cure, DCPD_GC2_m_fit) * 
-							(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(third_stage_cure - DCPD_GC2_critical_cure))));
-						}
-						else {third_stage_cure_rate=0.0;}
+						threadwise_front_x_loc[thread_num][threadwise_index[thread_num]] = (((double)i / (double)fine_steps_per_coarse_step_x) + (double)coarse_mesh_start_x_index) * x_step;
+						threadwise_front_temp[thread_num][threadwise_index[thread_num]] = temp_mesh_fine[i_ind][j][k];
 						
-						// Stage 4
-						fourth_stage_cure = cure_mesh[i][j][k] + time_step*third_stage_cure_rate;
-						if(fourth_stage_cure<1.0)
-						{
-							fourth_stage_cure = exponential_term *  
-							pow((1.0 - fourth_stage_cure), DCPD_GC2_model_fit_order) * 
-							pow(fourth_stage_cure, DCPD_GC2_m_fit) * 
-							(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(fourth_stage_cure - DCPD_GC2_critical_cure))));
-						}
-						else {fourth_stage_cure=0.0;}
-						
-						// Apply RK4 algorithm
-						cure_rate = (first_stage_cure_rate + 2.0*second_stage_cure_rate + 2.0*third_stage_cure_rate + fourth_stage_cure_rate)/6.0;
+						threadwise_index[thread_num]++;
 					}
 
 				}
-				else if (use_COD)
-				{
-					cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * temp_mesh[i][j][k])) *  
-					pow((1.0 - cure_mesh[i][j][k]), COD_model_fit_order) * 
-					pow(cure_mesh[i][j][k], COD_m_fit);
-				}
-				
-				// Limit cure rate such that a single time step will not yield a degree of cure greater than 1.0
-				cure_rate = cure_rate > (1.0 - cure_mesh[i][j][k])/time_step ? (1.0 - cure_mesh[i][j][k])/time_step : cure_rate;
-				cure_rate = cure_rate < 0.0 ? 0.0 : cure_rate;	
 			}
-			
-			// Step the cure_mesh
-			cure_mesh[i][j][k] = cure_mesh[i][j][k] + time_step * cure_rate;
-				
-			// Ensure current cure is in expected range
-			cure_mesh[i][j][k] = cure_mesh[i][j][k] > 1.0 ? 1.0 : cure_mesh[i][j][k];
-			cure_mesh[i][j][k] = cure_mesh[i][j][k] < 0.0 ? 0.0 : cure_mesh[i][j][k];
-
-			// Step temp mesh and ensure current temp is in expected range
-			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * (thermal_diffusivity*laplacian_mesh[i][j][k]+(enthalpy_of_reaction*cure_rate)/specific_heat);
-			temp_mesh[i][j][k] = temp_mesh[i][j][k] < 0.0 ? 0.0 : temp_mesh[i][j][k];
-			
-			// Determine front location based on cure rates
-			if(k==0 && (cure_rate >= front_cure_rate))
-			{
-				int thread_num = omp_get_thread_num();
-				if(threadwise_index[thread_num] < front_location_indicies_length)
-				{
-					threadwise_front_indices[0][thread_num][threadwise_index[thread_num]] = i;
-					threadwise_front_indices[1][thread_num][threadwise_index[thread_num]] = j;
-					threadwise_index[thread_num]++;	
-				}
-
-			}
-		} */
+		}
 		
 		// Reduce collected front information
 		#pragma omp critical
@@ -2043,14 +2207,11 @@ void Finite_Element_Solver::step_meshes()
 			{
 				if( (i <= threadwise_index[thread_num]-1) && (num_front_instances < front_location_indicies_length) )
 				{
-					int curr_x_index = threadwise_front_indices[0][thread_num][i];
-					int curr_y_index = threadwise_front_indices[1][thread_num][i];
+					front_indices[0][num_front_instances] = threadwise_front_indices[0][thread_num][i];
+					front_indices[1][num_front_instances] = threadwise_front_indices[1][thread_num][i];
 					
-					front_indices[0][num_front_instances] = curr_x_index;
-					front_indices[1][num_front_instances] = curr_y_index;
-					
-					curr_front_temp += temp_mesh[curr_x_index][curr_y_index][0];
-					curr_front_mean_x_loc += mesh_x[curr_x_index][curr_y_index][0];
+					curr_front_temp += threadwise_front_temp[thread_num][i];
+					curr_front_mean_x_loc += threadwise_front_x_loc[thread_num][i];
 					
 					num_front_instances++;
 				}
@@ -2062,6 +2223,9 @@ void Finite_Element_Solver::step_meshes()
 		}
 	}
 	
+	// Copy fine mesh results to coarse mesh
+	copy_fine_to_coarse();
+	
 	//******************************************************************** Update the front location and velocity ********************************************************************//
 	if (num_front_instances != 0)
 	{
@@ -2072,6 +2236,15 @@ void Finite_Element_Solver::step_meshes()
 		front_vel += front_filter_alpha * (abs((curr_front_mean_x_loc - front_mean_x_loc) / time_step) - front_vel);
 		front_temp += front_filter_alpha * ((curr_front_temp / ((double)num_front_instances)) - front_temp);
 		front_mean_x_loc = curr_front_mean_x_loc;
+		
+		// Determine if fine mesh is to be slid to the right
+		int avg_front_coarse_ind = (int)floor(curr_front_mean_x_loc / x_step);
+		int cen_fine_mesh_coarse_ind = (int)floor( (double)coarse_mesh_start_x_index + (double)coarse_steps_per_fine_mesh_x/2.0 );
+		while( avg_front_coarse_ind > cen_fine_mesh_coarse_ind)
+		{
+			slide_fine_mesh_right();
+			avg_front_coarse_ind--;
+		}
 	}
 	
 	else

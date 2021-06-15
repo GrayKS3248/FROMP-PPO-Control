@@ -68,7 +68,8 @@ void reset();
 bool step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
 double get_reward();
 
-//******************************************************************** USER SET PARAMETERS ********************************************************************//
+
+//******************************************************************** CONSTANTS ********************************************************************//
 private:
 // Physical constants
 const double gas_const = 8.314;  // Joules / Mol * Kelvin
@@ -117,33 +118,6 @@ double laplacian_consts_2nd[3][5] = { { 11.0/12.0, -5.0/3.0,  1.0/2.0,  1.0/3.0,
 				      { -1.0/12.0,  4.0/3.0, -5.0/2.0,  4.0/3.0, -1.0/12.0 }, 
 				      { -1.0/12.0,  1.0/3.0,  1.0/2.0, -5.0/3.0, 11.0/12.0 } };
 
-//******************************************************************** TEMP FINE/COARSE MESH PARAMETERS ********************************************************************//
-
-double length_fine = 0.01;
-int fine_time_steps_per_coarse = 10;
-int fine_steps_per_coarse_step_x = 4;
-int fine_steps_per_coarse_step_y = 2;
-int fine_steps_per_coarse_step_z = 2;
-
-int num_vert_length_fine;
-int num_vert_width_fine;
-int num_vert_depth_fine;
-
-int fine_mesh_start_x_index;
-int coarse_mesh_start_x_index;
-
-int coarse_steps_per_fine_mesh_x;
-int coarse_steps_per_fine_mesh_y;
-int coarse_steps_per_fine_mesh_z;
-
-double fine_time_step;
-double x_step_fine;
-double y_step_fine;
-double z_step_fine;
-
-double*** temp_mesh_fine;
-double*** cure_mesh_fine;
-double*** laplacian_mesh_fine;
 
 //******************************************************************** CONFIG PARAMETERS ********************************************************************//
 // Simulation options
@@ -171,6 +145,13 @@ double depth;
 // Temporal parameters
 double sim_duration;
 double time_step;
+
+// Fine mesh parameters
+double length_fine;
+int fine_time_steps_per_coarse;
+int fine_steps_per_coarse_step_x;
+int fine_steps_per_coarse_step_y;
+int fine_steps_per_coarse_step_z;
 
 // Problem definition
 double temperature_limit;
@@ -210,10 +191,12 @@ double overage_reward_const;
 double front_shape_reward_const;
 double target_reward_const;
 
+
 //******************************************************************** CALCULATED PARAMETERS ********************************************************************//
 // Simulation time and target velocity index
 double current_time;
 int current_index;
+double time_step_fine;
 
 // Front calculation parameters
 int front_location_indicies_length;  // Length of memory to store front indices
@@ -237,11 +220,25 @@ double*** mesh_z;
 double x_step;
 double y_step;
 double z_step;
+int num_vert_length_fine;
+int num_vert_width_fine;
+int num_vert_depth_fine;
+double x_step_fine;
+double y_step_fine;
+double z_step_fine;
+int coarse_steps_per_fine_mesh_x;
+int coarse_steps_per_fine_mesh_y;
+int coarse_steps_per_fine_mesh_z;
+int fine_mesh_start_x_index;
+int coarse_mesh_start_x_index;
 
 // Temperature and cure meshes
 double*** temp_mesh;
 double*** laplacian_mesh;
 double*** cure_mesh;
+double*** temp_mesh_fine;
+double*** cure_mesh_fine;
+double*** laplacian_mesh_fine;
 
 // Boundary temperatures
 double*** lr_bc_temps;
@@ -254,6 +251,8 @@ double*** tb_bc_temps_fine;
 // Front mesh and parameters
 int** front_indices;
 int*** threadwise_front_indices;
+double** threadwise_front_x_loc;
+double** threadwise_front_temp;
 int* threadwise_index;
 double front_mean_x_loc;
 double front_temp;
@@ -274,16 +273,19 @@ double* input_location;
 // Input wattage mesh
 double** input_mesh;
 
+
 //******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
 void perturb_mesh(double*** arr, double delta);
 void copy_coarse_to_fine();
 void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_percent_rate_action);
 void slide_fine_mesh_right();
 void copy_fine_to_coarse();
+int get_ind(int i);
 void update_lr_bc_temps();
 void update_fb_bc_temps();
 void update_tb_bc_temps();
 double get_laplacian(int i, int j, int k);
+double get_laplacian_fine(int i, int j, int k);
 void step_meshes();
 bool step_time();
 int load_config();

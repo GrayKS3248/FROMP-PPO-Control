@@ -917,7 +917,7 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	}
 	
 	// Send all relevant data to save render and plot module
-	if(store_training_curves(save_render_plot, r_per_episode, critic_loss) == 1) {return 1;}
+/* 	if(store_training_curves(save_render_plot, r_per_episode, critic_loss) == 1) {return 1;}
 	if(store_stdev_history(save_render_plot, x_rate_stdev, y_rate_stdev, mag_rate_stdev) == 1) {return 1;}
 	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent) == 1) {return 1;}
 	if(store_field_history(save_render_plot, temperature_field, cure_field) == 1) {return 1;}
@@ -928,8 +928,8 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	if(store_options(save_render_plot, FES->get_control_speed()) == 1) {return 1;}
 
 	// Save, plot, and render
-	return save_agent_results(save_render_plot, agent);
-	//return 0;
+	return save_agent_results(save_render_plot, agent); */
+	return 0;
 }
 
 
@@ -953,7 +953,7 @@ int main()
 	double end_alpha = 1.0e-4;
 
 	// Rendering parameters
-	double frame_rate = 30.0;
+	double frame_rate = 1.0;
 
 	// Initialize FES
 	Finite_Element_Solver* FES;
