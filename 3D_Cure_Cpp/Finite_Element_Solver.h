@@ -162,7 +162,8 @@ double temp_rand_scale;
 
 // Front detection
 double front_time_const;
-double front_cure_rate;
+double front_min_cure;
+double front_max_cure;
 
 // Initial conditions
 double initial_temperature;
@@ -173,6 +174,10 @@ double initial_cure_delta;
 // Boundary conditions
 double htc;
 double ambient_temperature;
+double default_htc;
+double default_ambient_temperature;
+double htc_delta;
+double ambient_temperature_delta;
 
 // Trigger parameters
 double trigger_flux;

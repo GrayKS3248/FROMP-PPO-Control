@@ -23,6 +23,12 @@ Finite_Element_Solver::Finite_Element_Solver()
 	current_time = 0.0;  // Seconds
 	current_index = 0;   // Unitless
 	
+	// Randomize htc and ambient temperature
+	htc = default_htc + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * htc_delta;
+	ambient_temperature = default_ambient_temperature + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * ambient_temperature_delta;
+	htc = htc < 0.0 ? 0.0 : htc;
+	ambient_temperature = ambient_temperature < 0.0 ? 0.0 : ambient_temperature;
+	
 	// Monomer physical parameters
 	if (use_DCPD_GC1)
 	{
@@ -80,7 +86,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 	// Modify target vector based on user parameters
 	if (random_target)
 	{
-		double new_target = target - 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
+		double new_target = target + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * randomizing_scale;
 		for (int i = 0; i < sim_steps; i++)
 		{
 			target_vector[i] = new_target;
@@ -842,29 +848,44 @@ void Finite_Element_Solver::print_params()
 	}
 	cout << ")\n";
 	
-	// Target parameters
-	double mean = 0.0;
-	for (int i = 0; i < get_steps_per_episode(); i++)
-	{
-		mean += target_vector[i];
-	}
-	mean = mean / (double)get_steps_per_episode();
 	cout << "\nTarget(\n";
 	if (control_speed)
 	{
 		cout << "  (Type): Front speed\n";
-		if (const_target){cout << "  (Style): Constant target\n";}
-		else if (random_target){cout << "  (Style): Random target\n";}
-		else{cout << "  (Style): Switch target\n";}
-		cout << "  (Mean Target): " << mean  << " m/s\n";
+		if (const_target)
+		{
+			cout << "  (Style): Constant target\n";
+			cout << "  (Target): " << 1000.0*target_vel << " mm/s\n";
+		}
+		else if (random_target)
+		{
+			cout << "  (Style): Random target\n";
+			cout << "  (Target): " << 1000.0*target_vel << " mm/s +- " << 1000.0*vel_rand_scale << "mm/s\n";
+		}
+		else
+		{
+			cout << "  (Style): Switch target\n";
+			cout << "  (Target): " << 1000.0*target_vel << " mm/s +- " << 1000.0*vel_rand_scale << "mm/s\n";
+		}
 	}
 	else
 	{
 		cout << "  (Type): Front temperature\n";
-		if (const_target){cout << "  (Style): Constant target\n";}
-		else if (random_target){cout << "  (Style): Random target\n";}
-		else{cout << "  (Style): Switch target\n";}
-		cout << "  (Mean Target): " << mean  << " K\n";
+		if (const_target)
+		{
+			cout << "  (Style): Constant target\n";
+			cout << "  (Target): " << target_temp-273.15 << " C\n";
+		}
+		else if (random_target)
+		{
+			cout << "  (Style): Random target\n";
+			cout << "  (Target): " << target_temp-273.15 << " C +- " << temp_rand_scale << "C\n";
+		}
+		else
+		{
+			cout << "  (Style): Switch target\n";
+			cout << "  (Target): " << target_temp-273.15 << " C +- " << temp_rand_scale << "C\n";
+		}
 	}
 
 	
@@ -899,18 +920,29 @@ void Finite_Element_Solver::print_params()
 		cout << "  (Monomer): COD\n";
 		cout << "  (Catalyst): GC2\n";
 	}
-	cout << "  (Initial Temperature): " << initial_temperature-273.15 << "C +- " << initial_temp_delta << " C\n";
+	cout << "  (Initial Temperature): " << initial_temperature-273.15 << " C +- " << initial_temp_delta << " C\n";
 	cout << "  (Initial Cure): " << initial_cure << " +- " << initial_cure_delta << "\n";
-	cout << "  (HTC): " << htc << " W/m^2-K\n";
 	cout << ")\n";
+	
+	// Coarse Mesh
+	cout << "\nCoarse Mesh(\n";
+	cout << "  (Dimensions): " << 1000.0*length << " x " << 1000.0*width << " x " << 1000.0*depth << " mm\n";
+	cout << "  (Grid): " << num_vert_length << " x " << num_vert_width << " x " << num_vert_depth << "\n";
+	cout << "  (Time Step): " << 1000.0*time_step << " ms\n";
+	cout << ")\n\n";
+	
+	// Fine Mesh
+	cout << "\nFine Mesh(\n";
+	cout << "  (Fine Dimensions): " << 1000.0*length_fine << " x " << 1000.0*width << " x " << 1000.0*depth << " mm\n";
+	cout << "  (Fine Grid): " << num_vert_length_fine << " x " << num_vert_width_fine << " x " << num_vert_depth_fine << "\n";
+	cout << "  (Fine Time Step): " << 1000.0*time_step_fine << " ms\n";
+	cout << ")\n\n";
 	
 	// Environment
 	cout << "\nEnvironment(\n";
-	cout << "  (Dimensions): " << 1000.0*length << " x " << 1000.0*width << " x " << 1000.0*depth << " mm\n";
-	cout << "  (Grid): " << num_vert_length << " x " << num_vert_width << " x " << num_vert_depth << "\n";
 	cout << "  (Duration): " << sim_duration << " s\n";
-	cout << "  (Time Step): " << 1000.0*time_step << " ms\n";
-	cout << "  (Ambient Temperature): " << ambient_temperature-273.15 << " C\n";
+	cout << "  (Ambient Temperature): " << ambient_temperature-273.15 << " C +- " << ambient_temperature_delta << " C\n";
+	cout << "  (HTC): " << htc << " W/m^2-K +- " << htc_delta << " W/m^2-K\n";
 	cout << ")\n\n";
 }
 
@@ -922,6 +954,12 @@ void Finite_Element_Solver::reset()
 	// Simulation time and target velocity index
 	current_time = 0.0;
 	current_index = 0;
+
+	// Randomize htc and ambient temperature
+	htc = default_htc + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * htc_delta;
+	ambient_temperature = default_ambient_temperature + 2.0 * ((double)rand()/(double)RAND_MAX - 0.5) * ambient_temperature_delta;
+	htc = htc < 0.0 ? 0.0 : htc;
+	ambient_temperature = ambient_temperature < 0.0 ? 0.0 : ambient_temperature;
 
 	// Calculate the target temporal vector and define the current target
 	int sim_steps = get_steps_per_episode();
@@ -1214,7 +1252,7 @@ int Finite_Element_Solver::load_config()
 			control_speed = true;
 			control_temperature = false;
 		}
-		else if (string_dump.compare("temperature")==0)
+		else if (string_dump.compare("temp")==0)
 		{
 			control_speed = false;
 			control_temperature = true;
@@ -1318,7 +1356,10 @@ int Finite_Element_Solver::load_config()
 		config_file >> config_dump >> front_time_const;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 
-		config_file >> config_dump >> front_cure_rate;
+		config_file >> config_dump >> front_min_cure;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+
+		config_file >> config_dump >> front_max_cure;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1337,10 +1378,16 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
-		config_file >> config_dump >> htc;
+		config_file >> config_dump >> default_htc;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
-		config_file >> config_dump >> ambient_temperature;
+		config_file >> config_dump >> default_ambient_temperature;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> htc_delta;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> ambient_temperature_delta;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1445,7 +1492,7 @@ void Finite_Element_Solver::copy_coarse_to_fine()
 	for(int k = 0; k < num_vert_depth_fine; k++)
 	{	
 		// Determine location in coarse mesh
-		int curr_coarse_x_index = (int)floor((double)i / (double)fine_steps_per_coarse_step_x);
+		int curr_coarse_x_index = (int)floor((double)i / (double)fine_steps_per_coarse_step_x) + coarse_mesh_start_x_index;
 		int curr_coarse_y_index = (int)floor((double)j / (double)fine_steps_per_coarse_step_y);
 		int curr_coarse_z_index = (int)floor((double)k / (double)fine_steps_per_coarse_step_z);
 		
@@ -1572,7 +1619,7 @@ void Finite_Element_Solver::slide_fine_mesh_right()
 */
 void Finite_Element_Solver::copy_fine_to_coarse()
 {	
-	
+	#pragma omp parallel for collapse(3)
 	for(int i = 0; i < coarse_steps_per_fine_mesh_x; i++)
 	for(int j = 0; j < coarse_steps_per_fine_mesh_y; j++)
 	for(int k = 0; k < coarse_steps_per_fine_mesh_z; k++)
@@ -1724,7 +1771,7 @@ void Finite_Element_Solver::update_tb_bc_temps()
 	{
 		if( !((j > coarse_mesh_start_x_index) && (j < coarse_mesh_start_x_index+coarse_steps_per_fine_mesh_x-1)) )
 		{
-			tb_bc_temps[0][j][k] = temp_mesh[j][k][0] - (z_step*htc/thermal_conductivity)*(temp_mesh[j][k][0]-ambient_temperature);
+			tb_bc_temps[0][j][k] = temp_mesh[j][k][0] - (z_step/thermal_conductivity)*(htc*(temp_mesh[j][k][0]-ambient_temperature)-input_mesh[j][k]);
 			tb_bc_temps[1][j][k] = temp_mesh[j][k][num_vert_depth-1] - (z_step*htc/thermal_conductivity)*(temp_mesh[j][k][num_vert_depth-1]-ambient_temperature);
 		}
 	}
@@ -1733,7 +1780,10 @@ void Finite_Element_Solver::update_tb_bc_temps()
 	for(int j = 0; j < num_vert_length_fine; j++)
 	for(int k = 0; k < num_vert_width_fine; k++)
 	{
-		tb_bc_temps_fine[0][get_ind(j)][k] = temp_mesh_fine[get_ind(j)][k][0] - (z_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[get_ind(j)][k][0]-ambient_temperature);
+		int curr_coarse_x_index = (int)floor((double)j / (double)fine_steps_per_coarse_step_x) + coarse_mesh_start_x_index;
+		int curr_coarse_y_index = (int)floor((double)k / (double)fine_steps_per_coarse_step_y);
+		
+		tb_bc_temps_fine[0][get_ind(j)][k] = temp_mesh_fine[get_ind(j)][k][0] - (z_step_fine/thermal_conductivity)*(htc*(temp_mesh_fine[get_ind(j)][k][0]-ambient_temperature)-input_mesh[curr_coarse_x_index][curr_coarse_y_index]);
 		tb_bc_temps_fine[1][get_ind(j)][k] = temp_mesh_fine[get_ind(j)][k][num_vert_depth_fine-1] - (z_step_fine*htc/thermal_conductivity)*(temp_mesh_fine[get_ind(j)][k][num_vert_depth_fine-1]-ambient_temperature);
 	}
 }
@@ -2061,11 +2111,6 @@ void Finite_Element_Solver::step_meshes()
 			for (int k = 0; k < num_vert_depth_fine; k++)
 			{
 				laplacian_mesh_fine[get_ind(i)][j][k] = get_laplacian_fine(i, j, k);
-				if(isnan(laplacian_mesh_fine[get_ind(i)][j][k]))
-				{
-					cout << "\n\nLaplacian NAN: (" << i << ", " << j << ", " << k << ") " << get_ind(i) << "\n";
-					cin.get();
-				}
 			}
 		
 			// Update the temperature and cure mesh for the fine mesh
@@ -2107,7 +2152,7 @@ void Finite_Element_Solver::step_meshes()
 						(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh_fine[i_ind][j][k] - DCPD_GC2_critical_cure))));
 						
 						// FE for shallow cure rates
-						if( first_stage_cure_rate < 5.0e-1)
+						if( first_stage_cure_rate < 1.5 )
 						{
 							cure_rate = first_stage_cure_rate;
 						}
@@ -2150,11 +2195,6 @@ void Finite_Element_Solver::step_meshes()
 							
 							// Apply RK4 algorithm
 							cure_rate = (first_stage_cure_rate + 2.0*second_stage_cure_rate + 2.0*third_stage_cure_rate + fourth_stage_cure_rate)/6.0;
-							if(isnan(cure_rate) )
-							{
-								cout << "\n\nCure rate NAN: (" << i << ", " << j << ", " << k << ") " << get_ind(i) << "\n";
-								cin.get();
-							}
 						}
 
 					}
@@ -2181,7 +2221,7 @@ void Finite_Element_Solver::step_meshes()
 				temp_mesh_fine[i_ind][j][k] = temp_mesh_fine[i_ind][j][k] + time_step_fine * (thermal_diffusivity*laplacian_mesh_fine[i_ind][j][k]+(enthalpy_of_reaction*cure_rate)/specific_heat);
 				temp_mesh_fine[i_ind][j][k] = temp_mesh_fine[i_ind][j][k] < 0.0 ? 0.0 : temp_mesh_fine[i_ind][j][k];
 				
-				if((subtime_ind==(fine_time_steps_per_coarse-1)) && (k==0) && (cure_rate >= front_cure_rate))
+				if((subtime_ind==(fine_time_steps_per_coarse-1)) && (k==0) && (cure_mesh_fine[i_ind][j][k] >= front_min_cure) && (cure_mesh_fine[i_ind][j][k] <= front_max_cure))
 				{
 					int thread_num = omp_get_thread_num();
 					if(threadwise_index[thread_num] < front_location_indicies_length)
@@ -2190,11 +2230,26 @@ void Finite_Element_Solver::step_meshes()
 						threadwise_front_indices[1][thread_num][threadwise_index[thread_num]] = (int)floor((double)j / (double)fine_steps_per_coarse_step_y);
 						
 						threadwise_front_x_loc[thread_num][threadwise_index[thread_num]] = (((double)i / (double)fine_steps_per_coarse_step_x) + (double)coarse_mesh_start_x_index) * x_step;
-						threadwise_front_temp[thread_num][threadwise_index[thread_num]] = temp_mesh_fine[i_ind][j][k];
 						
+						// Search for the highest temperature just behind the front
+						threadwise_front_temp[thread_num][threadwise_index[thread_num]] = temp_mesh_fine[i_ind][j][k];
+						bool done = false;
+						int search_i = i-1;
+						while(!done)
+						{
+							int curr_i_ind = get_ind(search_i);
+							if( (search_i>=0) && (temp_mesh_fine[curr_i_ind][j][k] > threadwise_front_temp[thread_num][threadwise_index[thread_num]]) && (cure_mesh_fine[curr_i_ind][j][k] <= front_max_cure) )
+							{
+								threadwise_front_temp[thread_num][threadwise_index[thread_num]] = temp_mesh_fine[curr_i_ind][j][k];
+								search_i--;
+							}
+							else
+							{
+								done = true;
+							}
+						}
 						threadwise_index[thread_num]++;
 					}
-
 				}
 			}
 		}
@@ -2210,8 +2265,12 @@ void Finite_Element_Solver::step_meshes()
 					front_indices[0][num_front_instances] = threadwise_front_indices[0][thread_num][i];
 					front_indices[1][num_front_instances] = threadwise_front_indices[1][thread_num][i];
 					
-					curr_front_temp += threadwise_front_temp[thread_num][i];
 					curr_front_mean_x_loc += threadwise_front_x_loc[thread_num][i];
+					
+					if(threadwise_front_temp[thread_num][i] > curr_front_temp)
+					{
+						curr_front_temp = threadwise_front_temp[thread_num][i];
+					}
 					
 					num_front_instances++;
 				}
@@ -2234,7 +2293,7 @@ void Finite_Element_Solver::step_meshes()
 		
 		// Calculate front speed, temp, and update front location
 		front_vel += front_filter_alpha * (abs((curr_front_mean_x_loc - front_mean_x_loc) / time_step) - front_vel);
-		front_temp += front_filter_alpha * ((curr_front_temp / ((double)num_front_instances)) - front_temp);
+		front_temp = curr_front_temp;
 		front_mean_x_loc = curr_front_mean_x_loc;
 		
 		// Determine if fine mesh is to be slid to the right
