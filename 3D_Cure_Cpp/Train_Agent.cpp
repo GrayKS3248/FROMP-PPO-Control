@@ -5,6 +5,73 @@
 #include <sstream>
 using namespace std;
 
+
+//******************************************************************** CONFIGURATION FUNCTIONS ********************************************************************//
+/**
+* Loads parameters from .cfg file
+* @return 0 on success, 1 on failure
+*/
+int load_config(string& autoencoder_path_str, int& total_trajectories, int& steps_per_trajectory, int& trajectories_per_batch, int& epochs_per_batch, double& gamma, double& lamb, double& epsilon, double& start_alpha, double& end_alpha, double& frame_rate)
+{
+	// Load from config file
+	ifstream config_file;
+	config_file.open("config_files/train_agent.cfg");
+	string config_dump;
+	if (config_file.is_open())
+	{
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		
+		config_file >> config_dump >> autoencoder_path_str;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		
+		config_file >> config_dump >> total_trajectories;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> steps_per_trajectory;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> trajectories_per_batch;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> epochs_per_batch;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> gamma;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> lamb;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> epsilon;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> start_alpha;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> end_alpha;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		
+		config_file >> config_dump >> frame_rate;
+	}
+	else
+	{
+		cout << "Unable to open config_files/train_agent.cfg." << endl;
+		return 1;
+	}
+	config_file.close();
+	return 0;
+}
+
+
 //******************************************************************** USER INTERFACE FUNCTIONS ********************************************************************//
 /**
 * Prints the finite element solver and simulation parameters to std out
@@ -515,34 +582,33 @@ int store_field_history(PyObject* save_render_plot, vector<vector<vector<double>
 * @return 0 on success, 1 on failure
 */
 
-int store_front_history(PyObject* save_render_plot, vector<vector<int>> front_loc_x_indicies, 
-vector<vector<int>> front_loc_y_indicies, vector<double> front_velocity, vector<double> front_temperature)
+int store_front_history(PyObject* save_render_plot, vector<vector<vector<double>>> front_curve, vector<double> front_velocity, vector<double> front_temperature, vector<double> front_shape_param)
 {
 	// Convert inputs
-	PyObject* py_front_loc_x_indicies = get_2D_int_list(front_loc_x_indicies);
-	PyObject* py_front_loc_y_indicies = get_2D_int_list(front_loc_y_indicies);
+	PyObject* py_front_curve = get_3D_list(front_curve);
 	PyObject* py_front_velocity = get_1D_list(front_velocity);
 	PyObject* py_front_temperature = get_1D_list(front_temperature);
+	PyObject* py_front_shape_param = get_1D_list(front_shape_param);
 	
 	// Call function
-	PyObject* result = PyObject_CallMethod(save_render_plot, "store_front_history", "(O,O,O,O)", py_front_loc_x_indicies, py_front_loc_y_indicies, py_front_velocity, py_front_temperature);
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_front_history", "(O,O,O,O)", py_front_curve, py_front_velocity, py_front_temperature, py_front_shape_param);
 	if (result==NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_front_history function:\n");
 		PyErr_Print();
-		Py_DECREF(py_front_loc_x_indicies);
-		Py_DECREF(py_front_loc_y_indicies);
+		Py_DECREF(py_front_curve);
 		Py_DECREF(py_front_velocity);
 		Py_DECREF(py_front_temperature);
+		Py_DECREF(py_front_shape_param);
 		return 1;
 	}
 	
 	// Free memory
 	Py_DECREF(result);
-	Py_DECREF(py_front_loc_x_indicies);
-	Py_DECREF(py_front_loc_y_indicies);
+	Py_DECREF(py_front_curve);
 	Py_DECREF(py_front_velocity);
 	Py_DECREF(py_front_temperature);
+	Py_DECREF(py_front_shape_param);
 	return 0;
 }
 
@@ -733,8 +799,8 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	vector<double> target;
 	vector<double> front_velocity;
 	vector<double> front_temperature;
-	vector<vector<int>> front_loc_x_indicies;
-	vector<vector<int>> front_loc_y_indicies;
+	vector<double> front_shape_param;
+	vector<vector<vector<double>>> front_curve;
 	vector<vector<vector<double>>> temperature_field;
 	vector<vector<vector<double>>> cure_field;
 
@@ -746,8 +812,8 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	vector<double> curr_target;
 	vector<double> curr_front_velocity;
 	vector<double> curr_front_temperature;
-	vector<vector<int>> curr_front_loc_x_indicies;
-	vector<vector<int>> curr_front_loc_y_indicies;
+	vector<double> curr_front_shape_param;
+	vector<vector<vector<double>>> curr_front_curve;
 	vector<vector<vector<double>>> curr_temperature_field;
 	vector<vector<vector<double>>> curr_cure_field;
 
@@ -799,8 +865,8 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 				// Store simulation front data
 				curr_front_velocity.push_back(FES->get_front_vel());
 				curr_front_temperature.push_back(FES->get_front_temp());
-				curr_front_loc_x_indicies.push_back(FES->get_front_loc_x_indicies());
-				curr_front_loc_y_indicies.push_back(FES->get_front_loc_y_indicies());
+				curr_front_shape_param.push_back(FES->get_front_shape_param());
+				curr_front_curve.push_back(FES->get_front_curve());
 				
 				// Store simulation field data
 				curr_temperature_field.push_back(FES->get_temp_mesh());
@@ -865,6 +931,10 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 				// Release the python memory
 				Py_DECREF(py_norm_temp_mesh);
 				Py_DECREF(py_action); */
+				reward = FES->get_reward();
+				action_1 = (2.0*((double)rand()/(double)RAND_MAX-0.5));
+				action_2 = (2.0*((double)rand()/(double)RAND_MAX-0.5));
+				action_3 = (2.0*((double)rand()/(double)RAND_MAX-0.5));
 				done = FES->step(action_1, action_2, action_3);
 			}
 			
@@ -891,8 +961,8 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 			cure_field = curr_cure_field;
 			front_velocity = curr_front_velocity;
 			front_temperature = curr_front_temperature;
-			front_loc_x_indicies = curr_front_loc_x_indicies;
-			front_loc_y_indicies = curr_front_loc_y_indicies;
+			front_shape_param = curr_front_shape_param;
+			front_curve = curr_front_curve;
 		}
 
 		// Reset the current trajectory memory
@@ -903,8 +973,8 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 		curr_target.clear();
 		curr_front_velocity.clear();
 		curr_front_temperature.clear();
-		curr_front_loc_x_indicies.clear();
-		curr_front_loc_y_indicies.clear();
+		curr_front_shape_param.clear();
+		curr_front_curve.clear();
 
 		// Store actor training data
 		r_per_episode.push_back(prev_episode_reward/(double)steps_per_trajectory);
@@ -917,43 +987,39 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	}
 	
 	// Send all relevant data to save render and plot module
-/* 	if(store_training_curves(save_render_plot, r_per_episode, critic_loss) == 1) {return 1;}
+	if(store_training_curves(save_render_plot, r_per_episode, critic_loss) == 1) {return 1;}
 	if(store_stdev_history(save_render_plot, x_rate_stdev, y_rate_stdev, mag_rate_stdev) == 1) {return 1;}
 	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent) == 1) {return 1;}
 	if(store_field_history(save_render_plot, temperature_field, cure_field) == 1) {return 1;}
-	if(store_front_history(save_render_plot, front_loc_x_indicies, front_loc_y_indicies, front_velocity, front_temperature) == 1) {return 1;}
+	if(store_front_history(save_render_plot, front_curve, front_velocity, front_temperature, front_shape_param) == 1) {return 1;}
 	if(store_target_and_time(save_render_plot, target, time) == 1) {return 1;}
 	if(store_top_mesh(save_render_plot, FES->get_mesh_x_z0(), FES->get_mesh_y_z0()) == 1) {return 1;}
 	if(store_input_params(save_render_plot, FES->get_max_input_mag(), FES->get_exp_const()) == 1) {return 1;}
 	if(store_options(save_render_plot, FES->get_control_speed()) == 1) {return 1;}
 
 	// Save, plot, and render
-	return save_agent_results(save_render_plot, agent); */
-	return 0;
+	return save_agent_results(save_render_plot, agent);
+	//return 0;
 }
 
 
 //******************************************************************** MAIN LOOP ********************************************************************//
 int main()
 {	
-	// Agent load parameters
-	const char* autoencoder_path = "results/ks3_obj1_bn64_U";
-	
-	// Agent training parameter
-	int total_trajectories = 1;
-	int steps_per_trajectory = 100;
-	int trajectories_per_batch = 20;
-	int epochs_per_batch = 20;
-	
-	// Agent hyperparameters
-	double gamma = 0.99;
-	double lamb = 0.95;
-	double epsilon = 0.20;
-	double start_alpha = 1.0e-3;
-	double end_alpha = 1.0e-4;
-
-	// Rendering parameters
-	double frame_rate = 1.0;
+	// Load parameters
+	string autoencoder_path_str;
+	int total_trajectories;
+	int steps_per_trajectory;
+	int trajectories_per_batch;
+	int epochs_per_batch;
+	double gamma;
+	double lamb;
+	double epsilon;
+	double start_alpha;
+	double end_alpha;
+	double frame_rate;
+	if (load_config(autoencoder_path_str, total_trajectories, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha, frame_rate) == 1) { Py_FinalizeEx(); return 1; }
+	const char* autoencoder_path = autoencoder_path_str.c_str();
 
 	// Initialize FES
 	Finite_Element_Solver* FES;

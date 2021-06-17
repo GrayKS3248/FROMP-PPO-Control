@@ -174,10 +174,16 @@ Finite_Element_Solver::Finite_Element_Solver()
 	perturb_mesh(temp_mesh, initial_temp_delta);
 	perturb_mesh(cure_mesh, initial_cure_delta);
 	
+	// Ensure fine mesh parameters are acceptable (coarse_steps_per_fine_mesh_x must be whole number)
+	coarse_steps_per_fine_mesh_x = (int)ceil((length_fine * (double)num_vert_length) / length);
+	coarse_steps_per_fine_mesh_y = num_vert_width;
+	coarse_steps_per_fine_mesh_z = num_vert_depth;
+	length_fine = ((double)coarse_steps_per_fine_mesh_x * length) / ((double)num_vert_length);
+	
 	// Determine fine mesh resolution
-	num_vert_length_fine = (int)round((length_fine * (double)num_vert_length * (double)fine_steps_per_coarse_step_x) / length);
-	num_vert_width_fine = fine_steps_per_coarse_step_y*num_vert_width;
-	num_vert_depth_fine = fine_steps_per_coarse_step_z*num_vert_depth;
+	num_vert_length_fine = coarse_steps_per_fine_mesh_x * fine_steps_per_coarse_step_x;
+	num_vert_width_fine = coarse_steps_per_fine_mesh_y * fine_steps_per_coarse_step_y;
+	num_vert_depth_fine = coarse_steps_per_fine_mesh_z * fine_steps_per_coarse_step_z;
 	 
 	// Set front detection parameters
 	front_location_indicies_length = 10 * num_vert_width_fine;
@@ -199,12 +205,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 			cure_mesh_fine[i][j] = new double[num_vert_depth_fine];
 		}
 	}
-
-	// Get total number of coarse mesh vertices make up fine mesh section
-	coarse_steps_per_fine_mesh_x = (int)round((length_fine * (double)num_vert_length) / length);  // MUST BE WHOLE NUMBER
-	coarse_steps_per_fine_mesh_y = num_vert_width;
-	coarse_steps_per_fine_mesh_z = num_vert_depth;
-
+	
 	// Get the step size of the fine mesh
 	x_step_fine = (1.0 / (double)(num_vert_length_fine - 1)) * length_fine;
 	y_step_fine = (1.0 / (double)(num_vert_width_fine - 1)) * width;
@@ -217,31 +218,27 @@ Finite_Element_Solver::Finite_Element_Solver()
 	time_step_fine = time_step / (double)fine_time_steps_per_coarse;
 
 	// Init front mesh and parameters
-	front_indices = new int*[2];
-	front_indices[0] = new int[front_location_indicies_length];
-	front_indices[1] = new int[front_location_indicies_length]; 
+	front_curve = new double*[2];
+	front_curve[0] = new double[front_location_indicies_length];
+	front_curve[1] = new double[front_location_indicies_length];
 	for(int i = 0; i < front_location_indicies_length; i++)
 	{
-		front_indices[0][i] = -1;
-		front_indices[1][i] = -1;
+		front_curve[0][i] = -1.0;
+		front_curve[1][i] = -1.0;
 	}
-	threadwise_index = new int[omp_get_max_threads()];
-	threadwise_front_indices = new int**[2];
-	threadwise_front_indices[0] = new int*[omp_get_max_threads()];
-	threadwise_front_indices[1] = new int*[omp_get_max_threads()];
-	threadwise_front_x_loc = new double*[omp_get_max_threads()];
-	threadwise_front_temp = new double*[omp_get_max_threads()];
+	
+	threadwise_front_curve = new double**[omp_get_max_threads()];
 	for(int i = 0; i < omp_get_max_threads(); i++)
 	{
-		threadwise_index[i] = 0;
-		threadwise_front_indices[0][i] = new int[front_location_indicies_length];
-		threadwise_front_indices[1][i] = new int[front_location_indicies_length];
-		threadwise_front_x_loc[i] = new double[front_location_indicies_length];
-		threadwise_front_temp[i] = new double[front_location_indicies_length];
+		threadwise_front_curve[i] = new double*[2];
+		threadwise_front_curve[i][0] = new double[front_location_indicies_length];
+		threadwise_front_curve[i][1] = new double[front_location_indicies_length];
 	}
+	
 	front_mean_x_loc = 0.0;
-	front_temp = initial_temperature;
+	front_shape_param = 1.0;
 	front_vel = 0.0;
+	front_temp = initial_temperature;
 
 	// Input magnitude parameters
 	double sigma = 0.329505114491 * radius_of_input;
@@ -388,7 +385,6 @@ Finite_Element_Solver::~Finite_Element_Solver()
 	// 1D arrays
 	delete[] input_location;
 	delete[] target_vector;
-	delete[] threadwise_index;
 	
 	// Input mesh
 	for(int i = 0; i != num_vert_length; ++i)
@@ -397,32 +393,23 @@ Finite_Element_Solver::~Finite_Element_Solver()
 	}
 	delete[] input_mesh;
 	
-	// Front indices
+	// Front curve data
 	for(int i = 0; i != 2; ++i)
 	{
-		delete[] front_indices[i];
+		delete[] front_curve[i];
 	}
-	delete[] front_indices;
+	delete[] front_curve;
 	
-	// Threadwise front indicies
-	for(int i = 0; i != 2; ++i)
-	{
-		for(int j = 0; j != omp_get_max_threads(); ++j)
-		{
-			delete[] threadwise_front_indices[i][j];
-		}
-		delete[] threadwise_front_indices[i];
-	}
-	delete[] threadwise_front_indices;
-	
-	// Threadwise front location and temperatures
+	// Threadwise front curve
 	for(int i = 0; i != omp_get_max_threads(); ++i)
 	{
-		delete[] threadwise_front_x_loc[i];
-		delete[] threadwise_front_temp[i];
+		for(int j = 0; j != 2; ++j)
+		{
+			delete[] threadwise_front_curve[i][j];
+		}
+		delete[] threadwise_front_curve[i];
 	}
-	delete[] threadwise_front_x_loc;
-	delete[] threadwise_front_temp;
+	delete[] threadwise_front_curve;
 	
 	// Coarse mesh
 	for(int i = 0; i != num_vert_length; ++i)
@@ -780,29 +767,26 @@ vector<vector<double>> Finite_Element_Solver::get_cure_mesh()
 //******************************************************************** FRONT STATE GETTERS ********************************************************************//
 
 /**
-* Gets the current front location x indicies
-* @return The current front location x indices if front exists, empty vector<int> if front does not exist
+* Gets the current front curve
+* @return Front curve of standard length. If front does not populate entire vector, end padded with -1.0
 */
-vector<int> Finite_Element_Solver::get_front_loc_x_indicies()
+vector<vector<double>> Finite_Element_Solver::get_front_curve()
 {
-	vector<int> ret_val = vector<int>(front_location_indicies_length, 0.0);
+	vector<vector<double>> ret_val = vector<vector<double>>(2, vector<double>(front_location_indicies_length, 0.0));
+	bool done = false;
 	for(int i = 0; i < front_location_indicies_length; i++)
 	{
-		ret_val[i] = front_indices[0][i];
-	}
-	return ret_val;
-}
-
-/**
-* Gets the current front location y indicies
-* @return The current front location y indices if front exists, empty vector<int> if front does not exist
-*/
-vector<int> Finite_Element_Solver::get_front_loc_y_indicies()
-{
-	vector<int> ret_val = vector<int>(front_location_indicies_length, 0.0);
-	for(int i = 0; i < front_location_indicies_length; i++)
-	{
-		ret_val[i] = front_indices[1][i];
+		if(!done)
+		{
+			ret_val[0][i] = front_curve[0][i];
+			ret_val[1][i] = front_curve[1][i];
+			done = (front_curve[0][i] < 0.0) || (front_curve[1][i] < 0.0);
+		}
+		else
+		{
+			ret_val[0][i] = -1.0;
+			ret_val[1][i] = -1.0;
+		}
 	}
 	return ret_val;
 }
@@ -823,6 +807,15 @@ double Finite_Element_Solver::get_front_vel()
 double Finite_Element_Solver::get_front_temp()
 {
 	return front_temp;
+}
+
+/**
+* Gets the current front shape parameters
+* @return The current front shape parameter (x stdev normalized against quarter fine mesh length)
+*/
+double Finite_Element_Solver::get_front_shape_param()
+{
+	return front_shape_param;
 }
 
 
@@ -941,8 +934,8 @@ void Finite_Element_Solver::print_params()
 	// Environment
 	cout << "\nEnvironment(\n";
 	cout << "  (Duration): " << sim_duration << " s\n";
-	cout << "  (Ambient Temperature): " << ambient_temperature-273.15 << " C +- " << ambient_temperature_delta << " C\n";
-	cout << "  (HTC): " << htc << " W/m^2-K +- " << htc_delta << " W/m^2-K\n";
+	cout << "  (Ambient Temperature): " << default_ambient_temperature-273.15 << " C +- " << ambient_temperature_delta << " C\n";
+	cout << "  (HTC): " << default_htc << " W/m^2-K +- " << htc_delta << " W/m^2-K\n";
 	cout << ")\n\n";
 }
 
@@ -1024,16 +1017,13 @@ void Finite_Element_Solver::reset()
 	// Init front mesh and parameters
 	for(int i = 0; i < front_location_indicies_length; i++)
 	{
-		front_indices[0][i] = -1;
-		front_indices[1][i] = -1;
-	}
-	for(int i = 0; i < omp_get_max_threads(); i++)
-	{
-		threadwise_index[i] = 0;
+		front_curve[0][i] = -1.0;
+		front_curve[1][i] = -1.0;
 	}
 	front_mean_x_loc = 0.0;
-	front_temp = initial_temperature;
+	front_shape_param = 1.0;
 	front_vel = 0.0;
+	front_temp = initial_temperature;
 
 	// Input magnitude parameters
 	input_percent = (double)rand()/(double)RAND_MAX;
@@ -1106,58 +1096,17 @@ double Finite_Element_Solver::get_reward()
 	double front_shape_reward;
 	double target_reward;
 
-	// Find the maximum temperature over the entire mesh
-	double max_temperature = 0.0;
-	for (int i = 0; i < num_vert_length; i++)
-	{
-		for (int j = 0; j < num_vert_width; j++)
-		{
-			for (int k = 0; k < num_vert_depth; k++)
-			{
-				if(temp_mesh[i][j][k] > max_temperature)
-				{
-					max_temperature = temp_mesh[i][j][k];
-				}
-			}
-		}
-	}
+	// Determine maximum mesh temperature
+	double max_temp = 0.0;
 	
-	// Find the normalized standard deviation of the front location, mean front speed, mean front temperature
-	double stdev_front_location = 0.0;
-	int front_instances = 0;
-	for (int i = 0; i < front_location_indicies_length; i++)
-	{
-		if (front_indices[0][i] != -1)
-		{
-			int front_x_index = front_indices[0][i];
-			int front_y_index = front_indices[1][i];
-			double curr_front_x_loc = mesh_x[front_x_index][front_y_index][0];
-			stdev_front_location += (curr_front_x_loc - front_mean_x_loc)*(curr_front_x_loc - front_mean_x_loc);
-			front_instances++;
-		}
-		else
-		{
-			break;
-		}
-	}
-	if (front_instances == 0)
-	{
-		stdev_front_location = 1.0;
-	}
-	else
-	{
-		stdev_front_location = sqrt(stdev_front_location / ((double)front_instances)) / width;
-		stdev_front_location = stdev_front_location > 1.0 ? 1.0 : stdev_front_location;
-	}
-
 	// Get the input reward
 	input_reward = input_reward_const * (1.0 - input_percent);
 
 	// Get the overage reward
-	overage_reward = max_temperature > temperature_limit ? 0.0 : overage_reward_const;
+	overage_reward = max_temp > temperature_limit ? 0.0 : overage_reward_const;
 
 	// Get the front shape reward
-	front_shape_reward = front_shape_reward_const * (1.0 - stdev_front_location);
+	front_shape_reward = front_shape_reward_const * (1.0 - front_shape_param);
 
 	// Get the total reward
 	if (control_temperature)
@@ -1964,23 +1913,18 @@ void Finite_Element_Solver::step_meshes()
 	update_fb_bc_temps();
 	update_tb_bc_temps();
 
-	// Reset front variables
-	for(int i = 0; i < front_location_indicies_length; i++)
-	{
-		front_indices[0][i] = -1;
-		front_indices[1][i] = -1;
-	}
-	for(int i = 0; i < omp_get_max_threads(); i++)
-	{
-		threadwise_index[i] = 0;
-	}
-	double curr_front_temp = 0.0;
-	double curr_front_mean_x_loc = 0.0;
+	// Reset front calculation variables
 	int num_front_instances = 0;
-
+	double curr_front_mean_x_loc = 0.0;
+	front_shape_param = 0.0;
+	front_temp = 0.0;
+	
 	// Update the mesh
 	#pragma omp parallel
 	{	
+		int local_front_index = 0;
+		double local_front_temp = 0.0;
+		
 		//***************************************************************************************** Left coarse *****************************************************************************************//
 		// Calculate the laplacian mesh for the left side of the coarse mesh
 		#pragma	omp for collapse(3)
@@ -2099,6 +2043,7 @@ void Finite_Element_Solver::step_meshes()
 			// Step temp mesh and ensure current temp is in expected range
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] + time_step * (thermal_diffusivity*laplacian_mesh[i][j][k]+(enthalpy_of_reaction*cure_rate)/specific_heat);
 			temp_mesh[i][j][k] = temp_mesh[i][j][k] < 0.0 ? 0.0 : temp_mesh[i][j][k];
+				
 		}
 		
 		//***************************************************************************************** Fine mesh *****************************************************************************************//
@@ -2223,77 +2168,82 @@ void Finite_Element_Solver::step_meshes()
 				
 				if((subtime_ind==(fine_time_steps_per_coarse-1)) && (k==0) && (cure_mesh_fine[i_ind][j][k] >= front_min_cure) && (cure_mesh_fine[i_ind][j][k] <= front_max_cure))
 				{
+					// Collect front location and shape information
 					int thread_num = omp_get_thread_num();
-					if(threadwise_index[thread_num] < front_location_indicies_length)
+					if(local_front_index < front_location_indicies_length)
 					{
-						threadwise_front_indices[0][thread_num][threadwise_index[thread_num]] = (int)floor((double)i / (double)fine_steps_per_coarse_step_x) + coarse_mesh_start_x_index;
-						threadwise_front_indices[1][thread_num][threadwise_index[thread_num]] = (int)floor((double)j / (double)fine_steps_per_coarse_step_y);
-						
-						threadwise_front_x_loc[thread_num][threadwise_index[thread_num]] = (((double)i / (double)fine_steps_per_coarse_step_x) + (double)coarse_mesh_start_x_index) * x_step;
-						
-						// Search for the highest temperature just behind the front
-						threadwise_front_temp[thread_num][threadwise_index[thread_num]] = temp_mesh_fine[i_ind][j][k];
-						bool done = false;
-						int search_i = i-1;
-						while(!done)
+						threadwise_front_curve[thread_num][0][local_front_index] = (double)i * x_step_fine + (double)coarse_mesh_start_x_index * x_step;
+						threadwise_front_curve[thread_num][1][local_front_index] = (double)j * y_step_fine;
+						local_front_index++;
+					}
+					
+					// Search for the highest temperature just behind the front
+					if( temp_mesh_fine[i_ind][j][k] > local_front_temp )
+					{
+						local_front_temp = temp_mesh_fine[i_ind][j][k];
+					}
+					bool done = false;
+					int search_i = i-1;
+					while(!done)
+					{
+						int curr_i_ind = get_ind(search_i);
+						if( (search_i>=0) && (temp_mesh_fine[curr_i_ind][j][k] > local_front_temp) )
 						{
-							int curr_i_ind = get_ind(search_i);
-							if( (search_i>=0) && (temp_mesh_fine[curr_i_ind][j][k] > threadwise_front_temp[thread_num][threadwise_index[thread_num]]) && (cure_mesh_fine[curr_i_ind][j][k] <= front_max_cure) )
-							{
-								threadwise_front_temp[thread_num][threadwise_index[thread_num]] = temp_mesh_fine[curr_i_ind][j][k];
-								search_i--;
-							}
-							else
-							{
-								done = true;
-							}
+							local_front_temp = temp_mesh_fine[curr_i_ind][j][k];
+							search_i--;
 						}
-						threadwise_index[thread_num]++;
+						else
+						{
+							done = true;
+						}
 					}
 				}
 			}
 		}
 		
-		// Reduce collected front information
+		// Reduce collected front location and shape information
 		#pragma omp critical
 		{     
 			int thread_num = omp_get_thread_num();
-			for(int i = 0; i < front_location_indicies_length; i++)
+			int i = 0; 
+			
+			while( (i < local_front_index-1) && (num_front_instances < front_location_indicies_length-1) )
 			{
-				if( (i <= threadwise_index[thread_num]-1) && (num_front_instances < front_location_indicies_length) )
-				{
-					front_indices[0][num_front_instances] = threadwise_front_indices[0][thread_num][i];
-					front_indices[1][num_front_instances] = threadwise_front_indices[1][thread_num][i];
+				front_curve[0][num_front_instances] = threadwise_front_curve[thread_num][0][i];
+				front_curve[1][num_front_instances] = threadwise_front_curve[thread_num][1][i];
 					
-					curr_front_mean_x_loc += threadwise_front_x_loc[thread_num][i];
+				front_curve[0][num_front_instances] = front_curve[0][num_front_instances] > length ? length : front_curve[0][num_front_instances];
+				front_curve[1][num_front_instances] = front_curve[1][num_front_instances] > width ? width : front_curve[1][num_front_instances];
 					
-					if(threadwise_front_temp[thread_num][i] > curr_front_temp)
-					{
-						curr_front_temp = threadwise_front_temp[thread_num][i];
-					}
+				curr_front_mean_x_loc += threadwise_front_curve[thread_num][0][i];
+				front_shape_param += threadwise_front_curve[thread_num][0][i]*threadwise_front_curve[thread_num][0][i];
+				
+				front_temp = local_front_temp > front_temp ? local_front_temp : front_temp;
 					
-					num_front_instances++;
-				}
-				else
-				{
-					break;
-				}
+				i++;
+				num_front_instances++;
 			}
+			
+			// Mark the end of front curve data
+			front_curve[0][num_front_instances] = -1.0;
+			front_curve[1][num_front_instances] = -1.0;
+			
 		}
 	}
 	
 	// Copy fine mesh results to coarse mesh
 	copy_fine_to_coarse();
 	
-	//******************************************************************** Update the front location and velocity ********************************************************************//
+	//******************************************************************** Update the front location, velocity, and temperature ********************************************************************//
 	if (num_front_instances != 0)
 	{
-		// Average mean front x location and temperature
+		// Determine quarter fine length normalized front x stdev and mean front x location
+		front_shape_param = sqrt((front_shape_param/(double)num_front_instances) - (curr_front_mean_x_loc/(double)num_front_instances)*(curr_front_mean_x_loc/(double)num_front_instances)) / (0.25 * length_fine);
+		front_shape_param = front_shape_param > 1.0 ? 1.0 : front_shape_param;
 		curr_front_mean_x_loc = curr_front_mean_x_loc / (double)num_front_instances;
 		
-		// Calculate front speed, temp, and update front location
+		// Calculate front speed  through single pole low pass filter and update front location
 		front_vel += front_filter_alpha * (abs((curr_front_mean_x_loc - front_mean_x_loc) / time_step) - front_vel);
-		front_temp = curr_front_temp;
 		front_mean_x_loc = curr_front_mean_x_loc;
 		
 		// Determine if fine mesh is to be slid to the right
@@ -2310,9 +2260,10 @@ void Finite_Element_Solver::step_meshes()
 	{
 
 		// Calculate front speed, temp, and update front location
-		front_vel += front_filter_alpha * (0.0 - front_vel);
-		front_temp += front_filter_alpha * (initial_temperature - front_temp);
 		front_mean_x_loc = 0.0;
+		front_shape_param = 1.0;
+		front_vel = 0.0;
+		front_temp = initial_temperature;
 	}
 }
 

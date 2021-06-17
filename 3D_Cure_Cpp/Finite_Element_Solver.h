@@ -56,10 +56,10 @@ vector<vector<double>> get_norm_temp_mesh();
 vector<vector<double>> get_cure_mesh();
 
 // Front state getters
-vector<int> get_front_loc_x_indicies();
-vector<int> get_front_loc_y_indicies();
+vector<vector<double>> get_front_curve();
 double get_front_vel();
 double get_front_temp();
+double get_front_shape_param();
 
 
 //******************************************************************** PUBLIC FUNCTIONS ********************************************************************//
@@ -254,14 +254,12 @@ double*** fb_bc_temps_fine;
 double*** tb_bc_temps_fine;
 
 // Front mesh and parameters
-int** front_indices;
-int*** threadwise_front_indices;
-double** threadwise_front_x_loc;
-double** threadwise_front_temp;
-int* threadwise_index;
+double** front_curve;
+double*** threadwise_front_curve;
 double front_mean_x_loc;
-double front_temp;
+double front_shape_param;
 double front_vel;
+double front_temp;
 
 // Input magnitude parameters
 double exp_const;

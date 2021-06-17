@@ -5,6 +5,47 @@
 
 using namespace std;
 
+
+//******************************************************************** CONFIGURATION FUNCTIONS ********************************************************************//
+/**
+* Loads parameters from .cfg file
+* @return 0 on success, 1 on failure
+*/
+int load_config(int& total_trajectories, int& samples_per_trajectory, int& samples_per_batch, int& actions_per_trajectory, string& path)
+{
+	// Load from config file
+	ifstream config_file;
+	config_file.open("config_files/training_data.cfg");
+	string config_dump;
+	if (config_file.is_open())
+	{
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+
+		config_file >> config_dump >> total_trajectories;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> samples_per_trajectory;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> samples_per_batch;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> actions_per_trajectory;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> path;
+	}
+	else
+	{
+		cout << "Unable to open config_files/training_data.cfg." << endl;
+		return 1;
+	}
+	config_file.close();
+	return 0;
+}
+
+
+//******************************************************************** USER INTERFACE FUNCTIONS ********************************************************************//
 /**
 * Prints the finite element solver and simulation parameters to std out
 * @param total number of trajectories taken
@@ -161,9 +202,9 @@ int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_contro
 				{
 
 					// Get a random action
-					action_1 = 20.0 * (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
-					action_2 = 20.0 * (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
-					action_3 = 20.0 * (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
+					action_1 = (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
+					action_2 = (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
+					action_3 = (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
 
 					// Step the environment
 					done = FES->step(action_1, action_2, action_3);
@@ -228,28 +269,38 @@ int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_contro
 int main()
 {	
 	// Training data parameters
-	int total_trajectories = 10;
-	int samples_per_trajectory = 20;  // Number of temerpature and cure frames sampled per trajecotry for AE training
-	int samples_per_batch = 100;      // Number of frames used per training epoch
-	int actions_per_trajectory = 100; // Number of random input actions performed by controller during trajecotry
-	string path = "training_data";
+	int total_trajectories;
+	int samples_per_trajectory;
+	int samples_per_batch;
+	int actions_per_trajectory;
+	string path;
+	if (load_config(total_trajectories, samples_per_trajectory, samples_per_batch, actions_per_trajectory, path) == 1) { return 1; }
 
 	// Initialize FES
-	Finite_Element_Solver FES = Finite_Element_Solver();
+	Finite_Element_Solver* FES;
+	try
+	{
+		FES = new Finite_Element_Solver();
+	}
+	catch (int e)
+	{
+		cout << "An exception occurred. Exception num " << e << '\n';
+		return 1;
+	}
 
 	// Calculated parameters
-	double control_execution_period = (FES.get_sim_duration() / ((double)actions_per_trajectory));
-	int steps_per_control_cycle = (int) round(control_execution_period / FES.get_time_step());
-	int tot_num_sim_steps = (int)floor(FES.get_sim_duration()/FES.get_time_step());
+	double control_execution_period = (FES->get_sim_duration() / ((double)actions_per_trajectory));
+	int steps_per_control_cycle = (int) round(control_execution_period / FES->get_time_step());
+	int tot_num_sim_steps = FES->get_steps_per_episode();
 	
 	// Print simulation parameters
 	print_params(total_trajectories, samples_per_trajectory, actions_per_trajectory);
-	FES.print_params();
+	FES->print_params();
 
 	// Train autoencoder
 	cout << "\nCollecting training data...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(&FES, total_trajectories, steps_per_control_cycle, tot_num_sim_steps, samples_per_trajectory, samples_per_batch, path) == 1) { return 1; }
+	if (run(FES, total_trajectories, steps_per_control_cycle, tot_num_sim_steps, samples_per_trajectory, samples_per_batch, path) == 1) { return 1; }
 
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;

@@ -302,14 +302,13 @@ class Save_Plot_Render:
         self.mag_stdev = []
         self.input_location_x = []
         self.input_location_y = []
-        self.mean_front_x_locations = []
         self.input_percent = []
         self.temperature_field = []
         self.cure_field = []
-        self.front_loc_x_indicies = []
-        self.front_loc_y_indicies = []
+        self.front_curve = []
         self.front_velocity = []
         self.front_temperature = []
+        self.front_shape_param = []
         self.target = []
         self.time = []
         self.mesh_x_z0 = []
@@ -338,11 +337,11 @@ class Save_Plot_Render:
         self.temperature_field = np.array(temperature_field)
         self.cure_field = np.array(cure_field)
     
-    def store_front_history(self, front_loc_x_indicies, front_loc_y_indicies, front_velocity, front_temperature):
-        self.front_loc_x_indicies = np.array(front_loc_x_indicies)
-        self.front_loc_y_indicies = np.array(front_loc_y_indicies)
+    def store_front_history(self, front_curve, front_velocity, front_temperature, front_shape_param):
+        self.front_curve = np.array(front_curve)
         self.front_velocity = np.array(front_velocity)
         self.front_temperature = np.array(front_temperature)
+        self.front_shape_param = np.array(front_shape_param)
     
     def store_target_and_time(self, target, time):
         self.target = np.array(target)
@@ -380,20 +379,21 @@ class Save_Plot_Render:
         self.video_path = video_path
         
         # Determine mean front locations
-        self.mean_front_x_locations = np.zeros(len(self.front_loc_x_indicies))
-        self.mean_front_y_locations = 0.50 * self.mesh_y_z0[0][-1]*np.ones(len(self.front_loc_y_indicies))
-        for i in range(len(self.front_loc_x_indicies)):
-            mean_x_loc = 0.0
-            mean_y_loc = 0.0
-            front_instances = 0
-            for j in range(len(self.front_loc_x_indicies[i,:])):
-                if (self.front_loc_x_indicies[i][j]) != -1:
-                    mean_x_loc = mean_x_loc + self.mesh_x_z0[self.front_loc_x_indicies[i][j]][self.front_loc_y_indicies[i][j]]
-                    mean_y_loc = mean_y_loc + self.mesh_y_z0[self.front_loc_x_indicies[i][j]][self.front_loc_y_indicies[i][j]]
-                    front_instances = front_instances + 1
-            if front_instances != 0:
-                self.mean_front_x_locations[i] = mean_x_loc / front_instances
-                self.mean_front_y_locations[i] = mean_y_loc / front_instances
+        self.mean_front_x_locations = np.zeros(len(self.front_curve))
+        self.mean_front_y_locations = np.zeros(len(self.front_curve))
+        for curr_frame in range(len(self.front_curve)):
+            curr_mean_x = self.front_curve[curr_frame][0]
+            curr_mean_x = curr_mean_x[curr_mean_x > 0.0]
+            if len(curr_mean_x) != 0: 
+                self.mean_front_x_locations[curr_frame] = np.mean(curr_mean_x)
+            else:
+                self.mean_front_x_locations[curr_frame] = 0.0
+            curr_mean_y = self.front_curve[curr_frame][1]
+            curr_mean_y = curr_mean_y[curr_mean_y > 0.0]
+            if len(curr_mean_y) != 0: 
+                self.mean_front_y_locations[curr_frame] = np.mean(curr_mean_y)
+            else:
+                self.mean_front_y_locations[curr_frame] = 0.0
         
         # Compile all stored data to dictionary
         data = {
@@ -407,12 +407,12 @@ class Save_Plot_Render:
             'input_percent': self.input_percent,
             'temperature_field': self.temperature_field,
             'cure_field': self.cure_field,
-            'front_loc_x_indicies': self.front_loc_x_indicies,
-            'front_loc_y_indicies': self.front_loc_y_indicies,
+            'front_curve': self.front_curve,
             'mean_front_x_locations': self.mean_front_x_locations,
             'mean_front_y_locations': self.mean_front_y_locations,
             'front_velocity': self.front_velocity,
             'front_temperature': self.front_temperature,
+            'front_shape_param': self.front_shape_param,
             'target': self.target,
             'time': self.time,
             'mesh_x_z0' : self.mesh_x_z0,
@@ -593,7 +593,9 @@ class Save_Plot_Render:
             ax0.tick_params(axis='x',labelsize=12)
             ax0.tick_params(axis='y',labelsize=12)
             ax0.set_aspect('equal', adjustable='box')
-            ax0.set_title('Max Temperature = '+'{:.2f}'.format(np.max(self.temperature_field[curr_step,:,:]-273.15))+' C',fontsize='large')
+            ax0.set_title('Front Temp = '+'{:.2f}'.format(self.front_temperature[curr_step]-273.15)+' C | '+
+                          'Front Speed = '+'{:.2f}'.format(self.front_velocity[curr_step]*1000.0)+' mm/s | '+
+                          'Front Shape = '+'{:.2f}'.format(self.front_shape_param[curr_step])+'\n',fontsize='large', fontname = 'monospace')
                
             # Plot cure
             c1 = ax1.pcolormesh(1000.0*self.mesh_x_z0, 1000.0*self.mesh_y_z0, self.cure_field[curr_step,:,:], shading='gouraud', cmap='YlOrBr', vmin=0.0, vmax=1.0)
@@ -607,16 +609,13 @@ class Save_Plot_Render:
             ax1.set_aspect('equal', adjustable='box')
         
             # Determine front locations
-            front_x_location = []
-            front_y_location = []
-            front_instances = 0
-            for j in range(len(self.front_loc_x_indicies[curr_step,:])):
-                if (self.front_loc_x_indicies[curr_step][j]) != -1:
-                    front_x_location.append(self.mesh_x_z0[self.front_loc_x_indicies[curr_step][j]][self.front_loc_y_indicies[curr_step][j]])
-                    front_y_location.append(self.mesh_y_z0[self.front_loc_x_indicies[curr_step][j]][self.front_loc_y_indicies[curr_step][j]])
-                    front_instances = front_instances + 1
-            front_x_location = 1000.0*np.array(front_x_location)
-            front_y_location = 1000.0*np.array(front_y_location)
+            front_x_location = self.front_curve[curr_step][0]
+            front_y_location = self.front_curve[curr_step][1]
+            front_x_location = front_x_location[front_x_location >= 0.0]
+            front_y_location = front_y_location[front_y_location >= 0.0]
+            front_x_location = 1000.0*front_x_location
+            front_y_location = 1000.0*front_y_location
+            front_instances = len(front_x_location)
         
             # Plot input
             c2 = ax2.pcolormesh(1000.0*self.mesh_x_z0, 1000.0*self.mesh_y_z0, 1.0e-3*input_mesh, shading='gouraud', cmap='coolwarm', vmin=0.0, vmax=1.0e-3*self.max_input_mag)
@@ -630,10 +629,14 @@ class Save_Plot_Render:
             ax2.tick_params(axis='x',labelsize=12)
             ax2.tick_params(axis='y',labelsize=12)
             ax2.set_aspect('equal', adjustable='box')
-               
+            if self.max_input_mag > 0.0:
+                ax2.set_title('Input Power = '+'{:.2f}'.format(self.input_percent[curr_step]*100.0)+' %' ,fontsize='large', fontname = 'monospace')
+            else:
+                ax2.set_title('Input Power = '+'{:.2f}'.format(0.00)+' %' ,fontsize='large', fontname = 'monospace')
+            
             # Set title and save
             title_str = "Time From Trigger: "+'{:.2f}'.format(self.time[curr_step])+'s'
-            fig.suptitle(title_str,fontsize='xx-large')
+            fig.suptitle(title_str,fontsize='xx-large', fontname = 'monospace')
             plt.savefig(self.video_path+str(curr_step).zfill(4)+'.png', dpi=100)
             plt.close()
             
