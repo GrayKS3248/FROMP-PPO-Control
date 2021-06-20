@@ -9,7 +9,7 @@ using namespace std;
 * Default constructor
 */
 Finite_Element_Solver::Finite_Element_Solver()
-{
+{	
 	// Load configuration data
 	if (load_config() == 1)
 	{
@@ -38,7 +38,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 		specific_heat = DCPD_GC1_specific_heat;
 		
 		// Calcualte the critical temperature
-		cure_critical_temperature = -DCPD_GC1_activiation_energy / (log((pow(1.0-initial_cure,-DCPD_GC1_model_fit_order)*1.0e-3) / ((1.0+DCPD_GC1_autocatalysis_const*initial_cure)*DCPD_GC1_pre_exponential)) * gas_const);
+		cure_critical_temperature = -DCPD_GC1_activiation_energy / (log((pow(1.0-initial_cure,-DCPD_GC1_model_fit_order)*critical_cure_rate) / ((1.0+DCPD_GC1_autocatalysis_const*initial_cure)*DCPD_GC1_pre_exponential)) * gas_const);
 	}
 	else if (use_DCPD_GC2)
 	{
@@ -48,7 +48,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 		specific_heat = DCPD_GC2_specific_heat;
 		
 		// Calcualte the critical temperature
-		cure_critical_temperature = -DCPD_GC2_activiation_energy / ((log((exp(initial_cure*DCPD_GC2_diffusion_const)/DCPD_GC2_pre_exponential + exp(DCPD_GC2_diffusion_const*DCPD_GC2_critical_cure)/DCPD_GC2_pre_exponential) * pow((1.0-initial_cure), -DCPD_GC2_model_fit_order) * pow(initial_cure, -DCPD_GC2_m_fit))- DCPD_GC2_diffusion_const*DCPD_GC2_critical_cure + log(1.0e-3)) * gas_const);
+		cure_critical_temperature = -DCPD_GC2_activiation_energy / ((log((exp(initial_cure*DCPD_GC2_diffusion_const)/DCPD_GC2_pre_exponential + exp(DCPD_GC2_diffusion_const*DCPD_GC2_critical_cure)/DCPD_GC2_pre_exponential) * pow((1.0-initial_cure), -DCPD_GC2_model_fit_order) * pow(initial_cure, -DCPD_GC2_m_fit))- DCPD_GC2_diffusion_const*DCPD_GC2_critical_cure + log(critical_cure_rate)) * gas_const);
 	}
 	else if (use_COD)
 	{
@@ -374,6 +374,54 @@ Finite_Element_Solver::Finite_Element_Solver()
 		{
 			tb_bc_temps_fine[i][j] = new double[num_vert_width_fine];
 		}
+	}
+	
+	// Allocate space for precalculated arrays
+	exp_arr_len = (int) floor((end_temp - start_temp) / temp_step) + 1;
+	pow_arr_len = (int) floor((end_cure - start_cure) / cure_step) + 1;
+	exp_arr = new double[exp_arr_len];
+	pow_arr = new double[pow_arr_len];
+	
+	// Populate exp precalculated array
+	int index = 0;
+	double temp = start_temp;
+	while(index < exp_arr_len)
+	{
+		if (use_DCPD_GC1)
+		{
+			exp_arr[index] = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * temp));
+		}
+		else if (use_DCPD_GC2)
+		{
+			exp_arr[index] = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * temp));
+		}
+		else if (use_COD)
+		{
+			exp_arr[index] = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * temp));
+		}
+		temp += temp_step;
+		index++;
+	}
+	
+	// Populate pow precalculated array
+	index = 0;
+	double cure = start_cure;
+	while(index < pow_arr_len)
+	{
+		if (use_DCPD_GC1)
+		{
+			pow_arr[index] = pow((1.0 - cure), DCPD_GC1_model_fit_order) * (1.0 + DCPD_GC1_autocatalysis_const * cure);
+		}
+		else if (use_DCPD_GC2)
+		{
+			pow_arr[index] = pow((1.0 - cure), DCPD_GC2_model_fit_order) * pow(cure, DCPD_GC2_m_fit) * (1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(cure - DCPD_GC2_critical_cure))));
+		}
+		else if (use_COD)
+		{
+			pow_arr[index] = pow((1.0 - cure), COD_model_fit_order) * pow(cure, COD_m_fit);
+		}
+		cure += cure_step;
+		index++
 	}
 }
 
@@ -1213,8 +1261,6 @@ int Finite_Element_Solver::load_config()
 		
 		config_file >> config_dump >> string_dump;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		if (string_dump.compare("const")==0)
 		{
 			const_target = true;
@@ -1238,6 +1284,23 @@ int Finite_Element_Solver::load_config()
 			cout << "\nTarget configuration not recognized.";
 		}
 		
+		config_file >> config_dump >> string_dump;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		if (string_dump.compare("1")==0)
+		{
+			laplacian_order_3 = false;
+		}
+		else if (string_dump.compare("3")==0)
+		{
+			laplacian_order_3 = true;
+		}
+		else
+		{
+			cout << "\nLaplacian order not supported.";
+		}
+		
 		config_file >> config_dump >> num_vert_length;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
@@ -1248,6 +1311,7 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
 		
 		config_file >> config_dump >> length;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1260,6 +1324,7 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
+		
 		config_file >> config_dump >> sim_duration;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
@@ -1267,6 +1332,7 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
 		
 		config_file >> config_dump >> length_fine;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1285,6 +1351,7 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 
+
 		config_file >> config_dump >> temperature_limit;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
@@ -1302,6 +1369,7 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
+		
 		config_file >> config_dump >> front_time_const;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 
@@ -1312,6 +1380,7 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
 		
 		config_file >> config_dump >> initial_temperature;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1327,6 +1396,16 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
+		
+		config_file >> config_dump >> critical_cure_rate;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> trans_cure_rate;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		
 		config_file >> config_dump >> default_htc;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
@@ -1341,6 +1420,7 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
+		
 		config_file >> config_dump >> trigger_flux;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
@@ -1351,6 +1431,7 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
 		
 		config_file >> config_dump >> radius_of_input;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1366,6 +1447,7 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
+		
 		config_file >> config_dump >> input_reward_const;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
@@ -1376,6 +1458,27 @@ int Finite_Element_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
 		config_file >> config_dump >> target_reward_const;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		
+		config_file >> config_dump >> start_temp;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> end_temp;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> temp_step;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> start_cure;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> end_cure;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		
+		config_file >> config_dump >> cure_step;
 	}
 	else
 	{
@@ -1854,7 +1957,14 @@ double Finite_Element_Solver::get_laplacian_fine(int i, int j, int k)
 		start_p = (i==num_vert_length_fine-2) ? -5 : start_p;
 		for (int p = start_p; p < start_p + 7; p++)
 		{
-			d2t_dx2 += laplacian_consts_3rd[abs(start_p)-1][p-start_p] * temp_mesh_fine[get_ind(i+p)][j][k];
+			if(laplacian_order_3)
+			{
+				d2t_dx2 += laplacian_consts_3rd[abs(start_p)-1][p-start_p] * temp_mesh_fine[get_ind(i+p)][j][k];
+			}
+			else
+			{
+				d2t_dx2 += laplacian_consts_1st_3rd[abs(start_p)-1][p-start_p] * temp_mesh_fine[get_ind(i+p)][j][k];
+			}
 		}
 	}
 	d2t_dx2 = d2t_dx2 / (x_step_fine*x_step_fine);
@@ -1878,7 +1988,14 @@ double Finite_Element_Solver::get_laplacian_fine(int i, int j, int k)
 		start_q = (j==num_vert_width_fine-2) ? -3 : start_q;
 		for (int q = start_q; q < start_q + 5; q++)
 		{
-			d2t_dy2 += laplacian_consts_2nd[abs(start_q)-1][q-start_q] * temp_mesh_fine[i_ind][j+q][k];
+			if(laplacian_order_3)
+			{
+				d2t_dy2 += laplacian_consts_2nd[abs(start_q)-1][q-start_q] * temp_mesh_fine[i_ind][j+q][k];
+			}
+			else
+			{
+				d2t_dy2 += laplacian_consts_1st_2nd[abs(start_q)-1][q-start_q] * temp_mesh_fine[i_ind][j+q][k];
+			}
 		}
 	}
 	d2t_dy2 = d2t_dy2 / (y_step_fine*y_step_fine);
@@ -2097,7 +2214,7 @@ void Finite_Element_Solver::step_meshes()
 						(1.0 / (1.0 + exp(DCPD_GC2_diffusion_const*(cure_mesh_fine[i_ind][j][k] - DCPD_GC2_critical_cure))));
 						
 						// FE for shallow cure rates
-						if( first_stage_cure_rate < 1.5 )
+						if( first_stage_cure_rate < trans_cure_rate )
 						{
 							cure_rate = first_stage_cure_rate;
 						}

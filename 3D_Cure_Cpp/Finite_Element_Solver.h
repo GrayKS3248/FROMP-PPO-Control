@@ -105,7 +105,19 @@ const double COD_pre_exponential = 2.13e19;        // 1 / Seconds
 const double COD_activiation_energy = 132000.0;    // Joules / Mol
 const double COD_model_fit_order = 2.5141;         // Unitless
 const double COD_m_fit = 0.8173;                   // Unitless
-				  
+				
+// Precalculated arrays for cure rate
+double* exp_arr;
+double* pow_arr;
+double start_temp;
+double end_temp;
+double temp_step;
+int exp_arr_len;
+double start_cure;
+double end_cure;
+double cure_step;
+int pow_arr_len;
+				
 // Laplacian calculation consts for 3rd order 7-stencil
 double laplacian_consts_3rd[5][7] = { { 137.0/180.0, -49.0/60.0, -17.0/12.0, 47.0/18.0, -19.0/12.0,  31.0/60.0, -13.0/180.0 }, 
 				  { -13.0/180.0,  19.0/15.0,  -7.0/3.0,  10.0/9.0,    1.0/12.0,  -1.0/15.0,   1.0/90.0 }, 
@@ -117,6 +129,18 @@ double laplacian_consts_3rd[5][7] = { { 137.0/180.0, -49.0/60.0, -17.0/12.0, 47.
 double laplacian_consts_2nd[3][5] = { { 11.0/12.0, -5.0/3.0,  1.0/2.0,  1.0/3.0, -1.0/12.0 }, 
 				      { -1.0/12.0,  4.0/3.0, -5.0/2.0,  4.0/3.0, -1.0/12.0 }, 
 				      { -1.0/12.0,  1.0/3.0,  1.0/2.0, -5.0/3.0, 11.0/12.0 } };
+				
+// Laplacian calculation consts for 1st order 7-stencil substituted into 3rd order laplacian calculation
+double laplacian_consts_1st_3rd[5][7] = { { 1, -2,  1,  0,  0,   0,  0 }, 
+				          { 0,  1, -2,  1,  0,   0,  0 }, 
+				          { 0,  0,  1, -2,  1,   0,  0 }, 
+				          { 0,  0,  0,  1, -2,   1,  0 }, 
+				          { 0,  0,  0,  0,  1,  -2,  1 } };
+				  
+// Laplacian calculation consts for 1st order 7-stencil substituted into 2nd order laplacian calculation
+double laplacian_consts_1st_2nd[3][5] = { { 1, -2,   1,   0,  0 }, 
+				          { 0,  1,  -2,   1,  0 },
+				          { 0,  0,   1,  -2,  1 } };
 
 
 //******************************************************************** CONFIG PARAMETERS ********************************************************************//
@@ -131,6 +155,7 @@ bool control_temperature;
 bool const_target;
 bool random_target;
 bool target_switch;
+bool laplacian_order_3;
 
 // Mesh parameters
 int num_vert_length;
@@ -170,6 +195,10 @@ double initial_temperature;
 double initial_cure;
 double initial_temp_delta;
 double initial_cure_delta;
+
+// Critical cure values
+double critical_cure_rate;
+double trans_cure_rate;
 
 // Boundary conditions
 double htc;

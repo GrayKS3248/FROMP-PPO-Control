@@ -27,18 +27,18 @@ def get_print_string(curr_epoch, num_batches, loss_buffer):
 if __name__ == "__main__":
     
     # Training data parameters
-    num_traj = 10
-    samples_per_traj = 20
-    samples_per_batch = 100
-    x_dim = 250
-    y_dim = 20
+    num_traj = 999
+    samples_per_traj = 40
+    samples_per_batch = 120
+    x_dim = 256
+    y_dim = 24
     initial_training_criterion = 0.60
-    path = 'training_data'
+    path = 'training_data/DCPD_GC2'
     
     # Hyperparameters May train up to three autoencoders at once
     kernal_size  = [3, 3]
-    objct_func   = [1, 1]
-    len_output   = [1, 1]
+    objct_func   = [1, 3]
+    len_output   = [1, 3]
     bottleneck   = [64, 64]
     weighted_arr = [0, 0]
     load_path = ["", ""]
@@ -50,6 +50,8 @@ if __name__ == "__main__":
     num_batches = int(num_traj//(samples_per_batch//samples_per_traj))
     if not (len(bottleneck) == len(len_output) and len(bottleneck) == len(objct_func) and len(bottleneck) == len(weighted_arr) and len(bottleneck) == len(kernal_size) and len(bottleneck) == len(load_path)):
         raise RuntimeError('Unable to parse number of autoencoders to train.')
+    if num_batches <= 10:
+        raise RuntimeError('Training requires at least 11 batches.')
     
     # Ensure training is occuring
     loss_at_0 = np.zeros(len(bottleneck))
