@@ -381,7 +381,9 @@ Finite_Element_Solver::Finite_Element_Solver()
 	pow_arr_len = (int) floor((end_cure - start_cure) / cure_step) + 1;
 	exp_arr = new double[exp_arr_len];
 	pow_arr = new double[pow_arr_len];
-	
+	temp_arr = new double[exp_arr_len];
+	cure_arr = new double[pow_arr_len];
+
 	// Populate exp precalculated array
 	int index = 0;
 	double temp = start_temp;
@@ -399,6 +401,7 @@ Finite_Element_Solver::Finite_Element_Solver()
 		{
 			exp_arr[index] = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * temp));
 		}
+		temp_arr[index] = temp;
 		temp += temp_step;
 		index++;
 	}
@@ -420,8 +423,9 @@ Finite_Element_Solver::Finite_Element_Solver()
 		{
 			pow_arr[index] = pow((1.0 - cure), COD_model_fit_order) * pow(cure, COD_m_fit);
 		}
+		cure_arr[index] = cure;
 		cure += cure_step;
-		index++
+		index++;
 	}
 }
 
@@ -433,6 +437,10 @@ Finite_Element_Solver::~Finite_Element_Solver()
 	// 1D arrays
 	delete[] input_location;
 	delete[] target_vector;
+	delete[] exp_arr;
+	delete[] pow_arr;
+	delete[] temp_arr;
+	delete[] cure_arr;
 	
 	// Input mesh
 	for(int i = 0; i != num_vert_length; ++i)
@@ -968,14 +976,16 @@ void Finite_Element_Solver::print_params()
 	// Coarse Mesh
 	cout << "\nCoarse Mesh(\n";
 	cout << "  (Dimensions): " << 1000.0*length << " x " << 1000.0*width << " x " << 1000.0*depth << " mm\n";
-	cout << "  (Grid): " << num_vert_length << " x " << num_vert_width << " x " << num_vert_depth << "\n";
+	cout << "  (Grid Size): " << 1e6*length/(double)num_vert_length << " x " << 1e6*width/(double)num_vert_width << " x " << 1e6*depth/(double)num_vert_depth << " um\n";
+	cout << "  (Grid Vertices): " << num_vert_length << " x " << num_vert_width << " x " << num_vert_depth << "\n";
 	cout << "  (Time Step): " << 1000.0*time_step << " ms\n";
 	cout << ")\n\n";
 	
 	// Fine Mesh
 	cout << "\nFine Mesh(\n";
 	cout << "  (Fine Dimensions): " << 1000.0*length_fine << " x " << 1000.0*width << " x " << 1000.0*depth << " mm\n";
-	cout << "  (Fine Grid): " << num_vert_length_fine << " x " << num_vert_width_fine << " x " << num_vert_depth_fine << "\n";
+	cout << "  (Fine Grid Size): " << 1e6*length_fine/(double)num_vert_length_fine << " x " << 1e6*width/(double)num_vert_width_fine << " x " << 1e6*depth/(double)num_vert_depth_fine << " um\n";
+	cout << "  (Fine Grid Vertices): " << num_vert_length_fine << " x " << num_vert_width_fine << " x " << num_vert_depth_fine << "\n";
 	cout << "  (Fine Time Step): " << 1000.0*time_step_fine << " ms\n";
 	cout << ")\n\n";
 	
@@ -2060,11 +2070,11 @@ void Finite_Element_Solver::step_meshes()
 		for (int k = 0; k < num_vert_depth; k++)
 		{
 			double cure_rate = 0.0;
-				
+			
 			// Only calculate the cure rate if curing has started but is incomplete
 			if ((temp_mesh[i][j][k] >= cure_critical_temperature) && (cure_mesh[i][j][k] < 1.0))
 			{
-				if (use_DCPD_GC1)
+/* 				if (use_DCPD_GC1)
 				{
 					cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * temp_mesh[i][j][k])) *
 					pow((1.0 - cure_mesh[i][j][k]), DCPD_GC1_model_fit_order) * 
@@ -2083,8 +2093,19 @@ void Finite_Element_Solver::step_meshes()
 					cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * temp_mesh[i][j][k])) *  
 					pow((1.0 - cure_mesh[i][j][k]), COD_model_fit_order) * 
 					pow(cure_mesh[i][j][k], COD_m_fit);
-				}
+				} */
 				
+				// Search precalculated array
+				int exp_index = (int)round((temp_mesh[i][j][k]-start_temp) / temp_step);
+				exp_index = exp_index < 0 ? 0 : exp_index;
+				exp_index = exp_index >= exp_arr_len ? exp_arr_len-1 : exp_index;
+				
+				int pow_index = (int)round((cure_mesh[i][j][k]-start_cure) / cure_step);
+				pow_index = pow_index < 0 ? 0 : pow_index;
+				pow_index = pow_index >= pow_arr_len ? pow_arr_len-1 : pow_index;
+				
+				cure_rate = exp_arr[exp_index] * pow_arr[pow_index];
+					
 				// Limit cure rate such that a single time step will not yield a degree of cure greater than 1.0
 				cure_rate = cure_rate > (1.0 - cure_mesh[i][j][k])/time_step ? (1.0 - cure_mesh[i][j][k])/time_step : cure_rate;
 				cure_rate = cure_rate < 0.0 ? 0.0 : cure_rate;	
@@ -2124,7 +2145,7 @@ void Finite_Element_Solver::step_meshes()
 			// Only calculate the cure rate if curing has started but is incomplete
 			if ((temp_mesh[i][j][k] >= cure_critical_temperature) && (cure_mesh[i][j][k] < 1.0))
 			{
-				if (use_DCPD_GC1)
+/* 				if (use_DCPD_GC1)
 				{
 					cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * temp_mesh[i][j][k])) *
 					pow((1.0 - cure_mesh[i][j][k]), DCPD_GC1_model_fit_order) * 
@@ -2143,7 +2164,18 @@ void Finite_Element_Solver::step_meshes()
 					cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * temp_mesh[i][j][k])) *  
 					pow((1.0 - cure_mesh[i][j][k]), COD_model_fit_order) * 
 					pow(cure_mesh[i][j][k], COD_m_fit);
-				}
+				} */
+				
+				// Search precalculated array
+				int exp_index = (int)round((temp_mesh[i][j][k]-start_temp) / temp_step);
+				exp_index = exp_index < 0 ? 0 : exp_index;
+				exp_index = exp_index >= exp_arr_len ? exp_arr_len-1 : exp_index;
+				
+				int pow_index = (int)round((cure_mesh[i][j][k]-start_cure) / cure_step);
+				pow_index = pow_index < 0 ? 0 : pow_index;
+				pow_index = pow_index >= pow_arr_len ? pow_arr_len-1 : pow_index;
+				
+				cure_rate = exp_arr[exp_index] * pow_arr[pow_index];
 				
 				// Limit cure rate such that a single time step will not yield a degree of cure greater than 1.0
 				cure_rate = cure_rate > (1.0 - cure_mesh[i][j][k])/time_step ? (1.0 - cure_mesh[i][j][k])/time_step : cure_rate;
@@ -2183,7 +2215,7 @@ void Finite_Element_Solver::step_meshes()
 			{
 				int i_ind = get_ind(i);
 				
-				double exponential_term = 0.0;
+				//double exponential_term = 0.0;
 				double cure_rate = 0.0;
 				double first_stage_cure_rate = 0.0;
 				double second_stage_cure = 0.0;
@@ -2196,7 +2228,7 @@ void Finite_Element_Solver::step_meshes()
 				// Only calculate the cure rate if curing has started but is incomplete
 				if ((temp_mesh_fine[i_ind][j][k] >= cure_critical_temperature) && (cure_mesh_fine[i_ind][j][k] < 1.0))
 				{
-					if (use_DCPD_GC1)
+/* 					if (use_DCPD_GC1)
 					{
 						cure_rate = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * temp_mesh_fine[i_ind][j][k])) *
 						pow((1.0 - cure_mesh_fine[i_ind][j][k]), DCPD_GC1_model_fit_order) * 
@@ -2265,7 +2297,62 @@ void Finite_Element_Solver::step_meshes()
 						cure_rate = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * temp_mesh_fine[i_ind][j][k])) *  
 						pow((1.0 - cure_mesh_fine[i_ind][j][k]), COD_model_fit_order) * 
 						pow(cure_mesh_fine[i_ind][j][k], COD_m_fit);
+					} */
+					
+					// Search precalculated array
+					int exp_index = (int)round((temp_mesh_fine[i_ind][j][k]-start_temp) / temp_step);
+					exp_index = exp_index < 0 ? 0 : exp_index;
+					exp_index = exp_index >= exp_arr_len ? exp_arr_len-1 : exp_index;
+					
+					int pow_index = (int)round((cure_mesh_fine[i_ind][j][k]-start_cure) / cure_step);
+					pow_index = pow_index < 0 ? 0 : pow_index;
+					pow_index = pow_index >= pow_arr_len ? pow_arr_len-1 : pow_index;
+					
+					first_stage_cure_rate = exp_arr[exp_index] * pow_arr[pow_index];
+					
+					if( first_stage_cure_rate < trans_cure_rate )
+					{
+						cure_rate = first_stage_cure_rate;
 					}
+					else
+					{
+						// Stage 2
+						second_stage_cure = cure_mesh_fine[i_ind][j][k] + 0.5*time_step_fine*first_stage_cure_rate;
+						if(second_stage_cure<1.0)
+						{
+							pow_index = (int)round((second_stage_cure-start_cure) / cure_step);
+							pow_index = pow_index < 0 ? 0 : pow_index;
+							pow_index = pow_index >= pow_arr_len ? pow_arr_len-1 : pow_index;
+							second_stage_cure_rate = exp_arr[exp_index] * pow_arr[pow_index];
+						}
+						else {second_stage_cure_rate=0.0;}
+						
+						// Stage 3
+						third_stage_cure = cure_mesh_fine[i_ind][j][k] + 0.5*time_step_fine*second_stage_cure_rate;
+						if(third_stage_cure<1.0)
+						{
+							pow_index = (int)round((second_stage_cure-start_cure) / cure_step);
+							pow_index = pow_index < 0 ? 0 : pow_index;
+							pow_index = pow_index >= pow_arr_len ? pow_arr_len-1 : pow_index;
+							third_stage_cure_rate = exp_arr[exp_index] * pow_arr[pow_index];
+						}
+						else {third_stage_cure_rate=0.0;}
+						
+						// Stage 4
+						fourth_stage_cure = cure_mesh_fine[i_ind][j][k] + time_step_fine*third_stage_cure_rate;
+						if(fourth_stage_cure<1.0)
+						{
+							pow_index = (int)round((second_stage_cure-start_cure) / cure_step);
+							pow_index = pow_index < 0 ? 0 : pow_index;
+							pow_index = pow_index >= pow_arr_len ? pow_arr_len-1 : pow_index;
+							fourth_stage_cure = exp_arr[exp_index] * pow_arr[pow_index];
+						}
+						else {fourth_stage_cure=0.0;}
+						
+						// Apply RK4 algorithm
+						cure_rate = (first_stage_cure_rate + 2.0*second_stage_cure_rate + 2.0*third_stage_cure_rate + fourth_stage_cure_rate)/6.0;
+					}
+						
 					
 					// Limit cure rate such that a single time step will not yield a degree of cure greater than 1.0
 					cure_rate = cure_rate > (1.0 - cure_mesh_fine[i_ind][j][k])/time_step_fine ? (1.0 - cure_mesh_fine[i_ind][j][k])/time_step_fine : cure_rate;
@@ -2344,7 +2431,6 @@ void Finite_Element_Solver::step_meshes()
 			// Mark the end of front curve data
 			front_curve[0][num_front_instances] = -1.0;
 			front_curve[1][num_front_instances] = -1.0;
-			
 		}
 	}
 	

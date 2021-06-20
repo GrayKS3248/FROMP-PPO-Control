@@ -109,6 +109,8 @@ const double COD_m_fit = 0.8173;                   // Unitless
 // Precalculated arrays for cure rate
 double* exp_arr;
 double* pow_arr;
+double* temp_arr;
+double* cure_arr;
 double start_temp;
 double end_temp;
 double temp_step;
