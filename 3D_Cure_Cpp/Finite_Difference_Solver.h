@@ -11,49 +11,52 @@
 
 using namespace std;
 
-class Finite_Element_Solver {
+class Finite_Difference_Solver {
 	
 
 //******************************************************************** CONSTRUCTOR/DESTRUCTOR ********************************************************************//
 public:
-Finite_Element_Solver();
-~Finite_Element_Solver();
+Finite_Difference_Solver();
+~Finite_Difference_Solver();
 
 
 //******************************************************************** GETTERS ********************************************************************//
 // Mesh getters
-int get_num_vert_length();
-int get_num_vert_width();
-int get_num_vert_depth();
-vector<vector<double>> get_mesh_x_z0();
-vector<vector<double>> get_mesh_y_z0();
+int get_num_coarse_vert_x();
+int get_num_coarse_vert_y();
+int get_num_coarse_vert_z();
+vector<vector<double>> get_coarse_x_mesh_z0();
+vector<vector<double>> get_coarse_y_mesh_z0();
+vector<double> get_fine_mesh_loc();
 
 // Time getters
 double get_sim_duration();
-double get_time_step();
-double get_current_time();
+int get_num_sim_steps();
+double get_coarse_time_step();
+double get_curr_sim_time();
 
 // Input parameters getters
-double get_max_input_mag();
-double get_exp_const();
+double get_peak_input_mag();
+double get_input_const();
 double get_max_input_mag_percent_rate();
-double get_max_input_loc_rate();
+double get_max_input_slew_speed();
 
 // Input state getters
 double get_input_percent();
 vector<double> get_input_location();
 
 // Target getters
-double get_current_target();
-int get_steps_per_episode();
+double get_curr_target();
 
-//Sim option getter
-bool get_control_speed();
+// Sim option getter
+bool get_control_mode();
 
 // Temperature and cure getters
-vector<vector<double>> get_temp_mesh();
-vector<vector<double>> get_norm_temp_mesh();
-vector<vector<double>> get_cure_mesh();
+vector<vector<double>> get_coarse_temp_z0();
+vector<vector<double>> get_fine_temp_z0();
+vector<vector<double>> get_norm_coarse_temp_z0();
+vector<vector<double>> get_coarse_cure_z0();
+vector<vector<double>> get_fine_cure_z0();
 
 // Front state getters
 vector<vector<double>> get_front_curve();
@@ -65,7 +68,7 @@ double get_front_shape_param();
 //******************************************************************** PUBLIC FUNCTIONS ********************************************************************//
 void print_params();
 void reset();
-bool step(double x_loc_rate_action, double y_loc_rate_action, double mag_action);
+bool step(double x_slew_speed_cmd, double y_slew_speed_cmd, double mag_percent_rate_cmd);
 double get_reward();
 
 
@@ -106,109 +109,84 @@ const double COD_activiation_energy = 132000.0;    // Joules / Mol
 const double COD_model_fit_order = 2.5141;         // Unitless
 const double COD_m_fit = 0.8173;                   // Unitless
 				
-// Precalculated arrays for cure rate
-double* exp_arr;
-double* pow_arr;
-double* temp_arr;
-double* cure_arr;
-double start_temp;
-double end_temp;
-double temp_step;
-int exp_arr_len;
-double start_cure;
-double end_cure;
-double cure_step;
-int pow_arr_len;
-				
 // Laplacian calculation consts for 3rd order 7-stencil
-double laplacian_consts_3rd[5][7] = { { 137.0/180.0, -49.0/60.0, -17.0/12.0, 47.0/18.0, -19.0/12.0,  31.0/60.0, -13.0/180.0 }, 
+double laplacian_consts_6th[5][7] = { { 137.0/180.0, -49.0/60.0, -17.0/12.0, 47.0/18.0, -19.0/12.0,  31.0/60.0, -13.0/180.0 }, 
 				  { -13.0/180.0,  19.0/15.0,  -7.0/3.0,  10.0/9.0,    1.0/12.0,  -1.0/15.0,   1.0/90.0 }, 
 				  {   1.0/90.0,   -3.0/20.0,   3.0/2.0, -49.0/18.0,   3.0/2.0,   -3.0/20.0,   1.0/90.0 },
 				  {   1.0/90.0,   -1.0/15.0,   1.0/12.0, 10.0/9.0,   -7.0/3.0,   19.0/15.0, -13.0/180.0 }, 
 				  { -13.0/180.0,  31.0/60.0, -19.0/12.0, 47.0/18.0, -17.0/12.0, -49.0/60.0, 137.0/180.0 } };
 				  
 // Laplacian calculation consts for 2nd order 7-stencil
-double laplacian_consts_2nd[3][5] = { { 11.0/12.0, -5.0/3.0,  1.0/2.0,  1.0/3.0, -1.0/12.0 }, 
+double laplacian_consts_4th[3][5] = { { 11.0/12.0, -5.0/3.0,  1.0/2.0,  1.0/3.0, -1.0/12.0 }, 
 				      { -1.0/12.0,  4.0/3.0, -5.0/2.0,  4.0/3.0, -1.0/12.0 }, 
 				      { -1.0/12.0,  1.0/3.0,  1.0/2.0, -5.0/3.0, 11.0/12.0 } };
-				
-// Laplacian calculation consts for 1st order 7-stencil substituted into 3rd order laplacian calculation
-double laplacian_consts_1st_3rd[5][7] = { { 1, -2,  1,  0,  0,   0,  0 }, 
-				          { 0,  1, -2,  1,  0,   0,  0 }, 
-				          { 0,  0,  1, -2,  1,   0,  0 }, 
-				          { 0,  0,  0,  1, -2,   1,  0 }, 
-				          { 0,  0,  0,  0,  1,  -2,  1 } };
-				  
-// Laplacian calculation consts for 1st order 7-stencil substituted into 2nd order laplacian calculation
-double laplacian_consts_1st_2nd[3][5] = { { 1, -2,   1,   0,  0 }, 
-				          { 0,  1,  -2,   1,  0 },
-				          { 0,  0,   1,  -2,  1 } };
 
 
 //******************************************************************** CONFIG PARAMETERS ********************************************************************//
 // Simulation options
-bool control;
-bool trigger;
-bool use_DCPD_GC1;
-bool use_DCPD_GC2;
-bool use_COD;
-bool control_speed;
-bool control_temperature;
-bool const_target;
-bool random_target;
-bool target_switch;
-bool laplacian_order_3;
+bool input_is_on;
+bool trigger_is_on;
+int monomer_code;
+int control_code;
+int target_code;
 
-// Mesh parameters
-int num_vert_length;
-int num_vert_width;
-int num_vert_depth;
+// Coarse mesh parameters
+int num_coarse_vert_x;
+int num_coarse_vert_y;
+int num_coarse_vert_z;
+double coarse_x_len;
+double coarse_y_len;
+double coarse_z_len;
 
-// Spatial parameters
-double length;
-double width;
-double depth;
+// Fine mesh parameters
+double fine_x_len;
+int fine_x_steps_per_coarse_x_step;
+int fine_y_steps_per_coarse_y_step;
+int fine_z_steps_per_coarse_z_step;
 
 // Temporal parameters
 double sim_duration;
-double time_step;
-
-// Fine mesh parameters
-double length_fine;
-int fine_time_steps_per_coarse;
-int fine_steps_per_coarse_step_x;
-int fine_steps_per_coarse_step_y;
-int fine_steps_per_coarse_step_z;
+double coarse_time_step;
+int fine_time_steps_per_coarse_time_step;
 
 // Problem definition
-double temperature_limit;
-double target_vel;
-double vel_rand_scale;
-double target_temp;
-double temp_rand_scale;
-
-// Front detection
-double front_time_const;
-double front_min_cure;
-double front_max_cure;
+double monomer_burn_temp;
+double mean_target_speed;
+double max_target_speed_deviation;
+double mean_target_temp;
+double max_target_temp_deviation;
 
 // Initial conditions
-double initial_temperature;
+double initial_temp;
 double initial_cure;
-double initial_temp_delta;
-double initial_cure_delta;
+double max_initial_temp_deviation;
+double max_initial_cure_deviation;
+
+// Boundary conditions
+double mean_htc;
+double max_htc_deviation;
+double mean_amb_temp;
+double max_amb_temp_deviation;
+
+// Front detection
+double front_filter_time_const;
+double front_min_cure;
+double front_max_cure;
+double front_min_cure_rate;
 
 // Critical cure values
 double critical_cure_rate;
-double trans_cure_rate;
+double transition_cure_rate;
 
-// Boundary conditions
-double htc;
-double ambient_temperature;
-double default_htc;
-double default_ambient_temperature;
-double htc_delta;
-double ambient_temperature_delta;
+// Precalculated array parameters for cure rate based on temp
+double precalc_start_temp;
+double precalc_end_temp;
+double precalc_temp_step;
+
+// Precalculated array parameters for cure rate based on cure
+double precalc_start_cure;
+double precalc_end_cure;
+double precalc_cure_step;
 
 // Trigger parameters
 double trigger_flux;
@@ -217,109 +195,118 @@ double trigger_duration;
 
 // Input distribution parameters
 double radius_of_input;
-double laser_power;
+double input_total_power;
 double max_input_mag_percent_rate;
-double max_input_loc_rate;
+double max_input_slew_speed;
 
 // Reward constants
 double input_reward_const;
-double overage_reward_const;
+double max_temp_reward_const;
 double front_shape_reward_const;
 double target_reward_const;
 
 
 //******************************************************************** CALCULATED PARAMETERS ********************************************************************//
-// Simulation time and target velocity index
-double current_time;
-int current_index;
-double time_step_fine;
-
-// Front calculation parameters
-int front_location_indicies_length;  // Length of memory to store front indices
-double front_filter_alpha;
-
-// Monomer physical parameters
+// Calculated monomer physical parameters
 double thermal_diffusivity;
 double thermal_conductivity;
 double enthalpy_of_reaction;
 double specific_heat;
-double cure_critical_temperature;  // The temperature below which the monomer cure rate is considered to be 0
+double critical_temp;
 
-// Target temporal vectors and the current target
-double* target_vector;
-double current_target;
+// Calculated coarse mesh parameters
+double*** coarse_x_mesh;
+double*** coarse_y_mesh;
+double*** coarse_z_mesh;
+double*** coarse_temp_mesh;
+double*** coarse_laplacian_mesh;
+double*** coarse_cure_mesh;
+double coarse_x_step;
+double coarse_y_step;
+double coarse_z_step;
+int coarse_x_steps_per_fine_x_len;
+int coarse_y_steps_per_fine_y_len;
+int coarse_z_steps_per_fine_z_len;
+int coarse_x_index_at_fine_mesh_start;
 
-// Mesh and step size
-double*** mesh_x;
-double*** mesh_y;
-double*** mesh_z;
-double x_step;
-double y_step;
-double z_step;
-int num_vert_length_fine;
-int num_vert_width_fine;
-int num_vert_depth_fine;
-double x_step_fine;
-double y_step_fine;
-double z_step_fine;
-int coarse_steps_per_fine_mesh_x;
-int coarse_steps_per_fine_mesh_y;
-int coarse_steps_per_fine_mesh_z;
-int fine_mesh_start_x_index;
-int coarse_mesh_start_x_index;
+// Calcualted fine mesh parameters
+double*** fine_temp_mesh;
+double*** fine_laplacian_mesh;
+double*** fine_cure_mesh;
+int num_fine_vert_x;
+int num_fine_vert_y;
+int num_fine_vert_z;
+double fine_y_len;
+double fine_z_len;
+double fine_x_step;
+double fine_y_step;
+double fine_z_step;
+int fine_mesh_zero_index;
+double fine_mesh_start_loc;
+double fine_mesh_end_loc;
 
-// Temperature and cure meshes
-double*** temp_mesh;
-double*** laplacian_mesh;
-double*** cure_mesh;
-double*** temp_mesh_fine;
-double*** cure_mesh_fine;
-double*** laplacian_mesh_fine;
+// Simulation time and step parameters
+double curr_sim_time;
+int curr_sim_step;
+double fine_time_step;
 
-// Boundary temperatures
-double*** lr_bc_temps;
-double*** fb_bc_temps;
-double*** tb_bc_temps;
-double*** lr_bc_temps_fine;
-double*** fb_bc_temps_fine;
-double*** tb_bc_temps_fine;
+// Problem definition
+double mean_target;
+double max_target_deviation;
+double* target_arr;
 
-// Front mesh and parameters
-double** front_curve;
-double*** threadwise_front_curve;
-double front_mean_x_loc;
-double front_shape_param;
+// Calculated boundary conditions
+double htc;
+double amb_temp;
+double*** coarse_lr_bc_temps;
+double*** coarse_fb_bc_temps;
+double*** coarse_tb_bc_temps;
+double*** fine_lr_bc_temps;
+double*** fine_fb_bc_temps;
+double*** fine_tb_bc_temps;
+
+// Front calculation parameters
+double**  global_front_curve;
+double*** thread_front_curve;
 double front_vel;
 double front_temp;
+double front_shape_param;
+double front_mean_x_loc;
+int max_front_instances;
+double front_filter_alpha;
 
-// Input magnitude parameters
-double exp_const;
-double max_input_mag;  // Watts / m^2
-double input_percent;  // Decimal percent
+// Precalculated arrays for cure rate
+double* precalc_exp_arr;
+int precalc_exp_arr_len;
+double* precalc_pow_arr;
+int precalc_pow_arr_len;
 
-// Input location parameters
+// Calculated input parameters
+double input_const;
+double peak_input_mag;
 double min_input_x_loc;
 double max_input_x_loc;
 double min_input_y_loc;
 double max_input_y_loc;
-double* input_location;
 
-// Input wattage mesh
+// Input values
 double** input_mesh;
+double* input_location;
+double input_percent;
 
 
 //******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
-void perturb_mesh(double*** arr, double delta);
+void perturb_mesh(double*** arr, double max_deviation);
 void copy_coarse_to_fine();
-void step_input(double x_loc_rate_action, double y_loc_rate_action, double mag_percent_rate_action);
+void step_input(double x_slew_speed_cmd, double y_slew_speed_cmd, double mag_percent_rate_cmd);
 void slide_fine_mesh_right();
 void copy_fine_to_coarse();
 int get_ind(int i);
 void update_lr_bc_temps();
 void update_fb_bc_temps();
 void update_tb_bc_temps();
-double get_laplacian(int i, int j, int k);
-double get_laplacian_fine(int i, int j, int k);
+double get_coarse_laplacian(int i, int j, int k);
+double get_fine_laplacian(int i, int j, int k);
 void step_meshes();
 bool step_time();
 int load_config();

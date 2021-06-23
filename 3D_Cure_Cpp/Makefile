@@ -5,7 +5,7 @@ LIB_PATH= -L$(PYTHONPATH)
 LIB = -lpython39
 
 data: 
-	$(CXX) $(INC) $(LIB_PATH) $(LIB) -O2 $(CXXFLAGS) Finite_Element_Solver.h Finite_Element_Solver.cpp Get_Training_Data.cpp -o get_data
+	$(CXX) $(INC) $(LIB_PATH) $(LIB) -O2 $(CXXFLAGS) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_Training_Data.cpp -o get_data
 	
 train: 
-	$(CXX) $(INC) $(LIB_PATH) $(LIB) -O2 $(CXXFLAGS) Finite_Element_Solver.h Finite_Element_Solver.cpp Train_Agent.cpp -o train_agent
+	$(CXX) $(INC) $(LIB_PATH) $(LIB) -O2 $(CXXFLAGS) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Train_Agent.cpp -o train_agent

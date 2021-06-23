@@ -305,6 +305,9 @@ class Save_Plot_Render:
         self.input_percent = []
         self.temperature_field = []
         self.cure_field = []
+        self.fine_temperature_field = []
+        self.fine_cure_field = []
+        self.fine_mesh_loc = []
         self.front_curve = []
         self.front_velocity = []
         self.front_temperature = []
@@ -333,9 +336,12 @@ class Save_Plot_Render:
         self.input_location_y = np.array(input_location_y)
         self.input_percent = np.array(input_percent)
     
-    def store_field_history(self, temperature_field, cure_field):
+    def store_field_history(self, temperature_field, cure_field, fine_temperature_field, fine_cure_field, fine_mesh_loc):
         self.temperature_field = np.array(temperature_field)
         self.cure_field = np.array(cure_field)
+        self.fine_temperature_field = np.array(fine_temperature_field)
+        self.fine_cure_field = np.array(fine_cure_field)
+        self.fine_mesh_loc = np.array(fine_mesh_loc)
     
     def store_front_history(self, front_curve, front_velocity, front_temperature, front_shape_param):
         self.front_curve = np.array(front_curve)
@@ -407,6 +413,9 @@ class Save_Plot_Render:
             'input_percent': self.input_percent,
             'temperature_field': self.temperature_field,
             'cure_field': self.cure_field,
+            'fine_temperature_field': self.fine_temperature_field,
+            'fine_cure_field': self.fine_cure_field,
+            'fine_mesh_loc': self.fine_mesh_loc,
             'front_curve': self.front_curve,
             'mean_front_x_locations': self.mean_front_x_locations,
             'mean_front_y_locations': self.mean_front_y_locations,
@@ -564,8 +573,8 @@ class Save_Plot_Render:
         print("Rendering agent results...")
         
         # Make videos of the best temperature field trajecotry and cure field trajectories as function of time
-        min_temp = 10.0*np.floor((np.min(self.temperature_field)-273.15)/10.0)
-        max_temp = 10.0*np.ceil((np.max(self.temperature_field)-273.15)/10.0)
+        min_temp = min(10.0*np.floor((np.min(self.temperature_field)-273.15)/10.0), 10.0*np.floor((np.min(self.fine_temperature_field)-273.15)/10.0))
+        max_temp = max(10.0*np.ceil((np.max(self.temperature_field)-273.15)/10.0), 10.0*np.floor((np.min(self.fine_temperature_field)-273.15)/10.0))
         
         for curr_step in range(len(self.time)):
         
@@ -583,8 +592,14 @@ class Save_Plot_Render:
             fig, (ax0, ax1, ax2) = plt.subplots(3, 1)
             fig.set_size_inches(11,8.5)
                
+            # Calculate fine mesh
+            x_linspace = np.linspace(self.fine_mesh_loc[curr_step][0], self.fine_mesh_loc[curr_step][1], len(self.fine_cure_field[curr_step]))
+            y_linspace = np.linspace(self.mesh_y_z0[0][0], self.mesh_y_z0[0][len(self.mesh_y_z0[0])-1], len(self.fine_cure_field[curr_step][0]))
+            fine_mesh_y, fine_mesh_x = np.meshgrid(y_linspace, x_linspace)
+            
             # Plot temperature
             c0 = ax0.pcolormesh(1000.0*self.mesh_x_z0, 1000.0*self.mesh_y_z0, self.temperature_field[curr_step,:,:]-273.15, shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
+            ax0.pcolormesh(1000.0*fine_mesh_x, 1000.0*fine_mesh_y, self.fine_temperature_field[curr_step,:,:]-273.15, shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
             cbar0 = fig.colorbar(c0, ax=ax0)
             cbar0.set_label('Temperature [C]',labelpad=20,fontsize='large')
             cbar0.ax.tick_params(labelsize=12)
@@ -599,6 +614,7 @@ class Save_Plot_Render:
                
             # Plot cure
             c1 = ax1.pcolormesh(1000.0*self.mesh_x_z0, 1000.0*self.mesh_y_z0, self.cure_field[curr_step,:,:], shading='gouraud', cmap='YlOrBr', vmin=0.0, vmax=1.0)
+            ax1.pcolormesh(1000.0*fine_mesh_x, 1000.0*fine_mesh_y, self.fine_cure_field[curr_step,:,:], shading='gouraud', cmap='YlOrBr', vmin=0.0, vmax=1.0)
             cbar1 = fig.colorbar(c1, ax=ax1)
             cbar1.set_label('Degree Cure [-]', labelpad=20,fontsize='large')
             cbar1.ax.tick_params(labelsize=12)
@@ -621,6 +637,8 @@ class Save_Plot_Render:
             c2 = ax2.pcolormesh(1000.0*self.mesh_x_z0, 1000.0*self.mesh_y_z0, 1.0e-3*input_mesh, shading='gouraud', cmap='coolwarm', vmin=0.0, vmax=1.0e-3*self.max_input_mag)
             if front_instances != 0:
                 ax2.plot(front_x_location, front_y_location, 's', color='black', markersize=2.25, markeredgecolor='black')
+            ax2.axvline(1000.0*self.fine_mesh_loc[curr_step][0], color='red', alpha=0.70, ls='--')
+            ax2.axvline(1000.0*self.fine_mesh_loc[curr_step][1], color='red', alpha=0.70, ls='--')
             cbar2 = fig.colorbar(c2, ax=ax2)
             cbar2.set_label('Input Heat [KW/m^2]',labelpad=20,fontsize='large')
             cbar2.ax.tick_params(labelsize=12)

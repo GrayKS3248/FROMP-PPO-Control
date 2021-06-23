@@ -1,5 +1,5 @@
 #define PY_SSIZE_T_CLEAN
-#include "Finite_Element_Solver.h"
+#include "Finite_Difference_Solver.h"
 #include <Python.h>
 #include <iomanip>
 #include <sstream>
@@ -548,20 +548,27 @@ int store_input_history(PyObject* save_render_plot, vector<double> input_locatio
 * @param vector containing cure field history
 * @return 0 on success, 1 on failure
 */
-int store_field_history(PyObject* save_render_plot, vector<vector<vector<double>>> temperature_field, vector<vector<vector<double>>> cure_field)
+int store_field_history(PyObject* save_render_plot, vector<vector<vector<double>>> temperature_field, vector<vector<vector<double>>> cure_field, 
+vector<vector<vector<double>>> fine_temperature_field, vector<vector<vector<double>>> fine_cure_field, vector<vector<double>> fine_mesh_loc)
 {
 	// Convert inputs
 	PyObject* py_temperature_field = get_3D_list(temperature_field);
 	PyObject* py_cure_field = get_3D_list(cure_field);
+	PyObject* py_fine_temperature_field = get_3D_list(fine_temperature_field);
+	PyObject* py_fine_cure_field = get_3D_list(fine_cure_field);
+	PyObject* py_fine_mesh_loc = get_2D_list(fine_mesh_loc);
 	
 	// Call function
-	PyObject* result = PyObject_CallMethod(save_render_plot, "store_field_history", "(O,O)", py_temperature_field, py_cure_field);
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_field_history", "(O,O,O,O,O)", py_temperature_field, py_cure_field, py_fine_temperature_field, py_fine_cure_field, py_fine_mesh_loc);
 	if (result==NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_field_history function:\n");
 		PyErr_Print();
 		Py_DECREF(py_temperature_field);
 		Py_DECREF(py_cure_field);
+		Py_DECREF(py_fine_temperature_field);
+		Py_DECREF(py_fine_cure_field);
+		Py_DECREF(py_fine_mesh_loc);
 		return 1;
 	}
 	
@@ -569,6 +576,9 @@ int store_field_history(PyObject* save_render_plot, vector<vector<vector<double>
 	Py_DECREF(result);
 	Py_DECREF(py_temperature_field);
 	Py_DECREF(py_cure_field);
+	Py_DECREF(py_fine_temperature_field);
+	Py_DECREF(py_fine_cure_field);
+	Py_DECREF(py_fine_mesh_loc);
 	return 0;
 }
 
@@ -782,7 +792,7 @@ int save_agent_results(PyObject* save_render_plot, PyObject* agent)
 * @param The number of agent cycles steps in each trajectory
 * @return 0 on success, 1 on failure
 */
-int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory)
+int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_plot, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory)
 {
 	// Agent training data storage
 	vector<double> r_per_episode;
@@ -800,9 +810,12 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	vector<double> front_velocity;
 	vector<double> front_temperature;
 	vector<double> front_shape_param;
+	vector<vector<double>> fine_mesh_loc;
 	vector<vector<vector<double>>> front_curve;
 	vector<vector<vector<double>>> temperature_field;
 	vector<vector<vector<double>>> cure_field;
+	vector<vector<vector<double>>> fine_temperature_field;
+	vector<vector<vector<double>>> fine_cure_field;
 
 	// Current trajectory data
 	vector<double> curr_input_location_x;
@@ -813,9 +826,12 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	vector<double> curr_front_velocity;
 	vector<double> curr_front_temperature;
 	vector<double> curr_front_shape_param;
+	vector<vector<double>> curr_fine_mesh_loc;
 	vector<vector<vector<double>>> curr_front_curve;
 	vector<vector<vector<double>>> curr_temperature_field;
 	vector<vector<vector<double>>> curr_cure_field;
+	vector<vector<vector<double>>> curr_fine_temperature_field;
+	vector<vector<vector<double>>> curr_fine_cure_field;
 
 	// Simulation set variables
 	double total_reward = 0.0;
@@ -837,7 +853,7 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 		prev_episode_reward = total_reward;
 
 		// Reset environment
-		FES->reset();
+		FDS->reset();
 
 		// Simulation loop
 		while (!done)
@@ -851,26 +867,31 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 			if (save_frame)
 			{
 				// Get environment data
-				input_location = FES->get_input_location();
+				input_location = FDS->get_input_location();
 				
 				// Store simulation input data
 				curr_input_location_x.push_back(input_location[0]);
 				curr_input_location_y.push_back(input_location[1]);
-				curr_input_percent.push_back(FES->get_input_percent());
+				curr_input_percent.push_back(FDS->get_input_percent());
 				
 				// Store simualtion target and time data
-				curr_time.push_back(FES->get_current_time());
-				curr_target.push_back(FES->get_current_target());
+				curr_time.push_back(FDS->get_curr_sim_time());
+				curr_target.push_back(FDS->get_curr_target());
 				
 				// Store simulation front data
-				curr_front_velocity.push_back(FES->get_front_vel());
-				curr_front_temperature.push_back(FES->get_front_temp());
-				curr_front_shape_param.push_back(FES->get_front_shape_param());
-				curr_front_curve.push_back(FES->get_front_curve());
+				curr_front_velocity.push_back(FDS->get_front_vel());
+				curr_front_temperature.push_back(FDS->get_front_temp());
+				curr_front_shape_param.push_back(FDS->get_front_shape_param());
+				curr_front_curve.push_back(FDS->get_front_curve());
+				
+				// Store fine mesh data
+				curr_fine_mesh_loc.push_back(FDS->get_fine_mesh_loc());
 				
 				// Store simulation field data
-				curr_temperature_field.push_back(FES->get_temp_mesh());
-				curr_cure_field.push_back(FES->get_cure_mesh());
+				curr_temperature_field.push_back(FDS->get_coarse_temp_z0());
+				curr_cure_field.push_back(FDS->get_coarse_cure_z0());
+				curr_fine_temperature_field.push_back(FDS->get_fine_temp_z0());
+				curr_fine_cure_field.push_back(FDS->get_fine_cure_z0());
 				
 			}
 			
@@ -878,11 +899,11 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 			if (run_agent)
 			{
 /* 				// Gather temperature state data
-				vector<vector<double>> norm_temp_mesh = FES->get_norm_temp_mesh();
+				vector<vector<double>> norm_temp_mesh = FDS->get_norm_temp_mesh();
 				PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
-				double input_x_loc = FES->get_input_location()[0];
-				double input_y_loc = FES->get_input_location()[1];
-				double input_percent = FES->get_input_percent();
+				double input_x_loc = FDS->get_input_location()[0];
+				double input_y_loc = FDS->get_input_location()[1];
+				double input_percent = FDS->get_input_percent();
 				
 				// Get agent action based on temperature state data
 				PyObject* py_action = PyObject_CallMethod(agent, "get_action", "O,f,f,f", py_norm_temp_mesh, input_x_loc, input_y_loc, input_percent);
@@ -905,10 +926,10 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 				stdev_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 5));
 
 				// Step the environment
-				done = FES->step(action_1, action_2, action_3);
+				done = FDS->step(action_1, action_2, action_3);
 
 				// Update the agent and collect critic loss data
-				reward = FES->get_reward();
+				reward = FDS->get_reward();
 				PyObject* py_critic_loss = PyObject_CallMethod(agent, "update_agent", "(O,f,f,f,f,f,f,f)", py_norm_temp_mesh, input_x_loc, input_y_loc, input_percent, action_1, action_2, action_3, reward);
 				if (py_critic_loss == NULL)
 				{
@@ -932,18 +953,18 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 				Py_DECREF(py_norm_temp_mesh);
 				Py_DECREF(py_action); */
 				
-				reward = FES->get_reward();
+				reward = FDS->get_reward();
 				action_1 = (2.0*((double)rand()/(double)RAND_MAX-0.5));
 				action_2 = (2.0*((double)rand()/(double)RAND_MAX-0.5));
 				action_3 = (2.0*((double)rand()/(double)RAND_MAX-0.5));
-				done = FES->step(action_1, action_2, action_3);
+				done = FDS->step(action_1, action_2, action_3);
 			}
 			
 			// Step the environment 
 			if (!run_agent)
 			{
 				// Step the environment based on the previously commanded action
-				done = FES->step(action_1, action_2, action_3);
+				done = FDS->step(action_1, action_2, action_3);
 			}
 			
 		}
@@ -960,10 +981,13 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 			target = curr_target;
 			temperature_field = curr_temperature_field;
 			cure_field = curr_cure_field;
+			fine_temperature_field = curr_fine_temperature_field;
+			fine_cure_field = curr_fine_cure_field;
 			front_velocity = curr_front_velocity;
 			front_temperature = curr_front_temperature;
 			front_shape_param = curr_front_shape_param;
 			front_curve = curr_front_curve;
+			fine_mesh_loc = curr_fine_mesh_loc;
 		}
 
 		// Reset the current trajectory memory
@@ -975,13 +999,18 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 		curr_front_velocity.clear();
 		curr_front_temperature.clear();
 		curr_front_shape_param.clear();
+		curr_fine_mesh_loc.clear();
 		curr_front_curve.clear();
+		curr_temperature_field.clear();
+		curr_cure_field.clear();
+		curr_fine_temperature_field.clear();
+		curr_fine_cure_field.clear();
 
 		// Store actor training data
 		r_per_episode.push_back(prev_episode_reward/(double)steps_per_trajectory);
-		x_rate_stdev.push_back(FES->get_max_input_loc_rate()*stdev_1);
-		y_rate_stdev.push_back(FES->get_max_input_loc_rate()*stdev_2);
-		mag_rate_stdev.push_back(FES->get_max_input_mag()*FES->get_max_input_mag_percent_rate()*stdev_3);
+		x_rate_stdev.push_back(FDS->get_max_input_slew_speed()*stdev_1);
+		y_rate_stdev.push_back(FDS->get_max_input_slew_speed()*stdev_2);
+		mag_rate_stdev.push_back(FDS->get_peak_input_mag()*FDS->get_max_input_mag_percent_rate()*stdev_3);
 
 		// Final user readout
 		if (i == total_trajectories - 1) { print_training_info(i, total_trajectories, prev_episode_reward, steps_per_trajectory, r_per_episode, best_episode_reward); }
@@ -991,12 +1020,12 @@ int run(Finite_Element_Solver* FES, PyObject* agent, PyObject* save_render_plot,
 	if(store_training_curves(save_render_plot, r_per_episode, critic_loss) == 1) {return 1;}
 	if(store_stdev_history(save_render_plot, x_rate_stdev, y_rate_stdev, mag_rate_stdev) == 1) {return 1;}
 	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent) == 1) {return 1;}
-	if(store_field_history(save_render_plot, temperature_field, cure_field) == 1) {return 1;}
+	if(store_field_history(save_render_plot, temperature_field, cure_field, fine_temperature_field, fine_cure_field, fine_mesh_loc) == 1) {return 1;}
 	if(store_front_history(save_render_plot, front_curve, front_velocity, front_temperature, front_shape_param) == 1) {return 1;}
 	if(store_target_and_time(save_render_plot, target, time) == 1) {return 1;}
-	if(store_top_mesh(save_render_plot, FES->get_mesh_x_z0(), FES->get_mesh_y_z0()) == 1) {return 1;}
-	if(store_input_params(save_render_plot, FES->get_max_input_mag(), FES->get_exp_const()) == 1) {return 1;}
-	if(store_options(save_render_plot, FES->get_control_speed()) == 1) {return 1;}
+	if(store_top_mesh(save_render_plot, FDS->get_coarse_x_mesh_z0(), FDS->get_coarse_y_mesh_z0()) == 1) {return 1;}
+	if(store_input_params(save_render_plot, FDS->get_peak_input_mag(), FDS->get_input_const()) == 1) {return 1;}
+	if(store_options(save_render_plot, FDS->get_control_mode()) == 1) {return 1;}
 
 	// Save, plot, and render
 	return save_agent_results(save_render_plot, agent);
@@ -1022,11 +1051,11 @@ int main()
 	if (load_config(autoencoder_path_str, total_trajectories, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha, frame_rate) == 1) { Py_FinalizeEx(); return 1; }
 	const char* autoencoder_path = autoencoder_path_str.c_str();
 
-	// Initialize FES
-	Finite_Element_Solver* FES;
+	// Initialize FDS
+	Finite_Difference_Solver* FDS;
 	try
 	{
-		FES = new Finite_Element_Solver();
+		FDS = new Finite_Difference_Solver();
 	}
 	catch (int e)
 	{
@@ -1036,11 +1065,11 @@ int main()
 
 	// Calculated agent parameters
 	double decay_rate = pow(end_alpha/start_alpha, (double)trajectories_per_batch/(double)total_trajectories);
-	double agent_execution_period = (FES->get_sim_duration() / (double)steps_per_trajectory);
-	int steps_per_agent_cycle = (int) round(agent_execution_period / FES->get_time_step());
+	double agent_execution_period = (FDS->get_sim_duration() / (double)steps_per_trajectory);
+	int steps_per_agent_cycle = (int) round(agent_execution_period / FDS->get_coarse_time_step());
 
 	// Calculated rendering parameters
-	int steps_per_frame = (int) round(1.0 / (FES->get_time_step() * frame_rate));
+	int steps_per_frame = (int) round(1.0 / (FDS->get_coarse_time_step() * frame_rate));
 	steps_per_frame = steps_per_frame <= 0 ? 1 : steps_per_frame;
 
 	// Init py environment
@@ -1056,11 +1085,11 @@ int main()
 
 	// Print parameters to stdout and log
 	print_params(autoencoder_path, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha);
-	FES->print_params();
+	FDS->print_params();
 
 	// Train agent
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(FES, agent, save_render_plot, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory) == 1) { return 1; };
+	if (run(FDS, agent, save_render_plot, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory) == 1) { return 1; };
 	
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
