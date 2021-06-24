@@ -195,6 +195,7 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 	// Randomize htc and ambient temperature
 	htc = mean_htc + 2.0 * max_htc_deviation * ((double)rand()/(double)RAND_MAX - 0.5);
 	amb_temp = mean_amb_temp + 2.0 * max_amb_temp_deviation * ((double)rand()/(double)RAND_MAX - 0.5);
+	min_possible_temp = amb_temp < (initial_temp - max_initial_temp_deviation) ? amb_temp : (initial_temp - max_initial_temp_deviation);
 	
 	// Allocate memory for coarse BCs
 	coarse_lr_bc_temps = new double**[2];
@@ -1093,6 +1094,7 @@ void Finite_Difference_Solver::reset()
 	// Randomize htc and ambient temperature
 	htc = mean_htc + 2.0 * max_htc_deviation * ((double)rand()/(double)RAND_MAX - 0.5);
 	amb_temp = mean_amb_temp + 2.0 * max_amb_temp_deviation * ((double)rand()/(double)RAND_MAX - 0.5);
+	min_possible_temp = amb_temp < (initial_temp - max_initial_temp_deviation) ? amb_temp : (initial_temp - max_initial_temp_deviation);
 	
 	
 	// ************************************************** FRONT PARAMETERS ************************************************** //
@@ -1701,17 +1703,17 @@ void Finite_Difference_Solver::update_lr_bc_temps()
 		{
 			if ((curr_sim_time >= trigger_time) && (curr_sim_time < trigger_time + trigger_duration))
 			{
-				coarse_lr_bc_temps[0][j][k] = coarse_temp_mesh[0][j][k] - (coarse_x_step/thermal_conductivity)*(htc*(coarse_temp_mesh[0][j][k]-amb_temp)-trigger_flux);
+				coarse_lr_bc_temps[0][j][k] = -4.0*((coarse_x_step/thermal_conductivity)*(htc*(coarse_temp_mesh[0][j][k]-amb_temp)-trigger_flux) + (5.0/6.0)*coarse_temp_mesh[0][j][k] + (-3.0/2.0)*coarse_temp_mesh[1][j][k] + (1.0/2.0)*coarse_temp_mesh[2][j][k] + (-1.0/12.0)*coarse_temp_mesh[3][j][k]);
 			}
 			else
 			{
-				coarse_lr_bc_temps[0][j][k] = coarse_temp_mesh[0][j][k] - (coarse_x_step*htc/thermal_conductivity)*(coarse_temp_mesh[0][j][k]-amb_temp);
+				coarse_lr_bc_temps[0][j][k] = -4.0*((coarse_x_step*htc/thermal_conductivity)*(coarse_temp_mesh[0][j][k]-amb_temp) + (5.0/6.0)*coarse_temp_mesh[0][j][k] + (-3.0/2.0)*coarse_temp_mesh[1][j][k] + (1.0/2.0)*coarse_temp_mesh[2][j][k] + (-1.0/12.0)*coarse_temp_mesh[3][j][k]);
 			}
 		}
 		
 		if(coarse_x_index_at_fine_mesh_start + coarse_x_steps_per_fine_x_len != num_coarse_vert_x)
 		{
-			coarse_lr_bc_temps[1][j][k] = coarse_temp_mesh[num_coarse_vert_x-1][j][k] - (coarse_x_step*htc/thermal_conductivity)*(coarse_temp_mesh[num_coarse_vert_x-1][j][k]-amb_temp);
+			coarse_lr_bc_temps[1][j][k] = -4.0*((coarse_x_step*htc/thermal_conductivity)*(coarse_temp_mesh[num_coarse_vert_x-1][j][k]-amb_temp) + (5.0/6.0)*coarse_temp_mesh[num_coarse_vert_x-1][j][k] + (-3.0/2.0)*coarse_temp_mesh[num_coarse_vert_x-2][j][k] + (1.0/2.0)*coarse_temp_mesh[num_coarse_vert_x-3][j][k] + (-1.0/12.0)*coarse_temp_mesh[num_coarse_vert_x-4][j][k]);
 		}
 	}
 	
@@ -1728,11 +1730,12 @@ void Finite_Difference_Solver::update_lr_bc_temps()
 		{
 			if ((curr_sim_time >= trigger_time) && (curr_sim_time < trigger_time + trigger_duration))
 			{
-				fine_lr_bc_temps[0][j][k] = fine_temp_mesh[get_ind(0)][j][k] - (fine_x_step/thermal_conductivity)*(htc*(fine_temp_mesh[get_ind(0)][j][k]-amb_temp)-trigger_flux);
+				fine_lr_bc_temps[0][j][k] = -4.0*((fine_x_step/thermal_conductivity)*(htc*(fine_temp_mesh[get_ind(0)][j][k]-amb_temp)-trigger_flux) + (5.0/6.0)*fine_temp_mesh[get_ind(0)][j][k] + (-3.0/2.0)*fine_temp_mesh[get_ind(1)][j][k] + (1.0/2.0)*fine_temp_mesh[get_ind(2)][j][k] + (-1.0/12.0)*fine_temp_mesh[get_ind(3)][j][k]);
 			}
 			else
 			{
-				fine_lr_bc_temps[0][j][k] = fine_temp_mesh[get_ind(0)][j][k] - (fine_x_step*htc/thermal_conductivity)*(fine_temp_mesh[get_ind(0)][j][k]-amb_temp);
+				fine_lr_bc_temps[0][j][k] = -4.0*((fine_x_step*htc/thermal_conductivity)*(fine_temp_mesh[get_ind(0)][j][k]-amb_temp) + (5.0/6.0)*fine_temp_mesh[get_ind(0)][j][k] + (-3.0/2.0)*fine_temp_mesh[get_ind(1)][j][k] + (1.0/2.0)*fine_temp_mesh[get_ind(2)][j][k] + (-1.0/12.0)*fine_temp_mesh[get_ind(3)][j][k]);
+				
 			}
 		}
 		// Left BC if fine mesh is in middle of domain
@@ -1745,7 +1748,7 @@ void Finite_Difference_Solver::update_lr_bc_temps()
 		// Right BC if fine mesh is on right edge of domain
 		if(coarse_x_index_at_fine_mesh_start + coarse_x_steps_per_fine_x_len == num_coarse_vert_x)
 		{
-			fine_lr_bc_temps[1][j][k] = fine_temp_mesh[get_ind(num_fine_vert_x-1)][j][k] - (fine_x_step*htc/thermal_conductivity)*(fine_temp_mesh[get_ind(num_fine_vert_x-1)][j][k]-amb_temp);
+			fine_lr_bc_temps[1][j][k] = -4.0*((fine_x_step*htc/thermal_conductivity)*(fine_temp_mesh[get_ind(num_fine_vert_x-1)][j][k]-amb_temp) + (5.0/6.0)*fine_temp_mesh[get_ind(num_fine_vert_x-1)][j][k] + (-3.0/2.0)*fine_temp_mesh[get_ind(num_fine_vert_x-2)][j][k] + (1.0/2.0)*fine_temp_mesh[get_ind(num_fine_vert_x-3)][j][k] + (-1.0/12.0)*fine_temp_mesh[get_ind(num_fine_vert_x-4)][j][k]);
 		}
 		// Right BC if fine mesh is in middle of domain
 		else
@@ -1766,16 +1769,16 @@ void Finite_Difference_Solver::update_fb_bc_temps()
 	{
 		if( !((j > coarse_x_index_at_fine_mesh_start) && (j < coarse_x_index_at_fine_mesh_start+coarse_x_steps_per_fine_x_len-1)) )
 		{
-			coarse_fb_bc_temps[0][j][k] = coarse_temp_mesh[j][0][k] - (coarse_y_step*htc/thermal_conductivity)*(coarse_temp_mesh[j][0][k]-amb_temp);
-			coarse_fb_bc_temps[1][j][k] = coarse_temp_mesh[j][num_coarse_vert_y-1][k] - (coarse_y_step*htc/thermal_conductivity)*(coarse_temp_mesh[j][num_coarse_vert_y-1][k]-amb_temp);
+			coarse_fb_bc_temps[0][j][k] = -4.0*((coarse_y_step*htc/thermal_conductivity)*(coarse_temp_mesh[j][0][k]-amb_temp) + (5.0/6.0)*coarse_temp_mesh[j][0][k] + (-3.0/2.0)*coarse_temp_mesh[j][1][k] + (1.0/2.0)*coarse_temp_mesh[j][2][k] + (-1.0/12.0)*coarse_temp_mesh[j][3][k]);
+			coarse_fb_bc_temps[1][j][k] = -4.0*((coarse_y_step*htc/thermal_conductivity)*(coarse_temp_mesh[j][num_coarse_vert_y-1][k]-amb_temp) + (5.0/6.0)*coarse_temp_mesh[j][num_coarse_vert_y-1][k] + (-3.0/2.0)*coarse_temp_mesh[j][num_coarse_vert_y-2][k] + (1.0/2.0)*coarse_temp_mesh[j][num_coarse_vert_y-3][k] + (-1.0/12.0)*coarse_temp_mesh[j][num_coarse_vert_y-4][k]);
 		}
 	}
 	// Fine mesh BCs
 	for(int j = 0; j < num_fine_vert_x; j++)
 	for(int k = 0; k < num_fine_vert_z; k++)
 	{
-		fine_fb_bc_temps[0][get_ind(j)][k] = fine_temp_mesh[get_ind(j)][0][k] - (fine_y_step*htc/thermal_conductivity)*(fine_temp_mesh[get_ind(j)][0][k]-amb_temp);
-		fine_fb_bc_temps[1][get_ind(j)][k] = fine_temp_mesh[get_ind(j)][num_fine_vert_y-1][k] - (fine_y_step*htc/thermal_conductivity)*(fine_temp_mesh[get_ind(j)][num_fine_vert_y-1][k]-amb_temp);
+		fine_fb_bc_temps[0][get_ind(j)][k] = -4.0*((fine_y_step*htc/thermal_conductivity)*(fine_temp_mesh[get_ind(j)][0][k]-amb_temp) + (5.0/6.0)*fine_temp_mesh[get_ind(j)][0][k] + (-3.0/2.0)*fine_temp_mesh[get_ind(j)][1][k] + (1.0/2.0)*fine_temp_mesh[get_ind(j)][2][k] + (-1.0/12.0)*fine_temp_mesh[get_ind(j)][3][k]);
+		fine_fb_bc_temps[1][get_ind(j)][k] = -4.0*((fine_y_step*htc/thermal_conductivity)*(fine_temp_mesh[get_ind(j)][num_fine_vert_y-1][k]-amb_temp) + (5.0/6.0)*fine_temp_mesh[get_ind(j)][num_fine_vert_y-1][k] + (-3.0/2.0)*fine_temp_mesh[get_ind(j)][num_fine_vert_y-2][k] + (1.0/2.0)*fine_temp_mesh[get_ind(j)][num_fine_vert_y-3][k] + (-1.0/12.0)*fine_temp_mesh[get_ind(j)][num_fine_vert_y-4][k]);
 	}
 }
 
@@ -1822,12 +1825,12 @@ double Finite_Difference_Solver::get_coarse_laplacian(int i, int j, int k)
 	// Right face BC
 	if (i==0)
 	{
-		d2t_dx2 = coarse_lr_bc_temps[0][j][k] - 2.0*T_000 + coarse_temp_mesh[i+1][j][k];
+		d2t_dx2 = (11.0/12.0)*coarse_lr_bc_temps[0][j][k] + (-5.0/3.0)*T_000 + (1.0/2.0)*coarse_temp_mesh[i+1][j][k] + (1.0/3.0)*coarse_temp_mesh[i+2][j][k] + (-1.0/12.0)*coarse_temp_mesh[i+3][j][k];
 	}
 	// Left face BC
 	else if(i==num_coarse_vert_x-1)
 	{
-		d2t_dx2 = coarse_temp_mesh[i-1][j][k] - 2.0*T_000 + coarse_lr_bc_temps[1][j][k];
+		d2t_dx2 = (-1.0/12.0)*coarse_temp_mesh[i-3][j][k] + (1.0/3.0)*coarse_temp_mesh[i-2][j][k] + (1.0/2.0)*coarse_temp_mesh[i-1][j][k] + (-5.0/3.0)*T_000 + (11.0/12.0)*coarse_lr_bc_temps[1][j][k];
 	}
 	// Bulk material
 	else
@@ -1839,35 +1842,35 @@ double Finite_Difference_Solver::get_coarse_laplacian(int i, int j, int k)
 		start_p = (i==num_coarse_vert_x-2) ? -5 : start_p;
 		for (int p = start_p; p < start_p + 7; p++)
 		{
-			d2t_dx2 += laplacian_consts_6th[abs(start_p)-1][p-start_p] * coarse_temp_mesh[i+p][j][k];
+			d2t_dx2 += laplacian_consts[abs(start_p)-1][p-start_p] * coarse_temp_mesh[i+p][j][k];
 		}
 	}
 	d2t_dx2 = d2t_dx2 / (coarse_x_step*coarse_x_step);
 	
-	
 	// Front face BC
 	if (j==0)
 	{
-		d2t_dy2 = coarse_fb_bc_temps[0][i][k] - 2.0*T_000 + coarse_temp_mesh[i][j+1][k];
+		d2t_dy2 = (11.0/12.0)*coarse_fb_bc_temps[0][i][k] + (-5.0/3.0)*T_000 + (1.0/2.0)*coarse_temp_mesh[i][j+1][k] + (1.0/3.0)*coarse_temp_mesh[i][j+2][k] + (-1.0/12.0)*coarse_temp_mesh[i][j+3][k];
 	}
 	// Back face BC
 	else if(j==num_coarse_vert_y-1)
 	{
-		d2t_dy2 = coarse_temp_mesh[i][j-1][k] - 2.0*T_000 + coarse_fb_bc_temps[1][i][k];
+		d2t_dy2 = (-1.0/12.0)*coarse_temp_mesh[i][j-3][k] + (1.0/3.0)*coarse_temp_mesh[i][j-2][k] + (1.0/2.0)*coarse_temp_mesh[i][j-1][k] + (-5.0/3.0)*T_000 + (11.0/12.0)*coarse_fb_bc_temps[1][i][k];
 	}
 	// Bulk material
 	else
 	{
-		int start_q = -2;
+		int start_q = -3;
 		start_q = (j==1) ? -1 : start_q;
-		start_q = (j==num_coarse_vert_y-2) ? -3 : start_q;
-		for (int q = start_q; q < start_q + 5; q++)
+		start_q = (j==2) ? -2 : start_q;
+		start_q = (j==num_coarse_vert_y-3) ? -4 : start_q;
+		start_q = (j==num_coarse_vert_y-2) ? -5 : start_q;
+		for (int q = start_q; q < start_q + 7; q++)
 		{
-			d2t_dy2 += laplacian_consts_4th[abs(start_q)-1][q-start_q] * coarse_temp_mesh[i][j+q][k];
+			d2t_dy2 += laplacian_consts[abs(start_q)-1][q-start_q] * coarse_temp_mesh[i][j+q][k];
 		}
 	}
 	d2t_dy2 = d2t_dy2 / (coarse_y_step*coarse_y_step);
-	
 	
 	// Top face BC
 	if (k==0)
@@ -1906,12 +1909,12 @@ double Finite_Difference_Solver::get_fine_laplacian(int i, int j, int k)
 	// Right face BC
 	if (i==0)
 	{
-		d2t_dx2 = fine_lr_bc_temps[0][j][k] - 2.0*T_000 + fine_temp_mesh[get_ind(i+1)][j][k];
+		d2t_dx2 = (11.0/12.0)*fine_lr_bc_temps[0][j][k] + (-5.0/3.0)*T_000 + (1.0/2.0)*fine_temp_mesh[get_ind(i+1)][j][k] + (1.0/3.0)*fine_temp_mesh[get_ind(i+2)][j][k] + (-1.0/12.0)*fine_temp_mesh[get_ind(i+3)][j][k];
 	}
 	// Left face BC
 	else if(i==num_fine_vert_x-1)
 	{
-		d2t_dx2 = fine_temp_mesh[get_ind(i-1)][j][k] - 2.0*T_000 + fine_lr_bc_temps[1][j][k];
+		d2t_dx2 = (-1.0/12.0)*fine_temp_mesh[get_ind(i-1)][j][k] + (1.0/3.0)*fine_temp_mesh[get_ind(i-1)][j][k] + (1.0/2.0)*fine_temp_mesh[get_ind(i-1)][j][k] + (-5.0/3.0)*T_000 + (11.0/12.0)*fine_lr_bc_temps[1][j][k];
 	}
 	// Bulk material
 	else
@@ -1923,35 +1926,35 @@ double Finite_Difference_Solver::get_fine_laplacian(int i, int j, int k)
 		start_p = (i==num_fine_vert_x-2) ? -5 : start_p;
 		for (int p = start_p; p < start_p + 7; p++)
 		{
-			d2t_dx2 += laplacian_consts_6th[abs(start_p)-1][p-start_p] * fine_temp_mesh[get_ind(i+p)][j][k];
+			d2t_dx2 += laplacian_consts[abs(start_p)-1][p-start_p] * fine_temp_mesh[get_ind(i+p)][j][k];
 		}
 	}
 	d2t_dx2 = d2t_dx2 / (fine_x_step*fine_x_step);
 	
-	
 	// Front face BC
 	if (j==0)
 	{
-		d2t_dy2 = fine_fb_bc_temps[0][i_ind][k] - 2.0*T_000 + fine_temp_mesh[i_ind][j+1][k];
+		d2t_dy2 = (11.0/12.0)*fine_fb_bc_temps[0][i_ind][k] + (-5.0/3.0)*T_000 + (1.0/2.0)*fine_temp_mesh[i_ind][j+1][k] + (1.0/3.0)*fine_temp_mesh[i_ind][j+2][k] + (-1.0/12.0)*fine_temp_mesh[i_ind][j+3][k];
 	}
 	// Back face BC
 	else if(j==num_fine_vert_y-1)
 	{
-		d2t_dy2 = fine_temp_mesh[i_ind][j-1][k] - 2.0*T_000 + fine_fb_bc_temps[1][i_ind][k];
+		d2t_dy2 = (-1.0/12.0)*fine_temp_mesh[i_ind][j-1][k] + (1.0/3.0)*fine_temp_mesh[i_ind][j-1][k] + (1.0/2.0)*fine_temp_mesh[i_ind][j-1][k] + (-5.0/3.0)*T_000 + (11.0/12.0)*fine_fb_bc_temps[1][i_ind][k];
 	}
 	// Bulk material
 	else
 	{
-		int start_q = -2;
+		int start_q = -3;
 		start_q = (j==1) ? -1 : start_q;
-		start_q = (j==num_fine_vert_y-2) ? -3 : start_q;
-		for (int q = start_q; q < start_q + 5; q++)
+		start_q = (j==2) ? -2 : start_q;
+		start_q = (j==num_fine_vert_y-3) ? -4 : start_q;
+		start_q = (j==num_fine_vert_y-2) ? -5 : start_q;
+		for (int q = start_q; q < start_q + 7; q++)
 		{
-			d2t_dy2 += laplacian_consts_4th[abs(start_q)-1][q-start_q] * fine_temp_mesh[i_ind][j+q][k];
+			d2t_dy2 += laplacian_consts[abs(start_q)-1][q-start_q] * fine_temp_mesh[i_ind][j+q][k];
 		}
 	}
 	d2t_dy2 = d2t_dy2 / (fine_y_step*fine_y_step);
-	
 	
 	// Top face BC
 	if (k==0)
@@ -2041,7 +2044,7 @@ void Finite_Difference_Solver::step_meshes()
 
 			// Step temp mesh and ensure current temp is in expected range
 			coarse_temp_mesh[i][j][k] += coarse_time_step * (thermal_diffusivity*coarse_laplacian_mesh[i][j][k]+(enthalpy_of_reaction*cure_rate)/specific_heat);
-			coarse_temp_mesh[i][j][k] = coarse_temp_mesh[i][j][k] < 0.0 ? 0.0 : coarse_temp_mesh[i][j][k];
+			coarse_temp_mesh[i][j][k] = coarse_temp_mesh[i][j][k] < min_possible_temp ? min_possible_temp : coarse_temp_mesh[i][j][k];
 		}
 		
 		// ************************************************** Right coarse ************************************************** //
@@ -2091,7 +2094,7 @@ void Finite_Difference_Solver::step_meshes()
 
 			// Step temp mesh and ensure current temp is in expected range
 			coarse_temp_mesh[i][j][k] += coarse_time_step * (thermal_diffusivity*coarse_laplacian_mesh[i][j][k]+(enthalpy_of_reaction*cure_rate)/specific_heat);
-			coarse_temp_mesh[i][j][k] = coarse_temp_mesh[i][j][k] < 0.0 ? 0.0 : coarse_temp_mesh[i][j][k];
+			coarse_temp_mesh[i][j][k] = coarse_temp_mesh[i][j][k] < min_possible_temp ? min_possible_temp : coarse_temp_mesh[i][j][k];
 				
 		}
 		
@@ -2197,7 +2200,7 @@ void Finite_Difference_Solver::step_meshes()
 
 				// Step temp mesh and ensure current temp is in expected range
 				fine_temp_mesh[i_ind][j][k] += fine_time_step * (thermal_diffusivity*fine_laplacian_mesh[i_ind][j][k]+(enthalpy_of_reaction*cure_rate)/specific_heat);
-				fine_temp_mesh[i_ind][j][k] = fine_temp_mesh[i_ind][j][k] < 0.0 ? 0.0 : fine_temp_mesh[i_ind][j][k];
+				fine_temp_mesh[i_ind][j][k] = fine_temp_mesh[i_ind][j][k] < min_possible_temp ? min_possible_temp : fine_temp_mesh[i_ind][j][k];
 				
 				if((subtime_ind==(fine_time_steps_per_coarse_time_step-1)) && (k==0) && (fine_cure_mesh[i_ind][j][k] >= front_min_cure) && (fine_cure_mesh[i_ind][j][k] <= front_max_cure))
 				{

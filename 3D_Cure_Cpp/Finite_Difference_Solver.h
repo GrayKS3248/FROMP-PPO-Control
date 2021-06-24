@@ -109,17 +109,12 @@ const double COD_activiation_energy = 132000.0;    // Joules / Mol
 const double COD_model_fit_order = 2.5141;         // Unitless
 const double COD_m_fit = 0.8173;                   // Unitless
 				
-// Laplacian calculation consts for 3rd order 7-stencil
-double laplacian_consts_6th[5][7] = { { 137.0/180.0, -49.0/60.0, -17.0/12.0, 47.0/18.0, -19.0/12.0,  31.0/60.0, -13.0/180.0 }, 
+// Laplacian calculation consts for 6th order 7-stencil
+double laplacian_consts[5][7] = { { 137.0/180.0, -49.0/60.0, -17.0/12.0, 47.0/18.0, -19.0/12.0,  31.0/60.0, -13.0/180.0 }, 
 				  { -13.0/180.0,  19.0/15.0,  -7.0/3.0,  10.0/9.0,    1.0/12.0,  -1.0/15.0,   1.0/90.0 }, 
 				  {   1.0/90.0,   -3.0/20.0,   3.0/2.0, -49.0/18.0,   3.0/2.0,   -3.0/20.0,   1.0/90.0 },
 				  {   1.0/90.0,   -1.0/15.0,   1.0/12.0, 10.0/9.0,   -7.0/3.0,   19.0/15.0, -13.0/180.0 }, 
 				  { -13.0/180.0,  31.0/60.0, -19.0/12.0, 47.0/18.0, -17.0/12.0, -49.0/60.0, 137.0/180.0 } };
-				  
-// Laplacian calculation consts for 2nd order 7-stencil
-double laplacian_consts_4th[3][5] = { { 11.0/12.0, -5.0/3.0,  1.0/2.0,  1.0/3.0, -1.0/12.0 }, 
-				      { -1.0/12.0,  4.0/3.0, -5.0/2.0,  4.0/3.0, -1.0/12.0 }, 
-				      { -1.0/12.0,  1.0/3.0,  1.0/2.0, -5.0/3.0, 11.0/12.0 } };
 
 
 //******************************************************************** CONFIG PARAMETERS ********************************************************************//
@@ -258,6 +253,7 @@ double* target_arr;
 // Calculated boundary conditions
 double htc;
 double amb_temp;
+double min_possible_temp;
 double*** coarse_lr_bc_temps;
 double*** coarse_fb_bc_temps;
 double*** coarse_tb_bc_temps;
