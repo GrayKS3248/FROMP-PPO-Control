@@ -1987,7 +1987,8 @@ void Finite_Difference_Solver::step_meshes()
 
 	// Reset front calculation variables
 	int num_front_instances = 0;
-	double curr_front_mean_x_loc = 0.0;
+	front_mean_x_loc = 0.0;
+	front_vel = 0.0;
 	front_shape_param = 0.0;
 	front_temp = 0.0;
 	
@@ -2250,7 +2251,7 @@ void Finite_Difference_Solver::step_meshes()
 				global_front_curve[0][num_front_instances] = global_front_curve[0][num_front_instances] > coarse_x_len ? coarse_x_len : global_front_curve[0][num_front_instances];
 				global_front_curve[1][num_front_instances] = global_front_curve[1][num_front_instances] > coarse_y_len ? coarse_y_len : global_front_curve[1][num_front_instances];
 					
-				curr_front_mean_x_loc += thread_front_curve[thread_num][0][i];
+				front_mean_x_loc += thread_front_curve[thread_num][0][i];
 				front_shape_param += thread_front_curve[thread_num][0][i]*thread_front_curve[thread_num][0][i];
 				
 				front_temp = local_front_temp > front_temp ? local_front_temp : front_temp;
@@ -2272,16 +2273,32 @@ void Finite_Difference_Solver::step_meshes()
 	if (num_front_instances != 0)
 	{
 		// Determine quarter fine coarse_x_len normalized front x stdev and mean front x location
-		front_shape_param = sqrt((front_shape_param/(double)num_front_instances) - (curr_front_mean_x_loc/(double)num_front_instances)*(curr_front_mean_x_loc/(double)num_front_instances)) / (0.25 * fine_x_len);
+		front_shape_param = sqrt((front_shape_param/(double)num_front_instances) - (front_mean_x_loc/(double)num_front_instances)*(front_mean_x_loc/(double)num_front_instances)) / (0.25 * fine_x_len);
 		front_shape_param = front_shape_param > 1.0 ? 1.0 : front_shape_param;
-		curr_front_mean_x_loc = curr_front_mean_x_loc / (double)num_front_instances;
+		front_mean_x_loc = front_mean_x_loc / (double)num_front_instances;
 		
-		// Calculate front speed  through single pole low pass filter and update front location
-		front_vel += front_filter_alpha * (abs((curr_front_mean_x_loc - front_mean_x_loc) / coarse_time_step) - front_vel);
-		front_mean_x_loc = curr_front_mean_x_loc;
+		// Calculate front speed via 5th order backward finite difference
+		front_mean_x_loc_history.push_back(front_mean_x_loc);
+		if(front_mean_x_loc_history.size() > 6)
+		{
+			front_mean_x_loc_history.pop_front();
+		}
+		if(front_mean_x_loc_history.size() > 1)
+		{
+			int curr_front_vel_order = (int)front_mean_x_loc_history.size() - 1;
+			int mean_x_loc_history_start_index = 5 - curr_front_vel_order;
+			for( unsigned int i = 0; i < front_mean_x_loc_history.size(); i++)
+			{
+				front_vel += (fd_consts[curr_front_vel_order-1][mean_x_loc_history_start_index + i] * front_mean_x_loc_history[i]) / coarse_time_step;
+			}
+		}
+		
+		// Calculate the front speed and filter via a single pole low pass filter
+		//front_vel += front_filter_alpha * (abs((curr_front_mean_x_loc - front_mean_x_loc) / coarse_time_step) - front_vel);   ##### DO NOT FORGET TO REMOVED FRONT VEL ZEROING AT BEGINING OF FNC
+		//front_mean_x_loc = curr_front_mean_x_loc;
 		
 		// Determine if fine mesh is to be slid to the right
-		int avg_front_coarse_ind = (int)floor(curr_front_mean_x_loc / coarse_x_step);
+		int avg_front_coarse_ind = (int)floor(front_mean_x_loc / coarse_x_step);
 		int cen_fine_mesh_coarse_ind = (int)floor( (double)coarse_x_index_at_fine_mesh_start + (double)coarse_x_steps_per_fine_x_len/2.0 );
 		while( avg_front_coarse_ind > cen_fine_mesh_coarse_ind)
 		{
