@@ -260,6 +260,7 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 	// Set front detection parameters
 	max_front_instances = 10 * num_fine_vert_y;
 	front_filter_alpha = 1.0 - exp(-coarse_time_step/front_filter_time_const);
+	front_mean_x_loc_history_len = front_mean_x_loc_history_time_len / coarse_time_step;
 
 	// Init gloabal front curve
 	global_front_curve = new double*[2];
@@ -285,7 +286,8 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 	front_temp = initial_temp;
 	front_shape_param = 1.0;
 	front_mean_x_loc = 0.0;
-
+	front_mean_x_loc_history = deque<double>(front_mean_x_loc_history_len, 0.0);
+	front_mean_x_loc_history_avg = 0.0;
 
 	// ************************************************** PRECALCULATION ************************************************** //
 	// Allocate space for precalculated arrays
@@ -1110,6 +1112,8 @@ void Finite_Difference_Solver::reset()
 	front_temp = initial_temp;
 	front_shape_param = 1.0;
 	front_mean_x_loc = 0.0;
+	front_mean_x_loc_history = deque<double>(front_mean_x_loc_history_len, 0.0);
+	front_mean_x_loc_history_avg = 0.0;
 	
 	
 	// ************************************************** INPUT ************************************************** //	
@@ -1388,6 +1392,8 @@ int Finite_Difference_Solver::load_config()
 		
 		// ************************************************** FRONT DETECTION PARAMS ************************************************** //
 		config_file >> config_dump >> front_filter_time_const;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> config_dump >> front_mean_x_loc_history_time_len;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file >> config_dump >> front_min_cure;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1988,7 +1994,6 @@ void Finite_Difference_Solver::step_meshes()
 	// Reset front calculation variables
 	int num_front_instances = 0;
 	front_mean_x_loc = 0.0;
-	front_vel = 0.0;
 	front_shape_param = 0.0;
 	front_temp = 0.0;
 	
@@ -2203,7 +2208,7 @@ void Finite_Difference_Solver::step_meshes()
 				fine_temp_mesh[i_ind][j][k] += fine_time_step * (thermal_diffusivity*fine_laplacian_mesh[i_ind][j][k]+(enthalpy_of_reaction*cure_rate)/specific_heat);
 				fine_temp_mesh[i_ind][j][k] = fine_temp_mesh[i_ind][j][k] < min_possible_temp ? min_possible_temp : fine_temp_mesh[i_ind][j][k];
 				
-				if((subtime_ind==(fine_time_steps_per_coarse_time_step-1)) && (k==0) && (fine_cure_mesh[i_ind][j][k] >= front_min_cure) && (fine_cure_mesh[i_ind][j][k] <= front_max_cure))
+				if((subtime_ind==(fine_time_steps_per_coarse_time_step-1)) && (k==0) && (((fine_cure_mesh[i_ind][j][k] >= front_min_cure) && (fine_cure_mesh[i_ind][j][k] <= front_max_cure)) || (cure_rate >= front_min_cure_rate)) )
 				{
 					// Collect front location and shape information
 					int thread_num = omp_get_thread_num();
@@ -2276,27 +2281,31 @@ void Finite_Difference_Solver::step_meshes()
 		front_shape_param = sqrt((front_shape_param/(double)num_front_instances) - (front_mean_x_loc/(double)num_front_instances)*(front_mean_x_loc/(double)num_front_instances)) / (0.25 * fine_x_len);
 		front_shape_param = front_shape_param > 1.0 ? 1.0 : front_shape_param;
 		front_mean_x_loc = front_mean_x_loc / (double)num_front_instances;
+
+		// Calculate the average mean x location and sim time from front location history
+		front_mean_x_loc_history_avg = front_mean_x_loc_history_avg + (front_mean_x_loc - front_mean_x_loc_history[0])/(double)front_mean_x_loc_history_len;
+		double front_time_history_avg = curr_sim_time - (((double)front_mean_x_loc_history_len-1.0)/2.0)*coarse_time_step;
 		
-		// Calculate front speed via 5th order backward finite difference
+		// Update the front mean x location history
 		front_mean_x_loc_history.push_back(front_mean_x_loc);
-		if(front_mean_x_loc_history.size() > 6)
+		front_mean_x_loc_history.pop_front();
+		
+		// Apply a simple linear regression to the front mean x location history to determine the front velocity
+		double sample_covariance = 0.0;
+		double sample_variance = 0.0;
+		for(int i = 0; i < front_mean_x_loc_history_len; i++)
 		{
-			front_mean_x_loc_history.pop_front();
-		}
-		if(front_mean_x_loc_history.size() > 1)
-		{
-			int curr_front_vel_order = (int)front_mean_x_loc_history.size() - 1;
-			int mean_x_loc_history_start_index = 5 - curr_front_vel_order;
-			for( unsigned int i = 0; i < front_mean_x_loc_history.size(); i++)
-			{
-				front_vel += (fd_consts[curr_front_vel_order-1][mean_x_loc_history_start_index + i] * front_mean_x_loc_history[i]) / coarse_time_step;
-			}
+			double delta_x = (curr_sim_time-coarse_time_step*((double)front_mean_x_loc_history_len-1.0-(double)i)) - front_time_history_avg;
+			double delta_y = front_mean_x_loc_history[i] - front_mean_x_loc_history_avg;
+			
+			sample_covariance += delta_x*delta_y;
+			sample_variance += delta_x*delta_x;
 		}
 		
-		// Calculate the front speed and filter via a single pole low pass filter
-		//front_vel += front_filter_alpha * (abs((curr_front_mean_x_loc - front_mean_x_loc) / coarse_time_step) - front_vel);   ##### DO NOT FORGET TO REMOVED FRONT VEL ZEROING AT BEGINING OF FNC
-		//front_mean_x_loc = curr_front_mean_x_loc;
-		
+		// Pass the front velocity signal through a SPLP filter
+		double curr_front_vel = sample_variance==0.0 ? 0.0 : sample_covariance / sample_variance;
+		front_vel += front_filter_alpha * ( curr_front_vel - front_vel );
+
 		// Determine if fine mesh is to be slid to the right
 		int avg_front_coarse_ind = (int)floor(front_mean_x_loc / coarse_x_step);
 		int cen_fine_mesh_coarse_ind = (int)floor( (double)coarse_x_index_at_fine_mesh_start + (double)coarse_x_steps_per_fine_x_len/2.0 );
