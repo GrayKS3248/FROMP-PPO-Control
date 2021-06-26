@@ -372,17 +372,20 @@ class Save_Plot_Render:
         curr_folder = 1
         while not done:
             path = "results/PPO_"+str(curr_folder)
-            video_path = "results/PPO_"+str(curr_folder)+"/video/"
+            video_1_path = "results/PPO_"+str(curr_folder)+"/video_1/"
+            video_2_path = "results/PPO_"+str(curr_folder)+"/video_2/"
             if not os.path.isdir(path):
                 os.mkdir(path)
-                os.mkdir(video_path)
+                os.mkdir(video_1_path)
+                os.mkdir(video_2_path)
                 done = True
             else:
                 curr_folder = curr_folder + 1
                 
         # Store save paths
         self.path = path
-        self.video_path = video_path
+        self.video_1_path = video_1_path
+        self.video_2_path = video_2_path
         
         # Determine mean front locations
         self.mean_front_x_locations = np.zeros(len(self.front_curve))
@@ -575,6 +578,8 @@ class Save_Plot_Render:
         # Make videos of the best temperature field trajecotry and cure field trajectories as function of time
         min_temp = min(10.0*np.floor((np.min(self.temperature_field)-273.15)/10.0), 10.0*np.floor((np.min(self.fine_temperature_field)-273.15)/10.0))
         max_temp = max(10.0*np.ceil((np.max(self.temperature_field)-273.15)/10.0), 10.0*np.floor((np.min(self.fine_temperature_field)-273.15)/10.0))
+        min_front_temp = np.min(self.fine_temperature_field[:,:,len(self.fine_temperature_field[0][0])//2])
+        max_front_temp = np.max(self.fine_temperature_field[:,:,len(self.fine_temperature_field[0][0])//2])
         
         for curr_step in range(len(self.time)):
         
@@ -655,7 +660,45 @@ class Save_Plot_Render:
             # Set title and save
             title_str = "Time From Trigger: "+'{:.2f}'.format(self.time[curr_step])+'s'
             fig.suptitle(title_str,fontsize='xx-large', fontname = 'monospace')
-            plt.savefig(self.video_path+str(curr_step).zfill(4)+'.png', dpi=100)
+            plt.savefig(self.video_1_path+str(curr_step).zfill(4)+'.png', dpi=100)
+            plt.close()
+            
+            # Get the trimmed temperature and cure curves for the front curve plotting
+            fine_front_temp_curve = self.fine_temperature_field[curr_step][:,len(self.fine_temperature_field[curr_step][0])//2]
+            fine_front_cure_curve = self.fine_cure_field[curr_step][:,len(self.fine_cure_field[curr_step][0])//2]
+            fine_x_coords = np.linspace(self.fine_mesh_loc[curr_step][0], self.fine_mesh_loc[curr_step][1], len(self.fine_temperature_field[0,:,0]))
+            beg_plot = max((self.mean_front_x_locations[curr_step] - 0.40*(self.fine_mesh_loc[curr_step][1]-self.fine_mesh_loc[curr_step][0])), 0.0)
+            end_plot = min((self.mean_front_x_locations[curr_step] + 0.40*(self.fine_mesh_loc[curr_step][1]-self.fine_mesh_loc[curr_step][0])), self.mesh_x_z0[-1,0])
+            
+            # Set up front plot
+            plt.cla()
+            plt.clf()
+            fig, ax1 = plt.subplots()
+            fig.set_size_inches(8.5,5.5)
+            
+            # Plot front temperature
+            ax1.set_xlabel("X Location [mm]",fontsize='large')
+            ax1.set_ylabel("Degree Cure [-]",fontsize='large',color='r')
+            ax1.plot(1000.0*fine_x_coords, fine_front_cure_curve, c='r', lw=2.5)
+            ax1.set_ylim(-0.1, 1.1)
+            ax1.set_xlim(1000.0*beg_plot, 1000.0*end_plot)
+            ax1.tick_params(axis='x', labelsize=12)
+            ax1.tick_params(axis='y', labelsize=12, labelcolor='r')
+            
+            # Plot front cure
+            ax2 = ax1.twinx()
+            ax2.set_ylabel("Normalized Temperature [-]",fontsize='large',color='b')
+            ax2.plot(1000.0*fine_x_coords, (fine_front_temp_curve-min_front_temp)/(max_front_temp-min_front_temp), c='b', lw=2.5)  
+            ax2.set_ylim(-0.1, 1.1)
+            ax2.set_xlim(1000.0*beg_plot, 1000.0*end_plot)
+            ax2.tick_params(axis='x', labelsize=12)
+            ax2.tick_params(axis='y', labelsize=12, labelcolor='b')
+            
+            # Save and close figure
+            title_str = "Time From Trigger: "+'{:.2f}'.format(self.time[curr_step])+'s'
+            fig.suptitle(title_str,fontsize='xx-large', fontname = 'monospace')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.savefig(self.video_2_path+str(curr_step).zfill(4)+'.png', dpi=100)
             plt.close()
             
 if __name__ == "__main__":
