@@ -909,6 +909,12 @@ double Finite_Difference_Solver::get_front_shape_param()
 */
 void Finite_Difference_Solver::print_params()
 {
+	// Simulation device
+	cout << "\nSimulation(\n";
+	cout << "  (Device): CPU\n";
+	cout << "  (Num Threads): " << omp_get_max_threads() << "\n";
+	cout << ")\n";
+	
 	// Input parameters
 	cout << "\nInput(\n";
 	if (!input_is_on)

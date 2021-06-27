@@ -1,6 +1,6 @@
 #define PY_SSIZE_T_CLEAN
-#include "Finite_Difference_Solver.h"
 #include <Python.h>
+#include "Finite_Difference_Solver.h"
 #include <iomanip>
 #include <sstream>
 using namespace std;
@@ -424,7 +424,7 @@ PyObject* init_save_render_plot()
 	Py_DECREF(dict);
 
 	// Initialize autoencoder object
-	PyObject* object = PyObject_CallNoArgs(init);
+	PyObject* object = PyObject_CallObject(init, NULL);
 	if (object == NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render __init__ function:\n");
@@ -754,7 +754,7 @@ int save_agent_results(PyObject* save_render_plot, PyObject* agent)
 	}
 	
 	// Plot
-	if(PyObject_CallMethodNoArgs(save_render_plot, PyUnicode_DecodeFSDefault("plot")) == NULL)
+	if(PyObject_CallMethodObjArgs(save_render_plot, PyUnicode_DecodeFSDefault("plot"), NULL) == NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's plot function:\n");
 		PyErr_Print();
@@ -764,7 +764,7 @@ int save_agent_results(PyObject* save_render_plot, PyObject* agent)
 	}
 	
 	// Render
-	if(PyObject_CallMethodNoArgs(save_render_plot, PyUnicode_DecodeFSDefault("render")) == NULL)
+	if(PyObject_CallMethodObjArgs(save_render_plot, PyUnicode_DecodeFSDefault("render"), NULL) == NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's render function:\n");
 		PyErr_Print();
@@ -1074,7 +1074,9 @@ int main()
 
 	// Init py environment
 	Py_Initialize();
-	
+	PyRun_SimpleString("import  sys");
+	PyRun_SimpleString("sys.path.append('./')");
+    
 	// Init agent
 	PyObject* agent = init_agent(steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, decay_rate, autoencoder_path);
 	if (agent == NULL) { Py_FinalizeEx(); return 1; }

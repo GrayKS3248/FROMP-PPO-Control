@@ -444,17 +444,17 @@ class Autoencoder:
 
         # Store data to dictionary
         data = {
-            'x_dim' : self.x_dim, 
-            'y_dim' : self.y_dim, 
-            'bottleneck' : self.bottleneck, 
-            'num_output_layers' : self.num_output_layers, 
-            'objective_fnc' : self.objective_fnc, 
-            'kernal_size' : self.kernal_size,
-            'buffer_size' : self.buffer_size, 
-            'training_curve' : np.array(training_curve),
-            'temp_array' : self.save_temp_buffer,
-            'cure_array' : self.save_cure_buffer,
-            'autoencoder' : self.model,
+            'x_dim' : self.x_dim.to('cpu'), 
+            'y_dim' : self.y_dim.to('cpu'), 
+            'bottleneck' : self.bottleneck.to('cpu'), 
+            'num_output_layers' : self.num_output_layers.to('cpu'), 
+            'objective_fnc' : self.objective_fnc.to('cpu'), 
+            'kernal_size' : self.kernal_size.to('cpu'),
+            'buffer_size' : self.buffer_size.to('cpu'), 
+            'training_curve' : np.array(training_curve).to('cpu'),
+            'temp_array' : self.save_temp_buffer.to('cpu'),
+            'cure_array' : self.save_cure_buffer.to('cpu'),
+            'autoencoder' : self.model.to('cpu'),
         }
 
         # Find save paths

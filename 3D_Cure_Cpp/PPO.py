@@ -95,7 +95,7 @@ class Agent:
         print("  " + self.device)
         print(")\n")
         print("Actor " + str(self.actor)) 
-        print("\n")
+        print("")
         print("Critic " + str(self.critic)) 
 
     # Gets the cpu or gpu on which to run NN
