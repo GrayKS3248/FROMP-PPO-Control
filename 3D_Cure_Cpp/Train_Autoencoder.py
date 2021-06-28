@@ -27,7 +27,7 @@ def get_print_string(curr_epoch, num_batches, loss_buffer):
 if __name__ == "__main__":
     
     # Training data parameters
-    num_traj = 10
+    num_traj = 3250
     samples_per_traj = 20
     samples_per_batch = 100
     x_dim = 256
@@ -36,12 +36,12 @@ if __name__ == "__main__":
     path = 'training_data/DCPD_GC2'
     
     # Hyperparameters May train up to three autoencoders at once
-    kernal_size  = [3]
-    objct_func   = [1]
-    len_output   = [1]
-    bottleneck   = [64]
-    weighted_arr = [0]
-    load_path = [""]
+    kernal_size  = [3, 3, 5]
+    objct_func   = [1, 1, 1]
+    len_output   = [1, 1, 1]
+    bottleneck   = [64, 64, 64]
+    weighted_arr = [0, 1, 0]
+    load_path = ["", "", ""]
     alpha_zero = 1.0e-3;
     alpha_last = 1.0e-5;
     
