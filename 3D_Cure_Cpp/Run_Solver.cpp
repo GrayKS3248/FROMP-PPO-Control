@@ -651,7 +651,7 @@ int main()
 	FDS->print_params();
 
 	// Run simulation
-	cout << "Simulating...\n";
+	cout << "\nSimulating...\n";
 	auto start_time = chrono::high_resolution_clock::now();
 	if (run(FDS, save_render_plot, steps_per_input_cycle, steps_per_frame, steps_per_progress_update, start_time) == 1) { return 1; };
 	
