@@ -9,6 +9,8 @@
 #include <fstream>
 #include <string>
 #include <deque>
+#include <sstream>
+#include <iomanip>
 
 using namespace std;
 
@@ -68,6 +70,7 @@ double get_front_shape_param();
 
 //******************************************************************** PUBLIC FUNCTIONS ********************************************************************//
 void print_params();
+void print_progress(bool return_carriage);
 void reset();
 bool step(double x_slew_speed_cmd, double y_slew_speed_cmd, double mag_percent_rate_cmd);
 double get_reward();

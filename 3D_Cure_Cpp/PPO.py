@@ -439,9 +439,78 @@ class Save_Plot_Render:
         # Save the stored data
         with open(self.path + "/output", 'wb') as file:
             pickle.dump(data, file)
+            
+    def save_without_agent(self):
+        print("\n\nSaving simulation results...")
+        
+        # Find save paths
+        done = False
+        curr_folder = 1
+        while not done:
+            path = "results/SIM_"+str(curr_folder)
+            video_1_path = "results/SIM_"+str(curr_folder)+"/video_1/"
+            video_2_path = "results/SIM_"+str(curr_folder)+"/video_2/"
+            if not os.path.isdir(path):
+                os.mkdir(path)
+                os.mkdir(video_1_path)
+                os.mkdir(video_2_path)
+                done = True
+            else:
+                curr_folder = curr_folder + 1
+                
+        # Store save paths
+        self.path = path
+        self.video_1_path = video_1_path
+        self.video_2_path = video_2_path
+        
+        # Determine mean front locations
+        self.mean_front_x_locations = np.zeros(len(self.front_curve))
+        self.mean_front_y_locations = np.zeros(len(self.front_curve))
+        for curr_frame in range(len(self.front_curve)):
+            curr_mean_x = self.front_curve[curr_frame][0]
+            curr_mean_x = curr_mean_x[curr_mean_x > 0.0]
+            if len(curr_mean_x) != 0: 
+                self.mean_front_x_locations[curr_frame] = np.mean(curr_mean_x)
+            else:
+                self.mean_front_x_locations[curr_frame] = 0.0
+            curr_mean_y = self.front_curve[curr_frame][1]
+            curr_mean_y = curr_mean_y[curr_mean_y > 0.0]
+            if len(curr_mean_y) != 0: 
+                self.mean_front_y_locations[curr_frame] = np.mean(curr_mean_y)
+            else:
+                self.mean_front_y_locations[curr_frame] = 0.0
+        
+        # Compile all stored data to dictionary
+        data = {
+            'input_location_x': self.input_location_x,
+            'input_location_y': self.input_location_y,
+            'input_percent': self.input_percent,
+            'temperature_field': self.temperature_field,
+            'cure_field': self.cure_field,
+            'fine_temperature_field': self.fine_temperature_field,
+            'fine_cure_field': self.fine_cure_field,
+            'fine_mesh_loc': self.fine_mesh_loc,
+            'front_curve': self.front_curve,
+            'mean_front_x_locations': self.mean_front_x_locations,
+            'mean_front_y_locations': self.mean_front_y_locations,
+            'front_velocity': self.front_velocity,
+            'front_temperature': self.front_temperature,
+            'front_shape_param': self.front_shape_param,
+            'target': self.target,
+            'time': self.time,
+            'mesh_x_z0' : self.mesh_x_z0,
+            'mesh_y_z0' : self.mesh_y_z0,
+            'max_input_mag' : self.max_input_mag,
+            'exp_const' : self.exp_const,
+            'control_speed' : self.control_speed,
+        }
+        
+        # Save the stored data
+        with open(self.path + "/output", 'wb') as file:
+            pickle.dump(data, file)
     
     def plot(self):
-        print("Plotting agent results...")
+        print("Plotting simulation results...")
     
         # Plot the trajectory
         if self.control_speed:
@@ -511,69 +580,74 @@ class Save_Plot_Render:
             plt.close()
 
         #Plot actor learning curve
-        plt.clf()
-        plt.title("Actor Learning Curve, Episode-Wise",fontsize='xx-large')
-        plt.xlabel("Episode",fontsize='large')
-        plt.ylabel("Average Reward per Simulation Step",fontsize='large')
-        plt.plot([*range(len(self.r_per_episode))],self.r_per_episode,lw=2.5,c='r')
-        plt.xticks(fontsize='large')
-        plt.yticks(fontsize='large')
-        plt.gcf().set_size_inches(8.5, 5.5)
-        plt.savefig(self.path + "/actor_learning.png", dpi = 500)
-        plt.close()
+        if(len(self.r_per_episode)!=0):
+            plt.clf()
+            plt.title("Actor Learning Curve, Episode-Wise",fontsize='xx-large')
+            plt.xlabel("Episode",fontsize='large')
+            plt.ylabel("Average Reward per Simulation Step",fontsize='large')
+            plt.plot([*range(len(self.r_per_episode))],self.r_per_episode,lw=2.5,c='r')
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.savefig(self.path + "/actor_learning.png", dpi = 500)
+            plt.close()
 
         # Plot value learning curve
-        plt.clf()
-        title_str = "Critic Learning Curve"
-        plt.title(title_str,fontsize='xx-large')
-        plt.xlabel("Optimization Step",fontsize='large')
-        plt.ylabel("MSE Loss",fontsize='large')
-        plt.plot([*range(len(self.value_error))],self.value_error,lw=2.5,c='r')
-        plt.yscale("log")
-        plt.xticks(fontsize='large')
-        plt.yticks(fontsize='large')
-        plt.gcf().set_size_inches(8.5, 5.5)
-        plt.savefig(self.path + "/critic_learning.png", dpi = 500)
-        plt.close()
+        if(len(self.value_error)!=0):
+            plt.clf()
+            title_str = "Critic Learning Curve"
+            plt.title(title_str,fontsize='xx-large')
+            plt.xlabel("Optimization Step",fontsize='large')
+            plt.ylabel("MSE Loss",fontsize='large')
+            plt.plot([*range(len(self.value_error))],self.value_error,lw=2.5,c='r')
+            plt.yscale("log")
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.savefig(self.path + "/critic_learning.png", dpi = 500)
+            plt.close()
 
         # Plot x rate stdev curve
-        plt.clf()
-        plt.title("Laser X Position Rate Stdev",fontsize='xx-large')
-        plt.xlabel("Episode",fontsize='large')
-        plt.ylabel("Laser X Position Rate Stdev [mm/s]",fontsize='large')
-        plt.plot([*range(len(self.x_rate_stdev))],1000.0*np.array(self.x_rate_stdev),lw=2.5,c='r')
-        plt.xticks(fontsize='large')
-        plt.yticks(fontsize='large')
-        plt.gcf().set_size_inches(8.5, 5.5)
-        plt.savefig(self.path + "/x_rate_stdev.png", dpi = 500)
-        plt.close()
+        if(len(self.x_rate_stdev)!=0):
+            plt.clf()
+            plt.title("Laser X Position Rate Stdev",fontsize='xx-large')
+            plt.xlabel("Episode",fontsize='large')
+            plt.ylabel("Laser X Position Rate Stdev [mm/s]",fontsize='large')
+            plt.plot([*range(len(self.x_rate_stdev))],1000.0*np.array(self.x_rate_stdev),lw=2.5,c='r')
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.savefig(self.path + "/x_rate_stdev.png", dpi = 500)
+            plt.close()
 
         # Plot y rate stdev curve
-        plt.clf()
-        plt.title("Laser Y Position Rate Stdev",fontsize='xx-large')
-        plt.xlabel("Episode",fontsize='large')
-        plt.ylabel("Laser Y Position Rate Stdev [mm/s]",fontsize='large')
-        plt.plot([*range(len(self.y_rate_stdev))],1000.0*np.array(self.y_rate_stdev),lw=2.5,c='r')
-        plt.xticks(fontsize='large')
-        plt.yticks(fontsize='large')
-        plt.gcf().set_size_inches(8.5, 5.5)
-        plt.savefig(self.path + "/y_rate_stdev.png", dpi = 500)
-        plt.close()
+        if(len(self.y_rate_stdev)!=0):
+            plt.clf()
+            plt.title("Laser Y Position Rate Stdev",fontsize='xx-large')
+            plt.xlabel("Episode",fontsize='large')
+            plt.ylabel("Laser Y Position Rate Stdev [mm/s]",fontsize='large')
+            plt.plot([*range(len(self.y_rate_stdev))],1000.0*np.array(self.y_rate_stdev),lw=2.5,c='r')
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.savefig(self.path + "/y_rate_stdev.png", dpi = 500)
+            plt.close()
 
         # Plot magnitude stdev curve
-        plt.clf()
-        plt.title("Laser Magnitude Rate Stdev",fontsize='xx-large')
-        plt.xlabel("Episode",fontsize='large')
-        plt.ylabel('Laser Magnitude Rate Stdev [KW/m^2-s]',fontsize='large')
-        plt.plot([*range(len(self.mag_stdev))],0.001*np.array(self.mag_stdev),lw=2.5,c='r')
-        plt.xticks(fontsize='large')
-        plt.yticks(fontsize='large')
-        plt.gcf().set_size_inches(8.5, 5.5)
-        plt.savefig(self.path + "/mag_rate_stdev.png", dpi = 500)
-        plt.close()
+        if(len(self.mag_stdev)!=0):
+            plt.clf()
+            plt.title("Laser Magnitude Rate Stdev",fontsize='xx-large')
+            plt.xlabel("Episode",fontsize='large')
+            plt.ylabel('Laser Magnitude Rate Stdev [KW/m^2-s]',fontsize='large')
+            plt.plot([*range(len(self.mag_stdev))],0.001*np.array(self.mag_stdev),lw=2.5,c='r')
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.savefig(self.path + "/mag_rate_stdev.png", dpi = 500)
+            plt.close()
     
     def render(self):
-        print("Rendering agent results...")
+        print("Rendering simulation results...")
         
         # Make videos of the best temperature field trajecotry and cure field trajectories as function of time
         min_temp = min(10.0*np.floor((np.min(self.temperature_field)-273.15)/10.0), 10.0*np.floor((np.min(self.fine_temperature_field)-273.15)/10.0))

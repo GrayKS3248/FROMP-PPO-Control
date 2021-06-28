@@ -1,7 +1,5 @@
 #define PY_SSIZE_T_CLEAN
 #include "Finite_Difference_Solver.h"
-#include <iomanip>
-#include <sstream>
 
 using namespace std;
 
@@ -15,29 +13,24 @@ int load_config(int& total_trajectories, int& samples_per_trajectory, int& sampl
 {
 	// Load from config file
 	ifstream config_file;
-	config_file.open("config_files/training_data.cfg");
+	config_file.open("config_files/get_ae_data.cfg");
 	string config_dump;
 	if (config_file.is_open())
 	{
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-
 		config_file >> config_dump >> total_trajectories;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
 		config_file >> config_dump >> samples_per_trajectory;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
 		config_file >> config_dump >> samples_per_batch;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
 		config_file >> config_dump >> actions_per_trajectory;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
 		config_file >> config_dump >> path;
 	}
 	else
 	{
-		cout << "Unable to open config_files/training_data.cfg." << endl;
+		cout << "Unable to open config_files/get_ae_data.cfg." << endl;
 		return 1;
 	}
 	config_file.close();

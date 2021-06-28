@@ -1,8 +1,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include "Finite_Difference_Solver.h"
-#include <iomanip>
-#include <sstream>
+
 using namespace std;
 
 
@@ -20,46 +19,32 @@ int load_config(string& autoencoder_path_str, int& total_trajectories, int& step
 	if (config_file.is_open())
 	{
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-		
 		config_file >> config_dump >> autoencoder_path_str;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-		
 		config_file >> config_dump >> total_trajectories;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
 		config_file >> config_dump >> steps_per_trajectory;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
 		config_file >> config_dump >> trajectories_per_batch;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
 		config_file >> config_dump >> epochs_per_batch;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
 		config_file >> config_dump >> gamma;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
 		config_file >> config_dump >> lamb;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
 		config_file >> config_dump >> epsilon;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
 		config_file >> config_dump >> start_alpha;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
 		config_file >> config_dump >> end_alpha;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-		
 		config_file >> config_dump >> frame_rate;
 	}
 	else
@@ -1041,7 +1026,7 @@ int main()
 	double start_alpha;
 	double end_alpha;
 	double frame_rate;
-	if (load_config(autoencoder_path_str, total_trajectories, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha, frame_rate) == 1) { Py_FinalizeEx(); return 1; }
+	if (load_config(autoencoder_path_str, total_trajectories, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha, frame_rate) == 1) { return 1; }
 	const char* autoencoder_path = autoencoder_path_str.c_str();
 
 	// Initialize FDS
@@ -1078,7 +1063,7 @@ int main()
 	PyObject* save_render_plot = init_save_render_plot();
 	if (save_render_plot == NULL) { Py_FinalizeEx(); return 1; }
 
-	// Print parameters to stdout and log
+	// Print parameters to stdout
 	print_params(autoencoder_path, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha);
 	FDS->print_params();
 

@@ -907,7 +907,7 @@ double Finite_Difference_Solver::get_front_shape_param()
 
 // ================================================================================================= PUBLIC FUNCTIONS ================================================================================================= //
 /**
-* Prints the finite element solver parameters to std out
+* Prints the finite difference solver parameters to std out
 */
 void Finite_Difference_Solver::print_params()
 {
@@ -1014,7 +1014,7 @@ void Finite_Difference_Solver::print_params()
 	cout << "  (Grid Size): " << 1e6*coarse_x_len/(double)num_coarse_vert_x << " x " << 1e6*coarse_y_len/(double)num_coarse_vert_y << " x " << 1e6*coarse_z_len/(double)num_coarse_vert_z << " um\n";
 	cout << "  (Grid Vertices): " << num_coarse_vert_x << " x " << num_coarse_vert_y << " x " << num_coarse_vert_z << "\n";
 	cout << "  (Time Step): " << 1000.0*coarse_time_step << " ms\n";
-	cout << ")\n\n";
+	cout << ")\n";
 	
 	// Fine Mesh
 	cout << "\nFine Mesh(\n";
@@ -1022,7 +1022,7 @@ void Finite_Difference_Solver::print_params()
 	cout << "  (Fine Grid Size): " << 1e6*fine_x_len/(double)num_fine_vert_x << " x " << 1e6*fine_y_len/(double)num_fine_vert_y << " x " << 1e6*fine_z_len/(double)num_fine_vert_z << " um\n";
 	cout << "  (Fine Grid Vertices): " << num_fine_vert_x << " x " << num_fine_vert_y << " x " << num_fine_vert_z << "\n";
 	cout << "  (Fine Time Step): " << 1000.0*fine_time_step << " ms\n";
-	cout << ")\n\n";
+	cout << ")\n";
 	
 	// Environment
 	cout << "\nEnvironment(\n";
@@ -1030,6 +1030,33 @@ void Finite_Difference_Solver::print_params()
 	cout << "  (Ambient Temperature): " << mean_amb_temp-273.15 << " C +- " << max_amb_temp_deviation << " C\n";
 	cout << "  (HTC): " << mean_htc << " W/m^2-K +- " << max_htc_deviation << " W/m^2-K\n";
 	cout << ")\n\n";
+}
+
+/**
+* Prints the current completion percent of the current simulation
+*/
+void Finite_Difference_Solver::print_progress(bool return_carriage)
+{
+	// Percent complete sub messege
+	int percent_complete = (int)round(100.0*(double)curr_sim_step / (double)get_num_sim_steps());
+	stringstream stream;
+	stream << percent_complete;
+	string msg1 = stream.str();
+	msg1.append("% Complete.");
+	if (msg1.length() < 17)
+	{
+		msg1.append(17 - msg1.length(), ' ');
+	}
+	
+	// Print all sub messeges
+	if (return_carriage)
+	{
+		cout << msg1 << "\r";
+	}
+	else
+	{
+		cout << msg1 << "\n";
+	}
 }
 
 /**
