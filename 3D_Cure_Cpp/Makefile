@@ -8,20 +8,18 @@ CFLAGS-W+=-Wno-unused-result -Wsign-compare -Wformat -Werror=format-security -fw
 LDFLAGS-W+=-L$(PYTHONPATH)
 LDFLAGS-W+=-lpython39
 
-data-l: 
+all-l: 
 	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_Training_Data.cpp -o get_ae_data.so $(LDFLAGS-L)
-	
-data-w: 
-	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_Training_Data.cpp -o get_ae_data.exe $(LDFLAGS-W)
-	
-train-l: 
 	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Train_Agent.cpp -o train_agent.so $(LDFLAGS-L)
 	
-train-w: 
+all-w: 
+	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_Training_Data.cpp -o get_ae_data.exe $(LDFLAGS-W)
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Train_Agent.cpp -o train_agent.exe $(LDFLAGS-W)
 	
 clean-l:
-	rm -rf train_agent.so
 	rm -rf get_ae_data.so
-	rm -rf train_agent.exe
-	rm -rf get_ae_data.exe
+	rm -rf train_agent.so
+	
+clean-w:
+	del /f get_ae_data.exe
+	del /f train_agent.exe

@@ -898,8 +898,8 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 			// Run the agent
 			if (run_agent)
 			{
-/* 				// Gather temperature state data
-				vector<vector<double>> norm_temp_mesh = FDS->get_norm_temp_mesh();
+				// Gather temperature state data
+				vector<vector<double>> norm_temp_mesh = FDS->get_norm_coarse_temp_z0();
 				PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
 				double input_x_loc = FDS->get_input_location()[0];
 				double input_y_loc = FDS->get_input_location()[1];
@@ -951,13 +951,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 				
 				// Release the python memory
 				Py_DECREF(py_norm_temp_mesh);
-				Py_DECREF(py_action); */
-				
-				reward = FDS->get_reward();
-				action_1 = (2.0*((double)rand()/(double)RAND_MAX-0.5));
-				action_2 = (2.0*((double)rand()/(double)RAND_MAX-0.5));
-				action_3 = (2.0*((double)rand()/(double)RAND_MAX-0.5));
-				done = FDS->step(action_1, action_2, action_3);
+				Py_DECREF(py_action);
 			}
 			
 			// Step the environment 
@@ -1029,7 +1023,6 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 
 	// Save, plot, and render
 	return save_agent_results(save_render_plot, agent);
-	//return 0;
 }
 
 

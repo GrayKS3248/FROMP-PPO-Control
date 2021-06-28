@@ -1,5 +1,5 @@
 #define PY_SSIZE_T_CLEAN
-#include "Finite_Element_Solver.h"
+#include "Finite_Difference_Solver.h"
 #include <iomanip>
 #include <sstream>
 
@@ -136,7 +136,7 @@ vector<int> get_frame_indices(int tot_num_sim_steps, int samples_per_trajectory)
 * @param Path to save training data to
 * @return 0 on success, 1 on failure
 */
-int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_control_cycle, int tot_num_sim_steps, int samples_per_trajectory, int samples_per_batch, string path)
+int run(Finite_Difference_Solver* FDS, int total_trajectories, int steps_per_control_cycle, int tot_num_sim_steps, int samples_per_trajectory, int samples_per_batch, string path)
 {
 	for (int curr_epoch = 0; curr_epoch < (int)floor(((double)total_trajectories*(double)samples_per_trajectory)/(double)samples_per_batch); curr_epoch++)
 	{
@@ -188,7 +188,7 @@ int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_contro
 			vector<vector<vector<double>>> cure_frames;
 
 			// Reset environment
-			FES->reset();
+			FDS->reset();
 			
 			// Simulation for loop
 			while (!done)
@@ -207,19 +207,19 @@ int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_contro
 					action_3 = (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
 
 					// Step the environment
-					done = FES->step(action_1, action_2, action_3);
+					done = FDS->step(action_1, action_2, action_3);
 				}
 				else
 				{
 					// Step the environment
-					done = FES->step(action_1, action_2, action_3);
+					done = FDS->step(action_1, action_2, action_3);
 				}
 				
 				// Save data to files
 				if (save_frame)
 				{
-					temp_frames.push_back(FES->get_norm_temp_mesh());
-					cure_frames.push_back(FES->get_cure_mesh());
+					temp_frames.push_back(FDS->get_norm_coarse_temp_z0());
+					cure_frames.push_back(FDS->get_coarse_cure_z0());
 					
 					// Update which frame is to be saved next
 					frame_count++;
@@ -237,11 +237,11 @@ int run(Finite_Element_Solver* FES, int total_trajectories, int steps_per_contro
 			// Save current trajectory's frames
 			for (int i = 0; i < samples_per_trajectory; i++)
 			{
-				for (int j = 0; j < FES->get_num_vert_length(); j++)
+				for (int j = 0; j < FDS->get_num_coarse_vert_x(); j++)
 				{
-					for(int k = 0; k < FES->get_num_vert_width(); k++)
+					for(int k = 0; k < FDS->get_num_coarse_vert_y(); k++)
 					{
-						if (k == FES->get_num_vert_width()-1)
+						if (k == FDS->get_num_coarse_vert_y()-1)
 						{
 							temp_file << temp_frames[i][j][k] << "\n";
 							cure_file << cure_frames[i][j][k] << "\n";
@@ -276,11 +276,11 @@ int main()
 	string path;
 	if (load_config(total_trajectories, samples_per_trajectory, samples_per_batch, actions_per_trajectory, path) == 1) { return 1; }
 
-	// Initialize FES
-	Finite_Element_Solver* FES;
+	// Initialize FDS
+	Finite_Difference_Solver* FDS;
 	try
 	{
-		FES = new Finite_Element_Solver();
+		FDS = new Finite_Difference_Solver();
 	}
 	catch (int e)
 	{
@@ -289,18 +289,18 @@ int main()
 	}
 
 	// Calculated parameters
-	double control_execution_period = (FES->get_sim_duration() / ((double)actions_per_trajectory));
-	int steps_per_control_cycle = (int) round(control_execution_period / FES->get_time_step());
-	int tot_num_sim_steps = FES->get_steps_per_episode();
+	double control_execution_period = (FDS->get_sim_duration() / ((double)actions_per_trajectory));
+	int steps_per_control_cycle = (int) round(control_execution_period / FDS->get_coarse_time_step());
+	int tot_num_sim_steps = FDS->get_num_sim_steps();
 	
 	// Print simulation parameters
 	print_params(total_trajectories, samples_per_trajectory, actions_per_trajectory);
-	FES->print_params();
+	FDS->print_params();
 
 	// Train autoencoder
 	cout << "\nCollecting training data...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(FES, total_trajectories, steps_per_control_cycle, tot_num_sim_steps, samples_per_trajectory, samples_per_batch, path) == 1) { return 1; }
+	if (run(FDS, total_trajectories, steps_per_control_cycle, tot_num_sim_steps, samples_per_trajectory, samples_per_batch, path) == 1) { return 1; }
 
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
