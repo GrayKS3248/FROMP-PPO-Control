@@ -147,8 +147,8 @@ if __name__ == "__main__":
          
         # Store rendering data to autoencoder save buffers and render
         print("Loading rendering data...")
-        render_temp = np.genfromtxt(path+'/rendering_data/temp_data.csv', delimiter=',')
-        render_cure = np.genfromtxt(path+'/rendering_data/cure_data.csv', delimiter=',')
+        render_temp = np.genfromtxt(path+'/rendering_data/temp_data_0.csv', delimiter=',')
+        render_cure = np.genfromtxt(path+'/rendering_data/cure_data_0.csv', delimiter=',')
         render_temp = render_temp.reshape(len(render_temp)//x_dim, x_dim, y_dim)
         render_cure = render_cure.reshape(len(render_cure)//x_dim, x_dim, y_dim)
         
