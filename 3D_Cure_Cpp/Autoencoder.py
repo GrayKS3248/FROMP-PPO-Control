@@ -18,7 +18,7 @@ class Autoencoder:
     # OBJECTIVE FNC 2: Target temperature field, and blurred front location
     # OBJECTIVE FNC 3: Target temperature field, blurred front location, and cure field
     # OBJECTIVE FNC 5: Target quantized temperature field
-    def __init__(self, alpha, decay, x_dim_input, y_dim_input, bottleneck, buffer_size, num_output_layers, objective_fnc, kernal_size):
+    def __init__(self, alpha, decay, x_dim_input, y_dim_input, bottleneck, samples_per_batch, num_output_layers, objective_fnc, kernal_size, weighted):
         
         # Initialize model
         self.model = cnn(x_dim_input, y_dim_input, bottleneck, num_output_layers, kernal_size)
@@ -41,6 +41,7 @@ class Autoencoder:
         self.bottleneck = bottleneck
         self.num_output_layers = num_output_layers
         self.kernal_size = kernal_size
+        self.weighted = weighted
         if num_output_layers > 8 or num_output_layers < 0:
             raise RuntimeError('Number of output layers must be greater than 0 and less than 9.')
         
@@ -49,14 +50,14 @@ class Autoencoder:
         if objective_fnc > num_output_layers or objective_fnc == 4:
             raise RuntimeError('Objective function must be greater than 0 and less than or equal to the number of output layers. (!= 4)')
         
-        # Initialize frame buffer
-        self.buffer_size = buffer_size
-        self.temp_buffer = []
-        self.cure_buffer = []
+        # Initialize batches
+        self.samples_per_batch = samples_per_batch
+        self.temp_batch = []
+        self.cure_batch = []
         
         # Save frames
-        self.save_temp_buffer = []
-        self.save_cure_buffer = []
+        self.save_temp_batch = []
+        self.save_cure_batch = []
         
     # Loads a given saved autoencoder
     # @param the path from which the autoencoder will be loaded
@@ -77,13 +78,12 @@ class Autoencoder:
             self.bottleneck = loaded_data['bottleneck']
             self.num_output_layers = loaded_data['num_output_layers']
             self.kernal_size = loaded_data['kernal_size']
+            self.weighted = loaded_data['weighted']
             self.objective_fnc = loaded_data['objective_fnc']
-            self.buffer_size = loaded_data['buffer_size']
-            self.save_temp_buffer = loaded_data['temp_array']
-            self.save_cure_buffer = loaded_data['cure_array']
+            self.samples_per_batch = loaded_data['samples_per_batch']
             
             # Load parameters
-            self.model = cnn.NN(self.x_dim, self.y_dim, self.bottleneck, self.num_output_layers, self.kernal_size)
+            self.model = cnn(self.x_dim, self.y_dim, self.bottleneck, self.num_output_layers, self.kernal_size)
             loaded_model = loaded_data['autoencoder']
             self.model.load_state_dict(loaded_model.state_dict())
             
@@ -166,13 +166,13 @@ class Autoencoder:
         # Return the encoded frame of the proper data type
         return encoded_data
     
-    # Adds temperature and cure frame to save buffers
+    # Adds temperature and cure frame to save batch
     # @param the temperature frame
     # @param the cure frame
     def save_frame(self, temp, cure):
         
-        self.save_temp_buffer.append(np.array(temp))
-        self.save_cure_buffer.append(np.array(cure))
+        self.save_temp_batch.append(np.array(temp))
+        self.save_cure_batch.append(np.array(cure))
     
     # Calculates the blurred front location
     # @param cure field used to determine front location
@@ -304,26 +304,26 @@ class Autoencoder:
         return curr_loss
         
     # Updates the autoencoder
-    # @param temperature field to be added to training buffer
-    # @param cure field to be added to training buffer
+    # @param temperature field to be added to training batch
+    # @param cure field to be added to training batch
     # @return average epoch training loss or -1 if no optimization epoch occured
-    def learn(self, temp, cure, weighted=False):
+    def learn(self, temp, cure):
         
-        # Store the current temperature and cure frames in the learning buffers
-        self.temp_buffer.append(np.array(temp))
-        self.cure_buffer.append(np.array(cure))
+        # Store the current temperature and cure frames in the batch
+        self.temp_batch.append(np.array(temp))
+        self.cure_batch.append(np.array(cure))
         
-        # If the frame buffer is full, perform one epoch of stochastic gradient descent
-        if len(self.temp_buffer) >= self.buffer_size:
+        # If the batch is full, perform one epoch of stochastic gradient descent
+        if len(self.temp_batch) >= self.samples_per_batch:
             
-            # Step through frame buffer
+            # Step through batch
             RMS_loss = 0.0
-            rand_indcies = np.random.permutation(self.buffer_size)
-            for i in range(self.buffer_size):
+            rand_indcies = np.random.permutation(self.samples_per_batch)
+            for i in range(self.samples_per_batch):
                 
-                # Get temperature and cure at random location from buffer
-                curr_temp = self.temp_buffer[rand_indcies[i]]
-                curr_cure = self.cure_buffer[rand_indcies[i]]
+                # Get temperature and cure at random location from bacth
+                curr_temp = self.temp_batch[rand_indcies[i]]
+                curr_cure = self.cure_batch[rand_indcies[i]]
                 
                 # Calculate target
                 target, weights = self.get_target(curr_temp, curr_cure)
@@ -335,7 +335,7 @@ class Autoencoder:
                 rebuilt_data = self.model.forward(curr_temp)
         
                 # Get the loss
-                if weighted:
+                if self.weighted == 1:
                     curr_loss = self.get_loss(rebuilt_data, target, weights)
                 else:
                     curr_loss = self.get_loss(rebuilt_data, target, 1.0)
@@ -349,12 +349,12 @@ class Autoencoder:
                 # Sum the epoch's total loss
                 RMS_loss = RMS_loss + np.sqrt(curr_loss.item())
             
-            # Empty frame buffer
-            self.temp_buffer = []
-            self.cure_buffer = []
+            # Empty the batches
+            self.temp_batch = []
+            self.cure_batch = []
 
             # Return the average RMS reconstruction error
-            return RMS_loss / (float(self.num_output_layers) * self.buffer_size)
+            return RMS_loss / (float(self.num_output_layers) * self.samples_per_batch)
         
         # return -1 if no optimization epoch occured
         return -1
@@ -450,24 +450,25 @@ class Autoencoder:
             'num_output_layers' : self.num_output_layers, 
             'objective_fnc' : self.objective_fnc, 
             'kernal_size' : self.kernal_size,
-            'buffer_size' : self.buffer_size, 
+            'weighted' : self.weighted,
+            'samples_per_batch' : self.samples_per_batch, 
             'training_curve' : np.array(training_curve),
-            'temp_array' : self.save_temp_buffer,
-            'cure_array' : self.save_cure_buffer,
             'autoencoder' : self.model.to('cpu'),
         }
         self.model.to(self.device)
 
         # Find save paths
+        initial_path = "results/" + str(self.kernal_size) + "_" + str(self.objective_fnc) + "_" + str(self.num_output_layers) + "_" + str(self.bottleneck) + "_" + str(self.weighted) + "_" + str(self.x_dim) + "x" + str(self.y_dim)
+        path = initial_path
         done = False
-        curr_folder = 1
+        curr_dir_num = 1
         while not done:
-            path = "results/Auto_"+str(curr_folder)
             if not os.path.isdir(path):
                 os.mkdir(path)
                 done = True
             else:
-                curr_folder = curr_folder + 1
+                curr_dir_num = curr_dir_num + 1
+                path = initial_path + "(" + str(curr_dir_num) + ")"
 
         # Pickle all important outputs
         save_file = path + "/output"
@@ -982,7 +983,7 @@ class Autoencoder:
         plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
         plt.close()
     
-    # Renders video showing reconstruction of all objective functions based on save frame buffer
+    # Renders video showing reconstruction of all objective functions based on save frame batch
     # @param path to which rendered video is saved (in folder called 'video')
     def render(self, path):
         print("Rendering...")
@@ -995,18 +996,18 @@ class Autoencoder:
             os.mkdir(path)
         
         x_grid, y_grid = np.meshgrid(np.linspace(0,1,self.x_dim), np.linspace(0,1,self.y_dim))
-        for i in range(len(self.save_temp_buffer)):
+        for i in range(len(self.save_temp_batch)):
             with torch.no_grad():
                 # Get rebuilt data
-                temp = torch.tensor(self.save_temp_buffer[i])
+                temp = torch.tensor(self.save_temp_batch[i])
                 temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
                 temp = temp.to(self.device)
                 rebuilt_data = self.model.forward(temp)
                 
                 # Get temperature field, front location, and cure field
-                temp = self.save_temp_buffer[i]
-                front = self.get_front_location(self.save_cure_buffer[i])[0,0,:,:].to('cpu').numpy().squeeze()
-                cure = self.save_cure_buffer[i]
+                temp = self.save_temp_batch[i]
+                front = self.get_front_location(self.save_cure_batch[i])[0,0,:,:].to('cpu').numpy().squeeze()
+                cure = self.save_cure_batch[i]
                 
                 if len(rebuilt_data[0,:,0,0]) == 1:
                     rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
