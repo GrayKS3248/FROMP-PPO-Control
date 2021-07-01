@@ -17,11 +17,10 @@ class Autoencoder:
     # OBJECTIVE FNC 1: Target temperature field
     # OBJECTIVE FNC 2: Target temperature field, and blurred front location
     # OBJECTIVE FNC 3: Target temperature field, blurred front location, and cure field
-    # OBJECTIVE FNC 5: Target quantized temperature field
-    def __init__(self, alpha, decay, x_dim_input, y_dim_input, bottleneck, samples_per_batch, num_output_layers, objective_fnc, kernal_size, weighted):
+    def __init__(self, alpha, decay, x_dim_input, y_dim_input, bottleneck, samples_per_batch, objective_fnc, kernal_size, weighted, noise_stdev):
         
         # Initialize model
-        self.model = cnn(x_dim_input, y_dim_input, bottleneck, num_output_layers, kernal_size)
+        self.model = cnn(x_dim_input, y_dim_input, bottleneck, objective_fnc, kernal_size)
             
         # Initialize loss criterion, and optimizer
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=alpha)
@@ -39,16 +38,18 @@ class Autoencoder:
         self.x_dim = x_dim_input
         self.y_dim = y_dim_input
         self.bottleneck = bottleneck
-        self.num_output_layers = num_output_layers
         self.kernal_size = kernal_size
         self.weighted = weighted
-        if num_output_layers > 8 or num_output_layers < 0:
-            raise RuntimeError('Number of output layers must be greater than 0 and less than 9.')
+        self.noise_stdev = noise_stdev
+        if noise_stdev==0.0:
+            self.noisy = False
+        else:
+            self.noisy = True
         
         # Objective fnc type
         self.objective_fnc = objective_fnc
-        if objective_fnc > num_output_layers or objective_fnc == 4:
-            raise RuntimeError('Objective function must be greater than 0 and less than or equal to the number of output layers. (!= 4)')
+        if objective_fnc > 3 or objective_fnc <= 0:
+            raise RuntimeError('Objective function must be greater than or equal to 1 and less than or equal to 3.')
         
         # Initialize batches
         self.samples_per_batch = samples_per_batch
@@ -56,8 +57,8 @@ class Autoencoder:
         self.cure_batch = []
         
         # Save frames
-        self.save_temp_batch = []
-        self.save_cure_batch = []
+        self.temp_save_buffer = []
+        self.cure_save_buffer = []
         
     # Loads a given saved autoencoder
     # @param the path from which the autoencoder will be loaded
@@ -76,14 +77,10 @@ class Autoencoder:
             self.x_dim = loaded_data['x_dim']
             self.y_dim = loaded_data['y_dim']
             self.bottleneck = loaded_data['bottleneck']
-            self.num_output_layers = loaded_data['num_output_layers']
             self.kernal_size = loaded_data['kernal_size']
-            self.weighted = loaded_data['weighted']
-            self.objective_fnc = loaded_data['objective_fnc']
-            self.samples_per_batch = loaded_data['samples_per_batch']
             
             # Load parameters
-            self.model = cnn(self.x_dim, self.y_dim, self.bottleneck, self.num_output_layers, self.kernal_size)
+            self.model = cnn(self.x_dim, self.y_dim, self.bottleneck, self.objective_fnc, self.kernal_size)
             loaded_model = loaded_data['autoencoder']
             self.model.load_state_dict(loaded_model.state_dict())
             
@@ -166,13 +163,12 @@ class Autoencoder:
         # Return the encoded frame of the proper data type
         return encoded_data
     
-    # Adds temperature and cure frame to save batch
+    # Adds temperature and cure frame to save buffer
     # @param the temperature frame
     # @param the cure frame
     def save_frame(self, temp, cure):
-        
-        self.save_temp_batch.append(np.array(temp))
-        self.save_cure_batch.append(np.array(cure))
+        self.temp_save_buffer.append(np.array(temp))
+        self.cure_save_buffer.append(np.array(cure))
     
     # Calculates the blurred front location
     # @param cure field used to determine front location
@@ -207,21 +203,6 @@ class Autoencoder:
         front_location = front_location.reshape(1,1,front_location.shape[0],front_location.shape[1]).float()
                 
         return front_location
-
-    # Gets the quantized temperature field training target
-    # @param temperature field to be quantized
-    # @return the qunatized version of the parameter temperature field
-    def get_quantized_temp(self, temp):
-        
-        with torch.no_grad():
-            low_target =      ((1.0*(temp>=0.00) + 1.0*(temp<0.10))-1.0)
-            low_mid_target =  ((1.0*(temp>=0.10) + 1.0*(temp<0.65))-1.0)
-            mid_target =      ((1.0*(temp>=0.65) + 1.0*(temp<0.70))-1.0)
-            mid_high_target = ((1.0*(temp>=0.70) + 1.0*(temp<0.75))-1.0)
-            high_target =     ((1.0*(temp>=0.75) + 1.0*(temp<=1.0))-1.0)
-    
-        quantized_temp = torch.cat((low_target, low_mid_target, mid_target, mid_high_target, high_target), 1)
-        return quantized_temp
     
     # Calculates the training target given the objective function ID
     # @param temperature field used to get target
@@ -249,25 +230,6 @@ class Autoencoder:
                 cure = torch.tensor(cure)
                 cure = cure.reshape(1,1,cure.shape[0],cure.shape[1]).float()
                 target = torch.cat((temp, front_location, cure), 1)
-                
-            elif self.objective_fnc == 5:
-                target = self.get_quantized_temp(temp)
-                
-            elif self.objective_fnc == 6:
-                quantized_temp = self.get_quantized_temp(temp)
-                target = torch.cat((temp, quantized_temp), 1)
-                
-            elif self.objective_fnc == 7:
-                quantized_temp = self.get_quantized_temp(temp)
-                front_location = self.get_front_location(cure)
-                target = torch.cat((temp, quantized_temp, front_location), 1)
-                
-            elif self.objective_fnc == 8:
-                quantized_temp = self.get_quantized_temp(temp)
-                front_location = self.get_front_location(cure)
-                cure = torch.tensor(cure)
-                cure = cure.reshape(1,1,cure.shape[0],cure.shape[1]).float()
-                target = torch.cat((temp, quantized_temp, front_location, cure), 1)
             
         target = target.to(self.device)
         
@@ -279,20 +241,12 @@ class Autoencoder:
     # @return Differentialable training loss
     def get_loss(self, rebuilt_data, target, weights):
         
+        # Set all weights to 1.0 if the data is to be unweighted
+        if self.weighted != 1:
+            weights = 1.0
+        
         # Get rebuilt loss
-        if self.objective_fnc == 8:
-            curr_loss = torch.mean(weights * (rebuilt_data - target)**2.0)
-        
-        elif self.objective_fnc == 7:
-            curr_loss = torch.mean(weights * (rebuilt_data[0,0:7,:,:] - target[0,0:7,:,:])**2.0)
-            
-        elif self.objective_fnc == 6:
-            curr_loss = torch.mean(weights * (rebuilt_data[0,0:6,:,:] - target[0,0:6,:,:])**2.0)
-        
-        elif self.objective_fnc == 5:
-            curr_loss = torch.mean(weights * (rebuilt_data[0,0:5,:,:] - target[0,0:5,:,:])**2.0)
-            
-        elif self.objective_fnc == 3:
+        if self.objective_fnc == 3:
             curr_loss = torch.mean(weights * (rebuilt_data[0,0:3,:,:] - target[0,0:3,:,:])**2.0)
             
         elif self.objective_fnc == 2:
@@ -309,9 +263,14 @@ class Autoencoder:
     # @return average epoch training loss or -1 if no optimization epoch occured
     def learn(self, temp, cure):
         
-        # Store the current temperature and cure frames in the batch
-        self.temp_batch.append(np.array(temp))
-        self.cure_batch.append(np.array(cure))
+        # Store the current temperature and cure frames in the batch (add noise if noisy)
+        if self.noisy:
+            self.temp_batch.append((np.array(temp) + np.random.normal(0,self.noise_stdev,len(temp)*len(temp[0])).reshape([len(temp), len(temp[0])])))
+            self.cure_batch.append((np.array(cure) + np.random.normal(0,self.noise_stdev,len(cure)*len(cure[0])).reshape([len(cure), len(cure[0])])))
+            
+        else:
+            self.temp_batch.append(np.array(temp))
+            self.cure_batch.append(np.array(cure))
         
         # If the batch is full, perform one epoch of stochastic gradient descent
         if len(self.temp_batch) >= self.samples_per_batch:
@@ -335,10 +294,7 @@ class Autoencoder:
                 rebuilt_data = self.model.forward(curr_temp)
         
                 # Get the loss
-                if self.weighted == 1:
-                    curr_loss = self.get_loss(rebuilt_data, target, weights)
-                else:
-                    curr_loss = self.get_loss(rebuilt_data, target, 1.0)
+                curr_loss = self.get_loss(rebuilt_data, target, weights)
         
                 # Take optimization step and learning rate step
                 self.optimizer.zero_grad()
@@ -354,7 +310,7 @@ class Autoencoder:
             self.cure_batch = []
 
             # Return the average RMS reconstruction error
-            return RMS_loss / (float(self.num_output_layers) * self.samples_per_batch)
+            return RMS_loss / (float(self.objective_fnc) * self.samples_per_batch)
         
         # return -1 if no optimization epoch occured
         return -1
@@ -447,10 +403,11 @@ class Autoencoder:
             'x_dim' : self.x_dim, 
             'y_dim' : self.y_dim, 
             'bottleneck' : self.bottleneck, 
-            'num_output_layers' : self.num_output_layers, 
             'objective_fnc' : self.objective_fnc, 
             'kernal_size' : self.kernal_size,
             'weighted' : self.weighted,
+            'noisy' : self.noisy,
+            'noise_stdev' : self.noise_stdev,
             'samples_per_batch' : self.samples_per_batch, 
             'training_curve' : np.array(training_curve),
             'autoencoder' : self.model.to('cpu'),
@@ -458,7 +415,7 @@ class Autoencoder:
         self.model.to(self.device)
 
         # Find save paths
-        initial_path = "results/" + str(self.kernal_size) + "_" + str(self.objective_fnc) + "_" + str(self.num_output_layers) + "_" + str(self.bottleneck) + "_" + str(self.weighted) + "_" + str(self.x_dim) + "x" + str(self.y_dim)
+        initial_path = "results/" + str(self.kernal_size) + "_" + str(self.objective_fnc) + "_" + str(self.bottleneck) + "_" + str(self.weighted) + '_{0:.3f}'.format(self.noise_stdev)
         path = initial_path
         done = False
         curr_dir_num = 1
@@ -655,334 +612,6 @@ class Autoencoder:
         plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
         plt.close()
     
-    # Draws the current frame for autoencoder with objective function 5
-    # @param x grid over which data are plotted
-    # @param y grid over which data are plotted
-    # @param temperature field
-    # @param rebuilt quantized temperature field
-    # @param path to which rendered video is saved (in folder called 'video')
-    # @param frame number
-    def draw_obj_5(self, x_grid, y_grid, temp, rebuilt_temp, path, frame_number):
-
-        # Make figure
-        plt.cla()
-        plt.clf()
-        fig, ((ax0, ax1), (ax2, ax3), (ax4,ax5)) = plt.subplots(3, 2, constrained_layout=True)
-        fig.set_size_inches(16,8)
-        
-        # Plot temperature
-        c0 = ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
-        cbar0 = fig.colorbar(c0, ax=ax0, pad=0.025)
-        cbar0.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
-        cbar0.ax.tick_params(labelsize=12)
-        ax0.tick_params(axis='x',labelsize=12)
-        ax0.tick_params(axis='y',labelsize=12)
-        ax0.set_aspect(0.25, adjustable='box')
-        ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
-        
-        # Plot rebuilt low temperature mask
-        ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp[0]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax1.tick_params(axis='x',labelsize=12)
-        ax1.tick_params(axis='y',labelsize=12)
-        ax1.set_aspect(0.25, adjustable='box')
-        ax1.set_title('Rebuilt Low Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt low mid temperature mask
-        ax2.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp[1]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax2.tick_params(axis='x',labelsize=12)
-        ax2.tick_params(axis='y',labelsize=12)
-        ax2.set_aspect(0.25, adjustable='box')
-        ax2.set_title('Rebuilt Low-Mid Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt mid temperature mask
-        ax3.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp[2]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax3.tick_params(axis='x',labelsize=12)
-        ax3.tick_params(axis='y',labelsize=12)
-        ax3.set_aspect(0.25, adjustable='box')
-        ax3.set_title('Rebuilt Mid Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt mid high temperature mask
-        ax4.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp[3]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax4.tick_params(axis='x',labelsize=12)
-        ax4.tick_params(axis='y',labelsize=12)
-        ax4.set_aspect(0.25, adjustable='box')
-        ax4.set_title('Rebuilt Mid-High Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt high temperature mask
-        ax5.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp[4]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax5.tick_params(axis='x',labelsize=12)
-        ax5.tick_params(axis='y',labelsize=12)
-        ax5.set_aspect(0.25, adjustable='box')
-        ax5.set_title('Rebuilt High Temperature Mask',fontsize='x-large')
-        
-        # Set title and save
-        plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
-        plt.close()
-        
-    # Draws the current frame for autoencoder with objective function 5
-    # @param x grid over which data are plotted
-    # @param y grid over which data are plotted
-    # @param temperature field
-    # @param rebuilt data from autoencoder
-    # @param path to which rendered video is saved (in folder called 'video')
-    # @param frame number
-    def draw_obj_6(self, x_grid, y_grid, temp, rebuilt_data, path, frame_number):
-
-        # Make figure
-        plt.cla()
-        plt.clf()
-        fig, ((ax0, ax1), (ax2, ax3), (ax4,ax5), (ax6,ax7)) = plt.subplots(4, 2, constrained_layout=True)
-        fig.set_size_inches(16,10.6667)
-        ax7.set_axis_off()
-        
-        # Plot temperature
-        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
-        ax0.tick_params(axis='x',labelsize=12)
-        ax0.tick_params(axis='y',labelsize=12)
-        ax0.set_aspect(0.25, adjustable='box')
-        ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
-        
-        # Plot rebuilt temperature
-        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[0]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
-        cbar1 = fig.colorbar(c1, ax=ax1, pad=0.025)
-        cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
-        cbar1.ax.tick_params(labelsize=12)
-        ax1.tick_params(axis='x',labelsize=12)
-        ax1.tick_params(axis='y',labelsize=12)
-        ax1.set_aspect(0.25, adjustable='box')
-        ax1.set_title('Rebuilt Temperature Field',fontsize='x-large')
-        
-        # Plot rebuilt low temperature mask
-        ax2.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[1]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax2.tick_params(axis='x',labelsize=12)
-        ax2.tick_params(axis='y',labelsize=12)
-        ax2.set_aspect(0.25, adjustable='box')
-        ax2.set_title('Rebuilt Low Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt low mid temperature mask
-        ax3.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[2]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax3.tick_params(axis='x',labelsize=12)
-        ax3.tick_params(axis='y',labelsize=12)
-        ax3.set_aspect(0.25, adjustable='box')
-        ax3.set_title('Rebuilt Low-Mid Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt mid temperature mask
-        ax4.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[3]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax4.tick_params(axis='x',labelsize=12)
-        ax4.tick_params(axis='y',labelsize=12)
-        ax4.set_aspect(0.25, adjustable='box')
-        ax4.set_title('Rebuilt Mid Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt mid high temperature mask
-        ax5.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[4]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax5.tick_params(axis='x',labelsize=12)
-        ax5.tick_params(axis='y',labelsize=12)
-        ax5.set_aspect(0.25, adjustable='box')
-        ax5.set_title('Rebuilt Mid-High Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt high temperature mask
-        ax6.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[5]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax6.tick_params(axis='x',labelsize=12)
-        ax6.tick_params(axis='y',labelsize=12)
-        ax6.set_aspect(0.25, adjustable='box')
-        ax6.set_title('Rebuilt High Temperature Mask',fontsize='x-large')
-        
-        # Set title and save
-        plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
-        plt.close()
-        
-    # Draws the current frame for autoencoder with objective function 5
-    # @param x grid over which data are plotted
-    # @param y grid over which data are plotted
-    # @param temperature field
-    # @param true front mask
-    # @param rebuilt data from autoencoder
-    # @param path to which rendered video is saved (in folder called 'video')
-    # @param frame number
-    def draw_obj_7(self, x_grid, y_grid, temp, front, rebuilt_data, path, frame_number):
-
-        # Make figure
-        plt.cla()
-        plt.clf()
-        fig, ((ax0, ax1), (ax2, ax3), (ax4,ax5), (ax6,ax7), (ax8,ax9)) = plt.subplots(5, 2, constrained_layout=True)
-        fig.set_size_inches(16,13.3333)
-        ax9.set_axis_off()
-        
-        # Plot temperature
-        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
-        ax0.tick_params(axis='x',labelsize=12)
-        ax0.tick_params(axis='y',labelsize=12)
-        ax0.set_aspect(0.25, adjustable='box')
-        ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
-        
-        # Plot rebuilt temperature
-        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[0]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
-        cbar1 = fig.colorbar(c1, ax=ax1, pad=0.025)
-        cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
-        cbar1.ax.tick_params(labelsize=12)
-        ax1.tick_params(axis='x',labelsize=12)
-        ax1.tick_params(axis='y',labelsize=12)
-        ax1.set_aspect(0.25, adjustable='box')
-        ax1.set_title('Rebuilt Temperature Field',fontsize='x-large')
-        
-        # Plot front location
-        ax2.pcolormesh(x_grid, y_grid, np.transpose(front), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
-        ax2.tick_params(axis='x',labelsize=12)
-        ax2.tick_params(axis='y',labelsize=12)
-        ax2.set_aspect(0.25, adjustable='box')
-        ax2.set_title('True Front Mask (Unobserved)',fontsize='x-large')
-        
-        # Plot inferred front location
-        ax3.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[6]), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
-        ax3.tick_params(axis='x',labelsize=12)
-        ax3.tick_params(axis='y',labelsize=12)
-        ax3.set_aspect(0.25, adjustable='box')
-        ax3.set_title('Inferred Front Mask',fontsize='x-large')
-        
-        # Plot rebuilt low temperature mask
-        ax4.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[1]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax4.tick_params(axis='x',labelsize=12)
-        ax4.tick_params(axis='y',labelsize=12)
-        ax4.set_aspect(0.25, adjustable='box')
-        ax4.set_title('Rebuilt Low Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt low mid temperature mask
-        ax5.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[2]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax5.tick_params(axis='x',labelsize=12)
-        ax5.tick_params(axis='y',labelsize=12)
-        ax5.set_aspect(0.25, adjustable='box')
-        ax5.set_title('Rebuilt Low-Mid Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt mid temperature mask
-        ax6.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[3]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax6.tick_params(axis='x',labelsize=12)
-        ax6.tick_params(axis='y',labelsize=12)
-        ax6.set_aspect(0.25, adjustable='box')
-        ax6.set_title('Rebuilt Mid Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt mid high temperature mask
-        ax7.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[4]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax7.tick_params(axis='x',labelsize=12)
-        ax7.tick_params(axis='y',labelsize=12)
-        ax7.set_aspect(0.25, adjustable='box')
-        ax7.set_title('Rebuilt Mid-High Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt high temperature mask
-        ax8.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[5]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax8.tick_params(axis='x',labelsize=12)
-        ax8.tick_params(axis='y',labelsize=12)
-        ax8.set_aspect(0.25, adjustable='box')
-        ax8.set_title('Rebuilt High Temperature Mask',fontsize='x-large')
-        
-        # Set title and save
-        plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
-        plt.close()
-        
-    # Draws the current frame for autoencoder with objective function 5
-    # @param x grid over which data are plotted
-    # @param y grid over which data are plotted
-    # @param temperature field
-    # @param true front mask
-    # @param true cure field
-    # @param rebuilt data from autoencoder
-    # @param path to which rendered video is saved (in folder called 'video')
-    # @param frame number
-    def draw_obj_8(self, x_grid, y_grid, temp, front, cure, rebuilt_data, path, frame_number):
-
-        # Make figure
-        plt.cla()
-        plt.clf()
-        fig, ((ax0, ax1), (ax2, ax3), (ax4,ax5), (ax6,ax7), (ax8,ax9), (ax10,ax11)) = plt.subplots(6, 2, constrained_layout=True)
-        fig.set_size_inches(16,16)
-        ax11.set_axis_off()
-        
-        # Plot temperature
-        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
-        ax0.tick_params(axis='x',labelsize=12)
-        ax0.tick_params(axis='y',labelsize=12)
-        ax0.set_aspect(0.25, adjustable='box')
-        ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
-        
-        # Plot rebuilt temperature
-        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[0]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
-        cbar1 = fig.colorbar(c1, ax=ax1, pad=0.025)
-        cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
-        cbar1.ax.tick_params(labelsize=12)
-        ax1.tick_params(axis='x',labelsize=12)
-        ax1.tick_params(axis='y',labelsize=12)
-        ax1.set_aspect(0.25, adjustable='box')
-        ax1.set_title('Rebuilt Temperature Field',fontsize='x-large')
-        
-        # Plot front location
-        ax2.pcolormesh(x_grid, y_grid, np.transpose(front), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
-        ax2.tick_params(axis='x',labelsize=12)
-        ax2.tick_params(axis='y',labelsize=12)
-        ax2.set_aspect(0.25, adjustable='box')
-        ax2.set_title('True Front Mask (Unobserved)',fontsize='x-large')
-        
-        # Plot inferred front location
-        ax3.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[6]), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
-        ax3.tick_params(axis='x',labelsize=12)
-        ax3.tick_params(axis='y',labelsize=12)
-        ax3.set_aspect(0.25, adjustable='box')
-        ax3.set_title('Inferred Front Mask',fontsize='x-large')
-        
-        # Cure frame
-        ax4.pcolormesh(x_grid, y_grid, np.transpose(cure), shading='gouraud', cmap='YlOrRd', vmin=0.0, vmax=1.0)
-        ax4.tick_params(axis='x',labelsize=12)
-        ax4.tick_params(axis='y',labelsize=12)
-        ax4.set_aspect(0.25, adjustable='box')
-        ax4.set_title('True Cure Field (Unobserved)',fontsize='x-large')
-        
-        # Inferred cure degree
-        c5 = ax5.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[7]), shading='gouraud', cmap='YlOrRd', vmin=0.0, vmax=1.0)
-        cbar5 = fig.colorbar(c5, ax=ax5, pad=0.025)
-        cbar5.set_label('Degree Cure [-]',labelpad=10,fontsize='large')
-        cbar5.ax.tick_params(labelsize=12)
-        ax5.tick_params(axis='x',labelsize=12)
-        ax5.tick_params(axis='y',labelsize=12)
-        ax5.set_aspect(0.25, adjustable='box')
-        ax5.set_title('Inferred Cure Field',fontsize='x-large')
-        
-        # Plot rebuilt low temperature mask
-        ax6.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[1]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax6.tick_params(axis='x',labelsize=12)
-        ax6.tick_params(axis='y',labelsize=12)
-        ax6.set_aspect(0.25, adjustable='box')
-        ax6.set_title('Rebuilt Low Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt low mid temperature mask
-        ax7.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[2]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax7.tick_params(axis='x',labelsize=12)
-        ax7.tick_params(axis='y',labelsize=12)
-        ax7.set_aspect(0.25, adjustable='box')
-        ax7.set_title('Rebuilt Low-Mid Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt mid temperature mask
-        ax8.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[3]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax8.tick_params(axis='x',labelsize=12)
-        ax8.tick_params(axis='y',labelsize=12)
-        ax8.set_aspect(0.25, adjustable='box')
-        ax8.set_title('Rebuilt Mid Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt mid high temperature mask
-        ax9.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[4]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax9.tick_params(axis='x',labelsize=12)
-        ax9.tick_params(axis='y',labelsize=12)
-        ax9.set_aspect(0.25, adjustable='box')
-        ax9.set_title('Rebuilt Mid-High Temperature Mask',fontsize='x-large')
-        
-        # Plot rebuilt high temperature mask
-        ax10.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_data[5]), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax10.tick_params(axis='x',labelsize=12)
-        ax10.tick_params(axis='y',labelsize=12)
-        ax10.set_aspect(0.25, adjustable='box')
-        ax10.set_title('Rebuilt High Temperature Mask',fontsize='x-large')
-        
-        # Set title and save
-        plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
-        plt.close()
-    
     # Renders video showing reconstruction of all objective functions based on save frame batch
     # @param path to which rendered video is saved (in folder called 'video')
     def render(self, path):
@@ -996,18 +625,18 @@ class Autoencoder:
             os.mkdir(path)
         
         x_grid, y_grid = np.meshgrid(np.linspace(0,1,self.x_dim), np.linspace(0,1,self.y_dim))
-        for i in range(len(self.save_temp_batch)):
+        for i in range(len(self.temp_save_buffer)):
             with torch.no_grad():
                 # Get rebuilt data
-                temp = torch.tensor(self.save_temp_batch[i])
+                temp = torch.tensor(self.temp_save_buffer[i])
                 temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
                 temp = temp.to(self.device)
                 rebuilt_data = self.model.forward(temp)
                 
                 # Get temperature field, front location, and cure field
-                temp = self.save_temp_batch[i]
-                front = self.get_front_location(self.save_cure_batch[i])[0,0,:,:].to('cpu').numpy().squeeze()
-                cure = self.save_cure_batch[i]
+                temp = self.temp_save_buffer[i]
+                front = self.get_front_location(self.cure_save_buffer[i])[0,0,:,:].to('cpu').numpy().squeeze()
+                cure = self.cure_save_buffer[i]
                 
                 if len(rebuilt_data[0,:,0,0]) == 1:
                     rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
@@ -1020,44 +649,6 @@ class Autoencoder:
                     rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
                     rebuilt_front = rebuilt_data[0,1,:,:].to('cpu').numpy().squeeze()
                     rebuilt_cure = rebuilt_data[0,2,:,:].to('cpu').numpy().squeeze()
-                    
-                elif len(rebuilt_data[0,:,0,0]) == 5:
-                    rebuilt_low_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_low_mid_temp = rebuilt_data[0,1,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_mid_temp = rebuilt_data[0,2,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_mid_high_temp = rebuilt_data[0,3,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_high_temp = rebuilt_data[0,4,:,:].to('cpu').numpy().squeeze()
-                    render_data = [rebuilt_low_temp, rebuilt_low_mid_temp, rebuilt_mid_temp, rebuilt_mid_high_temp, rebuilt_high_temp]
-                    
-                elif len(rebuilt_data[0,:,0,0]) == 6:
-                    rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_low_temp = rebuilt_data[0,1,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_low_mid_temp = rebuilt_data[0,2,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_mid_temp = rebuilt_data[0,3,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_mid_high_temp = rebuilt_data[0,4,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_high_temp = rebuilt_data[0,5,:,:].to('cpu').numpy().squeeze()
-                    render_data = [rebuilt_temp, rebuilt_low_temp, rebuilt_low_mid_temp, rebuilt_mid_temp, rebuilt_mid_high_temp, rebuilt_high_temp]
-                    
-                elif len(rebuilt_data[0,:,0,0]) == 7:
-                    rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_low_temp = rebuilt_data[0,1,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_low_mid_temp = rebuilt_data[0,2,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_mid_temp = rebuilt_data[0,3,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_mid_high_temp = rebuilt_data[0,4,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_high_temp = rebuilt_data[0,5,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_front = rebuilt_data[0,6,:,:].to('cpu').numpy().squeeze()
-                    render_data = [rebuilt_temp, rebuilt_low_temp, rebuilt_low_mid_temp, rebuilt_mid_temp, rebuilt_mid_high_temp, rebuilt_high_temp, rebuilt_front]
-                    
-                elif len(rebuilt_data[0,:,0,0]) == 8:
-                    rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_low_temp = rebuilt_data[0,1,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_low_mid_temp = rebuilt_data[0,2,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_mid_temp = rebuilt_data[0,3,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_mid_high_temp = rebuilt_data[0,4,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_high_temp = rebuilt_data[0,5,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_front = rebuilt_data[0,6,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_cure = rebuilt_data[0,7,:,:].to('cpu').numpy().squeeze()
-                    render_data = [rebuilt_temp, rebuilt_low_temp, rebuilt_low_mid_temp, rebuilt_mid_temp, rebuilt_mid_high_temp, rebuilt_high_temp, rebuilt_front, rebuilt_cure]
             
             # Draw and save the current frame
             if len(rebuilt_data[0,:,0,0]) == 1:
@@ -1068,18 +659,6 @@ class Autoencoder:
             
             elif len(rebuilt_data[0,:,0,0]) == 3:
                 self.draw_obj_3(x_grid, y_grid, temp, front, cure, rebuilt_temp, rebuilt_front, rebuilt_cure, path, i)
-            
-            elif len(rebuilt_data[0,:,0,0]) == 5:
-                self.draw_obj_5(x_grid, y_grid, temp, render_data, path, i)
-                
-            elif len(rebuilt_data[0,:,0,0]) == 6:
-                self.draw_obj_6(x_grid, y_grid, temp, render_data, path, i)
-                
-            elif len(rebuilt_data[0,:,0,0]) == 7:
-                self.draw_obj_7(x_grid, y_grid, temp, front, render_data, path, i)
-                
-            elif len(rebuilt_data[0,:,0,0]) == 8:
-                self.draw_obj_8(x_grid, y_grid, temp, front, cure, render_data, path, i)
                
     # Plots each layer's feature maps at a given input temperautre
     # @param temperature field over which to generate feature maps

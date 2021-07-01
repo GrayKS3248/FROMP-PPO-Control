@@ -36,20 +36,20 @@ def get_print_string(batch_num, batch_count, num_batches, loss_buffer):
 if __name__ == "__main__":
     
     # Training data parameters
-    num_traj = 5000
+    num_traj = 55
     samples_per_traj = 20
     samples_per_batch = 100
     x_dim = 256
     y_dim = 32
-    initial_training_criterion = 0.60
+    initial_training_criterion = 2.0
     path = 'training_data/DCPD_GC2'
     
     # Hyperparameters May train up to three autoencoders at once
-    kernal_size  = [5]
+    kernal_size  = [7]
     objct_func   = [1]
-    len_output   = [1]
     bottleneck   = [64]
     weighted_arr = [0]
+    noise_arr = [0.075]
     load_path = [""]
     alpha_zero = 1.0e-3;
     alpha_last = 1.0e-4;
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     # Calculated parameters
     decay_rate = (alpha_last/alpha_zero) ** (1.0/(num_traj*samples_per_traj))
     num_batches = int(num_traj//(samples_per_batch//samples_per_traj))
-    if not (len(bottleneck) == len(len_output) and len(bottleneck) == len(objct_func) and len(bottleneck) == len(weighted_arr) and len(bottleneck) == len(kernal_size) and len(bottleneck) == len(load_path)):
+    if not (len(bottleneck) == len(objct_func) and len(bottleneck) == len(weighted_arr) and len(bottleneck) == len(noise_arr) and len(bottleneck) == len(kernal_size) and len(bottleneck) == len(load_path)):
         raise RuntimeError('Unable to parse number of autoencoders to train.')
     if num_batches <= 10:
         raise RuntimeError('Training requires at least 11 batches.')
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         loss_buffer = []
         temp_loss_buffer = []
         for i in range(len(bottleneck)):
-            autoencoders.append(Autoencoder(alpha_zero, decay_rate, x_dim, y_dim, bottleneck[i], samples_per_batch, len_output[i], objct_func[i], kernal_size[i], weighted_arr[i]))
+            autoencoders.append(Autoencoder(alpha_zero, decay_rate, x_dim, y_dim, bottleneck[i], samples_per_batch, objct_func[i], kernal_size[i], weighted_arr[i], noise_arr[i]))
             if load_path[i] != "":
                 loss_buffer.append(list(autoencoders[i].load(load_path[i])))
                 initial_loss_buffer_len.append(len(loss_buffer[i]))
