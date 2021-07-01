@@ -4,7 +4,7 @@ Created on Sun Apr 25 21:53:17 2021
 
 @author: GKSch
 """
-from Autoencoder_2 import Autoencoder
+from Autoencoder import Autoencoder
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
@@ -13,43 +13,35 @@ if __name__ == "__main__":
     
     # Define load paths
     paths = [
-        'results/ks3_obj1_bn32_W', 
-        'results/ks3_obj1_bn32_U', 
-        'results/ks3_obj1_bn64_W', 
-        'results/ks3_obj1_bn64_U',
-        'results/ks3_obj3_bn32_W', 
-        'results/ks3_obj3_bn32_U',
-        'results/ks3_obj3_bn64_W', 
-        'results/ks3_obj3_bn64_U', 
-        'results/ks5_obj1_bn32_W',
-        'results/ks5_obj1_bn32_U',
-        'results/ks5_obj1_bn64_W',
-        'results/ks5_obj1_bn64_U', 
-        'results/ks5_obj3_bn32_W', 
-        'results/ks5_obj3_bn32_U',
-        'results/ks5_obj3_bn64_W', 
-        'results/ks5_obj3_bn64_U'
+        'results/1_64_7_0_0.000', 
+        'results/1_64_7_1_0.000', 
+        'results/1_64_7_0_0.010', 
+        'results/1_64_7_1_0.010', 
+        'results/1_64_5_0_0.000', 
+        'results/1_64_5_1_0.000', 
+        'results/1_64_5_0_0.010', 
+        'results/1_64_5_1_0.010', 
+        'results/1_64_3_0_0.000', 
+        'results/1_64_3_1_0.000', 
+        'results/1_64_3_0_0.010', 
+        'results/1_64_3_1_0.010', 
         ]
     
     # Define labels associated with each loaded autoencoder
     label_description = 'Kernal Size___Objective___Bottleneck___Weighted/Unweighted'
     labels = [
-        '3_1_32_W', 
-        '3_1_32_U',
-        '3_1_64_W',
-        '3_1_64_U',
-        '3_3_32_W',
-        '3_3_32_U',
-        '3_3_64_W',
-        '3_3_64_U',
-        '5_1_32_W', 
-        '5_1_32_U',
-        '5_1_64_W',
-        '5_1_64_U',
-        '5_3_32_W',
-        '5_3_32_U',
-        '5_3_64_W',
-        '5_3_64_U',
+        '7_0_0.00', 
+        '7_1_0.00', 
+        '7_0_0.01', 
+        '7_1_0.01', 
+        '5_0_0.00', 
+        '5_1_0.00', 
+        '5_0_0.01', 
+        '5_1_0.01', 
+        '3_0_0.00', 
+        '3_1_0.00', 
+        '3_0_0.01', 
+        '3_1_0.01', 
         ]
     
     # Ensure proper number of paths and labels
@@ -70,8 +62,8 @@ if __name__ == "__main__":
     for i in range(len(paths)):
         
         # Load autoencoders and store their training curves
-        autoencoders.append(Autoencoder(1, 1, 10, 10, 10, 10, 1, 1, 1))
-        training_curve = autoencoders[i].load(paths[i])
+        autoencoders.append(Autoencoder(10, 10, 10, 10, 10, 100, 1, 10, 0, 0.0, verbose=False))
+        training_curve = autoencoders[i].load(paths[i], verbose=False)
         training_curve = savgol_filter(training_curve, 25, 3)
         training_curves.append(training_curve)
         
