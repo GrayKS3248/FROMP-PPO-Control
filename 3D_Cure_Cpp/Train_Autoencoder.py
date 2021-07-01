@@ -36,20 +36,20 @@ def get_print_string(batch_num, batch_count, num_batches, loss_buffer):
 if __name__ == "__main__":
     
     # Training data parameters
-    num_traj = 55
+    num_traj = 5000
     samples_per_traj = 20
     samples_per_batch = 100
     x_dim = 256
     y_dim = 32
-    initial_training_criterion = 2.0
+    initial_training_criterion = 0.60
     path = 'training_data/DCPD_GC2'
     
     # Hyperparameters May train up to three autoencoders at once
     kernal_size  = [7]
     objct_func   = [1]
     bottleneck   = [64]
-    weighted_arr = [0]
-    noise_arr = [0.075]
+    weighted_arr = [1]
+    noise_arr = [0.01]
     load_path = [""]
     alpha_zero = 1.0e-3;
     alpha_last = 1.0e-4;
@@ -66,6 +66,7 @@ if __name__ == "__main__":
     loss_at_0 = np.zeros(len(bottleneck))
     loss_at_10 = 100.0 * np.ones(len(bottleneck))
     initial_loss_buffer_len = []
+    reset_count = 0
     while True:
         
         # Reset loss buffers and autoencoders
@@ -73,20 +74,28 @@ if __name__ == "__main__":
         loss_buffer = []
         temp_loss_buffer = []
         for i in range(len(bottleneck)):
-            autoencoders.append(Autoencoder(alpha_zero, decay_rate, x_dim, y_dim, bottleneck[i], samples_per_batch, objct_func[i], kernal_size[i], weighted_arr[i], noise_arr[i]))
+            if reset_count==0:
+                print("==================== AUTOENCODER " + str(i+1) + "/" + str(len(bottleneck)) + " ====================")
+            autoencoders.append(Autoencoder(alpha_zero, decay_rate, x_dim, y_dim, bottleneck[i], samples_per_batch, objct_func[i], kernal_size[i], weighted_arr[i], noise_arr[i], verbose=(reset_count==0 and load_path[i] == "")))
             if load_path[i] != "":
-                loss_buffer.append(list(autoencoders[i].load(load_path[i])))
+                loss_buffer.append(list(autoencoders[i].load(load_path[i], verbose=(reset_count==0))))
                 initial_loss_buffer_len.append(len(loss_buffer[i]))
             else:
                 loss_buffer.append([])
                 initial_loss_buffer_len.append(0)
+            if reset_count ==0:
+                print("\nTraining Parameters(")
+                print("  (Start Alpha): {0:.4f}".format(alpha_zero))
+                print("  (End Alpha): {0:.4f}".format(alpha_last))
+                print("  (Initial Criterion): {0:.3f}".format(initial_training_criterion))
+                print(")\n")
             
         # Generate random batch order
         access_order = list(range(num_batches))
         random.shuffle(access_order)
         
         # UI and start time
-        print('\n')
+        print("================== TRAINING ATTEMPT " + str(reset_count + 1) + " ===================")
         print(get_print_string(access_order[0], -1, num_batches, loss_buffer), end='\r')
         start_time = time.time()
         
@@ -125,7 +134,9 @@ if __name__ == "__main__":
         
         # Reset if training condition is not met
         if len(loss_buffer[0])==initial_loss_buffer_len[0]+10:
+            reset_count = reset_count + 1
             print('\nInitial training condition not met. Resetting...\n')
+            
             
     # Run the rest of the batches
     for i in range(10, num_batches):

@@ -17,7 +17,7 @@ class Autoencoder:
     # OBJECTIVE FNC 1: Target temperature field
     # OBJECTIVE FNC 2: Target temperature field, and blurred front location
     # OBJECTIVE FNC 3: Target temperature field, blurred front location, and cure field
-    def __init__(self, alpha, decay, x_dim_input, y_dim_input, bottleneck, samples_per_batch, objective_fnc, kernal_size, weighted, noise_stdev):
+    def __init__(self, alpha, decay, x_dim_input, y_dim_input, bottleneck, samples_per_batch, objective_fnc, kernal_size, weighted, noise_stdev, verbose=True):
         
         # Initialize model
         self.model = cnn(x_dim_input, y_dim_input, bottleneck, objective_fnc, kernal_size)
@@ -29,11 +29,30 @@ class Autoencoder:
         # Load model onto GPU
         self.device = self.get_device()
         self.model.to(self.device)
-        print("Device(")
-        print("  " + self.device)
-        print(")\n")
-        print(self.model) 
-    
+        
+        if verbose:
+            # User printout 1
+            print("Device(")
+            print("  " + self.device)
+            print(")\n")
+            
+            # User printout 2
+            print(self.model)
+            
+            # User printout 3
+            print("\nAutoencoder Parameters(")
+            print("  (Dimensions): " + str(x_dim_input) + "x" + str(y_dim_input))
+            print("  (Objective): " + str(objective_fnc))
+            print("  (Bottleneck): " + str(bottleneck))
+            print("  (Kernal Size): " + str(kernal_size))
+            if weighted == 1:
+                print("  (Weighted): True")
+            else:
+                print("  (Weighted): False")
+            if noise_stdev != 0.0:
+                print("  (Noise Stdev): {0:.3f}".format(noise_stdev))
+            print(")")
+        
         # Store NN shape parameters
         self.x_dim = x_dim_input
         self.y_dim = y_dim_input
@@ -63,10 +82,11 @@ class Autoencoder:
     # Loads a given saved autoencoder
     # @param the path from which the autoencoder will be loaded
     # @return the training curve of the loaded autoencoder
-    def load(self, path):
+    def load(self, path, verbose=True):
         
         # Copy NN at path to current module
-        print("\nLoading: " + path)
+        if verbose:
+            print("Loading: " + path + "\n")
         if not os.path.isdir(path):
             raise RuntimeError("Could not find " + path)
         else:
@@ -87,10 +107,29 @@ class Autoencoder:
             # Load model onto GPU
             self.device = self.get_device()
             self.model.to(self.device)
-            print("\nDevice(")
-            print("  " + self.device)
-            print(")\n")
-            print(self.model) 
+            
+            if verbose:
+                # User printout 1
+                print("Device(")
+                print("  " + self.device)
+                print(")\n")
+                
+                # User printout 2
+                print(self.model)
+                
+                # User printout 3
+                print("\nAutoencoder Parameters(")
+                print("  (Dimensions): " + str(self.x_dim) + "x" + str(self.y_dim))
+                print("  (Objective): " + str(self.objective_fnc))
+                print("  (Bottleneck): " + str(self.bottleneck))
+                print("  (Kernal Size): " + str(self.kernal_size))
+                if self.weighted == 1:
+                    print("  (Weighted): True")
+                else:
+                    print("  (Weighted): False")
+                if self.noise_stdev != 0.0:
+                    print("  (Noise Stdev): {0:.3f}".format(self.noise_stdev))
+                print(")")
             
         return loaded_data['training_curve']
         
@@ -415,7 +454,7 @@ class Autoencoder:
         self.model.to(self.device)
 
         # Find save paths
-        initial_path = "results/" + str(self.kernal_size) + "_" + str(self.objective_fnc) + "_" + str(self.bottleneck) + "_" + str(self.weighted) + '_{0:.3f}'.format(self.noise_stdev)
+        initial_path = "results/" + str(self.objective_fnc) + "_" + str(self.bottleneck) + "_" + str(self.kernal_size) + "_" + str(self.weighted) + '_{0:.3f}'.format(self.noise_stdev)
         path = initial_path
         done = False
         curr_dir_num = 1
