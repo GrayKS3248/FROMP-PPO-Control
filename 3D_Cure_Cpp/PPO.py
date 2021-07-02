@@ -652,8 +652,12 @@ class Save_Plot_Render:
         # Make videos of the best temperature field trajecotry and cure field trajectories as function of time
         min_temp = min(10.0*np.floor((np.min(self.temperature_field)-273.15)/10.0), 10.0*np.floor((np.min(self.fine_temperature_field)-273.15)/10.0))
         max_temp = max(10.0*np.ceil((np.max(self.temperature_field)-273.15)/10.0), 10.0*np.floor((np.min(self.fine_temperature_field)-273.15)/10.0))
-        min_front_temp = np.min(self.fine_temperature_field[:,:,len(self.fine_temperature_field[0][0])//2])
-        max_front_temp = np.max(self.fine_temperature_field[:,:,len(self.fine_temperature_field[0][0])//2])
+        
+        # Front temp is defined only in steady state region (middle 25% of collected data)
+        steady_state_beg_ind = len(self.fine_temperature_field)//2-len(self.fine_temperature_field)//8
+        steady_state_end_ind = len(self.fine_temperature_field)//2+len(self.fine_temperature_field)//8
+        min_front_temp = np.min(self.fine_temperature_field[steady_state_beg_ind:steady_state_end_ind,:,len(self.fine_temperature_field[0][0])//2])
+        max_front_temp = np.max(self.fine_temperature_field[steady_state_beg_ind:steady_state_end_ind,:,len(self.fine_temperature_field[0][0])//2])
         
         for curr_step in range(len(self.time)):
         
@@ -774,8 +778,3 @@ class Save_Plot_Render:
             plt.gcf().set_size_inches(8.5, 5.5)
             plt.savefig(self.video_2_path+str(curr_step).zfill(4)+'.png', dpi=100)
             plt.close()
-            
-if __name__ == "__main__":
-    
-    with open("results/PPO_1/output", 'rb') as file:
-        data = pickle.load(file)

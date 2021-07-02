@@ -48,9 +48,9 @@ if __name__ == "__main__":
     kernal_size  = [7]
     objct_func   = [1]
     bottleneck   = [64]
-    weighted_arr = [0]
+    weighted_arr = [1]
     noise_arr = [0.01]
-    load_path = ["results/1_64_7_0_0.010"]
+    load_path = ["results/1_64_7_1_0.010"]
     alpha_zero = 1.0e-3;
     alpha_last = 1.0e-4;
     
