@@ -777,7 +777,7 @@ int save_agent_results(PyObject* save_render_plot, PyObject* agent)
 * @param The number of agent cycles steps in each trajectory
 * @return 0 on success, 1 on failure
 */
-int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_plot, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory)
+int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_plot, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory, auto &start_time)
 {
 	// Agent training data storage
 	vector<double> r_per_episode;
@@ -995,6 +995,10 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 		if (i == total_trajectories - 1) { print_training_info(i, total_trajectories, prev_episode_reward, steps_per_trajectory, r_per_episode, best_episode_reward); }
 	}
 	
+	// Stop clock and print duration
+	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
+	printf("Simulation took: %.1f seconds.\n\nConverting simulation results...", duration);
+	
 	// Send all relevant data to save render and plot module
 	if(store_training_curves(save_render_plot, r_per_episode, critic_loss) == 1) {return 1;}
 	if(store_stdev_history(save_render_plot, x_rate_stdev, y_rate_stdev, mag_rate_stdev) == 1) {return 1;}
@@ -1005,6 +1009,10 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 	if(store_top_mesh(save_render_plot, FDS->get_coarse_x_mesh_z0(), FDS->get_coarse_y_mesh_z0()) == 1) {return 1;}
 	if(store_input_params(save_render_plot, FDS->get_peak_input_mag(), FDS->get_input_const()) == 1) {return 1;}
 	if(store_options(save_render_plot, FDS->get_control_mode()) == 1) {return 1;}
+
+	// Stop clock and print duration
+	duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
+	printf("\nData conversion took: %.1f seconds.", duration);
 
 	// Save, plot, and render
 	return save_agent_results(save_render_plot, agent);
@@ -1068,12 +1076,13 @@ int main()
 	FDS->print_params();
 
 	// Train agent
+	cout << "\nSimulating...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(FDS, agent, save_render_plot, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory) == 1) { return 1; };
+	if (run(FDS, agent, save_render_plot, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory, start_time) == 1) { return 1; };
 	
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
-	printf("Training Took: %.1f seconds.\n", duration);
+	printf("Saving and Rendering Took: %.1f seconds.\n\nDone!", duration);
 	
 	// Finish
 	Py_FinalizeEx();

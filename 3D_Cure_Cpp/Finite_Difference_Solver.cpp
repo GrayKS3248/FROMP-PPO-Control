@@ -45,7 +45,7 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 		thermal_conductivity = COD_thermal_conductivity;
 		enthalpy_of_reaction = COD_enthalpy_of_reaction;
 		specific_heat = COD_specific_heat;
-		critical_temp = 0.0;
+		critical_temp = -COD_activiation_energy / (log((pow(1.0-initial_cure, -1.0*COD_model_fit_order)*pow(initial_cure, -1.0*COD_m_fit)*critical_cure_rate)/(initial_cure))*gas_const);
 	}
 	
 	
@@ -88,6 +88,15 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 	// Perturb temperature and cure meshes
 	perturb_mesh(coarse_temp_mesh, max_initial_temp_deviation);
 	perturb_mesh(coarse_cure_mesh, max_initial_cure_deviation);
+	for(int i = 0; i < num_coarse_vert_x; i++)
+	for(int j = 0; j < num_coarse_vert_y; j++)
+	for(int k = 0; k < num_coarse_vert_z; k++)
+	{
+		coarse_temp_mesh[i][j][k] = coarse_temp_mesh[i][j][k] > monomer_burn_temp ? monomer_burn_temp : coarse_temp_mesh[i][j][k];
+		coarse_temp_mesh[i][j][k] = coarse_temp_mesh[i][j][k] < 0.0 ? 0.0 : coarse_temp_mesh[i][j][k];
+		coarse_cure_mesh[i][j][k] = coarse_cure_mesh[i][j][k] > 1.0 ? 1.0 : coarse_cure_mesh[i][j][k];
+		coarse_cure_mesh[i][j][k] = coarse_cure_mesh[i][j][k] < 0.0 ? 0.0 : coarse_cure_mesh[i][j][k];
+	}
 	
 	// Determine coarse step sizes
 	coarse_x_step = coarse_x_mesh[1][0][0];
@@ -1078,7 +1087,15 @@ void Finite_Difference_Solver::reset()
 	// Perturb temperature and cure meshes
 	perturb_mesh(coarse_temp_mesh, max_initial_temp_deviation);
 	perturb_mesh(coarse_cure_mesh, max_initial_cure_deviation);
-	
+	for(int i = 0; i < num_coarse_vert_x; i++)
+	for(int j = 0; j < num_coarse_vert_y; j++)
+	for(int k = 0; k < num_coarse_vert_z; k++)
+	{
+		coarse_temp_mesh[i][j][k] = coarse_temp_mesh[i][j][k] > monomer_burn_temp ? monomer_burn_temp : coarse_temp_mesh[i][j][k];
+		coarse_temp_mesh[i][j][k] = coarse_temp_mesh[i][j][k] < 0.0 ? 0.0 : coarse_temp_mesh[i][j][k];
+		coarse_cure_mesh[i][j][k] = coarse_cure_mesh[i][j][k] > 1.0 ? 1.0 : coarse_cure_mesh[i][j][k];
+		coarse_cure_mesh[i][j][k] = coarse_cure_mesh[i][j][k] < 0.0 ? 0.0 : coarse_cure_mesh[i][j][k];
+	}
 	
 	// ************************************************** FINE MESH ************************************************** //	
 	// Copy coarse mesh initial values to the fine mesh
@@ -1220,6 +1237,23 @@ double Finite_Difference_Solver::get_reward()
 
 	// Determine maximum mesh temperature
 	double max_temp = 0.0;
+	int i_max = num_coarse_vert_x > num_fine_vert_x ? num_coarse_vert_x : num_fine_vert_x;
+	int j_max = num_coarse_vert_y > num_fine_vert_y ? num_coarse_vert_y : num_fine_vert_y;
+	int k_max = num_coarse_vert_z > num_fine_vert_z ? num_coarse_vert_z : num_fine_vert_z;
+	#pragma omp parallel for collapse(3)
+	for (int i = 0; i < i_max; i++)
+	for (int j = 0; j < j_max; j++)
+	for (int k = 0; k < k_max; k++)
+	{
+		if ( i < num_coarse_vert_x && j < num_coarse_vert_y && k < num_coarse_vert_z )
+		{
+			max_temp = coarse_temp_mesh[i][j][k] > max_temp ? coarse_temp_mesh[i][j][k] : max_temp;
+		}
+		if ( i < num_fine_vert_x && j < num_fine_vert_y && k < num_fine_vert_z )
+		{
+			max_temp = fine_temp_mesh[get_ind(i)][j][k] > max_temp ? fine_temp_mesh[get_ind(i)][j][k] : max_temp;
+		}
+	}
 	
 	// Get the input reward
 	input_reward = input_reward_const * (1.0 - input_percent);
@@ -1544,7 +1578,7 @@ void Finite_Difference_Solver::perturb_mesh(double*** arr, double max_deviation)
 		z = -2.0*min_mag + min_z_bias + (2.0*max_mag + max_z_bias + 2.0*min_mag - min_z_bias) * ((double)k / (num_coarse_vert_z-1));
 		xyz = x * y * z;
 		
-		perturbation = mag_1 * sin(xyz + bias_1) + mag_2 * sin(2.0*xyz + bias_2) + mag_3 * sin(3.0*xyz + bias_3);
+		perturbation = mag_1 * sin(0.50 * xyz + bias_1) + mag_2 * cos(0.50 * xyz + bias_2) + mag_3 * sin(xyz + bias_3);
 		arr[i][j][k] = arr[i][j][k] + (max_deviation * perturbation) / scale;
 	}
 }
