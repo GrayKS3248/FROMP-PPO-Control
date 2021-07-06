@@ -124,7 +124,7 @@ double laplacian_consts[5][7] = { { 137.0/180.0, -49.0/60.0, -17.0/12.0,  47.0/1
 //******************************************************************** CONFIG PARAMETERS ********************************************************************//
 // Simulation options
 bool input_is_on;
-bool trigger_is_on;
+bool using_a_trigger;
 int monomer_code;
 int control_code;
 int target_code;
@@ -267,6 +267,7 @@ double*** fine_fb_bc_temps;
 double*** fine_tb_bc_temps;
 
 // Front calculation parameters
+int num_front_instances;
 double**  global_front_curve;
 double*** thread_front_curve;
 double front_vel;
@@ -285,6 +286,9 @@ int precalc_exp_arr_len;
 double* precalc_pow_arr;
 int precalc_pow_arr_len;
 
+// Trigger conditions
+bool trigger_is_on;
+
 // Calculated input parameters
 double input_const;
 double peak_input_mag;
@@ -300,12 +304,14 @@ double input_percent;
 
 
 //******************************************************************** PRIVATE FUNCTIONS ********************************************************************//
+int load_config();
 void perturb_mesh(double*** arr, double max_deviation);
-void copy_coarse_to_fine();
+void step_trigger();
 void step_input(double x_slew_speed_cmd, double y_slew_speed_cmd, double mag_percent_rate_cmd);
+int get_ind(int i);
+void copy_coarse_to_fine();
 void slide_fine_mesh_right();
 void copy_fine_to_coarse();
-int get_ind(int i);
 void update_lr_bc_temps();
 void update_fb_bc_temps();
 void update_tb_bc_temps();
@@ -313,5 +319,4 @@ double get_coarse_laplacian(int i, int j, int k);
 double get_fine_laplacian(int i, int j, int k);
 void step_meshes();
 bool step_time();
-int load_config();
 };

@@ -293,6 +293,7 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 	}
 	
 	// Set all front tracking parameters to 0
+	num_front_instances = 0;
 	front_vel = 0.0;
 	front_temp = initial_temp;
 	front_shape_param = 1.0;
@@ -348,7 +349,7 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 
 	// ************************************************** TRIGGER ************************************************** //
 	// Disengage trigger if set to off
-	if (!trigger_is_on)
+	if (!using_a_trigger)
 	{
 		trigger_flux = 0.0;
 		trigger_time = 0.0;
@@ -984,15 +985,22 @@ void Finite_Difference_Solver::print_params()
 	
 	// Trigger parameters
 	cout << "\nTrigger(\n";
-	if (!trigger_is_on)
+	if (!using_a_trigger)
 	{
 		cout << "  No trigger.\n";
 	}
-	else if (trigger_is_on)
+	else if (using_a_trigger)
 	{ 
 		cout << "  (Flux): " << trigger_flux << " W/m^2\n";
 		cout << "  (Time): " << trigger_time << " s\n";
-		cout << "  (Duration): " << trigger_duration  << " s\n";
+		if(trigger_duration > 0.0)
+		{
+			cout << "  (Duration): " << trigger_duration  << " s\n";
+		}
+		else
+		{
+			cout << "  (Duration): Minimum\n";
+		}
 	}
 	cout << ")\n";
 	
@@ -1160,6 +1168,7 @@ void Finite_Difference_Solver::reset()
 	}
 	
 	// Reset front tracking parameters to 0
+	num_front_instances = 0;
 	front_vel = 0.0;
 	front_temp = initial_temp;
 	front_shape_param = 1.0;
@@ -1214,6 +1223,9 @@ void Finite_Difference_Solver::reset()
 */
 bool Finite_Difference_Solver::step(double x_slew_speed_cmd, double y_slew_speed_cmd, double mag_percent_rate_cmd)
 {
+	// Determine state of trigger
+	step_trigger();
+	
 	// Step the input, cure, front, and temperature
 	step_input(x_slew_speed_cmd, y_slew_speed_cmd, mag_percent_rate_cmd);
 	step_meshes();
@@ -1313,11 +1325,11 @@ int Finite_Difference_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		if (bool_dump.compare("true")==0)
 		{
-			trigger_is_on = true;
+			using_a_trigger = true;
 		}
 		else if (bool_dump.compare("false")==0)
 		{
-			trigger_is_on = false;
+			using_a_trigger = false;
 		}
 		else
 		{
@@ -1505,11 +1517,19 @@ int Finite_Difference_Solver::load_config()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file >> config_dump >> trigger_time;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> trigger_duration;
+		config_file >> config_dump >> string_dump;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
+		if (string_dump.compare("min")==0)
+		{
+			trigger_duration = -1.0;
+		}
+		else
+		{
+			trigger_duration = stof(string_dump, NULL);
+		}
+	
 		
 		// ************************************************** INPUT PARAMS ************************************************** //
 		config_file >> config_dump >> radius_of_input;
@@ -1580,6 +1600,21 @@ void Finite_Difference_Solver::perturb_mesh(double*** arr, double max_deviation)
 		
 		perturbation = mag_1 * sin(0.50 * xyz + bias_1) + mag_2 * cos(0.50 * xyz + bias_2) + mag_3 * sin(xyz + bias_3);
 		arr[i][j][k] = arr[i][j][k] + (max_deviation * perturbation) / scale;
+	}
+}
+
+/** Determines whether the trigger is on or not
+*/
+void Finite_Difference_Solver::step_trigger()
+{
+	if (trigger_duration > 0.0)
+	{
+		trigger_is_on = ((curr_sim_time >= trigger_time) && (curr_sim_time < trigger_time + trigger_duration));
+	}
+	else
+	{
+		// The front is less than 75% the width of the channel with a mean location of less than 50% of 1 fine step
+		trigger_is_on = ((double)num_front_instances <= 0.75 * (double)num_fine_vert_y) && (front_mean_x_loc_history[front_mean_x_loc_history_len-1] <= 0.50*fine_x_step);
 	}
 }
 
@@ -1803,7 +1838,7 @@ void Finite_Difference_Solver::update_lr_bc_temps()
 		// Left BC if fine mesh is on left edge of domain
 		if(coarse_x_index_at_fine_mesh_start == 0)
 		{
-			if ((curr_sim_time >= trigger_time) && (curr_sim_time < trigger_time + trigger_duration))
+			if (trigger_is_on)
 			{
 				fine_lr_bc_temps[0][j][k] = -4.0*((fine_x_step/thermal_conductivity)*(htc*(fine_temp_mesh[get_ind(0)][j][k]-amb_temp)-trigger_flux) + (5.0/6.0)*fine_temp_mesh[get_ind(0)][j][k] + (-3.0/2.0)*fine_temp_mesh[get_ind(1)][j][k] + (1.0/2.0)*fine_temp_mesh[get_ind(2)][j][k] + (-1.0/12.0)*fine_temp_mesh[get_ind(3)][j][k]);
 			}
@@ -2061,7 +2096,7 @@ void Finite_Difference_Solver::step_meshes()
 	update_tb_bc_temps();
 
 	// Reset front calculation variables
-	int num_front_instances = 0;
+	num_front_instances = 0;
 	front_mean_x_loc = 0.0;
 	front_shape_param = 0.0;
 	front_temp = 0.0;
