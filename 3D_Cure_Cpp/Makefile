@@ -9,21 +9,25 @@ LDFLAGS-W+=-L$(PYTHONPATH)
 LDFLAGS-W+=-lpython39
 
 all-l: 
+	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Tune_Params.cpp -o tune_params.so $(LDFLAGS-L)
 	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Run_Solver.cpp -o run_solver.so $(LDFLAGS-L)
 	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_AE_Data.cpp -o get_ae_data.so $(LDFLAGS-L)
 	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Train_Agent.cpp -o train_agent.so $(LDFLAGS-L)
 	
 all-w: 
+	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Tune_Params.cpp -o tune_params.exe $(LDFLAGS-W)
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Run_Solver.cpp -o run_solver.exe $(LDFLAGS-W)
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_AE_Data.cpp -o get_ae_data.exe $(LDFLAGS-W)
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Train_Agent.cpp -o train_agent.exe $(LDFLAGS-W)
 	
 clean-l:
+	rm -rf tune_params.so
 	rm -rf run_solver.so
 	rm -rf get_ae_data.so
 	rm -rf train_agent.so
 	
 clean-w:
+	del /f tune_params.exe
 	del /f run_solver.exe
 	del /f get_ae_data.exe
 	del /f train_agent.exe

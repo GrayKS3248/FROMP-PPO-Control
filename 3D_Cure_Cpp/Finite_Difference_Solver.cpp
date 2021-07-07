@@ -1077,6 +1077,16 @@ void Finite_Difference_Solver::print_progress(bool return_carriage)
 }
 
 /**
+* Gets the current completion percent of the current simulation
+* @return double of current progress
+*/
+double Finite_Difference_Solver::get_progress()
+{
+	// Percent complete sub messege
+	return 100.0*(double)curr_sim_step / (double)get_num_sim_steps();
+}
+
+/**
 * Resets the environment to initial conditions
 */
 void Finite_Difference_Solver::reset()
@@ -1320,6 +1330,7 @@ int Finite_Difference_Solver::load_config()
 		else
 		{
 			cout << "\nInput configuration not recognized.";
+			return 1;
 		}
 		config_file >> config_dump >> bool_dump;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1334,6 +1345,7 @@ int Finite_Difference_Solver::load_config()
 		else
 		{
 			cout << "\nTrigger configuration not recognized.";
+			return 1;
 		}
 		config_file >> config_dump >> string_dump;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1352,6 +1364,7 @@ int Finite_Difference_Solver::load_config()
 		else
 		{
 			cout << "\nMaterial configuration not recognized.";
+			return 1;
 		}
 		config_file >> config_dump >> string_dump;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1366,6 +1379,7 @@ int Finite_Difference_Solver::load_config()
 		else
 		{
 			cout << "\nControl configuration not recognized.";
+			return 1;
 		}
 		config_file >> config_dump >> string_dump;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1386,6 +1400,7 @@ int Finite_Difference_Solver::load_config()
 		else
 		{
 			cout << "\nTarget configuration not recognized.";
+			return 1;
 		}
 		
 		
