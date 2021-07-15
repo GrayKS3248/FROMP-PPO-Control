@@ -1,0 +1,60 @@
+Tuning parameters...
+
+ | Num Updates: 0 | Fine X Len: 4.97 mm | Time Step: 12.14 ms | Time Step Mult: 22 | Crit Cure: 0.0773 | Trans Cure: 1.986 |
+****************************************************************************************************************************
+ | Point: 1/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 296.15 K | Target: 1.078 m/s |
+ | Point: 2/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 303.15 K | Target: 1.359 m/s |
+ | Point: 3/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 309.15 K | Target: 1.663 m/s |
+ | Loss: 269.40 |*********************************************************************|
+
+ | Num Updates: 1 | Fine X Len: 5.00 mm | Time Step: 12.06 ms | Time Step Mult: 21 | Crit Cure: 0.0772 | Trans Cure: 1.986 |
+****************************************************************************************************************************
+ | Point: 1/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 296.15 K | Target: 1.078 m/s |
+ | Point: 2/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 303.15 K | Target: 1.359 m/s |
+ | Point: 3/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 309.15 K | Target: 1.663 m/s |
+ | Loss: 14.303 |*********************************************************************|
+
+ | Num Updates: 2 | Fine X Len: 5.02 mm | Time Step: 12.04 ms | Time Step Mult: 21 | Crit Cure: 0.0773 | Trans Cure: 1.986 |
+****************************************************************************************************************************
+ | Point: 1/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 296.15 K | Target: 1.078 m/s |
+ | Point: 2/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 303.15 K | Target: 1.359 m/s |
+ | Point: 3/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 309.15 K | Target: 1.663 m/s |
+ | Loss: 14.275 |*********************************************************************|
+
+ | Num Updates: 3 | Fine X Len: 4.93 mm | Time Step: 11.96 ms | Time Step Mult: 21 | Crit Cure: 0.0772 | Trans Cure: 1.986 |
+****************************************************************************************************************************
+ | Point: 1/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 296.15 K | Target: 1.078 m/s |
+ | Point: 2/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 303.15 K | Target: 1.359 m/s |
+ | Point: 3/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 309.15 K | Target: 1.663 m/s |
+ | Loss: 14.025 |*********************************************************************|
+
+ | Num Updates: 4 | Fine X Len: 4.86 mm | Time Step: 12.04 ms | Time Step Mult: 21 | Crit Cure: 0.0773 | Trans Cure: 1.986 |
+****************************************************************************************************************************
+ | Point: 1/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 296.15 K | Target: 1.078 m/s |
+ | Point: 2/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 303.15 K | Target: 1.359 m/s |
+ | Point: 3/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 309.15 K | Target: 1.663 m/s |
+ | Loss: 7.7559 |*********************************************************************|
+
+ | Num Updates: 5 | Fine X Len: 4.88 mm | Time Step: 11.96 ms | Time Step Mult: 20 | Crit Cure: 0.0773 | Trans Cure: 1.986 |
+****************************************************************************************************************************
+ | Point: 1/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 296.15 K | Target: 1.078 m/s |
+ | Point: 2/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 303.15 K | Target: 1.359 m/s |
+ | Point: 3/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 309.15 K | Target: 1.663 m/s |
+ | Loss: 7.1119 |*********************************************************************|
+
+ | Num Updates: 6 | Fine X Len: 4.76 mm | Time Step: 11.96 ms | Time Step Mult: 19 | Crit Cure: 0.0774 | Trans Cure: 1.986 |
+****************************************************************************************************************************
+ | Point: 1/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 296.15 K | Target: 1.078 m/s |
+ | Point: 2/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 303.15 K | Target: 1.359 m/s |
+ | Point: 3/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 309.15 K | Target: 1.663 m/s |
+ | Loss: 7.0584 |*********************************************************************|
+
+ | Num Updates: 7 | Fine X Len: 4.70 mm | Time Step: 12.04 ms | Time Step Mult: 19 | Crit Cure: 0.0774 | Trans Cure: 1.986 |
+****************************************************************************************************************************
+ | Point: 1/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 296.15 K | Target: 1.078 m/s |
+ | Point: 2/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 303.15 K | Target: 1.359 m/s |
+ | Point: 3/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 309.15 K | Target: 1.663 m/s |
+ | Loss: 6.9654 |*********************************************************************|
+
+Tuning took: 2196.4 seconds.
+Done!

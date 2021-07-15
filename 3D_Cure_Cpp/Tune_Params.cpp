@@ -505,11 +505,11 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 	double avg_stdev_const = 250.0;
 	
 	// Initialize random stepping param
-	double rand_weight = 0.05;
+	double rand_weight = 0.10;
 	
 	// Initialize termination condition
-	int max_num_failed_updates = 20;
-	int max_num_updates = 50;
+	int max_num_failed_updates = 50;
+	int max_num_updates = 100;
 	
 	// Initialize current tuning point fitness 
 	double avg_sim_duration = 0.0;
