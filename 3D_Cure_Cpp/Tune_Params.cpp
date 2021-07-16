@@ -10,7 +10,7 @@ using namespace std;
 * Loads parameters from .cfg file
 * @return 0 on success, 1 on failure
 */
-int load_config(vector<string>& name_list, vector<string>& initial_cure_list, vector<string>& initial_temp_list, vector<string>& front_speed_list)
+int load_config(vector<string>& name_list, vector<string>& initial_cure_list, vector<string>& initial_temp_list, vector<string>& front_speed_list, vector<double>& params)
 {
 	// Load from config file
 	ifstream config_file;
@@ -18,6 +18,52 @@ int load_config(vector<string>& name_list, vector<string>& initial_cure_list, ve
 	string string_dump;
 	if (config_file.is_open())
 	{
+		// Simulation parameters
+		config_file.ignore(numeric_limits<streamsize>::max(), '}');
+		config_file >> string_dump >> params[0];
+		
+		// Tuning parameter limits
+		config_file.ignore(numeric_limits<streamsize>::max(), '}');
+		config_file >> string_dump >> params[1];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[2];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[3];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[4];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[5];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[6];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[7];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[8];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[9];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[10];
+		
+		// Fitness parameters
+		config_file.ignore(numeric_limits<streamsize>::max(), '}');
+		config_file >> string_dump >> params[11];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[12];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[13];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[14];
+		
+		// Search parameters
+		config_file.ignore(numeric_limits<streamsize>::max(), '}');
+		config_file >> string_dump >> params[15];
+		
+		// Termination parameters
+		config_file.ignore(numeric_limits<streamsize>::max(), '}');
+		config_file >> string_dump >> params[16];
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> params[17];
+		
 		while(true)
 		{
 			config_file.ignore(numeric_limits<streamsize>::max(), '}');
@@ -475,51 +521,43 @@ string get_sim_info(unsigned int num_tuning_points, unsigned int curr_tuning_poi
 * @param The frame rate in per second
 * @return 0 on success, 1 on failure
 */
-int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<string> &initial_temp_list, vector<string> &front_speed_list, int frame_rate, vector<vector<double>>& param_limits)
+int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<string> &initial_temp_list, vector<string> &front_speed_list, vector<double>& params)
 {
-	// Calculate param range
-	double param_range_1 = param_limits[1][0] - param_limits[0][0];
-	double param_range_2 = param_limits[1][0] - param_limits[0][0];
-	double param_range_3 = param_limits[1][0] - param_limits[0][0];
-	double param_range_4 = param_limits[1][0] - param_limits[0][0];
-	double param_range_5 = param_limits[1][0] - param_limits[0][0];
-
-	// Generate random starting tunable parameter locations
-	double rand_1 = ((double)rand()/(double)RAND_MAX);
-	double rand_2 = ((double)rand()/(double)RAND_MAX);
-	double rand_3 = ((double)rand()/(double)RAND_MAX);
-	double rand_4 = ((double)rand()/(double)RAND_MAX);
-	double rand_5 = ((double)rand()/(double)RAND_MAX);
+	// Populate tunable parameter limit
+	double tunable_param_min[5] = { params[1], params[3], params[5], params[7], params[9]  };
+	double tunable_param_max[5] = { params[2], params[4], params[6], params[8], params[10] };
 	
 	// Initialize tunable parameters
-	double curr_fine_x_len = rand_1 * param_limits[0][0] + (1.0-rand_1) * param_limits[1][0];
-	double curr_time_step = rand_2 * param_limits[0][1] + (1.0-rand_2) * param_limits[1][1];
-	int curr_time_mult = (int)round(rand_3 * param_limits[0][2] + (1.0-rand_3) * param_limits[1][2]);
-	double curr_crit_cure_rate = rand_4 * param_limits[0][3] + (1.0-rand_4) * param_limits[1][3];
-	double curr_trans_cure_rate = rand_5 * param_limits[0][4] + (1.0-rand_5) * param_limits[1][4];
+	double tunable_param_range[5];
+	double tunable_param_curr[5];
+	double tunable_param_test[5];
+	for(int i = 0; i < 5; i++)
+	{
+		// Set tunable param ranges
+		tunable_param_range[i] = tunable_param_max[i] - tunable_param_min[i];
+		
+		// Set the initial tunable param value
+		tunable_param_curr[i] = tunable_param_min[i] + ((double)rand()/(double)RAND_MAX) * tunable_param_range[i];
+	}
 	
-	// Initialize fitness constants
-	double characteristic_duration = 12.5;
-	double duration_const = 5.0;
-	double max_stdev_const = 250.0;
-	double avg_stdev_const = 250.0;
+	// Name other input parameters
+	double frame_rate = params[0];
+	double characteristic_duration = params[11];
+	double duration_const = params[12];
+	double max_stdev_const = params[13];
+	double avg_stdev_const = params[14];
+	double hyper_radius = params[15];
+	int max_num_failed_updates = params[16];
+	int max_num_updates = params[17];
 	
-	// Initialize random stepping param
-	double rand_weight = 0.10;
-	
-	// Initialize termination condition
-	int max_num_failed_updates = 50;
-	int max_num_updates = 100;
-	
-	// Initialize current tuning point fitness 
-	double avg_sim_duration = 0.0;
-	double max_stdev = 0.0;
-	double avg_stdev = 0.0;
+	// Initialize current fitness values
+	double avg_sim_duration;
+	double max_stdev;
+	double avg_stdev;
 	double curr_loss = 1.0e10;
 	double test_loss = 0.0;
-	double curr_num_failed_updates = 0;
 	
-	// Calculate the average target
+	// Calculate the average target speed for stdev normalization
 	double avg_target = 0.0;
 	for(unsigned int i = 0; i < front_speed_list.size(); i++)
 	{
@@ -536,47 +574,41 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 	// ********************************************************** Parameter tuning loop ********************************************************** //
 	bool done_tuning = false;
 	int num_updates = 0;
+	int num_failed_updates = 0;
 	string print_string = "";
 	while (!done_tuning)
 	{
 		// Reset the print string
 		print_string = "";
 		
-		// Pick a random direction to move in (magnitude depedent of number of failed random moves)
-		double failed_update_multiplier;
-		if( (double)curr_num_failed_updates/(double)max_num_failed_updates <= 0.50 )
+		// Take one step in a random direction in hyperspace
+		for(int i = 0; i < 5; i++)
 		{
-			failed_update_multiplier = rand_weight*(5.0 / sqrt(-(48.0*(double)curr_num_failed_updates-25.0*(double)max_num_failed_updates)/(double)max_num_failed_updates));
+			// Normal case for continuous tunable parameters
+			if( i != 2 )
+			{
+				tunable_param_test[i] = tunable_param_curr[i] + hyper_radius * (2.0*((double)rand()/(double)RAND_MAX)-1.0) * tunable_param_range[i];
+			}
+			
+			// Special case for discrete tunable parameters
+			else
+			{
+				int max_step = (int)round( hyper_radius * tunable_param_range[i] );
+				max_step = max_step < 1 ? 1 : max_step;
+				
+				int step = rand() % (max_step + 1);
+				step =  (2.0*((double)rand()/(double)RAND_MAX)-1.0) < 0.0 ? -step : step;
+				
+				tunable_param_test[i] = tunable_param_curr[i] + (double)step;
+			}
+			
+			// Ensure in proper range
+			tunable_param_test[i] = tunable_param_test[i] > tunable_param_max[i] ? tunable_param_max[i] : tunable_param_test[i];
+			tunable_param_test[i] = tunable_param_test[i] < tunable_param_min[i] ? tunable_param_min[i] : tunable_param_test[i];
 		}
-		else
-		{
-			failed_update_multiplier = rand_weight*(((((double)max_num_failed_updates-1.0)*sqrt(2.0*(double)curr_num_failed_updates-(double)max_num_failed_updates)) / ((double)max_num_failed_updates*(sqrt((double)max_num_failed_updates)-sqrt(2.0)))) - (sqrt(2.0*(double)max_num_failed_updates)-1.0) / (sqrt((double)max_num_failed_updates)*(sqrt((double)max_num_failed_updates)-sqrt(2.0))));
-		}
-		rand_1 = 2.0*((double)rand()/(double)RAND_MAX)-1.0;
-		rand_2 = 2.0*((double)rand()/(double)RAND_MAX)-1.0;
-		rand_3 = 2.0*((double)rand()/(double)RAND_MAX)-1.0;
-		rand_4 = 2.0*((double)rand()/(double)RAND_MAX)-1.0;
-		rand_5 = 2.0*((double)rand()/(double)RAND_MAX)-1.0;
-		double test_fine_x_len = curr_fine_x_len + failed_update_multiplier*rand_1*param_range_1;
-		double test_time_step = curr_time_step + failed_update_multiplier*rand_2*param_range_2;
-		double test_time_mult = curr_time_mult + 4.0*failed_update_multiplier*rand_3*param_range_3;
-		double test_crit_cure_rate = curr_crit_cure_rate + failed_update_multiplier*rand_4*param_range_4;
-		double test_trans_cure_rate = curr_trans_cure_rate + failed_update_multiplier*rand_5*param_range_5;
 		
-		// Ensure in proper range
-		test_fine_x_len = test_fine_x_len > param_limits[1][0] ? param_limits[1][0] : test_fine_x_len;
-		test_fine_x_len = test_fine_x_len < param_limits[0][0] ? param_limits[0][0] : test_fine_x_len;
-		test_time_step = test_time_step > param_limits[1][1] ? param_limits[1][1] : test_time_step;
-		test_time_step = test_time_step < param_limits[0][1] ? param_limits[0][1] : test_time_step;
-		test_time_mult = test_time_mult > param_limits[1][2] ? param_limits[1][2] : test_time_mult;
-		test_time_mult = test_time_mult < param_limits[0][2] ? param_limits[0][2] : test_time_mult;
-		test_crit_cure_rate = test_crit_cure_rate > param_limits[1][3] ? param_limits[1][3] : test_crit_cure_rate;
-		test_crit_cure_rate = test_crit_cure_rate < param_limits[0][3] ? param_limits[0][3] : test_crit_cure_rate;
-		test_trans_cure_rate = test_trans_cure_rate > param_limits[1][4] ? param_limits[1][4] : test_trans_cure_rate;
-		test_trans_cure_rate = test_trans_cure_rate < param_limits[0][4] ? param_limits[0][4] : test_trans_cure_rate;
-		
-		// Print the current tuning info
-		print_string.append(get_tuning_info(num_updates, test_fine_x_len, test_time_step, test_time_mult, test_crit_cure_rate, test_trans_cure_rate));
+		// Save the current tuning info as printable string
+		print_string.append(get_tuning_info(num_updates, tunable_param_test[0], tunable_param_test[1], tunable_param_test[2], tunable_param_test[3], tunable_param_test[4]));
 		
 		// Reset current tuning point fitness 
 		avg_sim_duration = 0.0;
@@ -588,7 +620,8 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 		{
 			// Modifiy fds config to make current tuning point
 			edit_fds_config(name_list[i], initial_cure_list[i], initial_temp_list[i], front_speed_list[i]);
-			set_fds_config_tunable_params(test_fine_x_len, test_time_step, test_time_mult, test_crit_cure_rate, test_trans_cure_rate, front_speed_list[i]);
+			set_fds_config_tunable_params(tunable_param_test[0], tunable_param_test[1], (int)tunable_param_test[2], tunable_param_test[3], tunable_param_test[4], front_speed_list[i]);
+			print_string.append(get_sim_info(name_list.size(), i+1, name_list[i], initial_cure_list[i], initial_temp_list[i], front_speed_list[i]));
 			
 			// Initialize FDS
 			Finite_Difference_Solver* FDS;
@@ -602,38 +635,28 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 				cout << "\nAn exception occurred. Exception num " << e << '\n';
 				return 1;
 			}
-			
-			// Calcualte frame rate
-			int steps_per_frame = (int) round(1.0 / (FDS->get_coarse_time_step() * frame_rate));
-			steps_per_frame = steps_per_frame <= 0 ? 1 : steps_per_frame;
-			
-			// Print parameters to stdout
-			print_string.append(get_sim_info(name_list.size(), i+1, name_list[i], initial_cure_list[i], initial_temp_list[i], front_speed_list[i]));
-			
-			// Initialize simulation variables
-			bool done = false;
-			double action_1=0.0, action_2=0.0, action_3=0.0;
-			int step_in_trajectory = 0;
-			double target_stdev = 0.0;
-			double population_size = 0.0;
-			
-			// Reset environment
 			FDS->reset();
-			
+
 			// Simulation loop
+			int steps_per_frame = (int) round(1.0 / (FDS->get_coarse_time_step() * frame_rate));
+			steps_per_frame = steps_per_frame < 1 ? 1 : steps_per_frame;
+			bool done_simulating = false;
+			int step_in_trajectory = 0;
+			double curr_stdev = 0.0;
+			double population_size = 0.0;
 			auto sim_start_time = chrono::high_resolution_clock::now();
-			while (!done)
+			while (!done_simulating)
 			{
 				// Update the logs
 				if ((step_in_trajectory % steps_per_frame == 0) && (FDS->get_progress() >= 50.0))
 				{
 					// Store front speed stdev data
-					target_stdev += (FDS->get_curr_target() - FDS->get_front_vel()) * (FDS->get_curr_target() - FDS->get_front_vel());
+					curr_stdev += (FDS->get_curr_target() - FDS->get_front_vel()) * (FDS->get_curr_target() - FDS->get_front_vel());
 					population_size += 1.0;
 				}
 				
 				// Step the environment 
-				done = FDS->step(action_1, action_2, action_3);
+				done_simulating = FDS->step(0.0, 0.0, 0.0);
 				step_in_trajectory++;
 			}
 			// Calculate the sim duration
@@ -641,9 +664,9 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 			avg_sim_duration += sim_duration;
 			
 			// Calculate the stdev
-			target_stdev = sqrt(target_stdev / population_size);
-			max_stdev = target_stdev > max_stdev ? target_stdev : max_stdev;
-			avg_stdev += target_stdev;
+			curr_stdev = sqrt(curr_stdev / population_size);
+			max_stdev = curr_stdev > max_stdev ? curr_stdev : max_stdev;
+			avg_stdev += curr_stdev;
 			print_string.append("\n");
 		}
 		
@@ -680,31 +703,34 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 			{
 				stream << fixed << setprecision(4);
 			}
-			stream << " | Loss: " << test_loss << " |*********************************************************************|";
+			stream << "----------------------------------------------------------------------------------------\n";
+			stream << " | Avg Dur: " << avg_sim_duration;
+			stream << " | Max Std: " << max_stdev;
+			stream << " | Avg Std: " << avg_stdev;
+			stream << " || Loss: " << test_loss << " |";
 			print_string.append(stream.str());
 			
 			// Update the current params
 			curr_loss = test_loss;
-			curr_fine_x_len = test_fine_x_len;
-			curr_time_step = test_time_step;
-			curr_time_mult = test_time_mult;
-			curr_crit_cure_rate = test_crit_cure_rate;
-			curr_trans_cure_rate = test_trans_cure_rate;
+			for(int i = 0; i < 5; i++)
+			{
+				tunable_param_curr[i] = tunable_param_test[i];
+			}
 			
 			// Update update iterators
 			num_updates++;
-			curr_num_failed_updates = 0;
+			num_failed_updates = 0;
 			
 			// Print training data
 			cout << print_string;
 		}
 		else
 		{
-			curr_num_failed_updates++;
+			num_failed_updates++;
 		}
 		
 		// Detemine whether tuning is complete for not
-		done_tuning = (num_updates >= max_num_updates) || (curr_num_failed_updates >= max_num_failed_updates);
+		done_tuning = (num_updates >= max_num_updates) || (num_failed_updates >= max_num_failed_updates);
 	}
 	
 	return 0;
@@ -717,28 +743,13 @@ int main()
 	// Set randomization seed
 	srand(time(NULL));
 	
-	// Set the frame rate
-	double frame_rate = 30.0;
-	
-	// Set up parameter limits
-	vector<vector<double>> param_limits = vector<vector<double>>(2, vector<double>(5, 0.0));
-	param_limits[0][0] = 0.004;
-	param_limits[0][1] = 0.005;
-	param_limits[0][2] = 5.0;
-	param_limits[0][3] = 1.0e-3;
-	param_limits[0][4] = 1.0;
-	param_limits[1][0] = 0.006;
-	param_limits[1][1] = 0.015;
-	param_limits[1][2] = 30.0;
-	param_limits[1][3] = 1.0e-1;
-	param_limits[1][4] = 2.0;
-	
 	// Load parameters
 	vector<string> name_list;
 	vector<string> initial_cure_list;
 	vector<string> initial_temp_list;
 	vector<string> front_speed_list;
-	if (load_config(name_list, initial_cure_list, initial_temp_list, front_speed_list) == 1) { return 1; }
+	vector<double> params = vector<double>(18, 0.0);
+	if (load_config(name_list, initial_cure_list, initial_temp_list, front_speed_list, params) == 1) { return 1; }
 	
 	// Make a copy of the original FDS config file
 	make_orig_fds_config();
@@ -746,7 +757,7 @@ int main()
 	// Run simulation
 	cout << "\nTuning parameters...";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(name_list, initial_cure_list, initial_temp_list, front_speed_list, frame_rate, param_limits) == 1) { return 1; };
+	if (run(name_list, initial_cure_list, initial_temp_list, front_speed_list, params) == 1) { return 1; };
 	
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
