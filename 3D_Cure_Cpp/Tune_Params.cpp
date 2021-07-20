@@ -542,8 +542,8 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 		// Set tunable param ranges
 		tunable_param_range[i] = tunable_param_max[i] - tunable_param_min[i];
 		
-		// Set the initial tunable param value to the middle of the range
-		tunable_param_curr[i] = tunable_param_min[i] + 0.50 * tunable_param_range[i];
+		// Set the initial tunable param value to a random location in the range
+		tunable_param_curr[i] = tunable_param_min[i] + ((double)rand()/(double)RAND_MAX) * tunable_param_range[i];
 		tunable_param_momentum[i] = 0.0;
 	}
 	
@@ -667,9 +667,10 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 				done_simulating = FDS->step(0.0, 0.0, 0.0);
 				step_in_trajectory++;
 			}
+			
 			// Calculate the sim duration
 			double sim_duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - sim_start_time ).count())*10e-7;
-			avg_sim_duration += sim_duration;
+			avg_sim_duration += sim_duration / characteristic_duration;
 			
 			// Calculate the stdev
 			curr_stdev = sqrt(curr_stdev / population_size);
@@ -678,7 +679,7 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 		}
 		
 		// Update the average sim duration at current tunable parameters
-		avg_sim_duration = avg_sim_duration / ((double)name_list.size() * characteristic_duration);
+		avg_sim_duration = avg_sim_duration / (double)name_list.size();
 		avg_sim_duration_history.push_back(avg_sim_duration);
 		
 		// Update the max stdev from target speed at current tunable parameters
