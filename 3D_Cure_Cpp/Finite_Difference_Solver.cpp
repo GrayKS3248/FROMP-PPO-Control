@@ -1628,8 +1628,8 @@ void Finite_Difference_Solver::step_trigger()
 	}
 	else
 	{
-		// The front is less than 75% the width of the channel with a mean location of less than 50% of 1 fine step
-		trigger_is_on = ((double)num_front_instances <= 0.75 * (double)num_fine_vert_y) && (front_mean_x_loc_history[front_mean_x_loc_history_len-1] <= 0.50*fine_x_step);
+		// The front is less than 75% the width of the channel with a mean location of less than 75% of 1 fine step
+		trigger_is_on = ((double)num_front_instances <= 0.75 * (double)num_fine_vert_y) && (front_mean_x_loc_history[front_mean_x_loc_history_len-1] <= 0.75*fine_x_step);
 	}
 }
 
