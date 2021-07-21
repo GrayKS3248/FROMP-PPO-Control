@@ -1,0 +1,155 @@
+{Simulation params}
+frame_rate		30.0		(1 / Second)
+
+{Param limits}
+min_x_len		0.001		(Meters)
+max_x_len		0.01		(Meters)
+min_time_step 		0.002		(Seconds)
+max_time_step 		0.020		(Seconds)
+min_time_mult 		5.0		(Fine time steps per coarse time step)
+max_time_mult 		15.0		(Fine time steps per coarse time step)
+min_crit_cure 		0.005		(Decimal Percent)  (All cure rates below this value are assumed to be 0)
+max_crit_cure 		0.05		(Decimal Percent)  (All cure rates below this value are assumed to be 0)
+min_tran_cure 		1.00		(Decimal Percent)  (Cure rate which demarks transition from FE to RK4 integration)
+max_tran_cure		2.00		(Decimal Percent)  (Cure rate which demarks transition from FE to RK4 integration)
+
+{Fitness params}
+duration_const		10.0
+max_stdev_const		300.0
+avg_stdev_const		200.0
+
+{Search params}
+hyper_radius		0.05		(Normalized Hypersphere Radius)
+hyper_radius_decay	0.95
+momentum_const		0.05
+
+{Termination params}
+max_num_failed_updates	100
+max_num_updates		200
+	
+{START_SET}
+dcpd_gc2 0.07 296.15 0.00107844
+dcpd_gc2 0.07 303.15 0.00135920
+dcpd_gc2 0.07 309.15 0.00166318
+{END_SET}
+
+
+
+ Tuning parameters...
+ | Point: 1/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 296.15 K | Target: 1.078 m/s |
+ | Point: 2/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 303.15 K | Target: 1.359 m/s |
+ | Point: 3/3   | Monomer: dcpd_gc2 | Cure: 0.07 | Temp: 309.15 K | Target: 1.663 m/s |
+
+
+ | Num Updates: 0 | Fine X Len: 8.99 mm | Time Step: 2.00 ms | Time Step Mult: 9 | Crit Cure: 0.0221 | Trans Cure: 1.509 |
+***************************************************************************************************************************
+ | Avg Dur: 1.526 | Max Std: 0.060 | Avg Std: 0.040 | Loss: 41.232 |
+ | Momentum: <0.023, -0.014, 0.000, 0.029, 0.025>                  |
+
+ | Num Updates: 1 | Fine X Len: 8.62 mm | Time Step: 2.62 ms | Time Step Mult: 9 | Crit Cure: 0.0206 | Trans Cure: 1.492 |
+***************************************************************************************************************************
+ | Avg Dur: 1.187 | Max Std: 0.055 | Avg Std: 0.037 | Loss: 35.647 |
+ | Momentum: <-0.019, 0.021, 0.000, -0.006, 0.007>                 |
+
+ | Num Updates: 2 | Fine X Len: 8.85 mm | Time Step: 3.01 ms | Time Step Mult: 9 | Crit Cure: 0.0211 | Trans Cure: 1.477 |
+***************************************************************************************************************************
+ | Avg Dur: 1.045 | Max Std: 0.055 | Avg Std: 0.037 | Loss: 34.427 |
+ | Momentum: <0.009, 0.043, 0.000, 0.007, -0.008>                  |
+
+ | Num Updates: 3 | Fine X Len: 8.71 mm | Time Step: 2.89 ms | Time Step Mult: 8 | Crit Cure: 0.0196 | Trans Cure: 1.446 |
+***************************************************************************************************************************
+ | Avg Dur: 0.974 | Max Std: 0.050 | Avg Std: 0.034 | Loss: 31.552 |
+ | Momentum: <-0.008, 0.033, -0.111, -0.031, -0.043>               |
+
+ | Num Updates: 4 | Fine X Len: 8.37 mm | Time Step: 3.33 ms | Time Step Mult: 9 | Crit Cure: 0.0209 | Trans Cure: 1.466 |
+***************************************************************************************************************************
+ | Avg Dur: 0.897 | Max Std: 0.048 | Avg Std: 0.033 | Loss: 30.047 |
+ | Momentum: <-0.052, 0.060, 0.011, 0.005, -0.017>                 |
+
+ | Num Updates: 5 | Fine X Len: 8.66 mm | Time Step: 2.94 ms | Time Step Mult: 8 | Crit Cure: 0.0203 | Trans Cure: 1.475 |
+***************************************************************************************************************************
+ | Avg Dur: 0.818 | Max Std: 0.050 | Avg Std: 0.034 | Loss: 29.871 |
+ | Momentum: <-0.010, 0.030, -0.112, -0.012, -0.006>               |
+
+ | Num Updates: 6 | Fine X Len: 8.34 mm | Time Step: 3.22 ms | Time Step Mult: 8 | Crit Cure: 0.0207 | Trans Cure: 1.455 |
+***************************************************************************************************************************
+ | Avg Dur: 0.647 | Max Std: 0.047 | Avg Std: 0.031 | Loss: 26.764 |
+ | Momentum: <-0.055, 0.049, -0.106, 0.001, -0.031>                |
+
+ | Num Updates: 7 | Fine X Len: 8.32 mm | Time Step: 3.78 ms | Time Step Mult: 7 | Crit Cure: 0.0197 | Trans Cure: 1.456 |
+***************************************************************************************************************************
+ | Avg Dur: 0.487 | Max Std: 0.039 | Avg Std: 0.027 | Loss: 22.118 |
+ | Momentum: <-0.055, 0.089, -0.237, -0.030, -0.028>               |
+
+ | Num Updates: 8 | Fine X Len: 8.35 mm | Time Step: 3.94 ms | Time Step Mult: 7 | Crit Cure: 0.0183 | Trans Cure: 1.441 |
+***************************************************************************************************************************
+ | Avg Dur: 0.467 | Max Std: 0.038 | Avg Std: 0.026 | Loss: 21.152 |
+ | Momentum: <-0.049, 0.097, -0.225, -0.072, -0.049>               |
+
+ | Num Updates: 9 | Fine X Len: 8.28 mm | Time Step: 3.76 ms | Time Step Mult: 6 | Crit Cure: 0.0192 | Trans Cure: 1.410 |
+***************************************************************************************************************************
+ | Avg Dur: 0.429 | Max Std: 0.035 | Avg Std: 0.024 | Loss: 19.629 |
+ | Momentum: <-0.057, 0.078, -0.365, -0.039, -0.093>               |
+
+ | Num Updates: 10 | Fine X Len: 8.01 mm | Time Step: 4.04 ms | Time Step Mult: 6 | Crit Cure: 0.0189 | Trans Cure: 1.412 |
+****************************************************************************************************************************
+ | Avg Dur: 0.385 | Max Std: 0.034 | Avg Std: 0.023 | Loss: 18.809 |
+ | Momentum: <-0.103, 0.099, -0.346, -0.049, -0.085>               |
+
+ | Num Updates: 11 | Fine X Len: 8.21 mm | Time Step: 4.40 ms | Time Step Mult: 5 | Crit Cure: 0.0195 | Trans Cure: 1.421 |
+****************************************************************************************************************************
+ | Avg Dur: 0.312 | Max Std: 0.022 | Avg Std: 0.017 | Loss: 13.187 |
+ | Momentum: <-0.059, 0.127, -0.496, -0.026, -0.065>               |
+
+ | Num Updates: 12 | Fine X Len: 8.25 mm | Time Step: 4.64 ms | Time Step Mult: 5 | Crit Cure: 0.0187 | Trans Cure: 1.433 |
+****************************************************************************************************************************
+ | Avg Dur: 0.298 | Max Std: 0.020 | Avg Std: 0.016 | Loss: 12.205 |
+ | Momentum: <-0.049, 0.144, -0.502, -0.053, -0.042>               |
+
+ | Num Updates: 13 | Fine X Len: 8.30 mm | Time Step: 5.08 ms | Time Step Mult: 5 | Crit Cure: 0.0178 | Trans Cure: 1.429 |
+****************************************************************************************************************************
+ | Avg Dur: 0.273 | Max Std: 0.016 | Avg Std: 0.012 | Loss: 10.012 |
+ | Momentum: <-0.037, 0.182, -0.477, -0.088, -0.046>               |
+
+ | Num Updates: 14 | Fine X Len: 8.22 mm | Time Step: 5.31 ms | Time Step Mult: 5 | Crit Cure: 0.0176 | Trans Cure: 1.426 |
+****************************************************************************************************************************
+ | Avg Dur: 0.2599 | Max Std: 0.0147 | Avg Std: 0.0107 | Loss: 9.1445 |
+ | Momentum: <-0.052, 0.198, -0.453, -0.094, -0.050>                  |
+
+ | Num Updates: 15 | Fine X Len: 8.35 mm | Time Step: 5.40 ms | Time Step Mult: 5 | Crit Cure: 0.0174 | Trans Cure: 1.420 |
+****************************************************************************************************************************
+ | Avg Dur: 0.2559 | Max Std: 0.0142 | Avg Std: 0.0101 | Loss: 8.8403 |
+ | Momentum: <-0.020, 0.198, -0.431, -0.099, -0.059>                  |
+
+ | Num Updates: 16 | Fine X Len: 8.31 mm | Time Step: 5.76 ms | Time Step Mult: 5 | Crit Cure: 0.0178 | Trans Cure: 1.438 |
+****************************************************************************************************************************
+ | Avg Dur: 0.2401 | Max Std: 0.0122 | Avg Std: 0.0079 | Loss: 7.6530 |
+ | Momentum: <-0.029, 0.231, -0.409, -0.071, -0.018>                  |
+
+ | Num Updates: 17 | Fine X Len: 8.28 mm | Time Step: 6.17 ms | Time Step Mult: 5 | Crit Cure: 0.0186 | Trans Cure: 1.433 |
+****************************************************************************************************************************
+ | Avg Dur: 0.2284 | Max Std: 0.0100 | Avg Std: 0.0050 | Loss: 6.2930 |
+ | Momentum: <-0.034, 0.272, -0.389, -0.028, -0.028>                  |
+
+ | Num Updates: 18 | Fine X Len: 8.23 mm | Time Step: 6.48 ms | Time Step Mult: 5 | Crit Cure: 0.0183 | Trans Cure: 1.424 |
+****************************************************************************************************************************
+ | Avg Dur: 0.2176 | Max Std: 0.0082 | Avg Std: 0.0048 | Loss: 5.6092 |
+ | Momentum: <-0.046, 0.299, -0.369, -0.043, -0.048>                  |
+
+ | Num Updates: 19 | Fine X Len: 8.23 mm | Time Step: 6.80 ms | Time Step Mult: 5 | Crit Cure: 0.0188 | Trans Cure: 1.419 |
+****************************************************************************************************************************
+ | Avg Dur: 0.2050 | Max Std: 0.0072 | Avg Std: 0.0051 | Loss: 5.2251 |
+ | Momentum: <-0.043, 0.330, -0.351, -0.015, -0.059>                  |
+
+ | Num Updates: 20 | Fine X Len: 8.38 mm | Time Step: 6.73 ms | Time Step Mult: 5 | Crit Cure: 0.0194 | Trans Cure: 1.429 |
+****************************************************************************************************************************
+ | Avg Dur: 0.2080 | Max Std: 0.0068 | Avg Std: 0.0049 | Loss: 5.1058 |
+ | Momentum: <0.001, 0.302, -0.333, 0.021, -0.029>                    |
+
+ | Num Updates: 21 | Fine X Len: 8.31 mm | Time Step: 6.72 ms | Time Step Mult: 5 | Crit Cure: 0.0194 | Trans Cure: 1.440 |
+****************************************************************************************************************************
+ | Avg Dur: 0.2089 | Max Std: 0.0068 | Avg Std: 0.0049 | Loss: 5.0974 |
+ | Momentum: <-0.020, 0.285, -0.317, 0.020, 0.003>                    |
+
+Tuning took: 6431.0 seconds.
+Done!
