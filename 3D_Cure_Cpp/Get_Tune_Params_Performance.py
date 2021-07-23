@@ -11,20 +11,17 @@ if __name__ == "__main__":
     
     # Define load paths
     paths = [
-        'config_files/log_1.txt', 
-        'config_files/log_2.txt', 
-        'config_files/log_3.txt', 
-        'config_files/log_4.txt', 
-        'config_files/log_5.txt', 
+        'config_files/DCPD_GC2/log_1.txt', 
+        'config_files/DCPD_GC2/log_2.txt', 
         ]
     
     # Define save path
-    save_path = "results"
+    save_path = "config_files/DCPD_GC2"
     
     # Load log files
     files = []
     for i in range(len(paths)):
-        read_file = open(paths[0],'r')
+        read_file = open(paths[i],'r')
         files.append(read_file.readlines())
         read_file.close()
         
