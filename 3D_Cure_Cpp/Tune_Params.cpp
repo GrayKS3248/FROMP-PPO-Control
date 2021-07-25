@@ -103,6 +103,7 @@ int load_config(vector<string>& name_list, vector<string>& initial_cure_list, ve
 		cout << "Unable to open config_files/tune_params.cfg." << endl;
 		return 1;
 	}
+	
 	config_file.close();
 	
 	return 0;
@@ -528,6 +529,15 @@ string get_sim_info(unsigned int num_tuning_points, unsigned int curr_tuning_poi
 */
 int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<string> &initial_temp_list, vector<string> &front_speed_list, vector<double>& params)
 {
+	// Open log file
+	ofstream log_file;
+	log_file.open("config_files/log.dat", ofstream::app);
+	if (!log_file.is_open()) 
+	{
+		cout << "Unable to open config_files/log.dat." << endl; 
+		return 1; 
+	}
+	
 	// Populate tunable parameter limit
 	double tunable_param_min[5] = { params[1], params[3], params[5], params[7], params[9]  };
 	double tunable_param_max[5] = { params[2], params[4], params[6], params[8], params[10] };
@@ -573,12 +583,6 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 		avg_target+= stod(front_speed_list[i], NULL);
 	}
 	avg_target = avg_target / (double)front_speed_list.size();
-	
-	// Initialize fitness history
-	vector<double> avg_sim_duration_history;
-	vector<double> max_stdev_history;
-	vector<double> avg_stdev_history;
-	vector<double> loss_history;
 	
 	// ********************************************************** Parameter tuning loop ********************************************************** //
 	bool done_tuning = false;
@@ -680,15 +684,12 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 		
 		// Update the average sim duration at current tunable parameters
 		avg_sim_duration = avg_sim_duration / (double)name_list.size();
-		avg_sim_duration_history.push_back(avg_sim_duration);
 		
 		// Update the max stdev from target speed at current tunable parameters
 		max_stdev = max_stdev / avg_target;
-		max_stdev_history.push_back(max_stdev);
 		
 		// Update the average stdev from target speed at current tunable parameters
 		avg_stdev = avg_stdev / ((double)name_list.size() * avg_target);
-		avg_stdev_history.push_back(avg_stdev);
 		
 		// Calcualte test loss
 		test_loss = duration_const*avg_sim_duration + max_stdev_const*max_stdev + avg_stdev_const*avg_stdev;
@@ -747,6 +748,7 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 			
 			// Print training data
 			cout << print_string;
+			log_file << print_string;
 		}
 		else
 		{
@@ -757,6 +759,7 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 		done_tuning = (num_updates >= max_num_updates) || (num_failed_updates >= max_num_failed_updates);
 	}
 	
+	log_file.close();
 	return 0;
 }
 
@@ -778,12 +781,47 @@ int main()
 	// Make a copy of the original FDS config file
 	make_orig_fds_config();
 
-	// Run simulation
+	// Open log file and copy config file to log
+	ofstream log_file;
+	log_file.open("config_files/log.dat", ofstream::app);
+	if (log_file.is_open()) 
+	{ 
+		ifstream config_file;
+		config_file.open("config_files/tune_params.cfg");
+		if (config_file.is_open())
+		{
+			for (string line; getline(config_file, line); ) 
+			{
+				cout << line << endl;
+				log_file << line << endl;
+			}
+			cout << "\n";
+			log_file << "\n";
+		}
+		else 
+		{ 
+			cout << "Unable to open config_files/tune_params.cfg." << endl; 
+			log_file.close();
+			return 1; 
+		}
+		log_file << "\n Tuning parameters...\n";
+	}
+	else 
+	{ 
+		cout << "Unable to open config_files/log.dat." << endl; 
+		return 1; 
+	}
+	
+	// Print simulation parameters
 	cout << "\n Tuning parameters...\n";
 	for(unsigned int i = 0; i < name_list.size(); i++)
 	{
 		cout << get_sim_info(name_list.size(), i+1, name_list[i], initial_cure_list[i], initial_temp_list[i], front_speed_list[i]) << "\n";
+		log_file << get_sim_info(name_list.size(), i+1, name_list[i], initial_cure_list[i], initial_temp_list[i], front_speed_list[i]) << "\n"; 
 	}
+	log_file.close();
+	
+	// Run simulation
 	auto start_time = chrono::high_resolution_clock::now();
 	if (run(name_list, initial_cure_list, initial_temp_list, front_speed_list, params) == 1) { return 1; };
 	
