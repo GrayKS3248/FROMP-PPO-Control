@@ -14,7 +14,7 @@ int load_config(vector<string>& name_list, vector<string>& initial_cure_list, ve
 {
 	// Load from config file
 	ifstream config_file;
-	config_file.open("config_files/tune_params.cfg");
+	config_file.open("config_files/tune_params_random.cfg");
 	string string_dump;
 	if (config_file.is_open())
 	{
@@ -100,7 +100,7 @@ int load_config(vector<string>& name_list, vector<string>& initial_cure_list, ve
 	}
 	else
 	{
-		cout << "Unable to open config_files/tune_params.cfg." << endl;
+		cout << "Unable to open config_files/tune_params_random.cfg." << endl;
 		return 1;
 	}
 	
@@ -787,7 +787,7 @@ int main()
 	if (log_file.is_open()) 
 	{ 
 		ifstream config_file;
-		config_file.open("config_files/tune_params.cfg");
+		config_file.open("config_files/tune_params_random.cfg");
 		if (config_file.is_open())
 		{
 			for (string line; getline(config_file, line); ) 
@@ -800,7 +800,7 @@ int main()
 		}
 		else 
 		{ 
-			cout << "Unable to open config_files/tune_params.cfg." << endl; 
+			cout << "Unable to open config_files/tune_params_random.cfg." << endl; 
 			log_file.close();
 			return 1; 
 		}

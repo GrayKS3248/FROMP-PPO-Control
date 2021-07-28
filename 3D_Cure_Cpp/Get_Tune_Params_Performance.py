@@ -11,8 +11,7 @@ if __name__ == "__main__":
     
     # Define load paths
     paths = [
-        'config_files/DCPD_GC2/log_1.txt', 
-        'config_files/DCPD_GC2/log_2.txt', 
+        'config_files/DCPD_GC2/log.dat', 
         ]
     
     # Define save path
@@ -29,9 +28,9 @@ if __name__ == "__main__":
     start_sub_strs = [
         "Num Updates: ",
         "Fine X Len: ",
+        "X Step Mult: ",
         "Time Step: ",
         "Time Step Mult: ",
-        "Crit Cure: ",
         "Trans Cure: ",
         "Avg Dur: ",
         "Max Std: ",
@@ -40,11 +39,11 @@ if __name__ == "__main__":
         ]
     end_sub_strs = [
         " | Fine X Len: ",
-        " mm | Time Step: ",
+        " mm | X Step Mult: ",
+        " | Time Step: ",
         " ms | Time Step Mult: ",
-        " | Crit Cure: ",
         " | Trans Cure: ",
-        " |\n",
+        " | \n",
         " | Max Std: ",
         " | Avg Std: ",
         " | Loss: ",
@@ -53,8 +52,8 @@ if __name__ == "__main__":
     units = [
         "[-]",
         "[mm]",
-        "[ms]",
         "[-]",
+        "[ms]",
         "[-]",
         "[-]",
         "[-]",
