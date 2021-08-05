@@ -9,15 +9,13 @@ LDFLAGS-W+=-L$(PYTHONPATH)
 LDFLAGS-W+=-lpython39
 
 all-l: 
-	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Tune_Params_Random.cpp -o tune_params_random.so $(LDFLAGS-L)
-	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Tune_Params_Grad.cpp -o tune_params_grad.so $(LDFLAGS-L)
+	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Tune_Params.cpp -o tune_params.so $(LDFLAGS-L)
 	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Run_Solver.cpp -o run_solver.so $(LDFLAGS-L)
 	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_AE_Data.cpp -o get_ae_data.so $(LDFLAGS-L)
 	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Train_Agent.cpp -o train_agent.so $(LDFLAGS-L)
 	
 all-w: 
-	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Tune_Params_Random.cpp -o tune_params_random.exe $(LDFLAGS-W)
-	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Tune_Params_Grad.cpp -o tune_params_grad.exe $(LDFLAGS-W)
+	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Tune_Params.cpp -o tune_params.exe $(LDFLAGS-W)
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Run_Solver.cpp -o run_solver.exe $(LDFLAGS-W)
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_AE_Data.cpp -o get_ae_data.exe $(LDFLAGS-W)
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Train_Agent.cpp -o train_agent.exe $(LDFLAGS-W)

@@ -4,17 +4,30 @@
 
 using namespace std;
 
+//******************************************************************** CONFIGURATION CLASS ********************************************************************//
+class Config_Data 
+{
+	public:
+		// public variables
+		vector<string> name_list;
+		vector<string> initial_cure_list;
+		vector<string> initial_temp_list;
+		vector<string> front_speed_list;
+		vector<double> params = vector<double>(18, 0.0);
+		
+		// public constructor
+		Config_Data();
+};
 
-//******************************************************************** CONFIGURATION FUNCTIONS ********************************************************************//
+
 /**
 * Loads parameters from .cfg file
-* @return 0 on success, 1 on failure
 */
-int load_config(vector<string>& name_list, vector<string>& initial_cure_list, vector<string>& initial_temp_list, vector<string>& front_speed_list, vector<double>& params)
+int Config_Data::Config_Data()
 {
 	// Load from config file
 	ifstream config_file;
-	config_file.open("config_files/tune_params_grad.cfg");
+	config_file.open("config_files/tune_params.cfg");
 	string string_dump;
 	if (config_file.is_open())
 	{
@@ -63,8 +76,6 @@ int load_config(vector<string>& name_list, vector<string>& initial_cure_list, ve
 		// Termination parameters
 		config_file.ignore(numeric_limits<streamsize>::max(), '}');
 		config_file >> string_dump >> params[17];
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[18];
 		
 		while(true)
 		{
@@ -100,13 +111,11 @@ int load_config(vector<string>& name_list, vector<string>& initial_cure_list, ve
 	}
 	else
 	{
-		cout << "Unable to open config_files/tune_params_grad.cfg." << endl;
-		return 1;
+		cout << "Unable to open config_files/tune_params.cfg." << endl;
+		throw 2;
 	}
 	
 	config_file.close();
-	
-	return 0;
 }
 
 /**
@@ -572,8 +581,7 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 	double search_step = params[14];
 	double decay_rate = params[15];
 	double momentum_const = params[16];
-	int loss_delta = params[17];
-	int max_num_updates = params[18];
+	int max_num_updates = params[17];
 	
 	// Calculate the average target speed for stdev normalization
 	double avg_target = 0.0;
@@ -834,7 +842,7 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 		log_file << print_string;
 		
 		// Detemine whether tuning is complete for not
-		done_tuning = (num_updates >= max_num_updates) || (loss_delta > abs(prev_loss - losses[0]));
+		done_tuning = num_updates >= max_num_updates;
 		prev_loss = losses[0];
 	}
 	
@@ -843,30 +851,19 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 }
 
 
-//******************************************************************** MAIN LOOP ********************************************************************//
-int main()
+/**
+* Creates a .dat log file for current run
+* @return 0 on success, 1 on failure
+*/
+int init_log(Config_Data* config_data;)
 {
-	// Set randomization seed
-	srand(time(NULL));
-	
-	// Load parameters
-	vector<string> name_list;
-	vector<string> initial_cure_list;
-	vector<string> initial_temp_list;
-	vector<string> front_speed_list;
-	vector<double> params = vector<double>(19, 0.0);
-	if (load_config(name_list, initial_cure_list, initial_temp_list, front_speed_list, params) == 1) { return 1; }
-	
-	// Make a copy of the original FDS config file
-	make_orig_fds_config();
-
 	// Open log file and copy config file to log
 	ofstream log_file;
 	log_file.open("config_files/log.dat", ofstream::app);
 	if (log_file.is_open()) 
 	{ 
 		ifstream config_file;
-		config_file.open("config_files/tune_params_grad.cfg");
+		config_file.open("config_files/tune_params.cfg");
 		if (config_file.is_open())
 		{
 			for (string line; getline(config_file, line); ) 
@@ -879,7 +876,7 @@ int main()
 		}
 		else 
 		{ 
-			cout << "Unable to open config_files/tune_params_grad.cfg." << endl; 
+			cout << "Unable to open config_files/tune_params.cfg." << endl; 
 			log_file.close();
 			return 1; 
 		}
@@ -893,16 +890,43 @@ int main()
 	
 	// Print simulation parameters
 	cout << "\n Tuning parameters...\n";
-	for(unsigned int i = 0; i < name_list.size(); i++)
+	for(unsigned int i = 0; i < config_data->name_list.size(); i++)
 	{
-		cout << get_sim_info(name_list.size(), i+1, name_list[i], initial_cure_list[i], initial_temp_list[i], front_speed_list[i]) << "\n";
-		log_file << get_sim_info(name_list.size(), i+1, name_list[i], initial_cure_list[i], initial_temp_list[i], front_speed_list[i]) << "\n"; 
+		cout << get_sim_info(config_data->name_list.size(), i+1, config_data->name_list[i], config_data->initial_cure_list[i], config_data->initial_temp_list[i], config_data->front_speed_list[i]) << "\n";
+		log_file << get_sim_info(config_data->name_list.size(), i+1, config_data->name_list[i], config_data->initial_cure_list[i], config_data->initial_temp_list[i], config_data->front_speed_list[i]) << "\n"; 
 	}
 	log_file.close();
 	
+	return 0;
+}
+
+//******************************************************************** MAIN LOOP ********************************************************************//
+int main()
+{
+	// Set randomization seed
+	srand(time(NULL));
+	
+	// Initialize configuration data class
+	Config_Data* config_data;
+	try
+	{
+		config_data = new Config_Data();
+	}
+	catch (int e)
+	{
+		cout << "An exception occurred. Exception num " << e << '\n';
+		return 1;
+	}
+	
+	// Make a copy of the original FDS config file
+	make_orig_fds_config();
+
+	// Initialize log
+	if (init_log(config_data) == 1) { return 1; }
+	
 	// Run simulation
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(name_list, initial_cure_list, initial_temp_list, front_speed_list, params) == 1) { return 1; };
+	if (run(config_datas) == 1) { return 1; };
 	
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;

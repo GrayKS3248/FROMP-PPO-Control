@@ -14,7 +14,7 @@ int load_config(vector<string>& name_list, vector<string>& initial_cure_list, ve
 {
 	// Load from config file
 	ifstream config_file;
-	config_file.open("config_files/tune_params_random.cfg");
+	config_file.open("config_files/tune_params.cfg");
 	string string_dump;
 	if (config_file.is_open())
 	{
@@ -100,7 +100,7 @@ int load_config(vector<string>& name_list, vector<string>& initial_cure_list, ve
 	}
 	else
 	{
-		cout << "Unable to open config_files/tune_params_random.cfg." << endl;
+		cout << "Unable to open config_files/tune_params.cfg." << endl;
 		return 1;
 	}
 	
@@ -276,14 +276,14 @@ int edit_fds_config(string name, string initial_cure, string initial_temp, strin
 /**
 * Edits the FDS config file to update the tunable parameters
 * @param length of fine mesh in x direction
+* @param fine grid x step multiplier
 * @param coarse time step
 * @param fine time step multiplier
-* @param critical cure rate
 * @param transitional cure rate
 * @param string of target front speed
 * @return 0 on success, 1 on failure
 */
-int set_fds_config_tunable_params(double fine_x_len, double time_step, int time_mult, double crit_cure_rate, double trans_cure_rate, string front_speed, double& characteristic_duration)
+int set_fds_config_tunable_params(double fine_x_len, int x_step_mult, double time_step, int time_mult, double trans_cure_rate, string front_speed, double& characteristic_duration)
 {
 	ifstream fds_file_in;
 	ofstream fds_file_out;
@@ -306,6 +306,11 @@ int set_fds_config_tunable_params(double fine_x_len, double time_step, int time_
 				write_string = "fine_x_len\t" + to_string(fine_x_len) + "\t(Meters)";
 				fds_file_out << write_string << "\n";
 			}
+			else if( string_dump.find("x_step_mult") != string::npos )
+			{
+				write_string = "x_step_mult\t" + to_string(x_step_mult) + "\t(Meters)";
+				fds_file_out << write_string << "\n";
+			}
 			else if( string_dump.find("coarse_x_len") !=  string::npos )
 			{
 				fds_file_out << string_dump << "\n";
@@ -318,8 +323,8 @@ int set_fds_config_tunable_params(double fine_x_len, double time_step, int time_
 			}
 			else if( string_dump.find("sim_duration") !=  string::npos )
 			{
-				characteristic_duration = (coarse_x_len / stod(front_speed, NULL));
-				write_string = "sim_duration\t" + to_string(0.65 * characteristic_duration) + "\t(Seconds)";
+				characteristic_duration = 0.65 * (coarse_x_len / stod(front_speed, NULL));
+				write_string = "sim_duration\t" + to_string(characteristic_duration) + "\t(Seconds)";
 				fds_file_out << write_string << "\n";
 			}
 			else if( string_dump.find("time_step") !=  string::npos )
@@ -330,11 +335,6 @@ int set_fds_config_tunable_params(double fine_x_len, double time_step, int time_
 			else if( string_dump.find("time_mult") !=  string::npos )
 			{
 				write_string = "time_mult\t" + to_string(time_mult) + "\t(Fine time steps per coarse time step)";
-				fds_file_out << write_string << "\n";
-			}
-			else if( string_dump.find("crit_cure_rate") !=  string::npos )
-			{
-				write_string = "crit_cure_rate\t" + to_string(crit_cure_rate) + "\t(Decimal Percent)  (All cure rates below this value are assumed to be 0)";
 				fds_file_out << write_string << "\n";
 			}
 			else if( string_dump.find("trans_cure_rate") !=  string::npos )
@@ -398,12 +398,11 @@ int reset_fds_config()
 * Prints to stdout a readout of the tuning process
 * @param Number of times parameters have been updated
 * @param X length of fine mesh
+* @param x step multiplier
 * @param Coarse time step
-* @param Fine time step multiplier
-* @param Critical cure rate
 * @param Transitional cure rate
 */
-string get_tuning_info(int num_updates, double curr_fine_x_len, double curr_time_step, int curr_time_mult, double curr_crit_cure_rate, double curr_trans_cure_rate)
+string get_tuning_info(int num_updates, double curr_fine_x_len, int curr_x_step_mult, double curr_time_step, int curr_time_mult, double curr_trans_cure_rate)
 {	
 	// Update point msg
 	stringstream stream;
@@ -414,6 +413,11 @@ string get_tuning_info(int num_updates, double curr_fine_x_len, double curr_time
 	stream.str(string());
 	stream << fixed << setprecision(2);
 	stream << "Fine X Len: " << 1000.0*curr_fine_x_len << " mm";
+	string msg2 = stream.str();
+	
+	// X step multiplier msg
+	stream.str(string());
+	stream << "X Step Mult: " << curr_x_step_mult;
 	string msg3 = stream.str();
 	
 	// Coarse time step msg
@@ -426,18 +430,12 @@ string get_tuning_info(int num_updates, double curr_fine_x_len, double curr_time
 	stream.str(string());
 	stream << "Time Step Mult: " << curr_time_mult;
 	string msg5 = stream.str();
-
-	// Critical cure rate msg
-	stream.str(string());
-	stream << fixed << setprecision(4);
-	stream << "Crit Cure: " << curr_crit_cure_rate;
-	string msg6 = stream.str();
 	
 	// Transitional cure rate msg
 	stream.str(string());
 	stream << fixed << setprecision(3);
 	stream << "Trans Cure: " << curr_trans_cure_rate;
-	string msg7 = stream.str();
+	string msg6 = stream.str();
 	
 	// Print all sub messeges
 	string spacer = " | ";
@@ -445,7 +443,7 @@ string get_tuning_info(int num_updates, double curr_fine_x_len, double curr_time
 	string footer;
 	
 	// Concatenate msgs
-	string return_str = header + spacer + msg1 + spacer + msg3 + spacer + msg4 + spacer + msg5 + spacer + msg6 + spacer + msg7 + spacer;
+	string return_str = header + spacer + msg1 + spacer + msg2 + spacer + msg3 + spacer + msg4 + spacer + msg5 + spacer + msg6 + spacer;
 	unsigned int target_length = return_str.length()-2;
 	while (footer.length() < target_length)
 	{
@@ -538,11 +536,10 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 		return 1; 
 	}
 	
-	// Populate tunable parameter limit
+	// Initialize tunable parameters
 	double tunable_param_min[5] = { params[1], params[3], params[5], params[7], params[9]  };
 	double tunable_param_max[5] = { params[2], params[4], params[6], params[8], params[10] };
-	
-	// Initialize tunable parameters
+	bool tunable_param_type[5] = { false, true, false, true, false };
 	double tunable_param_range[5];
 	double tunable_param_curr[5];
 	double tunable_param_test[5];
@@ -554,27 +551,29 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 		
 		// Set the initial tunable param value to a random location in the range
 		tunable_param_curr[i] = tunable_param_min[i] + ((double)rand()/(double)RAND_MAX) * tunable_param_range[i];
+		if (tunable_param_type[i])
+		{
+			tunable_param_curr[i] = round(tunable_param_curr[i]);
+		}
 		tunable_param_momentum[i] = 0.0;
 	}
+	double grad_dirn[6][5] = { { 0.0, 0.0, 0.0, 0.0, 0.0 }, 
+				   { tunable_param_range[0], 0.0, 0.0, 0.0, 0.0 }, 
+				   { 0.0, tunable_param_range[1], 0.0, 0.0, 0.0 }, 
+				   { 0.0, 0.0, tunable_param_range[2], 0.0, 0.0 }, 
+				   { 0.0, 0.0, 0.0, tunable_param_range[3], 0.0 }, 
+				   { 0.0, 0.0, 0.0, 0.0, tunable_param_range[4] } };
 	
-	// Name other input parameters
+	// Name other parameters
 	double frame_rate = params[0];
 	double duration_const = params[11];
 	double max_stdev_const = params[12];
 	double avg_stdev_const = params[13];
-	double hyper_radius = params[14];
-	double hyper_radius_decay = params[15];
+	double search_step = params[14];
+	double decay_rate = params[15];
 	double momentum_const = params[16];
-	int max_num_failed_updates = params[17];
+	int loss_delta = params[17];
 	int max_num_updates = params[18];
-	
-	// Initialize current fitness values
-	double characteristic_duration;
-	double avg_sim_duration;
-	double max_stdev;
-	double avg_stdev;
-	double curr_loss = 1.0e10;
-	double test_loss = 0.0;
 	
 	// Calculate the average target speed for stdev normalization
 	double avg_target = 0.0;
@@ -587,176 +586,256 @@ int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<str
 	// ********************************************************** Parameter tuning loop ********************************************************** //
 	bool done_tuning = false;
 	int num_updates = 0;
-	int num_failed_updates = 0;
-	string print_string = "";
+	string print_string;
 	while (!done_tuning)
 	{
 		// Reset the print string
 		print_string = "";
+		print_string.append(get_tuning_info(num_updates, tunable_param_curr[0], tunable_param_curr[1], tunable_param_curr[2], tunable_param_curr[3], tunable_param_curr[4]));
 		
-		// Take one step in a random direction in hyperspace
-		for(int i = 0; i < 5; i++)
+		// Declare gradient values
+		double losses[6];
+		double gradient[5];
+		double grad_signs[5];
+		double prev_loss = 1.0e10;
+		
+		// Declare fitness values
+		double avg_sim_duration;
+		double max_stdev;
+		double avg_stdev;
+			
+		// Calculate losses around current point
+		for(int i = 0; i < 6; i++)
 		{
-			// Normal case for continuous tunable parameters
-			if( i != 2 )
+			// Set the current test point's tunable parameters
+			for(int j = 0; j < 5; j++)
 			{
-				tunable_param_test[i] = tunable_param_curr[i] + hyper_radius * ((2.0*((double)rand()/(double)RAND_MAX)-1.0) + tunable_param_momentum[i]) * tunable_param_range[i];
-			}
-			
-			// Special case for discrete tunable parameters
-			else
-			{
-				int max_step = (int)round( hyper_radius * tunable_param_range[i] );
-				max_step = max_step < 1 ? 1 : max_step;
-				
-				int step = rand() % (max_step + 1);
-				step =  ((2.0*((double)rand()/(double)RAND_MAX)-1.0) + tunable_param_momentum[i]) < 0.0 ? -step : step;
-				
-				tunable_param_test[i] = tunable_param_curr[i] + (double)step;
-			}
-			
-			// Ensure in proper range
-			tunable_param_test[i] = tunable_param_test[i] > tunable_param_max[i] ? tunable_param_max[i] : tunable_param_test[i];
-			tunable_param_test[i] = tunable_param_test[i] < tunable_param_min[i] ? tunable_param_min[i] : tunable_param_test[i];
-		}
-		
-		// Save the current tuning info as printable string
-		print_string.append(get_tuning_info(num_updates, tunable_param_test[0], tunable_param_test[1], tunable_param_test[2], tunable_param_test[3], tunable_param_test[4]));
-		
-		// Reset current tuning point fitness 
-		avg_sim_duration = 0.0;
-		max_stdev = 0.0;
-		avg_stdev = 0.0;
-		
-		// Loop through each tuning point
-		for(unsigned int i = 0; i < name_list.size(); i++)
-		{
-			// Modifiy fds config to make current tuning point
-			edit_fds_config(name_list[i], initial_cure_list[i], initial_temp_list[i], front_speed_list[i]);
-			set_fds_config_tunable_params(tunable_param_test[0], tunable_param_test[1], (int)tunable_param_test[2], tunable_param_test[3], tunable_param_test[4], front_speed_list[i], characteristic_duration);
-			
-			// Initialize FDS
-			Finite_Difference_Solver* FDS;
-			try
-			{
-				FDS = new Finite_Difference_Solver();
-			}
-			catch (int e)
-			{
-				reset_fds_config();
-				cout << "\nAn exception occurred. Exception num " << e << '\n';
-				return 1;
-			}
-			FDS->reset();
-
-			// Simulation loop
-			int steps_per_frame = (int) round(1.0 / (FDS->get_coarse_time_step() * frame_rate));
-			steps_per_frame = steps_per_frame < 1 ? 1 : steps_per_frame;
-			bool done_simulating = false;
-			int step_in_trajectory = 0;
-			double curr_stdev = 0.0;
-			double population_size = 0.0;
-			auto sim_start_time = chrono::high_resolution_clock::now();
-			while (!done_simulating)
-			{
-				// Update the logs
-				if ((step_in_trajectory % steps_per_frame == 0) && (FDS->get_progress() >= 50.0))
+				// Select random direction to check gradient
+				if (i == 0)
 				{
-					// Store front speed stdev data
-					curr_stdev += (FDS->get_curr_target() - FDS->get_front_vel()) * (FDS->get_curr_target() - FDS->get_front_vel());
-					population_size += 1.0;
+					double rand_val = 0.0;
+					while( rand_val == 0.0 )
+					{
+						rand_val = 2.0 * ((double)rand()/(double)RAND_MAX) - 1.0;
+					}
+					grad_signs[j] = round(rand_val / abs(rand_val));
 				}
 				
-				// Step the environment 
-				done_simulating = FDS->step(0.0, 0.0, 0.0);
-				step_in_trajectory++;
+				
+				// Discrete case
+				if (tunable_param_type[j])
+				{
+					if ( grad_dirn[i][j] != 0.0 )
+					{
+						tunable_param_test[j] = tunable_param_curr[j] + grad_signs[j];
+					}
+					else
+					{
+						tunable_param_test[j] = tunable_param_curr[j];
+					}
+				}
+				
+				// Continuous case
+				else
+				{
+					tunable_param_test[j] = tunable_param_curr[j] + search_step * grad_dirn[i][j] * grad_signs[j];
+				}
+			}
+				
+			// Reset fitness values
+			avg_sim_duration = 0.0;
+			max_stdev = 0.0;
+			avg_stdev = 0.0;
+	
+			// Loop through each tuning point
+			for(unsigned int j = 0; j < name_list.size(); j++)
+			{
+				// Declare characteristic duration
+				double characteristic_duration;
+				
+				// Modifiy fds config to make current tuning point
+				edit_fds_config(name_list[j], initial_cure_list[j], initial_temp_list[j], front_speed_list[j]);
+				set_fds_config_tunable_params(tunable_param_test[0], (int)tunable_param_test[1], tunable_param_test[2], (int)tunable_param_test[3], tunable_param_test[4], front_speed_list[j], characteristic_duration);
+				
+				// Initialize FDS
+				Finite_Difference_Solver* FDS = new Finite_Difference_Solver();
+				FDS->reset();
+
+				// Simulation loop
+				int steps_per_frame = (int) round(1.0 / (FDS->get_coarse_time_step() * frame_rate));
+				steps_per_frame = steps_per_frame < 1 ? 1 : steps_per_frame;
+				bool done_simulating = false;
+				int step_in_trajectory = 0;
+				double curr_stdev = 0.0;
+				double population_size = 0.0;
+				auto sim_start_time = chrono::high_resolution_clock::now();
+				while (!done_simulating)
+				{
+					// Update the logs
+					if ((step_in_trajectory % steps_per_frame == 0) && (FDS->get_progress() >= 50.0))
+					{
+						// Store front speed stdev data
+						curr_stdev += (FDS->get_curr_target() - FDS->get_front_vel()) * (FDS->get_curr_target() - FDS->get_front_vel());
+						population_size += 1.0;
+					}
+					
+					// Step the environment 
+					done_simulating = FDS->step(0.0, 0.0, 0.0);
+					step_in_trajectory++;
+				}
+				
+				// Calculate the sim duration
+				double sim_duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - sim_start_time ).count())*10e-7;
+				avg_sim_duration += sim_duration / characteristic_duration;
+				
+				// Calculate the stdev
+				curr_stdev = sqrt(curr_stdev / population_size);
+				max_stdev = curr_stdev > max_stdev ? curr_stdev : max_stdev;
+				avg_stdev += curr_stdev;
 			}
 			
-			// Calculate the sim duration
-			double sim_duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - sim_start_time ).count())*10e-7;
-			avg_sim_duration += sim_duration / characteristic_duration;
+			// Update the average sim duration at current tunable parameters
+			avg_sim_duration = avg_sim_duration / (double)name_list.size();
 			
-			// Calculate the stdev
-			curr_stdev = sqrt(curr_stdev / population_size);
-			max_stdev = curr_stdev > max_stdev ? curr_stdev : max_stdev;
-			avg_stdev += curr_stdev;
+			// Update the max stdev from target speed at current tunable parameters
+			max_stdev = max_stdev / avg_target;
+			
+			// Update the average stdev from target speed at current tunable parameters
+			avg_stdev = avg_stdev / ((double)name_list.size() * avg_target);
+			
+			// Calcualte test loss
+			losses[i] = duration_const*avg_sim_duration + max_stdev_const*max_stdev + avg_stdev_const*avg_stdev;
 		}
 		
-		// Update the average sim duration at current tunable parameters
-		avg_sim_duration = avg_sim_duration / (double)name_list.size();
-		
-		// Update the max stdev from target speed at current tunable parameters
-		max_stdev = max_stdev / avg_target;
-		
-		// Update the average stdev from target speed at current tunable parameters
-		avg_stdev = avg_stdev / ((double)name_list.size() * avg_target);
-		
-		// Calcualte test loss
-		test_loss = duration_const*avg_sim_duration + max_stdev_const*max_stdev + avg_stdev_const*avg_stdev;
-		
-		// If good direction found, set params to that direction, end random search
-		if(test_loss < curr_loss)
+		// Calculate range normalized gradient
+		double grad_mag = 0.0;
+		for (int i = 0; i < 5; i++)
 		{
-			// Send loss to print string
-			stringstream stream;
-			stream.str(string());
-			if (test_loss >= 100.0)
+			
+			// Discrete case
+			if (tunable_param_type[i])
 			{
-				stream << fixed << setprecision(2);
+				// Only take discrete step if you found a better solution
+				if (losses[i+1] - losses[0] < 0.0)
+				{
+					gradient[i] = grad_signs[i] * (losses[i+1] - losses[0]) * tunable_param_range[i];
+				}
+				else
+				{
+					gradient[i] = 0.0;
+				}
+				
 			}
-			else if(test_loss >= 10.0)
+			
+			// Continuous case
+			else
 			{
-				stream << fixed << setprecision(3);
+				gradient[i] = grad_signs[i] * (losses[i+1] - losses[0]) / search_step;
+			}
+			
+			grad_mag += gradient[i] * gradient[i];
+		}
+		grad_mag = sqrt(grad_mag);
+		for (int i = 0; i < 5; i++) { gradient[i] = gradient[i] / grad_mag; }
+		
+		// Take a step in the best direction
+		for ( int i = 0; i < 5; i++ )
+		{
+			double curr_val = tunable_param_curr[i];
+			double new_val;
+			
+			// Discrete case
+			if ( tunable_param_type[i] )
+			{
+				if ( abs(gradient[i]) >= 0.20 )
+				{
+					new_val = round(tunable_param_curr[i] - gradient[i] / abs(gradient[i]) );
+				}
+				else
+				{
+					new_val = tunable_param_curr[i];
+				}
+			}
+			
+			// Continuous case
+			else
+			{
+				new_val = tunable_param_curr[i] - gradient[i] * search_step * tunable_param_range[i];
+			}
+			
+			// Update tunable parameters with momentum only if continuous parameters
+			if( tunable_param_type[i] )
+			{
+				tunable_param_curr[i] = new_val;
 			}
 			else
 			{
-				stream << fixed << setprecision(4);
-			}
-			stream << " | Avg Dur: " << avg_sim_duration;
-			stream << " | Max Std: " << max_stdev;
-			stream << " | Avg Std: " << avg_stdev;
-			stream << " | Loss: " << test_loss << " |";
-			print_string.append(stream.str());
-			unsigned int target_length = stream.str().length();
-			
-			// Update the current params
-			curr_loss = test_loss;
-			for(int i = 0; i < 5; i++)
-			{
-				tunable_param_momentum[i] += momentum_const * (tunable_param_test[i] - tunable_param_curr[i]) / (hyper_radius * tunable_param_range[i]);
-				tunable_param_momentum[i] = tunable_param_momentum[i] * (1.0 - momentum_const);
-				tunable_param_curr[i] = tunable_param_test[i];
+				tunable_param_curr[i] = new_val + tunable_param_momentum[i];
 			}
 			
-			// Write the momentum
-			stream.str(string());
+			// Update momentum
+			tunable_param_momentum[i] = momentum_const * (new_val - curr_val);
+		}
+		
+		// Send loss to print string
+		stringstream stream;
+		stream.str(string());
+		if (losses[0] >= 100.0)
+		{
+			stream << fixed << setprecision(2);
+		}
+		else if(losses[0] >= 10.0)
+		{
 			stream << fixed << setprecision(3);
-			stream << "\n | Momentum: <" << tunable_param_momentum[0] << ", " << tunable_param_momentum[1] << ", " << tunable_param_momentum[2] << ", " << tunable_param_momentum[3] << ", " << tunable_param_momentum[4] << ">";
-			while (stream.str().length() < target_length)
-			{
-				stream << " ";
-			}
-			stream << "|";
-			print_string.append(stream.str());
-			
-			// Iterator the hyper radius
-			hyper_radius = hyper_radius * hyper_radius_decay;
-			
-			// Update update iterators
-			num_updates++;
-			num_failed_updates = 0;
-			
-			// Print training data
-			cout << print_string;
-			log_file << print_string;
 		}
 		else
 		{
-			num_failed_updates++;
+			stream << fixed << setprecision(4);
 		}
+		stream << " | Avg Dur: " << avg_sim_duration;
+		stream << " | Max Std: " << max_stdev;
+		stream << " | Avg Std: " << avg_stdev;
+		stream << " | Loss: " << losses[0] << " |";
+		print_string.append(stream.str());
+		unsigned int target_length = stream.str().length();
+		
+		// Write the gradient
+		stream.str(string());
+		stream << fixed << setprecision(3);
+		stream << "\n | Gradient: <" << gradient[0] << ", " << gradient[1] << ", " << gradient[2] << ", " << gradient[3] << ", " << gradient[4] << ">";
+		while (stream.str().length() < target_length)
+		{
+			stream << " ";
+		}
+		stream << "|";
+		print_string.append(stream.str());
+		
+		// Write the momentum
+		stream.str(string());
+		stream << fixed << setprecision(5);
+		stream << "\n | Momentum: <" << 1000.0*tunable_param_momentum[0] << ", " << tunable_param_momentum[1] << ", " << 1000.0*tunable_param_momentum[2] << ", " << tunable_param_momentum[3] << ", " << tunable_param_momentum[4] << ">";
+		while (stream.str().length() < target_length)
+		{
+			stream << " ";
+		}
+		stream << "|";
+		print_string.append(stream.str());
+		
+		
+		// Iterator the step and momentum
+		search_step = search_step * decay_rate;
+		momentum_const = momentum_const * decay_rate;
+		
+		// Update update iterators
+		num_updates++;
+		
+		// Print training data
+		cout << print_string;
+		log_file << print_string;
 		
 		// Detemine whether tuning is complete for not
-		done_tuning = (num_updates >= max_num_updates) || (num_failed_updates >= max_num_failed_updates);
+		done_tuning = (num_updates >= max_num_updates) || (loss_delta > abs(prev_loss - losses[0]));
+		prev_loss = losses[0];
 	}
 	
 	log_file.close();
@@ -787,7 +866,7 @@ int main()
 	if (log_file.is_open()) 
 	{ 
 		ifstream config_file;
-		config_file.open("config_files/tune_params_random.cfg");
+		config_file.open("config_files/tune_params.cfg");
 		if (config_file.is_open())
 		{
 			for (string line; getline(config_file, line); ) 
@@ -800,7 +879,7 @@ int main()
 		}
 		else 
 		{ 
-			cout << "Unable to open config_files/tune_params_random.cfg." << endl; 
+			cout << "Unable to open config_files/tune_params.cfg." << endl; 
 			log_file.close();
 			return 1; 
 		}
