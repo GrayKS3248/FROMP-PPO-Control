@@ -1,0 +1,21 @@
+{ Configuration Parameters }
+Frame Rate: 30 frames per second
+X Length Range: [0.003, 0.007] meters
+X Multiplier Range: [2, 10]
+Time Step Range: [0.005, 0.015] seconds
+Time Multipler Range: [7, 12]
+Transitional Cure Rate Range: [1.5, 2] 1/s
+Reward Parameters: [10, 300, 200]
+Learning Rate: 0.01
+Learning Rate Decay: 0.9
+Momentum Constant: 0
+Number of Updates: 30
+
+{ Training Set }
+( Monomer, Initial Cure, Initial Temperature, Target Front Speed )
+dcpd_gc2, 0.07, 296.15, 0.00107844
+dcpd_gc2, 0.07, 303.15, 0.00135920
+dcpd_gc2, 0.07, 309.15, 0.00166318
+
+{ Training Results }
+()

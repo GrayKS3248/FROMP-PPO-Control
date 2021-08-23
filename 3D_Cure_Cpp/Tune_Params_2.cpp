@@ -24,20 +24,21 @@ class Config_Handler
 		double min_tran_cure;
 		double max_tran_cure;
 		double duration_const;
-		double max_stdev_const;
-		double avg_stdev_const;
+		double max_dev_const;
+		double stdev_const;
 		double learning_rate;
 		double learning_rate_decay;
 		double momentum_const;
-		int max_num_updates;
+		unsigned int max_num_updates;
 		double sim_duration;
-
+		double avg_front_speed;
+	
 		// public constructor and destructor
 		Config_Handler();
 		~Config_Handler();
 		
 		// public functions
-		int set_params(int index);
+		int set_params(unsigned int index);
 		int update_tunable_params(double fine_x_len, int x_step_mult, double time_step, int time_mult, double trans_cure_rate);
 		
 		
@@ -94,9 +95,9 @@ Config_Handler::Config_Handler()
 		config_file.ignore(numeric_limits<streamsize>::max(), '}');
 		config_file >> string_dump >> duration_const;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> max_stdev_const;
+		config_file >> string_dump >> max_dev_const;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> avg_stdev_const;
+		config_file >> string_dump >> stdev_const;
 		
 		// Search parameters
 		config_file.ignore(numeric_limits<streamsize>::max(), '}');
@@ -154,6 +155,14 @@ Config_Handler::Config_Handler()
 	{
 		throw 3;
 	}
+	
+	// Calculate the average target speed for stdev normalization
+	avg_front_speed = 0.0;
+	for(unsigned int i = 0; i < front_speed_list.size(); i++)
+	{
+		avg_front_speed += stod(front_speed_list[i], NULL);
+	}
+	avg_front_speed = avg_front_speed / (double)front_speed_list.size();
 }
 
 
@@ -172,7 +181,7 @@ Config_Handler::~Config_Handler()
 * @param index of monomer, cure, temp, and target to be set
 * @return 0 on success, 1 on failure
 */
-int Config_Handler::set_params(int index)
+int Config_Handler::set_params(unsigned int index)
 {
 	ofstream file_out;
 	istringstream f(orig_fds_config);
@@ -479,7 +488,7 @@ Logger::Logger(Config_Handler* config_handler)
 		file << "Time Step Range: [" << config_handler->min_time_step << ", " << config_handler->max_time_step << "] seconds" << endl;
 		file << "Time Multipler Range: [" << config_handler->min_time_mult << ", " << config_handler->max_time_mult << "]" << endl;
 		file << "Transitional Cure Rate Range: [" << config_handler->min_tran_cure << ", " << config_handler->max_tran_cure << "] 1/s" << endl;
-		file << "Reward Parameters: [" << config_handler->duration_const << ", " << config_handler->max_stdev_const << ", " << config_handler->avg_stdev_const << "]" << endl;
+		file << "Reward Parameters: [" << config_handler->duration_const << ", " << config_handler->max_dev_const << ", " << config_handler->stdev_const << "]" << endl;
 		file << "Learning Rate: " << config_handler->learning_rate << endl;
 		file << "Learning Rate Decay: " << config_handler->learning_rate_decay << endl;
 		file << "Momentum Constant: " << config_handler->momentum_const << endl;
@@ -632,14 +641,184 @@ Logger::Logger(Config_Handler* config_handler)
 } */
 
 
-//******************************************************************** TRAINING LOOP ********************************************************************//
+//******************************************************************** TRAINING LOOP AND FUNCTIONS ********************************************************************//
+
+
 /**
-* Runs a single FROMP simulation and collects simualtion data
-* @param The frame rate in per second
+* Gets a random value between min and max
+* @param Lower bound
+* @param Upper bound
+* @return Random value
+*/
+template <typename T> T get_rand(T min, T max)
+{
+	double range = (double)max - (double)min;
+	double random = (double)rand() / (double)RAND_MAX;
+	double value = (double)min + range*random;
+	return (T)value;
+}
+template <> int get_rand<int>(int min, int max)
+{
+	double range = (double)max - (double)min;
+	double random = (double)rand() / (double)RAND_MAX;
+	double value = (double)min + range*random;
+	return (int)round(value);
+}
+
+
+/**
+* Runs a single FROMP simulation and calculates the loss
+* @param Configuration handler directing optimization
+* @param Finite difference solver
+* @return The loss value of the simulation
+*/
+double run_sim(Config_Handler* config_handler, Finite_Difference_Solver* FDS)
+{
+	// Fitness values
+	double sim_duration;
+	double curr_dev;
+	double max_dev = 0.0;
+	double stdev = 0.0;
+	int population_size = 0;
+	
+	// Simulation variables
+	int steps_per_frame = (int) round(1.0 / (FDS->get_coarse_time_step() * frame_rate));
+	steps_per_frame = steps_per_frame < 1 ? 1 : steps_per_frame;
+	bool done_simulating = false;
+	int step_in_trajectory = 0;
+	
+	// Reset FDS
+	FDS->reset();
+
+	// Simulation loop
+	auto sim_start_time = chrono::high_resolution_clock::now();
+	while (!done_simulating)
+	{
+		// Calculate the front velocity stdev at each frame after front stablization
+		if ((step_in_trajectory % steps_per_frame == 0) && (FDS->get_progress() >= 50.0))
+		{
+			cout << FDS->get_front_vel() << "\n";
+			
+			// Calculate deviation data
+			curr_dev = (FDS->get_curr_target() - FDS->get_front_vel()) * (FDS->get_curr_target() - FDS->get_front_vel());
+			max_dev = curr_dev > max_dev ? curr_dev : max_dev;
+			stdev +=  curr_dev
+			population_size++;
+		}
+		
+		// Step the environment 
+		done_simulating = FDS->step(0.0, 0.0, 0.0);
+		step_in_trajectory++;
+	}
+	
+	// Calculate and normalize the sim duration
+	sim_duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - sim_start_time ).count())*10e-7;
+	sim_duration = sim_duration / 1.0;
+	
+	
+	// Calculate the and normalize stdev
+	stdev = sqrt(stdev / population_size);
+	stdev = stdev / 1.0;
+	
+	// Normalize the max deviation
+	max_dev = max_dev / 1.0;
+	
+	// Calculate the loss
+	return config_handler->duration_const*avg_sim_duration + config_handler->max_dev_const*max_stdev + config_handler->stdev_const*avg_stdev;
+}
+
+
+/**
+* Performs gradient descent to optimize tunable parameters
+* @param Configuration handler directing optimization
+* @param Finite difference solver
 * @return 0 on success, 1 on failure
 */
-int run(Config_Handler* config_handler)
+int optimize(Config_Handler* config_handler, Finite_Difference_Solver* FDS)
 {
+	
+	// Initial tunable parameters to random value
+	double curr_x_len = get_rand<double>(config_handler->min_x_len, config_handler->max_x_len);
+	int curr_x_mult = get_rand<int>(config_handler->min_x_mult, config_handler->max_x_mult);
+	double curr_time_step = get_rand<double>(config_handler->min_time_step, config_handler->max_time_step);
+	int curr_time_mult = get_rand<int>(config_handler->min_time_mult, config_handler->max_time_mult);
+	double curr_tran_cure = get_rand<double>(config_handler->min_tran_cure, config_handler->max_tran_cure);
+
+	// Calculate tunable parameter ranges
+	double x_len_range = config_handler->max_x_len - config_handler->min_x_len;
+	double time_step_range = config_handler->max_time_step - config_handler->min_time_step;
+	double tran_cure_range = config_handler->max_tran_cure - config_handler->min_tran_cure;
+
+	// Set range normalized step size for determining gradient
+	double step_size = 0.005;
+
+	// Traning loop
+	for ( unsigned int curr_update = 0; curr_update < config_handler->max_num_updates; curr_update++ )
+	{
+		
+		// Calculate losses at each training point +- small radius
+		double losses[config_handler->front_speed_list.size()][3][2];
+		for ( unsigned int i = 0; i < config_handler->front_speed_list.size(); i++ )
+		{
+			// Assign current training point
+			if( config_handler->set_params(i) == 1)
+			{
+				return 1;
+			}
+			
+			// - x_len loss
+			if( config_handler->update_tunable_params(curr_x_len - step_size*x_len_range, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			losses[i][0][0] = 0.0;
+			
+			// + x_len loss
+			if( config_handler->update_tunable_params(curr_x_len + step_size*x_len_range, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			losses[i][0][1] = 0.0;
+			
+			// - time_step loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step - step_size*time_step_range, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			losses[i][1][0] = 0.0;
+			
+			// + time_step loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step + step_size*time_step_range, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			losses[i][1][1] = 0.0;
+			
+			// - trans_cure_rate loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure - step_size*tran_cure_range) == 1)
+			{
+				return 1;
+			}
+			losses[i][2][0] = 0.0;
+			
+			// + trans_cure_rate loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure + step_size*tran_cure_range) == 1)
+			{
+				return 1;
+			}
+			losses[i][2][1] = 0.0;
+			
+		}
+		
+		// Termination condition
+		if ( false )
+		{
+			break;
+		}
+		
+	}
+	
+	return 0;
 
 }
 
@@ -692,14 +871,6 @@ int run(Config_Handler* config_handler)
 	double decay_rate = params[15];
 	double momentum_const = params[16];
 	int max_num_updates = params[17];
-	
-	// Calculate the average target speed for stdev normalization
-	double avg_target = 0.0;
-	for(unsigned int i = 0; i < front_speed_list.size(); i++)
-	{
-		avg_target+= stod(front_speed_list[i], NULL);
-	}
-	avg_target = avg_target / (double)front_speed_list.size();
 	
 	// ********************************************************** Parameter tuning loop ********************************************************** //
 	bool done_tuning = false;
@@ -964,9 +1135,6 @@ int run(Config_Handler* config_handler)
 //******************************************************************** MAIN LOOP ********************************************************************//
 int main()
 {
-	// Set randomization seed
-	srand(time(NULL));
-	
 	// Initialize configuration handler
 	Config_Handler* config_handler;
 	try
@@ -992,13 +1160,31 @@ int main()
 		return 1;
 	}
 	
+	// Initialize solver
+	Finite_Difference_Solver* FDS;
+	try
+	{
+		FDS = new Finite_Difference_Solver();
+	}
+	catch (int e)
+	{
+		cout << "An exception occurred. Exception num " << e << '\n';
+		delete config_handler;
+		delete logger;
+		return 1;
+	}
+	
+	// Set randomization seed
+	srand(time(NULL));
+	
 	// Run simulation
 	cout << "Running...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if ( run(config_handler) == 1 ) 
+	if ( optimize(config_handler, FDS) == 1 ) 
 	{ 
 		delete config_handler;
 		delete logger;
+		delete FDS:
 		return 1; 
 	}
 	
@@ -1009,5 +1195,6 @@ int main()
 	// Delete and return successful
 	delete config_handler;
 	delete logger;
+	delete FDS:
 	return 0;
 }
