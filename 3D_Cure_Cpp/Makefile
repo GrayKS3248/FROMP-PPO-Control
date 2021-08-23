@@ -15,7 +15,7 @@ all-l:
 	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Train_Agent.cpp -o train_agent.so $(LDFLAGS-L)
 	
 all-w: 
-	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Tune_Params.cpp -o tune_params.exe $(LDFLAGS-W)
+	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Tune_Params_2.cpp -o tune_params.exe $(LDFLAGS-W)
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Run_Solver.cpp -o run_solver.exe $(LDFLAGS-W)
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_AE_Data.cpp -o get_ae_data.exe $(LDFLAGS-W)
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Train_Agent.cpp -o train_agent.exe $(LDFLAGS-W)
