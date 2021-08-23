@@ -9,7 +9,7 @@ Reward Parameters: [10, 300, 200]
 Learning Rate: 0.01
 Learning Rate Decay: 0.9
 Momentum Constant: 0
-Number of Updates: 30
+Number of Updates: 1
 
 { Training Set }
 ( Monomer, Initial Cure, Initial Temperature, Target Front Speed )
