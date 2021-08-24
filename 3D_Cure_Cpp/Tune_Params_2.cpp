@@ -26,6 +26,7 @@ class Config_Handler
 		double duration_const;
 		double max_dev_const;
 		double stdev_const;
+		double max_step;
 		double learning_rate;
 		double learning_rate_decay;
 		double momentum_const;
@@ -101,6 +102,8 @@ Config_Handler::Config_Handler()
 		
 		// Search parameters
 		config_file.ignore(numeric_limits<streamsize>::max(), '}');
+		config_file >> string_dump >> max_step;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file >> string_dump >> learning_rate;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file >> string_dump >> learning_rate_decay;
@@ -456,16 +459,16 @@ int Config_Handler::reset_config()
 class Logger
 {
 	public:
-		// public variables
-
 		// public constructor and destructor
 		Logger(Config_Handler* config_handler);
 		
 		// public functions
+		int write(double fine_x_len, int x_step_mult, double time_step, int time_mult, double trans_cure_rate, Config_Handler* config_handler, double loss_data[4]);
 		
 		
 	private:
 		// private variables
+		int update_num;
 		
 		// private functions
 		ofstream file;
@@ -482,20 +485,24 @@ Logger::Logger(Config_Handler* config_handler)
 	if (file.is_open()) 
 	{ 
 		file << "{ Configuration Parameters }" << endl;
-		file << "Frame Rate: " << config_handler->frame_rate << " frames per second" << endl;
-		file << "X Length Range: [" << config_handler->min_x_len << ", " << config_handler->max_x_len << "] meters" << endl;
-		file << "X Multiplier Range: [" << config_handler->min_x_mult << ", " << config_handler->max_x_mult << "]" << endl;
-		file << "Time Step Range: [" << config_handler->min_time_step << ", " << config_handler->max_time_step << "] seconds" << endl;
-		file << "Time Multipler Range: [" << config_handler->min_time_mult << ", " << config_handler->max_time_mult << "]" << endl;
-		file << "Transitional Cure Rate Range: [" << config_handler->min_tran_cure << ", " << config_handler->max_tran_cure << "] 1/s" << endl;
-		file << "Reward Parameters: [" << config_handler->duration_const << ", " << config_handler->max_dev_const << ", " << config_handler->stdev_const << "]" << endl;
-		file << "Learning Rate: " << config_handler->learning_rate << endl;
-		file << "Learning Rate Decay: " << config_handler->learning_rate_decay << endl;
-		file << "Momentum Constant: " << config_handler->momentum_const << endl;
-		file << "Number of Updates: " << config_handler->max_num_updates << endl << endl;
+		file << "Frame Rate, " << config_handler->frame_rate << ", 1/second" << endl;
+		file << "Sim Duration Const, " << config_handler->duration_const << ", ---" << endl;
+		file << "Max Deviation Const, " << config_handler->max_dev_const << ", ---"  << endl;
+		file << "Stdev Const, " << config_handler->stdev_const << ", ---" << endl;
+		file << "Learning Rate, " << config_handler->learning_rate << ", ---" << endl;
+		file << "Learning Rate Decay, " << config_handler->learning_rate_decay << ", ---" << endl;
+		file << "Momentum Constant, " << config_handler->momentum_const << ", ---" << endl;
+		file << "Number of Updates, " << config_handler->max_num_updates << ", ---" << endl << endl;
+		
+		file << "{ Tunable Parameter Ranges }" << endl;
+		file << "X Length Range, " << config_handler->min_x_len << ", " << config_handler->max_x_len << ", meters" << endl;
+		file << "X Multiplier Range, " << config_handler->min_x_mult << ", " << config_handler->max_x_mult << ", ---" << endl;
+		file << "Time Step Range, " << config_handler->min_time_step << ", " << config_handler->max_time_step << ", seconds" << endl;
+		file << "Time Multipler Range, " << config_handler->min_time_mult << ", " << config_handler->max_time_mult << ", ---" << endl;
+		file << "Transitional Cure Rate Range, " << config_handler->min_tran_cure << ", " << config_handler->max_tran_cure << ", 1/second" << endl << endl;
 		
 		file << "{ Training Set }" << endl;
-		file << "( Monomer, Initial Cure, Initial Temperature, Target Front Speed )" << endl;
+		file << "Monomer, Initial Cure, Initial Temperature, Target Front Speed" << endl;
 		for(unsigned int i = 0; i < config_handler->name_list.size(); i++)
 		{
 			file << config_handler->name_list[i] << ", " << config_handler->initial_cure_list[i] << ", " << config_handler->initial_temp_list[i] << ", " << config_handler->front_speed_list[i] << endl;
@@ -503,7 +510,8 @@ Logger::Logger(Config_Handler* config_handler)
 		file << endl;
 		
 		file << "{ Training Results }" << endl;
-		file << "()" << endl;
+		file << "Update Number, Fine X length, X Step Multiplier, Time Step, Time Step Multiplier, Transitional Cure Rate, Learning Rate, Normalized Sim Duration, Normalized Max Deviation, Normalized Stdev, Loss" << endl;
+		file << "---, Meters, ---, Seconds, ---, 1/Second, ---, ---, ---, ---, ---" << endl;
 	}
 	else 
 	{ 
@@ -512,138 +520,43 @@ Logger::Logger(Config_Handler* config_handler)
 	}
 	
 	file.close();
+	
+	update_num = 1;
 }
 
 
-//******************************************************************** USER INTERFACE FUNCTIONS ********************************************************************//
 /**
-* Prints to stdout a readout of the tuning process
-* @param Number of times parameters have been updated
-* @param X length of fine mesh
-* @param x step multiplier
-* @param Coarse time step
-* @param Transitional cure rate
+* Writes to the log file
+* @param length of fine mesh in x direction
+* @param fine grid x step multiplier
+* @param coarse time step
+* @param fine time step multiplier
+* @param transitional cure rate
+* @param Configuration file handler
+* @param Array containing loss data
+* @return 0 on success, 1 on failure
 */
-/* string get_tuning_info(int num_updates, double curr_fine_x_len, int curr_x_step_mult, double curr_time_step, int curr_time_mult, double curr_trans_cure_rate)
-{	
-	// Update point msg
-	stringstream stream;
-	stream << "Num Updates: " << num_updates;
-	string msg1 = stream.str();
-	
-	// Fine x len msg
-	stream.str(string());
-	stream << fixed << setprecision(2);
-	stream << "Fine X Len: " << 1000.0*curr_fine_x_len << " mm";
-	string msg2 = stream.str();
-	
-	// X step multiplier msg
-	stream.str(string());
-	stream << "X Step Mult: " << curr_x_step_mult;
-	string msg3 = stream.str();
-	
-	// Coarse time step msg
-	stream.str(string());
-	stream << fixed << setprecision(2);
-	stream << "Time Step: " << 1000.0*curr_time_step << " ms";
-	string msg4 = stream.str();
-	
-	// Fine time step mult msg
-	stream.str(string());
-	stream << "Time Step Mult: " << curr_time_mult;
-	string msg5 = stream.str();
-	
-	// Transitional cure rate msg
-	stream.str(string());
-	stream << fixed << setprecision(3);
-	stream << "Trans Cure: " << curr_trans_cure_rate;
-	string msg6 = stream.str();
-	
-	// Print all sub messeges
-	string spacer = " | ";
-	string header = "\n\n";
-	string footer;
-	
-	// Concatenate msgs
-	string return_str = header + spacer + msg1 + spacer + msg2 + spacer + msg3 + spacer + msg4 + spacer + msg5 + spacer + msg6 + spacer;
-	unsigned int target_length = return_str.length()-2;
-	while (footer.length() < target_length)
-	{
-		footer.append("*");
+int Logger::write(double fine_x_len, int x_step_mult, double time_step, int time_mult, double trans_cure_rate, Config_Handler* config_handler, double loss_data[4])
+{
+	// Open log file and write data
+	file.open("config_files/log.dat", ofstream::app);
+	if (file.is_open()) 
+	{ 
+		file << update_num++ << ", " << fine_x_len << ", " << x_step_mult << ", " << time_step << ", " << time_mult << ", " << trans_cure_rate << ", " << config_handler->learning_rate << ", " << loss_data[0] << ", " << loss_data[1] << ", " << loss_data[2] << ", " << loss_data[3] << "\n";
 	}
-	return_str = return_str + "\n" + footer + "\n";
-	
-	return return_str;
-} */
-
-/**
-* Prints to stdout a readout of the simulation process
-* @param Total number of points used for the tuning process
-* @param Current tuning point index
-* @param Name of monomer
-* @param Tuning point initial cure
-* @param Tuning point initial temp
-* @param Tuning point target speed
-*/
-/* string get_sim_info(unsigned int num_tuning_points, unsigned int curr_tuning_point, string name, string initial_cure, string initial_temp, string front_speed)
-{	
-	// Tuning point msg
-	stringstream stream;
-	stream << "Point: " << to_string(curr_tuning_point) << "/" << to_string(num_tuning_points);
-	string msg1 = stream.str();
-	if (msg1.length() < 12)
-	{
-		msg1.append(12 - msg1.length(), ' ');
+	else 
+	{ 
+		cout << "Unable to open config_files/log.dat." << endl; 
+		return 1; 
 	}
 	
-	// Monomer msg
-	stream.str(string());
-	stream << "Monomer: " << name;
-	string msg2 = stream.str();
-	if (msg2.length() < 17)
-	{
-		msg2.append(17 - msg2.length(), ' ');
-	}
-	
-	// Initial cure msg
-	stream.str(string());
-	stream << fixed << setprecision(2);
-	stream << "Cure: " << initial_cure;
-	string msg3 = stream.str();
-	if (msg3.length() < 10)
-	{
-		msg3.append(10 - msg3.length(), ' ');
-	}
-	
-	// Initial temp msg
-	stream.str(string());
-	stream << fixed << setprecision(2);
-	stream << "Temp: " << initial_temp << " K";
-	string msg4 = stream.str();
-	if (msg4.length() < 14)
-	{
-		msg4.append(14 - msg4.length(), ' ');
-	}
-
-	// Target front speed msg
-	stream.str(string());
-	stream << fixed << setprecision(3);
-	stream << "Target: " << 1000.0*(stof(front_speed)) << " m/s";
-	string msg5 = stream.str();
-	if (msg5.length() < 17)
-	{
-		msg5.append(17 - msg5.length(), ' ');
-	}
-	
-	// Print all sub messeges
-	string spacer = " | ";
-	return (spacer + msg1 + spacer + msg2 + spacer + msg3 + spacer + msg4 + spacer + msg5 + spacer);
-} */
+	// Close the log file
+	file.close();
+	return 0;
+}
 
 
 //******************************************************************** TRAINING LOOP AND FUNCTIONS ********************************************************************//
-
-
 /**
 * Gets a random value between min and max
 * @param Lower bound
@@ -669,11 +582,15 @@ template <> int get_rand<int>(int min, int max)
 /**
 * Runs a single FROMP simulation and calculates the loss
 * @param Configuration handler directing optimization
-* @param Finite difference solver
 * @return The loss value of the simulation
 */
-double* run_sim(Config_Handler* config_handler, Finite_Difference_Solver* FDS)
+double* run_sim(Config_Handler* config_handler)
 {
+	// Reset FDS
+	Finite_Difference_Solver* FDS;
+	FDS = new Finite_Difference_Solver();
+	FDS->reset();
+	
 	// Fitness values
 	double curr_dev;
 	int population_size = 0;
@@ -686,9 +603,6 @@ double* run_sim(Config_Handler* config_handler, Finite_Difference_Solver* FDS)
 	steps_per_frame = steps_per_frame < 1 ? 1 : steps_per_frame;
 	bool done_simulating = false;
 	int step_in_trajectory = 0;
-	
-	// Reset FDS
-	FDS->reset();
 
 	// Simulation loop
 	auto sim_start_time = chrono::high_resolution_clock::now();
@@ -714,7 +628,7 @@ double* run_sim(Config_Handler* config_handler, Finite_Difference_Solver* FDS)
 	normalized_sim_duration = normalized_sim_duration / config_handler->sim_duration;
 	
 	// Normalize the max deviation
-	normalized_max_dev = normalized_max_dev / config_handler->avg_front_speed;
+	normalized_max_dev = sqrt(normalized_max_dev) / config_handler->avg_front_speed;
 	
 	// Calculate the and normalize stdev
 	normalized_stdev = sqrt(normalized_stdev / population_size);
@@ -726,6 +640,9 @@ double* run_sim(Config_Handler* config_handler, Finite_Difference_Solver* FDS)
 	return_val[1] = normalized_max_dev;
 	return_val[2] = normalized_stdev;
 	return_val[3] = config_handler->duration_const*normalized_sim_duration + config_handler->max_dev_const*normalized_max_dev + config_handler->stdev_const*normalized_stdev;
+	
+	// Delete and return
+	delete FDS;
 	return return_val;
 }
 
@@ -733,10 +650,10 @@ double* run_sim(Config_Handler* config_handler, Finite_Difference_Solver* FDS)
 /**
 * Performs gradient descent to optimize tunable parameters
 * @param Configuration handler directing optimization
-* @param Finite difference solver
+* @param Logger
 * @return 0 on success, 1 on failure
 */
-int optimize(Config_Handler* config_handler, Finite_Difference_Solver* FDS)
+int optimize(Config_Handler* config_handler, Logger* logger)
 {
 	
 	// Initial tunable parameters to random value
@@ -745,6 +662,7 @@ int optimize(Config_Handler* config_handler, Finite_Difference_Solver* FDS)
 	double curr_time_step = get_rand<double>(config_handler->min_time_step, config_handler->max_time_step);
 	int curr_time_mult = get_rand<int>(config_handler->min_time_mult, config_handler->max_time_mult);
 	double curr_tran_cure = get_rand<double>(config_handler->min_tran_cure, config_handler->max_tran_cure);
+	cout << "\nParameters: < " << curr_x_len << ", " << curr_x_mult << ", " << curr_time_step << ", " << curr_time_mult << ", " << curr_tran_cure << " >\n";
 
 	// Calculate tunable parameter ranges
 	double x_len_range = config_handler->max_x_len - config_handler->min_x_len;
@@ -752,14 +670,136 @@ int optimize(Config_Handler* config_handler, Finite_Difference_Solver* FDS)
 	double tran_cure_range = config_handler->max_tran_cure - config_handler->min_tran_cure;
 
 	// Set range normalized step size for determining gradient
-	double step_size = 0.005;
+	double step_size = config_handler->max_step / 4.0;
+	
+	// Descent and momentum variables
+	double x_len_step;
+	double time_step_step;
+	double tran_cure_step;
+	double x_len_prev_step = 0.0;
+	double time_step_prev_step = 0.0;
+	double tran_cure_prev_step = 0.0;
 
 	// Traning loop
 	for ( unsigned int curr_update = 0; curr_update < config_handler->max_num_updates; curr_update++ )
 	{
+		cout << "Learning Rate: " << config_handler->learning_rate << "\n";
+		cout << "----------------------------------------------------\n";
+		
+		// Variables used to track loss data
+		double* curr_loss_data;
+		double loss_data[5][2][4];
+		double before_discrete_step_loss_data[4] = { 0.0, 0.0, 0.0, 0.0 };
+		double after_discrete_step_loss_data[4] = { 0.0, 0.0, 0.0, 0.0 };
+		for ( int i = 0; i < 5; i++ )
+		for ( int j = 0; j < 2; j++ )
+		for ( int k = 0; k < 4; k++ )
+		{
+			loss_data[i][j][k] = 0.0;
+		}
 		
 		// Calculate losses at each training point +- small radius
-		double loss_data[config_handler->front_speed_list.size()][3][2];
+		for ( unsigned int i = 0; i < config_handler->front_speed_list.size(); i++ )
+		{
+			// Assign current training point
+			if( config_handler->set_params(i) == 1)
+			{
+				return 1;
+			}
+			cout << "**** TUNING POINT " << i+1 << " ****\n";
+			
+			// - x_len loss
+			if( config_handler->update_tunable_params(curr_x_len - step_size*x_len_range, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { loss_data[0][0][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			cout << "-X length loss:  " << curr_loss_data[3] << "\n";
+			
+			// + x_len loss
+			if( config_handler->update_tunable_params(curr_x_len + step_size*x_len_range, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { loss_data[0][1][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			cout << "+X length loss:  " <<  curr_loss_data[3] << "\n";
+			
+			// - time_step loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step - step_size*time_step_range, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { loss_data[1][0][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			cout << "-Time step loss: " <<  curr_loss_data[3] << "\n";
+			
+			// + time_step loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step + step_size*time_step_range, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { loss_data[1][1][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			cout << "+Time step loss: " <<  curr_loss_data[3] << "\n";
+			
+			// - trans_cure_rate loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure - step_size*tran_cure_range) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { loss_data[2][0][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			cout << "-Tran cure loss: " <<  curr_loss_data[3] << "\n";
+			
+			// + trans_cure_rate loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure + step_size*tran_cure_range) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { loss_data[2][1][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			cout << "+Tran cure loss: " <<  curr_loss_data[3] << "\n";
+		}
+		
+		// Calculate the gradient
+		double gradient[3];
+		gradient[0] = (loss_data[0][1][3] - loss_data[0][0][3]) / (2.0 * step_size * x_len_range);
+		gradient[1] = (loss_data[1][1][3] - loss_data[1][0][3]) / (2.0 * step_size * time_step_range);
+		gradient[2] = (loss_data[2][1][3] - loss_data[2][0][3]) / (2.0 * step_size * tran_cure_range);
+		cout << "----------------------------------------------------\n";
+		cout << "Gradient: < " << gradient[0] << ", " << gradient[1] << ", " << gradient[2] << " >\n";
+		
+		// Calculate descent step
+		x_len_step = config_handler->momentum_const * x_len_prev_step + config_handler->learning_rate * gradient[0] * x_len_range;
+		time_step_step = config_handler->momentum_const * time_step_prev_step + config_handler->learning_rate * gradient[1] * time_step_range;
+		tran_cure_step = config_handler->momentum_const * tran_cure_prev_step + config_handler->learning_rate * gradient[2] * tran_cure_range;
+		
+		// Ensure step is into acceptable range
+		x_len_step = curr_x_len - x_len_step < config_handler->min_x_len ? curr_x_len - config_handler->min_x_len : x_len_step;
+		x_len_step = curr_x_len - x_len_step > config_handler->max_x_len ? curr_x_len - config_handler->max_x_len : x_len_step;
+		time_step_step = curr_time_step - time_step_step < config_handler->min_time_step ? curr_time_step - config_handler->min_time_step : time_step_step;
+		time_step_step = curr_time_step - time_step_step > config_handler->max_time_step ? curr_time_step - config_handler->max_time_step : time_step_step;
+		tran_cure_step = curr_tran_cure - tran_cure_step < config_handler->min_tran_cure ? curr_tran_cure - config_handler->min_tran_cure : tran_cure_step;
+		tran_cure_step = curr_tran_cure - tran_cure_step > config_handler->max_tran_cure ? curr_tran_cure - config_handler->max_tran_cure : tran_cure_step;
+		
+		// Ensure step does not exceed max step
+		x_len_step = abs(x_len_step) > config_handler->max_step * x_len_range ? (x_len_step/abs(x_len_step)) * (config_handler->max_step*x_len_range) : x_len_step;
+		time_step_step = abs(time_step_step) > config_handler->max_step * time_step_range ? (time_step_step/abs(time_step_step)) * (config_handler->max_step*time_step_range) : time_step_step;
+		tran_cure_step = abs(tran_cure_step) > config_handler->max_step * tran_cure_range ? (tran_cure_step/abs(tran_cure_step)) * (config_handler->max_step*tran_cure_range) : tran_cure_step;
+		
+		// Take descent step
+		curr_x_len = curr_x_len - x_len_step;
+		curr_time_step = curr_time_step - time_step_step;
+		curr_tran_cure = curr_tran_cure - tran_cure_step;
+		
+		// Update momentum values
+		x_len_prev_step = x_len_step;
+		time_step_prev_step = time_step_step;
+		tran_cure_prev_step = x_len_prev_step;
+		
+		// Calculate the loss after the gradient step but before the discrete step
 		for ( unsigned int i = 0; i < config_handler->front_speed_list.size(); i++ )
 		{
 			// Assign current training point
@@ -768,77 +808,211 @@ int optimize(Config_Handler* config_handler, Finite_Difference_Solver* FDS)
 				return 1;
 			}
 			
-			// - x_len loss
-			if( config_handler->update_tunable_params(curr_x_len - step_size*x_len_range, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+			// Calculate loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
 			{
 				return 1;
 			}
-			double* curr_loss_data = run_sim(config_handler, FDS);
-			loss_data[i][0][0] = curr_loss_data[3];
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { before_discrete_step_loss_data[j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
 			
-			// + x_len loss
-			if( config_handler->update_tunable_params(curr_x_len + step_size*x_len_range, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
-			{
-				return 1;
-			}
-			curr_loss_data = run_sim(config_handler, FDS);
-			loss_data[i][0][1] = curr_loss_data[3];
-			
-			// - time_step loss
-			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step - step_size*time_step_range, curr_time_mult, curr_tran_cure) == 1)
-			{
-				return 1;
-			}
-			curr_loss_data = run_sim(config_handler, FDS);
-			loss_data[i][1][0] = curr_loss_data[3];
-			
-			// + time_step loss
-			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step + step_size*time_step_range, curr_time_mult, curr_tran_cure) == 1)
-			{
-				return 1;
-			}
-			curr_loss_data = run_sim(config_handler, FDS);
-			loss_data[i][1][1] = curr_loss_data[3];
-			
-			// - trans_cure_rate loss
-			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure - step_size*tran_cure_range) == 1)
-			{
-				return 1;
-			}
-			curr_loss_data = run_sim(config_handler, FDS);
-			loss_data[i][2][0] = curr_loss_data[3];
-			
-			// + trans_cure_rate loss
-			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure + step_size*tran_cure_range) == 1)
-			{
-				return 1;
-			}
-			curr_loss_data = run_sim(config_handler, FDS);
-			loss_data[i][2][1] = curr_loss_data[3];
-			
-			// Cleanup
-			delete curr_loss_data;
 		}
+		cout << "Before discrete loss: " << before_discrete_step_loss_data[3] << "\n";
+		cout << "----------------------------------------------------\n";
 		
-		// Average the + and - losses from all training points
-		double losses[3][2] = { {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0} };
+		// Calculate losses at each training point +- 1 on discrete values
 		for ( unsigned int i = 0; i < config_handler->front_speed_list.size(); i++ )
-		for ( int j = 0; j < 3; j++ )
-		for ( int k = 0; k < 2; k++ )
 		{
-			losses[j][k] += loss_data[i][j][k];
-		}
-		for ( int j = 0; j < 3; j++ )
-		for ( int k = 0; k < 2; k++ )
-		{
-			losses[j][k] = losses[j][k] / (double)config_handler->front_speed_list.size();
+			// Assign current training point
+			if( config_handler->set_params(i) == 1)
+			{
+				return 1;
+			}
+			cout << "****** TUNING POINT " << i+1 << " ******\n";
+			
+			// - x_mult loss
+			if( curr_x_mult - 1 >= config_handler->min_x_mult )
+			{
+				if( config_handler->update_tunable_params(curr_x_len, curr_x_mult - 1, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+				{
+					return 1;
+				}
+				curr_loss_data = run_sim(config_handler);
+				for( int j = 0; j < 4; j++ ) { loss_data[3][0][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+				cout << "-X multiplier loss: " << curr_loss_data[3] << "\n";
+			}
+			else
+			{
+				for( int j = 0; j < 4; j++ ) { loss_data[3][0][j] += 1.0e16; }
+				cout << "-X multiplier loss: INF\n";
+			}
+
+			
+			// + x_mult loss
+			if( curr_x_mult + 1 <= config_handler->max_x_mult )
+			{
+				if( config_handler->update_tunable_params(curr_x_len, curr_x_mult + 1, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+				{
+					return 1;
+				}
+				curr_loss_data = run_sim(config_handler);
+				for( int j = 0; j < 4; j++ ) { loss_data[3][1][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+				cout << "+X multiplier loss: " << curr_loss_data[3] << "\n";
+			}
+			else
+			{
+				for( int j = 0; j < 4; j++ ) { loss_data[3][1][j] += 1.0e16; }
+				cout << "+X multiplier loss: INF\n";
+			}
+			
+			// - time_mult loss
+			if( curr_time_mult - 1 >= config_handler->min_time_mult )
+			{
+				if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult - 1, curr_tran_cure) == 1)
+				{
+					return 1;
+				}
+				curr_loss_data = run_sim(config_handler);
+				for( int j = 0; j < 4; j++ ) { loss_data[4][0][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+				cout << "-Time mult loss:    " << curr_loss_data[3] << "\n";
+			}
+			else
+			{
+				for( int j = 0; j < 4; j++ ) { loss_data[4][0][j] += 1.0e16; }
+				cout << "-Time mult loss:    INF\n";
+			}
+			
+			// + time_mult loss
+			if( curr_time_mult + 1 <= config_handler->max_time_mult )
+			{
+				if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult + 1, curr_tran_cure) == 1)
+				{
+					return 1;
+				}
+				curr_loss_data = run_sim(config_handler);
+				for( int j = 0; j < 4; j++ ) { loss_data[4][1][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+				cout << "+Time mult loss:    " << curr_loss_data[3] << "\n";
+			}
+			else
+			{
+				for( int j = 0; j < 4; j++ ) { loss_data[4][1][j] += 1.0e16; }
+				cout << "+Time mult loss:    INF\n";
+			}
 		}
 		
-		// Calculate the gradient
-		double gradient[3];
-		gradient[0] = (losses[0][1] - losses[0][0]) / (2.0 * step_size * x_len_range);
-		gradient[1] = (losses[1][1] - losses[1][0]) / (2.0 * step_size * time_step_range);
-		gradient[2] = (losses[2][1] - losses[2][0]) / (2.0 * step_size * tran_cure_range);
+		// Calculate the performance of each discrete step
+		double down_x_mult_delta = loss_data[3][0][3] - before_discrete_step_loss_data[3];
+		double up_x_mult_delta = loss_data[3][1][3] - before_discrete_step_loss_data[3];
+		double down_time_mult_delta = loss_data[4][0][3] - before_discrete_step_loss_data[3];
+		double up_time_mult_delta = loss_data[4][1][3] - before_discrete_step_loss_data[3];
+		bool down_x_mult_better = (down_x_mult_delta < 0.0) && (down_x_mult_delta <= up_x_mult_delta);
+		bool up_x_mult_better = (up_x_mult_delta < 0.0) && (up_x_mult_delta < down_x_mult_delta);
+		bool down_time_mult_better = (down_time_mult_delta < 0.0) && (down_time_mult_delta <= up_time_mult_delta);
+		bool up_time_mult_better = (up_time_mult_delta < 0.0) && (up_time_mult_delta < down_time_mult_delta);
+		
+		// Take a discrete x multiplier step
+		if ( down_x_mult_better )
+		{
+			curr_x_mult--;
+		}
+		if ( up_x_mult_better )
+		{
+			curr_x_mult++;
+		}
+		
+		// Take a discrete time multiplier step
+		if ( down_time_mult_better )
+		{
+			curr_time_mult--;
+		}
+		if ( up_time_mult_better )
+		{
+			curr_time_mult++;
+		}
+		
+		// If no step was taken, set after discrete step loss data to before discrete step loss data
+		if ( !down_x_mult_better && !up_x_mult_better && !down_time_mult_better && !up_time_mult_better )
+		{
+			for ( int i = 0; i < 4; i++ )
+			{
+				after_discrete_step_loss_data[i] = before_discrete_step_loss_data[i];
+			}
+		}
+		
+		// If only the x multiplier was changed, set after discrete step loss data to corresponding x multipler loss data
+		else if ( (down_x_mult_better || up_x_mult_better) && !down_time_mult_better && !up_time_mult_better )
+		{
+			if ( down_x_mult_better )
+			{
+				for ( int i = 0; i < 4; i++ )
+				{
+					after_discrete_step_loss_data[i] = loss_data[3][0][i];
+				}
+			}
+			else if ( up_x_mult_better )
+			{
+				for ( int i = 0; i < 4; i++ )
+				{
+					after_discrete_step_loss_data[i] = loss_data[3][1][i];
+				}
+			}
+		}
+		
+		// If only the time multiplier was changed, set after discrete step loss data to corresponding time multipler loss data
+		else if ( !down_x_mult_better && !up_x_mult_better && (down_time_mult_better || up_time_mult_better) )
+		{
+			if ( down_time_mult_better )
+			{
+				for ( int i = 0; i < 4; i++ )
+				{
+					after_discrete_step_loss_data[i] = loss_data[4][0][i];
+				}
+			}
+			else if ( up_time_mult_better )
+			{
+				for ( int i = 0; i < 4; i++ )
+				{
+					after_discrete_step_loss_data[i] = loss_data[4][1][i];
+				}
+			}
+		}
+		
+		// If both multipliers were changed, resimulate to get the after discrete step loss data
+		else
+		{
+			for ( unsigned int i = 0; i < config_handler->front_speed_list.size(); i++ )
+			{
+				// Assign current training point
+				if( config_handler->set_params(i) == 1)
+				{
+					return 1;
+				}
+				
+				// Calculate loss
+				if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+				{
+					return 1;
+				}
+				curr_loss_data = run_sim(config_handler);
+				for( int j = 0; j < 4; j++ ) { after_discrete_step_loss_data[j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+				
+			}
+		}
+		cout << "----------------------------------------------------\n";
+		cout << "After discrete loss: " << after_discrete_step_loss_data[3] << "\n\n";
+		cout << "\nParameters: < " << curr_x_len << ", " << curr_x_mult << ", " << curr_time_step << ", " << curr_time_mult << ", " << curr_tran_cure << " >\n";
+		
+		// Write to log
+		if( logger->write(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure, config_handler, after_discrete_step_loss_data) == 1 )
+		{
+			return 1;
+		}
+		
+		// Update learning rate
+		config_handler->learning_rate = config_handler->learning_rate * config_handler->learning_rate_decay;
+		
+		// Cleanup
+		delete curr_loss_data;
 		
 		// Termination condition
 		if ( false )
@@ -881,41 +1055,25 @@ int main()
 		return 1;
 	}
 	
-	// Initialize solver
-	Finite_Difference_Solver* FDS;
-	try
-	{
-		FDS = new Finite_Difference_Solver();
-	}
-	catch (int e)
-	{
-		cout << "An exception occurred. Exception num " << e << '\n';
-		delete config_handler;
-		delete logger;
-		return 1;
-	}
-	
 	// Set randomization seed
 	srand(time(NULL));
 	
 	// Run simulation
-	cout << "Running...\n";
+	cout << "Tuning...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if ( optimize(config_handler, FDS) == 1 ) 
+	if ( optimize(config_handler, logger) == 1 ) 
 	{ 
 		delete config_handler;
 		delete logger;
-		delete FDS;
 		return 1; 
 	}
 	
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
-	printf("Tuning took: %.1f seconds.\nDone!", duration);
+	printf("\nTuning took: %.1f seconds.\nDone!", duration);
 	
 	// Delete and return successful
 	delete config_handler;
 	delete logger;
-	delete FDS;
 	return 0;
 }
