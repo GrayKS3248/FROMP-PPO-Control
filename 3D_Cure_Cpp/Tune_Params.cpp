@@ -1,17 +1,66 @@
-#define PY_SSIZE_T_CLEAN
-#include <Python.h>
 #include "Finite_Difference_Solver.h"
 
 using namespace std;
 
 
-//******************************************************************** CONFIGURATION FUNCTIONS ********************************************************************//
-/**
-* Loads parameters from .cfg file
-* @return 0 on success, 1 on failure
-*/
-int load_config(vector<string>& name_list, vector<string>& initial_cure_list, vector<string>& initial_temp_list, vector<string>& front_speed_list, vector<double>& params)
+//******************************************************************** CONFIGURATION HANDLER CLASS ********************************************************************//
+class Config_Handler
 {
+	public:
+		// public variables
+		vector<string> name_list;
+		vector<string> initial_cure_list;
+		vector<string> initial_temp_list;
+		vector<string> front_speed_list;
+		double frame_rate;
+		double min_x_len;
+		double max_x_len;
+		int min_x_mult;
+		int max_x_mult;
+		double min_time_step;
+		double max_time_step;
+		int min_time_mult;
+		int max_time_mult;
+		double min_tran_cure;
+		double max_tran_cure;
+		double duration_const;
+		double max_dev_const;
+		double stdev_const;
+		double max_step;
+		double learning_rate;
+		double learning_rate_decay;
+		double momentum_const;
+		unsigned int max_num_updates;
+		double sim_duration;
+		double avg_front_speed;
+	
+		// public constructor and destructor
+		Config_Handler();
+		~Config_Handler();
+		
+		// public functions
+		int set_params(unsigned int index);
+		int update_tunable_params(double fine_x_len, int x_step_mult, double time_step, int time_mult, double trans_cure_rate);
+		int save_new_config(double fine_x_len, int x_step_mult, double time_step, int time_mult, double trans_cure_rate);
+		
+		
+	private:
+		// private variables
+		string orig_fds_config;
+		double coarse_x_len = 1.0;
+		double curr_front_speed = 1.0;
+		
+		// private functions
+		int copy_to_orig();
+		int reset_config();
+};
+
+
+/**
+* Constructor loads files from config
+*/
+Config_Handler::Config_Handler()
+{	
 	// Load from config file
 	ifstream config_file;
 	config_file.open("config_files/tune_params.cfg");
@@ -20,51 +69,51 @@ int load_config(vector<string>& name_list, vector<string>& initial_cure_list, ve
 	{
 		// Simulation parameters
 		config_file.ignore(numeric_limits<streamsize>::max(), '}');
-		config_file >> string_dump >> params[0];
+		config_file >> string_dump >> frame_rate;
 		
 		// Tuning parameter limits
 		config_file.ignore(numeric_limits<streamsize>::max(), '}');
-		config_file >> string_dump >> params[1];
+		config_file >> string_dump >> min_x_len;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[2];
+		config_file >> string_dump >> max_x_len;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[3];
+		config_file >> string_dump >> min_x_mult;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[4];
+		config_file >> string_dump >> max_x_mult;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[5];
+		config_file >> string_dump >> min_time_step;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[6];
+		config_file >> string_dump >> max_time_step;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[7];
+		config_file >> string_dump >> min_time_mult;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[8];
+		config_file >> string_dump >> max_time_mult;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[9];
+		config_file >> string_dump >> min_tran_cure;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[10];
+		config_file >> string_dump >> max_tran_cure;
 		
 		// Fitness parameters
 		config_file.ignore(numeric_limits<streamsize>::max(), '}');
-		config_file >> string_dump >> params[11];
+		config_file >> string_dump >> duration_const;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[12];
+		config_file >> string_dump >> max_dev_const;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[13];
+		config_file >> string_dump >> stdev_const;
 		
 		// Search parameters
 		config_file.ignore(numeric_limits<streamsize>::max(), '}');
-		config_file >> string_dump >> params[14];
+		config_file >> string_dump >> max_step;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[15];
+		config_file >> string_dump >> learning_rate;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[16];
+		config_file >> string_dump >> learning_rate_decay;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> string_dump >> momentum_const;
 		
 		// Termination parameters
 		config_file.ignore(numeric_limits<streamsize>::max(), '}');
-		config_file >> string_dump >> params[17];
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> string_dump >> params[18];
+		config_file >> string_dump >> max_num_updates;
 		
 		while(true)
 		{
@@ -101,164 +150,139 @@ int load_config(vector<string>& name_list, vector<string>& initial_cure_list, ve
 	else
 	{
 		cout << "Unable to open config_files/tune_params.cfg." << endl;
-		return 1;
+		throw 2;
 	}
-	
 	config_file.close();
 	
-	return 0;
-}
-
-/**
-* Copies original fds config file data to fds_orig.cfg file
-* @return 0 on success, 1 on failure
-*/
-int make_orig_fds_config()
-{
-	ifstream fds_file_in;
-	ofstream fds_file_out;
-	fds_file_in.open("config_files/fds.cfg", std::ofstream::in);
-	fds_file_out.open("config_files/fds_temp.cfg", std::ofstream::out | std::ofstream::trunc );
-	string string_dump;
-	if (fds_file_in.is_open() && fds_file_out.is_open())
+	// Get copy of original fds config file
+	if( copy_to_orig() == 1 ) 
 	{
-		// Copy lines
-		while(getline(fds_file_in, string_dump))
-		{
-			fds_file_out << string_dump << "\n";
-		}
-	}
-	else
-	{
-		cout << "Unable to open config_files/fds.cfg." << endl;
-		return 1;
+		throw 3;
 	}
 	
-	fds_file_in.close();
-	fds_file_out.close();
-	
-	// Rename files
-	char old_name_1[] = "config_files/fds.cfg";
-	char new_name_1[] = "config_files/fds_orig.cfg";
-	char old_name_2[] = "config_files/fds_temp.cfg";
-	char new_name_2[] = "config_files/fds.cfg";
-	int result = rename(old_name_1, new_name_1) + rename(old_name_2, new_name_2);
-	if(result == 0)
+	// Calculate the average target speed for stdev normalization
+	avg_front_speed = 0.0;
+	for(unsigned int i = 0; i < front_speed_list.size(); i++)
 	{
-		return 0;
+		avg_front_speed += stod(front_speed_list[i], NULL);
 	}
-	else
-	{
-		return 1;
-	}
+	avg_front_speed = avg_front_speed / (double)front_speed_list.size();
 }
 
+
 /**
-* Edits the FDS config file to run the commanded monomer, initial cure, initial temperature, and target front speed
-* @param string of monomoer name
-* @param string of initial cure
-* @param string of initial temperature 
-* @param string of target front speed
+* Destructor
+*/
+Config_Handler::~Config_Handler()
+{
+	reset_config();
+}
+
+
+/**
+* Edits the FDS config file to run the monomer, initial cure, initial temperature, and target front speed of the defined test point index
+* Additionally sets all randomizing simulation parameters to 0
+* @param index of monomer, cure, temp, and target to be set
 * @return 0 on success, 1 on failure
 */
-int edit_fds_config(string name, string initial_cure, string initial_temp, string front_speed)
+int Config_Handler::set_params(unsigned int index)
 {
-	ifstream fds_file_in;
-	ofstream fds_file_out;
-	fds_file_in.open("config_files/fds_orig.cfg", std::ofstream::in);
-	fds_file_out.open("config_files/fds.cfg");
-	string string_dump;
-	string write_string;
+	ofstream file_out;
+	istringstream f(orig_fds_config);
+	string read_line; 
+	string write_line;
 	
 	// Set use_input, use_trigger, material, control, target_type, target_speed, tar_speed_dev, tar_temp_dev, initial_temp, temp_deviation, initial_cure, cure_deviation, mean_htc, htc_dev, amb_temp_dev, trigger_len
-	if (fds_file_in.is_open() && fds_file_out.is_open())
+	file_out.open("config_files/fds.cfg");
+	if ( file_out.is_open() )
 	{
-		
-		while(getline(fds_file_in, string_dump))
+		while ( getline(f, read_line) )
 		{
-			if( string_dump.find("use_input") != string::npos )
+			if( read_line.find("use_input") != string::npos )
 			{
-				write_string = "use_input\tfalse\t[true/false]";
-				fds_file_out << write_string << "\n";
+				write_line = "use_input\tfalse\t\t[true/false]";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("use_trigger") !=  string::npos )
+			else if( read_line.find("use_trigger") !=  string::npos )
 			{
-				write_string = "use_trigger\ttrue\t[true/false]";
-				fds_file_out << write_string << "\n";
+				write_line = "use_trigger\ttrue\t\t[true/false]";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("material") !=  string::npos )
+			else if( read_line.find("material") !=  string::npos )
 			{
-				write_string = "material\t"+name+"\t[dcpd_gc1/dcpd_gc2/cod]";
-				fds_file_out << write_string << "\n";
+				write_line = "material\t"+name_list[index]+"\t[dcpd_gc1/dcpd_gc2/cod]";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("control") !=  string::npos )
+			else if( read_line.find("control") !=  string::npos )
 			{
-				write_string = "control\tspeed\t[speed/temp]";
-				fds_file_out << write_string << "\n";
+				write_line = "control\t\tspeed\t\t[speed/temp]";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("target_type") !=  string::npos )
+			else if( read_line.find("target_type") !=  string::npos )
 			{
-				write_string = "target_type\tconst\t[const/rand/switch]";
-				fds_file_out << write_string << "\n";
+				write_line = "target_type\tconst\t\t[const/rand/switch]";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("target_speed") !=  string::npos )
+			else if( read_line.find("target_speed") !=  string::npos )
 			{
-				write_string = "target_speed\t"+front_speed+"\t(Meters / Second)";
-				fds_file_out << write_string << "\n";
+				write_line = "target_speed\t"+front_speed_list[index]+"\t(Meters / Second)";
+				file_out << write_line << "\n";
+				curr_front_speed = stof(front_speed_list[index]);
+				sim_duration = 0.65 * (coarse_x_len / curr_front_speed);
 			}
-			else if( string_dump.find("tar_speed_dev") !=  string::npos )
+			else if( read_line.find("tar_speed_dev") !=  string::npos )
 			{
-				write_string = "tar_speed_dev\t0.0\t(Meters / Second)";
-				fds_file_out << write_string << "\n";
+				write_line = "tar_speed_dev\t0.0\t\t(Meters / Second)";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("tar_temp_dev") !=  string::npos )
+			else if( read_line.find("tar_temp_dev") !=  string::npos )
 			{
-				write_string = "tar_temp_dev\t0.0\t(Kelvin)";
-				fds_file_out << write_string << "\n";
+				write_line = "tar_temp_dev\t0.0\t\t(Kelvin)";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("initial_temp") !=  string::npos )
+			else if( read_line.find("initial_temp") !=  string::npos )
 			{
-				write_string = "initial_temp\t"+initial_temp+"\t(Kelvin)";
-				fds_file_out << write_string << "\n";
+				write_line = "initial_temp\t"+initial_temp_list[index]+"\t\t(Kelvin)";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("temp_deviation") !=  string::npos )
+			else if( read_line.find("temp_deviation") !=  string::npos )
 			{
-				write_string = "temp_deviation\t0.0\t(Kelvin)";
-				fds_file_out << write_string << "\n";
+				write_line = "temp_deviation\t0.0\t\t(Kelvin)";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("initial_cure") !=  string::npos )
+			else if( read_line.find("initial_cure") !=  string::npos )
 			{
-				write_string = "initial_cure\t"+initial_cure+"\t(Decimal Percent)";
-				fds_file_out << write_string << "\n";
+				write_line = "initial_cure\t"+initial_cure_list[index]+"\t\t(Decimal Percent)";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("cure_deviation") !=  string::npos )
+			else if( read_line.find("cure_deviation") !=  string::npos )
 			{
-				write_string = "cure_deviation\t0.0\t(Decimal Percent)";
-				fds_file_out << write_string << "\n";
+				write_line = "cure_deviation\t0.0\t\t(Decimal Percent)";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("mean_htc") !=  string::npos )
+			else if( read_line.find("mean_htc") !=  string::npos )
 			{
-				write_string = "mean_htc\t0.0\t(Watts / (Meter ^ 2 * Kelvin))";
-				fds_file_out << write_string << "\n";
+				write_line = "mean_htc\t0.0\t\t(Watts / (Meter ^ 2 * Kelvin))";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("htc_dev") !=  string::npos )
+			else if( read_line.find("htc_dev") !=  string::npos )
 			{
-				write_string = "htc_dev\t0.0\t(Watts / (Meter ^ 2 * Kelvin))";
-				fds_file_out << write_string << "\n";
+				write_line = "htc_dev\t\t0.0\t\t(Watts / (Meter ^ 2 * Kelvin))";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("amb_temp_dev") !=  string::npos )
+			else if( read_line.find("amb_temp_dev") !=  string::npos )
 			{
-				write_string = "amb_temp_dev\t0.0\t(Kelvin)";
-				fds_file_out << write_string << "\n";
+				write_line = "amb_temp_dev\t0.0\t\t(Kelvin)";
+				file_out << write_line << "\n";
 			}
-			else if( string_dump.find("trigger_len") !=  string::npos )
+			else if( read_line.find("trigger_len") !=  string::npos )
 			{
-				write_string = "trigger_len\tmin\t[float value/min] (Seconds)";
-				fds_file_out << write_string << "\n";
+				write_line = "trigger_len\tmin\t\t[float value/min] (Seconds)";
+				file_out << write_line << "\n";
 			}
 			else
 			{
-				fds_file_out << string_dump << "\n";
+				file_out << read_line << "\n";
 			}
 		}
 	}
@@ -268,10 +292,11 @@ int edit_fds_config(string name, string initial_cure, string initial_temp, strin
 		return 1;
 	}
 	
-	fds_file_in.close();
-	fds_file_out.close();
+	file_out.close();
+	
 	return 0;
 }
+
 
 /**
 * Edits the FDS config file to update the tunable parameters
@@ -280,10 +305,9 @@ int edit_fds_config(string name, string initial_cure, string initial_temp, strin
 * @param coarse time step
 * @param fine time step multiplier
 * @param transitional cure rate
-* @param string of target front speed
 * @return 0 on success, 1 on failure
 */
-int set_fds_config_tunable_params(double fine_x_len, int x_step_mult, double time_step, int time_mult, double trans_cure_rate, string front_speed, double& characteristic_duration)
+int Config_Handler::update_tunable_params(double fine_x_len, int x_step_mult, double time_step, int time_mult, double trans_cure_rate)
 {
 	ifstream fds_file_in;
 	ofstream fds_file_out;
@@ -291,9 +315,6 @@ int set_fds_config_tunable_params(double fine_x_len, int x_step_mult, double tim
 	fds_file_out.open("config_files/fds_temp.cfg");
 	string string_dump;
 	string write_string;
-	
-	double coarse_x_len = 0.0;
-	const string digits = "0123456789.+-";
 	
 	// Set fine_x_len, sim_duration, time_step, time_mult, crit_cure_rate, trans_cure_rate
 	if (fds_file_in.is_open() && fds_file_out.is_open())
@@ -308,23 +329,12 @@ int set_fds_config_tunable_params(double fine_x_len, int x_step_mult, double tim
 			}
 			else if( string_dump.find("x_step_mult") != string::npos )
 			{
-				write_string = "x_step_mult\t" + to_string(x_step_mult) + "\t(Meters)";
+				write_string = "x_step_mult\t" + to_string(x_step_mult) + "\t\t(Meters)";
 				fds_file_out << write_string << "\n";
-			}
-			else if( string_dump.find("coarse_x_len") !=  string::npos )
-			{
-				fds_file_out << string_dump << "\n";
-				unsigned start_pos = string_dump.find_first_of( digits );
-				unsigned end_pos = string_dump.find_last_of( "\t" );
-				if ( start_pos != string::npos )
-				{
-					coarse_x_len = stof(string_dump.substr( start_pos, end_pos-start_pos-1 ), NULL);
-				}
 			}
 			else if( string_dump.find("sim_duration") !=  string::npos )
 			{
-				characteristic_duration = 0.65 * (coarse_x_len / stod(front_speed, NULL));
-				write_string = "sim_duration\t" + to_string(characteristic_duration) + "\t(Seconds)";
+				write_string = "sim_duration\t" + to_string(sim_duration) + "\t(Seconds)";
 				fds_file_out << write_string << "\n";
 			}
 			else if( string_dump.find("time_step") !=  string::npos )
@@ -334,7 +344,7 @@ int set_fds_config_tunable_params(double fine_x_len, int x_step_mult, double tim
 			}
 			else if( string_dump.find("time_mult") !=  string::npos )
 			{
-				write_string = "time_mult\t" + to_string(time_mult) + "\t(Fine time steps per coarse time step)";
+				write_string = "time_mult\t" + to_string(time_mult) + "\t\t(Fine time steps per coarse time step)";
 				fds_file_out << write_string << "\n";
 			}
 			else if( string_dump.find("trans_cure_rate") !=  string::npos )
@@ -371,519 +381,238 @@ int set_fds_config_tunable_params(double fine_x_len, int x_step_mult, double tim
 	}
 }
 
+
 /**
-* Resets the fds config file to its original form
+* Saves copy of original fds config to private string
 * @return 0 on success, 1 on failure
 */
-int reset_fds_config()
+int Config_Handler::copy_to_orig()
 {
-	char old_name_1[] = "config_files/fds.cfg";
-	char new_name_1[] = "config_files/fds_tuned.cfg";
-	char old_name_2[] = "config_files/fds_orig.cfg";
-	char new_name_2[] = "config_files/fds.cfg";
-	int result = rename(old_name_1, new_name_1) + rename(old_name_2, new_name_2);
-	if(result == 0)
+	// Reset original string
+	orig_fds_config = "";
+	
+	// Read lines from config file
+	ifstream file_in;
+	file_in.open("config_files/fds.cfg", ofstream::in);
+	string read_line;
+	
+	if (file_in.is_open())
 	{
-		return 0;
+		// Copy lines to original string
+		while( getline(file_in, read_line) )
+		{
+			// Save the coarse x length
+			if( read_line.find("coarse_x_len") !=  string::npos )
+			{
+				size_t start_pos = read_line.find_first_of( "0123456789." );
+				size_t end_pos = read_line.find_last_of( "\t" );
+				if ( start_pos != string::npos )
+				{
+					coarse_x_len = stof(read_line.substr( start_pos, end_pos-start_pos-1 ), NULL);
+				}
+			}
+			
+			orig_fds_config = orig_fds_config + read_line + "\n";
+			
+		}
+		orig_fds_config.pop_back();
 	}
 	else
 	{
+		cout << "Unable to open config_files/fds.cfg." << endl;
 		return 1;
 	}
-}
-
-
-//******************************************************************** USER INTERFACE FUNCTIONS ********************************************************************//
-/**
-* Prints to stdout a readout of the tuning process
-* @param Number of times parameters have been updated
-* @param X length of fine mesh
-* @param x step multiplier
-* @param Coarse time step
-* @param Transitional cure rate
-*/
-string get_tuning_info(int num_updates, double curr_fine_x_len, int curr_x_step_mult, double curr_time_step, int curr_time_mult, double curr_trans_cure_rate)
-{	
-	// Update point msg
-	stringstream stream;
-	stream << "Num Updates: " << num_updates;
-	string msg1 = stream.str();
 	
-	// Fine x len msg
-	stream.str(string());
-	stream << fixed << setprecision(2);
-	stream << "Fine X Len: " << 1000.0*curr_fine_x_len << " mm";
-	string msg2 = stream.str();
+	// Close the file
+	file_in.close();
 	
-	// X step multiplier msg
-	stream.str(string());
-	stream << "X Step Mult: " << curr_x_step_mult;
-	string msg3 = stream.str();
-	
-	// Coarse time step msg
-	stream.str(string());
-	stream << fixed << setprecision(2);
-	stream << "Time Step: " << 1000.0*curr_time_step << " ms";
-	string msg4 = stream.str();
-	
-	// Fine time step mult msg
-	stream.str(string());
-	stream << "Time Step Mult: " << curr_time_mult;
-	string msg5 = stream.str();
-	
-	// Transitional cure rate msg
-	stream.str(string());
-	stream << fixed << setprecision(3);
-	stream << "Trans Cure: " << curr_trans_cure_rate;
-	string msg6 = stream.str();
-	
-	// Print all sub messeges
-	string spacer = " | ";
-	string header = "\n\n";
-	string footer;
-	
-	// Concatenate msgs
-	string return_str = header + spacer + msg1 + spacer + msg2 + spacer + msg3 + spacer + msg4 + spacer + msg5 + spacer + msg6 + spacer;
-	unsigned int target_length = return_str.length()-2;
-	while (footer.length() < target_length)
-	{
-		footer.append("*");
-	}
-	return_str = return_str + "\n" + footer + "\n";
-	
-	return return_str;
-}
-
-/**
-* Prints to stdout a readout of the simulation process
-* @param Total number of points used for the tuning process
-* @param Current tuning point index
-* @param Name of monomer
-* @param Tuning point initial cure
-* @param Tuning point initial temp
-* @param Tuning point target speed
-*/
-string get_sim_info(unsigned int num_tuning_points, unsigned int curr_tuning_point, string name, string initial_cure, string initial_temp, string front_speed)
-{	
-	// Tuning point msg
-	stringstream stream;
-	stream << "Point: " << to_string(curr_tuning_point) << "/" << to_string(num_tuning_points);
-	string msg1 = stream.str();
-	if (msg1.length() < 12)
-	{
-		msg1.append(12 - msg1.length(), ' ');
-	}
-	
-	// Monomer msg
-	stream.str(string());
-	stream << "Monomer: " << name;
-	string msg2 = stream.str();
-	if (msg2.length() < 17)
-	{
-		msg2.append(17 - msg2.length(), ' ');
-	}
-	
-	// Initial cure msg
-	stream.str(string());
-	stream << fixed << setprecision(2);
-	stream << "Cure: " << initial_cure;
-	string msg3 = stream.str();
-	if (msg3.length() < 10)
-	{
-		msg3.append(10 - msg3.length(), ' ');
-	}
-	
-	// Initial temp msg
-	stream.str(string());
-	stream << fixed << setprecision(2);
-	stream << "Temp: " << initial_temp << " K";
-	string msg4 = stream.str();
-	if (msg4.length() < 14)
-	{
-		msg4.append(14 - msg4.length(), ' ');
-	}
-
-	// Target front speed msg
-	stream.str(string());
-	stream << fixed << setprecision(3);
-	stream << "Target: " << 1000.0*(stof(front_speed)) << " m/s";
-	string msg5 = stream.str();
-	if (msg5.length() < 17)
-	{
-		msg5.append(17 - msg5.length(), ' ');
-	}
-	
-	// Print all sub messeges
-	string spacer = " | ";
-	return (spacer + msg1 + spacer + msg2 + spacer + msg3 + spacer + msg4 + spacer + msg5 + spacer);
-}
-
-
-//******************************************************************** TRAINING LOOP ********************************************************************//
-/**
-* Runs a single FROMP simulation and collects simualtion data
-* @param The frame rate in per second
-* @return 0 on success, 1 on failure
-*/
-int run(vector<string> &name_list, vector<string> &initial_cure_list, vector<string> &initial_temp_list, vector<string> &front_speed_list, vector<double>& params)
-{
-	// Open log file
-	ofstream log_file;
-	log_file.open("config_files/log.dat", ofstream::app);
-	if (!log_file.is_open()) 
-	{
-		cout << "Unable to open config_files/log.dat." << endl; 
-		return 1; 
-	}
-	
-	// Initialize tunable parameters
-	double tunable_param_min[5] = { params[1], params[3], params[5], params[7], params[9]  };
-	double tunable_param_max[5] = { params[2], params[4], params[6], params[8], params[10] };
-	bool tunable_param_type[5] = { false, true, false, true, false };
-	double tunable_param_range[5];
-	double tunable_param_curr[5];
-	double tunable_param_test[5];
-	double tunable_param_momentum[5];
-	for(int i = 0; i < 5; i++)
-	{
-		// Set tunable param ranges
-		tunable_param_range[i] = tunable_param_max[i] - tunable_param_min[i];
-		
-		// Set the initial tunable param value to a random location in the range
-		tunable_param_curr[i] = tunable_param_min[i] + ((double)rand()/(double)RAND_MAX) * tunable_param_range[i];
-		if (tunable_param_type[i])
-		{
-			tunable_param_curr[i] = round(tunable_param_curr[i]);
-		}
-		tunable_param_momentum[i] = 0.0;
-	}
-	double grad_dirn[6][5] = { { 0.0, 0.0, 0.0, 0.0, 0.0 }, 
-				   { tunable_param_range[0], 0.0, 0.0, 0.0, 0.0 }, 
-				   { 0.0, tunable_param_range[1], 0.0, 0.0, 0.0 }, 
-				   { 0.0, 0.0, tunable_param_range[2], 0.0, 0.0 }, 
-				   { 0.0, 0.0, 0.0, tunable_param_range[3], 0.0 }, 
-				   { 0.0, 0.0, 0.0, 0.0, tunable_param_range[4] } };
-	
-	// Name other parameters
-	double frame_rate = params[0];
-	double duration_const = params[11];
-	double max_stdev_const = params[12];
-	double avg_stdev_const = params[13];
-	double search_step = params[14];
-	double decay_rate = params[15];
-	double momentum_const = params[16];
-	int loss_delta = params[17];
-	int max_num_updates = params[18];
-	
-	// Calculate the average target speed for stdev normalization
-	double avg_target = 0.0;
-	for(unsigned int i = 0; i < front_speed_list.size(); i++)
-	{
-		avg_target+= stod(front_speed_list[i], NULL);
-	}
-	avg_target = avg_target / (double)front_speed_list.size();
-	
-	// ********************************************************** Parameter tuning loop ********************************************************** //
-	bool done_tuning = false;
-	int num_updates = 0;
-	string print_string;
-	while (!done_tuning)
-	{
-		// Reset the print string
-		print_string = "";
-		print_string.append(get_tuning_info(num_updates, tunable_param_curr[0], tunable_param_curr[1], tunable_param_curr[2], tunable_param_curr[3], tunable_param_curr[4]));
-		
-		// Declare gradient values
-		double losses[6];
-		double gradient[5];
-		double grad_signs[5];
-		double prev_loss = 1.0e10;
-		
-		// Declare fitness values
-		double avg_sim_duration;
-		double max_stdev;
-		double avg_stdev;
-			
-		// Calculate losses around current point
-		for(int i = 0; i < 6; i++)
-		{
-			// Set the current test point's tunable parameters
-			for(int j = 0; j < 5; j++)
-			{
-				// Select random direction to check gradient
-				if (i == 0)
-				{
-					double rand_val = 0.0;
-					while( rand_val == 0.0 )
-					{
-						rand_val = 2.0 * ((double)rand()/(double)RAND_MAX) - 1.0;
-					}
-					grad_signs[j] = round(rand_val / abs(rand_val));
-				}
-				
-				
-				// Discrete case
-				if (tunable_param_type[j])
-				{
-					if ( grad_dirn[i][j] != 0.0 )
-					{
-						tunable_param_test[j] = tunable_param_curr[j] + grad_signs[j];
-					}
-					else
-					{
-						tunable_param_test[j] = tunable_param_curr[j];
-					}
-				}
-				
-				// Continuous case
-				else
-				{
-					tunable_param_test[j] = tunable_param_curr[j] + search_step * grad_dirn[i][j] * grad_signs[j];
-				}
-			}
-				
-			// Reset fitness values
-			avg_sim_duration = 0.0;
-			max_stdev = 0.0;
-			avg_stdev = 0.0;
-	
-			// Loop through each tuning point
-			for(unsigned int j = 0; j < name_list.size(); j++)
-			{
-				// Declare characteristic duration
-				double characteristic_duration;
-				
-				// Modifiy fds config to make current tuning point
-				edit_fds_config(name_list[j], initial_cure_list[j], initial_temp_list[j], front_speed_list[j]);
-				set_fds_config_tunable_params(tunable_param_test[0], (int)tunable_param_test[1], tunable_param_test[2], (int)tunable_param_test[3], tunable_param_test[4], front_speed_list[j], characteristic_duration);
-				
-				// Initialize FDS
-				Finite_Difference_Solver* FDS = new Finite_Difference_Solver();
-				FDS->reset();
-
-				// Simulation loop
-				int steps_per_frame = (int) round(1.0 / (FDS->get_coarse_time_step() * frame_rate));
-				steps_per_frame = steps_per_frame < 1 ? 1 : steps_per_frame;
-				bool done_simulating = false;
-				int step_in_trajectory = 0;
-				double curr_stdev = 0.0;
-				double population_size = 0.0;
-				auto sim_start_time = chrono::high_resolution_clock::now();
-				while (!done_simulating)
-				{
-					// Update the logs
-					if ((step_in_trajectory % steps_per_frame == 0) && (FDS->get_progress() >= 50.0))
-					{
-						// Store front speed stdev data
-						curr_stdev += (FDS->get_curr_target() - FDS->get_front_vel()) * (FDS->get_curr_target() - FDS->get_front_vel());
-						population_size += 1.0;
-					}
-					
-					// Step the environment 
-					done_simulating = FDS->step(0.0, 0.0, 0.0);
-					step_in_trajectory++;
-				}
-				
-				// Calculate the sim duration
-				double sim_duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - sim_start_time ).count())*10e-7;
-				avg_sim_duration += sim_duration / characteristic_duration;
-				
-				// Calculate the stdev
-				curr_stdev = sqrt(curr_stdev / population_size);
-				max_stdev = curr_stdev > max_stdev ? curr_stdev : max_stdev;
-				avg_stdev += curr_stdev;
-			}
-			
-			// Update the average sim duration at current tunable parameters
-			avg_sim_duration = avg_sim_duration / (double)name_list.size();
-			
-			// Update the max stdev from target speed at current tunable parameters
-			max_stdev = max_stdev / avg_target;
-			
-			// Update the average stdev from target speed at current tunable parameters
-			avg_stdev = avg_stdev / ((double)name_list.size() * avg_target);
-			
-			// Calcualte test loss
-			losses[i] = duration_const*avg_sim_duration + max_stdev_const*max_stdev + avg_stdev_const*avg_stdev;
-		}
-		
-		// Calculate range normalized gradient
-		double grad_mag = 0.0;
-		for (int i = 0; i < 5; i++)
-		{
-			
-			// Discrete case
-			if (tunable_param_type[i])
-			{
-				// Only take discrete step if you found a better solution
-				if (losses[i+1] - losses[0] < 0.0)
-				{
-					gradient[i] = grad_signs[i] * (losses[i+1] - losses[0]) * tunable_param_range[i];
-				}
-				else
-				{
-					gradient[i] = 0.0;
-				}
-				
-			}
-			
-			// Continuous case
-			else
-			{
-				gradient[i] = grad_signs[i] * (losses[i+1] - losses[0]) / search_step;
-			}
-			
-			grad_mag += gradient[i] * gradient[i];
-		}
-		grad_mag = sqrt(grad_mag);
-		for (int i = 0; i < 5; i++) { gradient[i] = gradient[i] / grad_mag; }
-		
-		// Take a step in the best direction
-		for ( int i = 0; i < 5; i++ )
-		{
-			double curr_val = tunable_param_curr[i];
-			double new_val;
-			
-			// Discrete case
-			if ( tunable_param_type[i] )
-			{
-				if ( abs(gradient[i]) >= 0.20 )
-				{
-					new_val = round(tunable_param_curr[i] - gradient[i] / abs(gradient[i]) );
-				}
-				else
-				{
-					new_val = tunable_param_curr[i];
-				}
-			}
-			
-			// Continuous case
-			else
-			{
-				new_val = tunable_param_curr[i] - gradient[i] * search_step * tunable_param_range[i];
-			}
-			
-			// Update tunable parameters with momentum only if continuous parameters
-			if( tunable_param_type[i] )
-			{
-				tunable_param_curr[i] = new_val;
-			}
-			else
-			{
-				tunable_param_curr[i] = new_val + tunable_param_momentum[i];
-			}
-			
-			// Update momentum
-			tunable_param_momentum[i] = momentum_const * (new_val - curr_val);
-		}
-		
-		// Send loss to print string
-		stringstream stream;
-		stream.str(string());
-		if (losses[0] >= 100.0)
-		{
-			stream << fixed << setprecision(2);
-		}
-		else if(losses[0] >= 10.0)
-		{
-			stream << fixed << setprecision(3);
-		}
-		else
-		{
-			stream << fixed << setprecision(4);
-		}
-		stream << " | Avg Dur: " << avg_sim_duration;
-		stream << " | Max Std: " << max_stdev;
-		stream << " | Avg Std: " << avg_stdev;
-		stream << " | Loss: " << losses[0] << " |";
-		print_string.append(stream.str());
-		unsigned int target_length = stream.str().length();
-		
-		// Write the gradient
-		stream.str(string());
-		stream << fixed << setprecision(3);
-		stream << "\n | Gradient: <" << gradient[0] << ", " << gradient[1] << ", " << gradient[2] << ", " << gradient[3] << ", " << gradient[4] << ">";
-		while (stream.str().length() < target_length)
-		{
-			stream << " ";
-		}
-		stream << "|";
-		print_string.append(stream.str());
-		
-		// Write the momentum
-		stream.str(string());
-		stream << fixed << setprecision(5);
-		stream << "\n | Momentum: <" << 1000.0*tunable_param_momentum[0] << ", " << tunable_param_momentum[1] << ", " << 1000.0*tunable_param_momentum[2] << ", " << tunable_param_momentum[3] << ", " << tunable_param_momentum[4] << ">";
-		while (stream.str().length() < target_length)
-		{
-			stream << " ";
-		}
-		stream << "|";
-		print_string.append(stream.str());
-		
-		
-		// Iterator the step and momentum
-		search_step = search_step * decay_rate;
-		momentum_const = momentum_const * decay_rate;
-		
-		// Update update iterators
-		num_updates++;
-		
-		// Print training data
-		cout << print_string;
-		log_file << print_string;
-		
-		// Detemine whether tuning is complete for not
-		done_tuning = (num_updates >= max_num_updates) || (loss_delta > abs(prev_loss - losses[0]));
-		prev_loss = losses[0];
-	}
-	
-	log_file.close();
 	return 0;
 }
 
 
-//******************************************************************** MAIN LOOP ********************************************************************//
-int main()
+/**
+* Resets the fds config file to its original value
+* @return 0 on success, 1 on failure
+*/
+int Config_Handler::reset_config()
 {
-	// Set randomization seed
-	srand(time(NULL));
+	// Read lines from config file
+	ofstream fds_file_out;
+	fds_file_out.open("config_files/fds.cfg", ofstream::out | ofstream::trunc);
+	if (fds_file_out.is_open())
+	{
+		fds_file_out << orig_fds_config;
+	}
+	else
+	{
+		cout << "Unable to reset config_files/fds.cfg." << endl;
+		return 1;
+	}
 	
-	// Load parameters
-	vector<string> name_list;
-	vector<string> initial_cure_list;
-	vector<string> initial_temp_list;
-	vector<string> front_speed_list;
-	vector<double> params = vector<double>(19, 0.0);
-	if (load_config(name_list, initial_cure_list, initial_temp_list, front_speed_list, params) == 1) { return 1; }
+	// Close the file
+	fds_file_out.close();
 	
-	// Make a copy of the original FDS config file
-	make_orig_fds_config();
+	return 0;
+}
 
-	// Open log file and copy config file to log
-	ofstream log_file;
-	log_file.open("config_files/log.dat", ofstream::app);
-	if (log_file.is_open()) 
-	{ 
-		ifstream config_file;
-		config_file.open("config_files/tune_params.cfg");
-		if (config_file.is_open())
+
+/** 
+* Saves the best tunable parameters to new configuration file
+* @param best length of fine mesh in x direction
+* @param best fine grid x step multiplier
+* @param best coarse time step
+* @param best fine time step multiplier
+* @param best transitional cure rate
+* @return 0 on success, 1 on failure
+*/
+int Config_Handler::save_new_config(double fine_x_len, int x_step_mult, double time_step, int time_mult, double trans_cure_rate)
+{
+	// Reset the configuration file to its original value
+	reset_config();
+	
+	// Make a copy of the reset configuration file
+	ifstream file_in;
+	ofstream file_out;
+	file_in.open("config_files/fds.cfg", std::ofstream::in);
+	file_out.open("config_files/fds_tuned.cfg", std::ofstream::out | std::ofstream::trunc );
+	string string_dump;
+	string write_string;
+	if (file_in.is_open() && file_out.is_open())
+	{
+		while(getline(file_in, string_dump))
 		{
-			for (string line; getline(config_file, line); ) 
+			if( string_dump.find("fine_x_len") != string::npos )
 			{
-				cout << line << endl;
-				log_file << line << endl;
+				write_string = "fine_x_len\t" + to_string(fine_x_len) + "\t(Meters)";
+				file_out << write_string << "\n";
 			}
-			cout << "\n";
-			log_file << "\n";
+			else if( string_dump.find("x_step_mult") != string::npos )
+			{
+				write_string = "x_step_mult\t" + to_string(x_step_mult) + "\t\t(Meters)";
+				file_out << write_string << "\n";
+			}
+			else if( string_dump.find("time_step") !=  string::npos )
+			{
+				write_string = "time_step\t" + to_string(time_step) + "\t(Seconds)";
+				file_out << write_string << "\n";
+			}
+			else if( string_dump.find("time_mult") !=  string::npos )
+			{
+				write_string = "time_mult\t" + to_string(time_mult) + "\t\t(Fine time steps per coarse time step)";
+				file_out << write_string << "\n";
+			}
+			else if( string_dump.find("trans_cure_rate") !=  string::npos )
+			{
+				write_string = "trans_cure_rate\t" + to_string(trans_cure_rate) + "\t(Decimal Percent)  (Cure rate which demarks transition from FE to RK4 integration)";
+				file_out << write_string << "\n";
+			}
+			else
+			{
+				file_out << string_dump << "\n";
+			}
 		}
-		else 
-		{ 
-			cout << "Unable to open config_files/tune_params.cfg." << endl; 
-			log_file.close();
-			return 1; 
+	}
+	else
+	{
+		cout << "Unable to open config_files/fds.cfg." << endl;
+		return 1;
+	}
+	
+	// Close and return
+	file_in.close();
+	file_out.close();
+	return 0;
+}
+
+
+//******************************************************************** LOGGER CLASS ********************************************************************//
+class Logger
+{
+	public:
+		// public constructor and destructor
+		Logger(Config_Handler* config_handler);
+		
+		// public functions
+		int write(double fine_x_len, int x_step_mult, double time_step, int time_mult, double trans_cure_rate, Config_Handler* config_handler, double loss_data[4]);
+		
+		
+	private:
+		// private variables
+		int update_num;
+		
+		// private functions
+		ofstream file;
+};
+
+
+/**
+* Constructor
+*/
+Logger::Logger(Config_Handler* config_handler)
+{
+	// Open log file and copy config file to log
+	file.open("config_files/log.dat", ofstream::trunc);
+	if (file.is_open()) 
+	{ 
+		file << "{ Configuration Parameters }" << endl;
+		file << "Frame Rate, " << config_handler->frame_rate << ", 1/second" << endl;
+		file << "Sim Duration Const, " << config_handler->duration_const << ", ---" << endl;
+		file << "Max Deviation Const, " << config_handler->max_dev_const << ", ---"  << endl;
+		file << "Stdev Const, " << config_handler->stdev_const << ", ---" << endl;
+		file << "Learning Rate, " << config_handler->learning_rate << ", ---" << endl;
+		file << "Learning Rate Decay, " << config_handler->learning_rate_decay << ", ---" << endl;
+		file << "Momentum Constant, " << config_handler->momentum_const << ", ---" << endl;
+		file << "Number of Updates, " << config_handler->max_num_updates << ", ---" << endl << endl;
+		
+		file << "{ Tunable Parameter Ranges }" << endl;
+		file << "X Length Range, " << config_handler->min_x_len << ", " << config_handler->max_x_len << ", meters" << endl;
+		file << "X Multiplier Range, " << config_handler->min_x_mult << ", " << config_handler->max_x_mult << ", ---" << endl;
+		file << "Time Step Range, " << config_handler->min_time_step << ", " << config_handler->max_time_step << ", seconds" << endl;
+		file << "Time Multipler Range, " << config_handler->min_time_mult << ", " << config_handler->max_time_mult << ", ---" << endl;
+		file << "Transitional Cure Rate Range, " << config_handler->min_tran_cure << ", " << config_handler->max_tran_cure << ", 1/second" << endl << endl;
+		
+		file << "{ Training Set }" << endl;
+		file << "Monomer, Initial Cure, Initial Temperature, Target Front Speed" << endl;
+		for(unsigned int i = 0; i < config_handler->name_list.size(); i++)
+		{
+			file << config_handler->name_list[i] << ", " << config_handler->initial_cure_list[i] << ", " << config_handler->initial_temp_list[i] << ", " << config_handler->front_speed_list[i] << endl;
 		}
-		log_file << "\n Tuning parameters...\n";
+		file << endl;
+		
+		file << "{ Training Results }" << endl;
+		file << "Update Number, Fine X length, X Step Multiplier, Time Step, Time Step Multiplier, Transitional Cure Rate, Learning Rate, Normalized Sim Duration, Normalized Max Deviation, Normalized Stdev, Loss" << endl;
+		file << "---, Meters, ---, Seconds, ---, 1/Second, ---, ---, ---, ---, ---" << endl;
+	}
+	else 
+	{ 
+		cout << "Unable to open config_files/log.dat." << endl; 
+		throw 4; 
+	}
+	
+	file.close();
+	
+	update_num = 1;
+}
+
+
+/**
+* Writes to the log file
+* @param length of fine mesh in x direction
+* @param fine grid x step multiplier
+* @param coarse time step
+* @param fine time step multiplier
+* @param transitional cure rate
+* @param Configuration file handler
+* @param Array containing loss data
+* @return 0 on success, 1 on failure
+*/
+int Logger::write(double fine_x_len, int x_step_mult, double time_step, int time_mult, double trans_cure_rate, Config_Handler* config_handler, double loss_data[4])
+{
+	// Open log file and write data
+	file.open("config_files/log.dat", ofstream::app);
+	if (file.is_open()) 
+	{ 
+		file << update_num++ << ", " << fine_x_len << ", " << x_step_mult << ", " << time_step << ", " << time_mult << ", " << trans_cure_rate << ", " << config_handler->learning_rate << ", " << loss_data[0] << ", " << loss_data[1] << ", " << loss_data[2] << ", " << loss_data[3] << "\n";
 	}
 	else 
 	{ 
@@ -891,23 +620,555 @@ int main()
 		return 1; 
 	}
 	
-	// Print simulation parameters
-	cout << "\n Tuning parameters...\n";
-	for(unsigned int i = 0; i < name_list.size(); i++)
+	// Close the log file
+	file.close();
+	return 0;
+}
+
+
+//******************************************************************** TRAINING LOOP AND FUNCTIONS ********************************************************************//
+/**
+* Gets a random value between min and max
+* @param Lower bound
+* @param Upper bound
+* @return Random value
+*/
+template <typename T> T get_rand(T min, T max)
+{
+	double range = (double)max - (double)min;
+	double random = (double)rand() / (double)RAND_MAX;
+	double value = (double)min + range*random;
+	return (T)value;
+}
+template <> int get_rand<int>(int min, int max)
+{
+	double range = (double)max - (double)min;
+	double random = (double)rand() / (double)RAND_MAX;
+	double value = (double)min + range*random;
+	return (int)round(value);
+}
+
+
+/**
+* Runs a single FROMP simulation and calculates the loss
+* @param Configuration handler directing optimization
+* @return The loss value of the simulation
+*/
+double* run_sim(Config_Handler* config_handler)
+{
+	// Reset FDS
+	Finite_Difference_Solver* FDS;
+	FDS = new Finite_Difference_Solver();
+	FDS->reset();
+	
+	// Fitness values
+	double curr_dev;
+	int population_size = 0;
+	double normalized_sim_duration;
+	double normalized_max_dev = 0.0;
+	double normalized_stdev = 0.0;
+	
+	// Simulation variables
+	int steps_per_frame = (int) round(1.0 / (FDS->get_coarse_time_step() * config_handler->frame_rate));
+	steps_per_frame = steps_per_frame < 1 ? 1 : steps_per_frame;
+	bool done_simulating = false;
+	int step_in_trajectory = 0;
+
+	// Simulation loop
+	auto sim_start_time = chrono::high_resolution_clock::now();
+	while (!done_simulating)
 	{
-		cout << get_sim_info(name_list.size(), i+1, name_list[i], initial_cure_list[i], initial_temp_list[i], front_speed_list[i]) << "\n";
-		log_file << get_sim_info(name_list.size(), i+1, name_list[i], initial_cure_list[i], initial_temp_list[i], front_speed_list[i]) << "\n"; 
+		// Calculate the front velocity stdev at each frame after front stablization
+		if ((step_in_trajectory % steps_per_frame == 0) && (FDS->get_progress() >= 53.85))
+		{	
+			// Calculate deviation data
+			curr_dev = (FDS->get_curr_target() - FDS->get_front_vel()) * (FDS->get_curr_target() - FDS->get_front_vel());
+			normalized_max_dev = curr_dev > normalized_max_dev ? curr_dev : normalized_max_dev;
+			normalized_stdev +=  curr_dev;
+			population_size++;
+		}
+		
+		// Step the environment 
+		done_simulating = FDS->step(0.0, 0.0, 0.0);
+		step_in_trajectory++;
 	}
-	log_file.close();
+	
+	// Calculate and normalize the sim duration
+	normalized_sim_duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - sim_start_time ).count())*10e-7;
+	normalized_sim_duration = normalized_sim_duration / config_handler->sim_duration;
+	
+	// Normalize the max deviation
+	normalized_max_dev = sqrt(normalized_max_dev) / config_handler->avg_front_speed;
+	
+	// Calculate the and normalize stdev
+	normalized_stdev = sqrt(normalized_stdev / population_size);
+	normalized_stdev = normalized_stdev / config_handler->avg_front_speed;
+	
+	// Calculate the return values
+	double* return_val = new double[4];
+	return_val[0] = normalized_sim_duration;
+	return_val[1] = normalized_max_dev;
+	return_val[2] = normalized_stdev;
+	return_val[3] = config_handler->duration_const*normalized_sim_duration + config_handler->max_dev_const*normalized_max_dev + config_handler->stdev_const*normalized_stdev;
+	
+	// Delete and return
+	delete FDS;
+	return return_val;
+}
+
+
+/**
+* Performs gradient descent to optimize tunable parameters
+* @param Configuration handler directing optimization
+* @param Logger
+* @return 0 on success, 1 on failure
+*/
+int optimize(Config_Handler* config_handler, Logger* logger)
+{
+	
+	// Initial tunable parameters to random value
+	double curr_x_len = get_rand<double>(config_handler->min_x_len, config_handler->max_x_len);
+	int curr_x_mult = get_rand<int>(config_handler->min_x_mult, config_handler->max_x_mult);
+	double curr_time_step = get_rand<double>(config_handler->min_time_step, config_handler->max_time_step);
+	int curr_time_mult = get_rand<int>(config_handler->min_time_mult, config_handler->max_time_mult);
+	double curr_tran_cure = get_rand<double>(config_handler->min_tran_cure, config_handler->max_tran_cure);
+	cout << "\nParameters: < " << curr_x_len << ", " << curr_x_mult << ", " << curr_time_step << ", " << curr_time_mult << ", " << curr_tran_cure << " >\n";
+
+	// Best tunable parameters storage
+	double lowest_loss = 1.0e16;
+	double best_x_len = curr_x_len;
+	int best_x_mult = curr_x_mult;
+	double best_time_step = curr_time_step;
+	int best_time_mult = curr_time_mult;
+	double best_tran_cure = curr_tran_cure;
+
+	// Calculate tunable parameter ranges
+	double x_len_range = config_handler->max_x_len - config_handler->min_x_len;
+	double time_step_range = config_handler->max_time_step - config_handler->min_time_step;
+	double tran_cure_range = config_handler->max_tran_cure - config_handler->min_tran_cure;
+
+	// Set range normalized step size for determining gradient
+	double step_size = config_handler->max_step / 2.0;
+	
+	// Descent and momentum variables
+	double x_len_step;
+	double time_step_step;
+	double tran_cure_step;
+	double x_len_prev_step = 0.0;
+	double time_step_prev_step = 0.0;
+	double tran_cure_prev_step = 0.0;
+
+	// Traning loop
+	for ( unsigned int curr_update = 0; curr_update < config_handler->max_num_updates; curr_update++ )
+	{
+		cout << "Learning Rate: " << config_handler->learning_rate << "\n";
+		cout << "----------------------------------------------------\n";
+		
+		// Variables used to track loss data
+		double* curr_loss_data;
+		double loss_data[5][2][4];
+		double before_discrete_step_loss_data[4] = { 0.0, 0.0, 0.0, 0.0 };
+		double after_discrete_step_loss_data[4] = { 0.0, 0.0, 0.0, 0.0 };
+		for ( int i = 0; i < 5; i++ )
+		for ( int j = 0; j < 2; j++ )
+		for ( int k = 0; k < 4; k++ )
+		{
+			loss_data[i][j][k] = 0.0;
+		}
+		
+		// Calculate losses at each training point +- small radius
+		for ( unsigned int i = 0; i < config_handler->front_speed_list.size(); i++ )
+		{
+			// Assign current training point
+			if( config_handler->set_params(i) == 1)
+			{
+				return 1;
+			}
+			cout << "**** TUNING POINT " << i+1 << " ****\n";
+			
+			// - x_len loss
+			if( config_handler->update_tunable_params(curr_x_len - step_size*x_len_range, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { loss_data[0][0][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			cout << "-X length loss:  " << curr_loss_data[3] << "\n";
+			
+			// + x_len loss
+			if( config_handler->update_tunable_params(curr_x_len + step_size*x_len_range, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { loss_data[0][1][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			cout << "+X length loss:  " <<  curr_loss_data[3] << "\n";
+			
+			// - time_step loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step - step_size*time_step_range, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { loss_data[1][0][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			cout << "-Time step loss: " <<  curr_loss_data[3] << "\n";
+			
+			// + time_step loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step + step_size*time_step_range, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { loss_data[1][1][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			cout << "+Time step loss: " <<  curr_loss_data[3] << "\n";
+			
+			// - trans_cure_rate loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure - step_size*tran_cure_range) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { loss_data[2][0][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			cout << "-Tran cure loss: " <<  curr_loss_data[3] << "\n";
+			
+			// + trans_cure_rate loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure + step_size*tran_cure_range) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { loss_data[2][1][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			cout << "+Tran cure loss: " <<  curr_loss_data[3] << "\n";
+		}
+		
+		// Calculate the gradient
+		double gradient[3];
+		gradient[0] = (loss_data[0][1][3] - loss_data[0][0][3]);
+		gradient[1] = (loss_data[1][1][3] - loss_data[1][0][3]);
+		gradient[2] = (loss_data[2][1][3] - loss_data[2][0][3]);
+		cout << "----------------------------------------------------\n";
+		cout << "Gradient: < " << gradient[0] << ", " << gradient[1] << ", " << gradient[2] << " >\n";
+		
+		// Calculate descent step
+		x_len_step = config_handler->momentum_const * x_len_prev_step + config_handler->learning_rate * gradient[0] * x_len_range;
+		time_step_step = config_handler->momentum_const * time_step_prev_step + config_handler->learning_rate * gradient[1] * time_step_range;
+		tran_cure_step = config_handler->momentum_const * tran_cure_prev_step + config_handler->learning_rate * gradient[2] * tran_cure_range;
+		
+		// Ensure step is into acceptable range
+		x_len_step = curr_x_len - x_len_step < config_handler->min_x_len ? curr_x_len - config_handler->min_x_len : x_len_step;
+		x_len_step = curr_x_len - x_len_step > config_handler->max_x_len ? curr_x_len - config_handler->max_x_len : x_len_step;
+		time_step_step = curr_time_step - time_step_step < config_handler->min_time_step ? curr_time_step - config_handler->min_time_step : time_step_step;
+		time_step_step = curr_time_step - time_step_step > config_handler->max_time_step ? curr_time_step - config_handler->max_time_step : time_step_step;
+		tran_cure_step = curr_tran_cure - tran_cure_step < config_handler->min_tran_cure ? curr_tran_cure - config_handler->min_tran_cure : tran_cure_step;
+		tran_cure_step = curr_tran_cure - tran_cure_step > config_handler->max_tran_cure ? curr_tran_cure - config_handler->max_tran_cure : tran_cure_step;
+		
+		// Ensure step does not exceed max step
+		x_len_step = abs(x_len_step) > config_handler->max_step * x_len_range ? (x_len_step/abs(x_len_step)) * (config_handler->max_step*x_len_range) : x_len_step;
+		time_step_step = abs(time_step_step) > config_handler->max_step * time_step_range ? (time_step_step/abs(time_step_step)) * (config_handler->max_step*time_step_range) : time_step_step;
+		tran_cure_step = abs(tran_cure_step) > config_handler->max_step * tran_cure_range ? (tran_cure_step/abs(tran_cure_step)) * (config_handler->max_step*tran_cure_range) : tran_cure_step;
+		
+		cout << "Step: < " << -100.0*x_len_step/x_len_range << "% , " << -100.0*time_step_step/time_step_range << "% , " << -100.0*tran_cure_step/tran_cure_range << "% >\n";
+		cout << "Momentum: < " << -100.0*x_len_prev_step/x_len_range << "% , " << -100.0*time_step_prev_step/time_step_range << "% , " << -100.0*tran_cure_prev_step/tran_cure_range << "% >\n";
+		
+		// Take descent step
+		curr_x_len = curr_x_len - x_len_step;
+		curr_time_step = curr_time_step - time_step_step;
+		curr_tran_cure = curr_tran_cure - tran_cure_step;
+		
+		// Update momentum values
+		x_len_prev_step = x_len_step;
+		time_step_prev_step = time_step_step;
+		tran_cure_prev_step = x_len_prev_step;
+		
+		// Calculate the loss after the gradient step but before the discrete step
+		for ( unsigned int i = 0; i < config_handler->front_speed_list.size(); i++ )
+		{
+			// Assign current training point
+			if( config_handler->set_params(i) == 1)
+			{
+				return 1;
+			}
+			
+			// Calculate loss
+			if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+			{
+				return 1;
+			}
+			curr_loss_data = run_sim(config_handler);
+			for( int j = 0; j < 4; j++ ) { before_discrete_step_loss_data[j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+			
+		}
+		cout << "Before discrete loss: " << before_discrete_step_loss_data[3] << "\n";
+		cout << "----------------------------------------------------\n";
+		
+		// Calculate losses at each training point +- 1 on discrete values
+		for ( unsigned int i = 0; i < config_handler->front_speed_list.size(); i++ )
+		{
+			// Assign current training point
+			if( config_handler->set_params(i) == 1)
+			{
+				return 1;
+			}
+			cout << "****** TUNING POINT " << i+1 << " ******\n";
+			
+			// - x_mult loss
+			if( curr_x_mult - 1 >= config_handler->min_x_mult )
+			{
+				if( config_handler->update_tunable_params(curr_x_len, curr_x_mult - 1, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+				{
+					return 1;
+				}
+				curr_loss_data = run_sim(config_handler);
+				for( int j = 0; j < 4; j++ ) { loss_data[3][0][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+				cout << "-X multiplier loss: " << curr_loss_data[3] << "\n";
+			}
+			else
+			{
+				for( int j = 0; j < 4; j++ ) { loss_data[3][0][j] += 1.0e16; }
+				cout << "-X multiplier loss: INF\n";
+			}
+
+			
+			// + x_mult loss
+			if( curr_x_mult + 1 <= config_handler->max_x_mult )
+			{
+				if( config_handler->update_tunable_params(curr_x_len, curr_x_mult + 1, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+				{
+					return 1;
+				}
+				curr_loss_data = run_sim(config_handler);
+				for( int j = 0; j < 4; j++ ) { loss_data[3][1][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+				cout << "+X multiplier loss: " << curr_loss_data[3] << "\n";
+			}
+			else
+			{
+				for( int j = 0; j < 4; j++ ) { loss_data[3][1][j] += 1.0e16; }
+				cout << "+X multiplier loss: INF\n";
+			}
+			
+			// - time_mult loss
+			if( curr_time_mult - 1 >= config_handler->min_time_mult )
+			{
+				if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult - 1, curr_tran_cure) == 1)
+				{
+					return 1;
+				}
+				curr_loss_data = run_sim(config_handler);
+				for( int j = 0; j < 4; j++ ) { loss_data[4][0][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+				cout << "-Time mult loss:    " << curr_loss_data[3] << "\n";
+			}
+			else
+			{
+				for( int j = 0; j < 4; j++ ) { loss_data[4][0][j] += 1.0e16; }
+				cout << "-Time mult loss:    INF\n";
+			}
+			
+			// + time_mult loss
+			if( curr_time_mult + 1 <= config_handler->max_time_mult )
+			{
+				if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult + 1, curr_tran_cure) == 1)
+				{
+					return 1;
+				}
+				curr_loss_data = run_sim(config_handler);
+				for( int j = 0; j < 4; j++ ) { loss_data[4][1][j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+				cout << "+Time mult loss:    " << curr_loss_data[3] << "\n";
+			}
+			else
+			{
+				for( int j = 0; j < 4; j++ ) { loss_data[4][1][j] += 1.0e16; }
+				cout << "+Time mult loss:    INF\n";
+			}
+		}
+		
+		// Calculate the performance of each discrete step
+		double down_x_mult_delta = loss_data[3][0][3] - before_discrete_step_loss_data[3];
+		double up_x_mult_delta = loss_data[3][1][3] - before_discrete_step_loss_data[3];
+		double down_time_mult_delta = loss_data[4][0][3] - before_discrete_step_loss_data[3];
+		double up_time_mult_delta = loss_data[4][1][3] - before_discrete_step_loss_data[3];
+		bool down_x_mult_better = (down_x_mult_delta < 0.0) && (down_x_mult_delta <= up_x_mult_delta);
+		bool up_x_mult_better = (up_x_mult_delta < 0.0) && (up_x_mult_delta < down_x_mult_delta);
+		bool down_time_mult_better = (down_time_mult_delta < 0.0) && (down_time_mult_delta <= up_time_mult_delta);
+		bool up_time_mult_better = (up_time_mult_delta < 0.0) && (up_time_mult_delta < down_time_mult_delta);
+		
+		// Take a discrete x multiplier step
+		if ( down_x_mult_better )
+		{
+			curr_x_mult--;
+		}
+		if ( up_x_mult_better )
+		{
+			curr_x_mult++;
+		}
+		
+		// Take a discrete time multiplier step
+		if ( down_time_mult_better )
+		{
+			curr_time_mult--;
+		}
+		if ( up_time_mult_better )
+		{
+			curr_time_mult++;
+		}
+		
+		// If no step was taken, set after discrete step loss data to before discrete step loss data
+		if ( !down_x_mult_better && !up_x_mult_better && !down_time_mult_better && !up_time_mult_better )
+		{
+			for ( int i = 0; i < 4; i++ )
+			{
+				after_discrete_step_loss_data[i] = before_discrete_step_loss_data[i];
+			}
+		}
+		
+		// If only the x multiplier was changed, set after discrete step loss data to corresponding x multipler loss data
+		else if ( (down_x_mult_better || up_x_mult_better) && !down_time_mult_better && !up_time_mult_better )
+		{
+			if ( down_x_mult_better )
+			{
+				for ( int i = 0; i < 4; i++ )
+				{
+					after_discrete_step_loss_data[i] = loss_data[3][0][i];
+				}
+			}
+			else if ( up_x_mult_better )
+			{
+				for ( int i = 0; i < 4; i++ )
+				{
+					after_discrete_step_loss_data[i] = loss_data[3][1][i];
+				}
+			}
+		}
+		
+		// If only the time multiplier was changed, set after discrete step loss data to corresponding time multipler loss data
+		else if ( !down_x_mult_better && !up_x_mult_better && (down_time_mult_better || up_time_mult_better) )
+		{
+			if ( down_time_mult_better )
+			{
+				for ( int i = 0; i < 4; i++ )
+				{
+					after_discrete_step_loss_data[i] = loss_data[4][0][i];
+				}
+			}
+			else if ( up_time_mult_better )
+			{
+				for ( int i = 0; i < 4; i++ )
+				{
+					after_discrete_step_loss_data[i] = loss_data[4][1][i];
+				}
+			}
+		}
+		
+		// If both multipliers were changed, resimulate to get the after discrete step loss data
+		else
+		{
+			for ( unsigned int i = 0; i < config_handler->front_speed_list.size(); i++ )
+			{
+				// Assign current training point
+				if( config_handler->set_params(i) == 1)
+				{
+					return 1;
+				}
+				
+				// Calculate loss
+				if( config_handler->update_tunable_params(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure) == 1)
+				{
+					return 1;
+				}
+				curr_loss_data = run_sim(config_handler);
+				for( int j = 0; j < 4; j++ ) { after_discrete_step_loss_data[j] += (1.0 / (double)config_handler->front_speed_list.size()) * curr_loss_data[j]; }
+				
+			}
+		}
+		cout << "----------------------------------------------------\n";
+		cout << "After discrete loss: " << after_discrete_step_loss_data[3] << "\n\n";
+		cout << "\nParameters: < " << curr_x_len << ", " << curr_x_mult << ", " << curr_time_step << ", " << curr_time_mult << ", " << curr_tran_cure << " >\n";
+		
+		// Update best tunable parameters storage
+		if ( after_discrete_step_loss_data[3] < lowest_loss )
+		{
+			lowest_loss = after_discrete_step_loss_data[3];
+			best_x_len = curr_x_len;
+			best_x_mult = curr_x_mult;
+			best_time_step = curr_time_step;
+			best_time_mult = curr_time_mult;
+			best_tran_cure = curr_tran_cure;
+		}
+		
+		// Write to log
+		if( logger->write(curr_x_len, curr_x_mult, curr_time_step, curr_time_mult, curr_tran_cure, config_handler, after_discrete_step_loss_data) == 1 )
+		{
+			return 1;
+		}
+		
+		// Update learning rate
+		config_handler->learning_rate = config_handler->learning_rate * config_handler->learning_rate_decay;
+		
+		// Cleanup
+		delete curr_loss_data;
+		
+		// Termination condition
+		if ( false )
+		{
+			break;
+		}
+		
+	}
+	
+	// Save best results
+	config_handler->save_new_config(best_x_len, best_x_mult, best_time_step, best_time_mult, best_tran_cure);
+	
+	return 0;
+
+}
+
+
+//******************************************************************** MAIN LOOP ********************************************************************//
+int main()
+{
+	// Initialize configuration handler
+	Config_Handler* config_handler;
+	try
+	{
+		config_handler = new Config_Handler();
+	}
+	catch (int e)
+	{
+		cout << "An exception occurred. Exception num " << e << '\n';
+		return 1;
+	}
+	
+	// Initialize logger
+	Logger* logger;
+	try
+	{
+		logger = new Logger(config_handler);
+	}
+	catch (int e)
+	{
+		cout << "An exception occurred. Exception num " << e << '\n';
+		delete config_handler;
+		return 1;
+	}
+	
+	// Set randomization seed
+	srand(time(NULL));
 	
 	// Run simulation
+	cout << "Tuning...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(name_list, initial_cure_list, initial_temp_list, front_speed_list, params) == 1) { return 1; };
+	if ( optimize(config_handler, logger) == 1 ) 
+	{ 
+		delete config_handler;
+		delete logger;
+		return 1; 
+	}
 	
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
-	printf("\n\nTuning took: %.1f seconds.\nDone!", duration);
+	printf("\nTuning took: %.1f seconds.\nDone!", duration);
 	
-	// Finish
-	return reset_fds_config();
+	// Delete and return successful
+	delete config_handler;
+	delete logger;
+	return 0;
 }
