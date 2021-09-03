@@ -41,16 +41,16 @@ if __name__ == "__main__":
     samples_per_batch = 100
     x_dim = 256
     y_dim = 32
-    initial_training_criterion = 1.00
+    initial_training_criterion = 0.60
     path = 'training_data/DCPD_GC2'
     
     # Hyperparameters May train up to three autoencoders at once
     kernal_size  = [7]
     objct_func   = [1]
-    bottleneck   = [64]
-    weighted_arr = [1]
-    noise_arr = [0.01]
-    load_path = ["results/1_64_7_1_0.010"]
+    bottleneck   = [32]
+    weighted_arr = [0]
+    noise_arr = [0.05]
+    load_path = [""]
     alpha_zero = 1.0e-3;
     alpha_last = 1.0e-4;
     

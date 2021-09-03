@@ -602,6 +602,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* save_render_plot, int steps_per
 	printf("\nData conversion took: %.1f seconds.", duration);
 
 	// Save, plot, and render
+	start_time = chrono::high_resolution_clock::now();
 	return save_results(save_render_plot);
 }
 

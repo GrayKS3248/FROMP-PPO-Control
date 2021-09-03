@@ -1000,6 +1000,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 	printf("Simulation took: %.1f seconds.\n\nConverting simulation results...", duration);
 	
 	// Send all relevant data to save render and plot module
+	start_time = chrono::high_resolution_clock::now();
 	if(store_training_curves(save_render_plot, r_per_episode, critic_loss) == 1) {return 1;}
 	if(store_stdev_history(save_render_plot, x_rate_stdev, y_rate_stdev, mag_rate_stdev) == 1) {return 1;}
 	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent) == 1) {return 1;}
@@ -1015,6 +1016,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 	printf("\nData conversion took: %.1f seconds.", duration);
 
 	// Save, plot, and render
+	start_time = chrono::high_resolution_clock::now();
 	return save_agent_results(save_render_plot, agent);
 }
 

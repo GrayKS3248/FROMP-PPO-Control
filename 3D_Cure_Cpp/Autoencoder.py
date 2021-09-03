@@ -481,7 +481,7 @@ class Autoencoder:
         
         plt.clf()
         plt.title("Autoencoder Learning Curve",fontsize='xx-large')
-        plt.xlabel("Optimization Epoch",fontsize='large')
+        plt.xlabel("Optimization Batch",fontsize='large')
         plt.ylabel("RMS Reconstruction Error",fontsize='large')
         plt.plot([*range(len(training_curve))],training_curve,lw=2.5,c='r')
         plt.yscale("log")
@@ -508,14 +508,14 @@ class Autoencoder:
         fig.set_size_inches(16,2.6667)
         
         # Plot temperature
-        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
         ax0.tick_params(axis='x',labelsize=12)
         ax0.tick_params(axis='y',labelsize=12)
         ax0.set_aspect(0.25, adjustable='box')
         ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
         
         # Plot rebuilt temperature
-        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
         cbar1 = fig.colorbar(c1, ax=ax1, pad=0.1)
         cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
         cbar1.ax.tick_params(labelsize=12)
@@ -546,14 +546,14 @@ class Autoencoder:
         fig.set_size_inches(16,5.333)
         
         # Plot temperature
-        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
         ax0.tick_params(axis='x',labelsize=12)
         ax0.tick_params(axis='y',labelsize=12)
         ax0.set_aspect(0.25, adjustable='box')
         ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
         
         # Plot rebuilt temperature
-        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
         cbar1 = fig.colorbar(c1, ax=ax1, pad=0.1)
         cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
         cbar1.ax.tick_params(labelsize=12)
@@ -563,14 +563,14 @@ class Autoencoder:
         ax1.set_title('Rebuilt Temperature Field',fontsize='x-large')
         
         # Plot front location
-        ax2.pcolormesh(x_grid, y_grid, np.transpose(front), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
+        ax2.pcolormesh(x_grid, y_grid, np.transpose(front), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
         ax2.tick_params(axis='x',labelsize=12)
         ax2.tick_params(axis='y',labelsize=12)
         ax2.set_aspect(0.25, adjustable='box')
         ax2.set_title('True Front Mask (Unobserved)',fontsize='x-large')
         
         # Plot inferred front location
-        ax3.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_front), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
+        ax3.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_front), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
         ax3.tick_params(axis='x',labelsize=12)
         ax3.tick_params(axis='y',labelsize=12)
         ax3.set_aspect(0.25, adjustable='box')
@@ -600,14 +600,14 @@ class Autoencoder:
         fig.set_size_inches(16,8)
         
         # Plot temperature
-        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
         ax0.tick_params(axis='x',labelsize=12)
         ax0.tick_params(axis='y',labelsize=12)
         ax0.set_aspect(0.25, adjustable='box')
         ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
         
         # Plot rebuilt temperature
-        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
         cbar1 = fig.colorbar(c1, ax=ax1, pad=0.025)
         cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
         cbar1.ax.tick_params(labelsize=12)
@@ -617,28 +617,28 @@ class Autoencoder:
         ax1.set_title('Rebuilt Temperature Field',fontsize='x-large')
         
         # Plot front location
-        ax2.pcolormesh(x_grid, y_grid, np.transpose(front), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
+        ax2.pcolormesh(x_grid, y_grid, np.transpose(front), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
         ax2.tick_params(axis='x',labelsize=12)
         ax2.tick_params(axis='y',labelsize=12)
         ax2.set_aspect(0.25, adjustable='box')
         ax2.set_title('True Front Mask (Unobserved)',fontsize='x-large')
         
         # Plot inferred front location
-        ax3.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_front), shading='gouraud', cmap='binary', vmin=0.0, vmax=1.0)
+        ax3.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_front), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
         ax3.tick_params(axis='x',labelsize=12)
         ax3.tick_params(axis='y',labelsize=12)
         ax3.set_aspect(0.25, adjustable='box')
         ax3.set_title('Inferred Front Mask',fontsize='x-large')
         
         # Cure frame
-        ax4.pcolormesh(x_grid, y_grid, np.transpose(cure), shading='gouraud', cmap='YlOrRd', vmin=0.0, vmax=1.0)
+        ax4.pcolormesh(x_grid, y_grid, np.transpose(cure), shading='nearest', cmap='YlOrRd', vmin=0.0, vmax=1.0)
         ax4.tick_params(axis='x',labelsize=12)
         ax4.tick_params(axis='y',labelsize=12)
         ax4.set_aspect(0.25, adjustable='box')
         ax4.set_title('True Cure Field (Unobserved)',fontsize='x-large')
         
         # Inferred cure degree
-        c5 = ax5.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_cure), shading='gouraud', cmap='YlOrRd', vmin=0.0, vmax=1.0)
+        c5 = ax5.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_cure), shading='nearest', cmap='YlOrRd', vmin=0.0, vmax=1.0)
         cbar5 = fig.colorbar(c5, ax=ax5, pad=0.025)
         cbar5.set_label('Degree Cure [-]',labelpad=10,fontsize='large')
         cbar5.ax.tick_params(labelsize=12)
@@ -719,7 +719,7 @@ class Autoencoder:
         fig.set_size_inches(8,2.6667)
         
         # Plot input
-        ax0.pcolormesh(temp_x_grid, temp_y_grid, np.transpose(temp), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.pcolormesh(temp_x_grid, temp_y_grid, np.transpose(temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
         ax0.axes.xaxis.set_visible(False)
         ax0.axes.yaxis.set_visible(False)
         ax0.set_aspect(0.25, adjustable='box')
@@ -733,17 +733,17 @@ class Autoencoder:
         plt.cla()
         plt.clf()
         fig, (ax0, ax1) = plt.subplots(1, 2, constrained_layout=True)
-        fig.set_size_inches(16,2.6667)
+        fig.set_size_inches(16,3.0)
         
         # Plot fm1
-        ax0.pcolormesh(features_1_x_grid, features_1_y_grid, np.transpose(features_1[0,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.pcolormesh(features_1_x_grid, features_1_y_grid, np.transpose(features_1[0,:,:]), shading='nearest', cmap='jet')
         ax0.axes.xaxis.set_visible(False)
         ax0.axes.yaxis.set_visible(False)
         ax0.set_aspect(0.25, adjustable='box')
         ax0.set_title('Feature Map 1',fontsize='x-large')
         
         # Plot fm2
-        ax1.pcolormesh(features_1_x_grid, features_1_y_grid, np.transpose(features_1[1,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax1.pcolormesh(features_1_x_grid, features_1_y_grid, np.transpose(features_1[1,:,:]), shading='nearest', cmap='jet')
         ax1.axes.xaxis.set_visible(False)
         ax1.axes.yaxis.set_visible(False)
         ax1.set_aspect(0.25, adjustable='box')
@@ -758,31 +758,31 @@ class Autoencoder:
         plt.cla()
         plt.clf()
         fig, ((ax0, ax1), (ax2, ax3)) = plt.subplots(2, 2, constrained_layout=True)
-        fig.set_size_inches(16,5.3333)
+        fig.set_size_inches(16,6.0)
         
         # Plot fm1
-        ax0.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[0,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[0,:,:]), shading='nearest', cmap='jet')
         ax0.axes.xaxis.set_visible(False)
         ax0.axes.yaxis.set_visible(False)
         ax0.set_aspect(0.25, adjustable='box')
         ax0.set_title('Feature Map 1',fontsize='x-large')
         
         # Plot fm2
-        ax1.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[1,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax1.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[1,:,:]), shading='nearest', cmap='jet')
         ax1.axes.xaxis.set_visible(False)
         ax1.axes.yaxis.set_visible(False)
         ax1.set_aspect(0.25, adjustable='box')
         ax1.set_title('Feature Map 2',fontsize='x-large')
         
         # Plot fm3
-        ax2.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[2,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax2.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[2,:,:]), shading='nearest', cmap='jet')
         ax2.axes.xaxis.set_visible(False)
         ax2.axes.yaxis.set_visible(False)
         ax2.set_aspect(0.25, adjustable='box')
         ax2.set_title('Feature Map 3',fontsize='x-large')
         
         # Plot fm4
-        ax3.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[3,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax3.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[3,:,:]), shading='nearest', cmap='jet')
         ax3.axes.xaxis.set_visible(False)
         ax3.axes.yaxis.set_visible(False)
         ax3.set_aspect(0.25, adjustable='box')
@@ -797,115 +797,115 @@ class Autoencoder:
         plt.cla()
         plt.clf()
         fig, ((ax0, ax1), (ax2, ax3), (ax4, ax5), (ax6, ax7), (ax8, ax9), (ax10, ax11), (ax12, ax13), (ax14, ax15)) = plt.subplots(8, 2, constrained_layout=True)
-        fig.set_size_inches(16,21.3333)
+        fig.set_size_inches(16,24.0)
         
         # Plot fm1
-        ax0.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[0,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax0.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[0,:,:]), shading='nearest', cmap='jet')
         ax0.axes.xaxis.set_visible(False)
         ax0.axes.yaxis.set_visible(False)
         ax0.set_aspect(0.25, adjustable='box')
         ax0.set_title('Feature Map 1',fontsize='x-large')
         
         # Plot fm2
-        ax1.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[1,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax1.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[1,:,:]), shading='nearest', cmap='jet')
         ax1.axes.xaxis.set_visible(False)
         ax1.axes.yaxis.set_visible(False)
         ax1.set_aspect(0.25, adjustable='box')
         ax1.set_title('Feature Map 2',fontsize='x-large')
         
         # Plot fm3
-        ax2.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[2,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax2.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[2,:,:]), shading='nearest', cmap='jet')
         ax2.axes.xaxis.set_visible(False)
         ax2.axes.yaxis.set_visible(False)
         ax2.set_aspect(0.25, adjustable='box')
         ax2.set_title('Feature Map 3',fontsize='x-large')
         
         # Plot fm4
-        ax3.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[3,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax3.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[3,:,:]), shading='nearest', cmap='jet')
         ax3.axes.xaxis.set_visible(False)
         ax3.axes.yaxis.set_visible(False)
         ax3.set_aspect(0.25, adjustable='box')
         ax3.set_title('Feature Map 4',fontsize='x-large')
         
         # Plot fm5
-        ax4.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[4,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax4.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[4,:,:]), shading='nearest', cmap='jet')
         ax4.axes.xaxis.set_visible(False)
         ax4.axes.yaxis.set_visible(False)
         ax4.set_aspect(0.25, adjustable='box')
         ax4.set_title('Feature Map 5',fontsize='x-large')
         
         # Plot fm6
-        ax5.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[5,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax5.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[5,:,:]), shading='nearest', cmap='jet')
         ax5.axes.xaxis.set_visible(False)
         ax5.axes.yaxis.set_visible(False)
         ax5.set_aspect(0.25, adjustable='box')
         ax5.set_title('Feature Map 6',fontsize='x-large')
         
         # Plot fm7
-        ax6.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[6,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax6.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[6,:,:]), shading='nearest', cmap='jet')
         ax6.axes.xaxis.set_visible(False)
         ax6.axes.yaxis.set_visible(False)
         ax6.set_aspect(0.25, adjustable='box')
         ax6.set_title('Feature Map 7',fontsize='x-large')
         
         # Plot fm8
-        ax7.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[7,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax7.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[7,:,:]), shading='nearest', cmap='jet')
         ax7.axes.xaxis.set_visible(False)
         ax7.axes.yaxis.set_visible(False)
         ax7.set_aspect(0.25, adjustable='box')
         ax7.set_title('Feature Map 8',fontsize='x-large')
         
         # Plot fm9
-        ax8.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[8,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax8.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[8,:,:]), shading='nearest', cmap='jet')
         ax8.axes.xaxis.set_visible(False)
         ax8.axes.yaxis.set_visible(False)
         ax8.set_aspect(0.25, adjustable='box')
         ax8.set_title('Feature Map 9',fontsize='x-large')
         
         # Plot fm10
-        ax9.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[9,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax9.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[9,:,:]), shading='nearest', cmap='jet')
         ax9.axes.xaxis.set_visible(False)
         ax9.axes.yaxis.set_visible(False)
         ax9.set_aspect(0.25, adjustable='box')
         ax9.set_title('Feature Map 10',fontsize='x-large')
         
         # Plot fm11
-        ax10.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[10,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax10.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[10,:,:]), shading='nearest', cmap='jet')
         ax10.axes.xaxis.set_visible(False)
         ax10.axes.yaxis.set_visible(False)
         ax10.set_aspect(0.25, adjustable='box')
         ax10.set_title('Feature Map 11',fontsize='x-large')
         
         # Plot fm12
-        ax11.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[11,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax11.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[11,:,:]), shading='nearest', cmap='jet')
         ax11.axes.xaxis.set_visible(False)
         ax11.axes.yaxis.set_visible(False)
         ax11.set_aspect(0.25, adjustable='box')
         ax11.set_title('Feature Map 12',fontsize='x-large')
         
         # Plot fm13
-        ax12.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[12,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax12.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[12,:,:]), shading='nearest', cmap='jet')
         ax12.axes.xaxis.set_visible(False)
         ax12.axes.yaxis.set_visible(False)
         ax12.set_aspect(0.25, adjustable='box')
         ax12.set_title('Feature Map 13',fontsize='x-large')
         
         # Plot fm14
-        ax13.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[13,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax13.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[13,:,:]), shading='nearest', cmap='jet')
         ax13.axes.xaxis.set_visible(False)
         ax13.axes.yaxis.set_visible(False)
         ax13.set_aspect(0.25, adjustable='box')
         ax13.set_title('Feature Map 14',fontsize='x-large')
         
         # Plot fm15
-        ax14.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[14,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax14.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[14,:,:]), shading='nearest', cmap='jet')
         ax14.axes.xaxis.set_visible(False)
         ax14.axes.yaxis.set_visible(False)
         ax14.set_aspect(0.25, adjustable='box')
         ax14.set_title('Feature Map 15',fontsize='x-large')
         
         # Plot fm16
-        ax15.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[15,:,:]), shading='gouraud', cmap='jet', vmin=0.0, vmax=1.0)
+        ax15.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[15,:,:]), shading='nearest', cmap='jet')
         ax15.axes.xaxis.set_visible(False)
         ax15.axes.yaxis.set_visible(False)
         ax15.set_aspect(0.25, adjustable='box')
