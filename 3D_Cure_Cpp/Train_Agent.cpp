@@ -786,38 +786,6 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 	vector<double> y_rate_stdev;
 	vector<double> mag_rate_stdev;
 
-	// Best trajectory data
-	vector<double> input_location_x;
-	vector<double> input_location_y;
-	vector<double> input_percent;
-	vector<double> time;
-	vector<double> target;
-	vector<double> front_velocity;
-	vector<double> front_temperature;
-	vector<double> front_shape_param;
-	vector<vector<double>> fine_mesh_loc;
-	vector<vector<vector<double>>> front_curve;
-	vector<vector<vector<double>>> temperature_field;
-	vector<vector<vector<double>>> cure_field;
-	vector<vector<vector<double>>> fine_temperature_field;
-	vector<vector<vector<double>>> fine_cure_field;
-
-	// Current trajectory data
-	vector<double> curr_input_location_x;
-	vector<double> curr_input_location_y;
-	vector<double> curr_input_percent;
-	vector<double> curr_time;
-	vector<double> curr_target;
-	vector<double> curr_front_velocity;
-	vector<double> curr_front_temperature;
-	vector<double> curr_front_shape_param;
-	vector<vector<double>> curr_fine_mesh_loc;
-	vector<vector<vector<double>>> curr_front_curve;
-	vector<vector<vector<double>>> curr_temperature_field;
-	vector<vector<vector<double>>> curr_cure_field;
-	vector<vector<vector<double>>> curr_fine_temperature_field;
-	vector<vector<vector<double>>> curr_fine_cure_field;
-
 	// Simulation set variables
 	double total_reward = 0.0;
 	double best_episode_reward = 0.0;
@@ -830,7 +798,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 		// Initialize simulation variables
 		bool done = false;
 		double action_1=0.0, stdev_1=0.0, action_2=0.0, stdev_2=0.0, action_3=0.0, stdev_3=0.0, reward;
-		bool run_agent, save_frame;
+		bool run_agent;
 		int step_in_trajectory = 0;
 		
 		// User readout
@@ -845,40 +813,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 		{
 			// Determine what to run this simulation step
 			run_agent = (step_in_trajectory % steps_per_agent_cycle == 0) || (step_in_trajectory==0);
-			save_frame = (step_in_trajectory % steps_per_frame == 0) || (step_in_trajectory==0);
 			step_in_trajectory++;
-			
-			// Update the logs
-			if (save_frame)
-			{
-				// Get environment data
-				input_location = FDS->get_input_location();
-				
-				// Store simulation input data
-				curr_input_location_x.push_back(input_location[0]);
-				curr_input_location_y.push_back(input_location[1]);
-				curr_input_percent.push_back(FDS->get_input_percent());
-				
-				// Store simualtion target and time data
-				curr_time.push_back(FDS->get_curr_sim_time());
-				curr_target.push_back(FDS->get_curr_target());
-				
-				// Store simulation front data
-				curr_front_velocity.push_back(FDS->get_front_vel());
-				curr_front_temperature.push_back(FDS->get_front_temp());
-				curr_front_shape_param.push_back(FDS->get_front_shape_param());
-				curr_front_curve.push_back(FDS->get_front_curve());
-				
-				// Store fine mesh data
-				curr_fine_mesh_loc.push_back(FDS->get_fine_mesh_loc());
-				
-				// Store simulation field data
-				curr_temperature_field.push_back(FDS->get_coarse_temp_z0());
-				curr_cure_field.push_back(FDS->get_coarse_cure_z0());
-				curr_fine_temperature_field.push_back(FDS->get_fine_temp_z0());
-				curr_fine_cure_field.push_back(FDS->get_fine_cure_z0());
-				
-			}
 			
 			// Run the agent
 			if (run_agent)
@@ -953,37 +888,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 		if (prev_episode_reward > best_episode_reward || i == 0)
 		{
 			best_episode_reward = prev_episode_reward;
-			input_location_x = curr_input_location_x;
-			input_location_y = curr_input_location_y;
-			input_percent = curr_input_percent;
-			time = curr_time;
-			target = curr_target;
-			temperature_field = curr_temperature_field;
-			cure_field = curr_cure_field;
-			fine_temperature_field = curr_fine_temperature_field;
-			fine_cure_field = curr_fine_cure_field;
-			front_velocity = curr_front_velocity;
-			front_temperature = curr_front_temperature;
-			front_shape_param = curr_front_shape_param;
-			front_curve = curr_front_curve;
-			fine_mesh_loc = curr_fine_mesh_loc;
 		}
-
-		// Reset the current trajectory memory
-		curr_input_location_x.clear();
-		curr_input_location_y.clear();
-		curr_input_percent.clear();
-		curr_time.clear();
-		curr_target.clear();
-		curr_front_velocity.clear();
-		curr_front_temperature.clear();
-		curr_front_shape_param.clear();
-		curr_fine_mesh_loc.clear();
-		curr_front_curve.clear();
-		curr_temperature_field.clear();
-		curr_cure_field.clear();
-		curr_fine_temperature_field.clear();
-		curr_fine_cure_field.clear();
 
 		// Store actor training data
 		r_per_episode.push_back(prev_episode_reward/(double)steps_per_trajectory);
@@ -993,6 +898,109 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 
 		// Final user readout
 		if (i == total_trajectories - 1) { print_training_info(i, total_trajectories, prev_episode_reward, steps_per_trajectory, r_per_episode, best_episode_reward); }
+	}
+	
+	// Trajectory variables
+	vector<double> input_location_x;
+	vector<double> input_location_y;
+	vector<double> input_percent;
+	vector<double> time;
+	vector<double> target;
+	vector<double> front_velocity;
+	vector<double> front_temperature;
+	vector<double> front_shape_param;
+	vector<vector<vector<double>>> front_curve;
+	vector<vector<double>> fine_mesh_loc;
+	vector<vector<vector<double>>> temperature_field;
+	vector<vector<vector<double>>> cure_field;
+	vector<vector<vector<double>>> fine_temperature_field;
+	vector<vector<vector<double>>> fine_cure_field;
+	
+	// Run the simulation loop again to generate trajectory data
+	bool done = false;
+	double action_1=0.0, action_2=0.0, action_3=0.0;
+	bool run_agent, save_frame;
+	int step_in_trajectory = 0;
+	FDS->reset();
+	while (!done)
+	{
+		// Determine what to run this simulation step
+		run_agent = (step_in_trajectory % steps_per_agent_cycle == 0) || (step_in_trajectory==0);
+		save_frame = (step_in_trajectory % steps_per_frame == 0) || (step_in_trajectory==0);
+		step_in_trajectory++;
+		
+		// Update the logs
+		if (save_frame)
+		{
+			// Get environment data
+			input_location = FDS->get_input_location();
+			
+			// Store simulation input data
+			input_location_x.push_back(input_location[0]);
+			input_location_y.push_back(input_location[1]);
+			input_percent.push_back(FDS->get_input_percent());
+			
+			// Store simualtion target and time data
+			time.push_back(FDS->get_curr_sim_time());
+			target.push_back(FDS->get_curr_target());
+			
+			// Store simulation front data
+			front_velocity.push_back(FDS->get_front_vel());
+			front_temperature.push_back(FDS->get_front_temp());
+			front_shape_param.push_back(FDS->get_front_shape_param());
+			front_curve.push_back(FDS->get_front_curve());
+			
+			// Store fine mesh data
+			fine_mesh_loc.push_back(FDS->get_fine_mesh_loc());
+			
+			// Store simulation field data
+			temperature_field.push_back(FDS->get_coarse_temp_z0());
+			cure_field.push_back(FDS->get_coarse_cure_z0());
+			fine_temperature_field.push_back(FDS->get_fine_temp_z0());
+			fine_cure_field.push_back(FDS->get_fine_cure_z0());
+			
+		}
+		
+		// Run the agent
+		if (run_agent)
+		{
+			// Gather temperature state data
+			vector<vector<double>> norm_temp_mesh = FDS->get_norm_coarse_temp_z0();
+			PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
+			double input_x_loc = FDS->get_input_location()[0];
+			double input_y_loc = FDS->get_input_location()[1];
+			double input_percent = FDS->get_input_percent();
+			
+			// Get agent action based on temperature state data
+			PyObject* py_action = PyObject_CallMethod(agent, "get_greedy_action", "O,f,f,f", py_norm_temp_mesh, input_x_loc, input_y_loc, input_percent);
+			if (py_action == NULL)
+			{
+				fprintf(stderr, "\nFailed to call get greedy action function.\n");
+				PyErr_Print();
+				Py_DECREF(py_norm_temp_mesh);
+				return 1;
+			}
+			
+			// Get the agent commanded action
+			action_1 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 0));
+			action_2 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 1));
+			action_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 2));
+
+			// Step the environment
+			done = FDS->step(action_1, action_2, action_3);
+			
+			// Release the python memory
+			Py_DECREF(py_norm_temp_mesh);
+			Py_DECREF(py_action);
+		}
+		
+		// Step the environment 
+		if (!run_agent)
+		{
+			// Step the environment based on the previously commanded action
+			done = FDS->step(action_1, action_2, action_3);
+		}
+		
 	}
 	
 	// Stop clock and print duration
