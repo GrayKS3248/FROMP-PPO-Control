@@ -612,16 +612,18 @@ int store_front_history(PyObject* save_render_plot, vector<vector<vector<double>
 * @param pointer to the save_render_plot class in the PPO module
 * @param vector containing target velocity as a function of time
 * @param vector containing time history
+* @param vector containing reward history
 * @return 0 on success, 1 on failure
 */
-int store_target_and_time(PyObject* save_render_plot, vector<double> target, vector<double> time)
+int store_target_and_time(PyObject* save_render_plot, vector<double> target, vector<double> time, vector<vector<double>> reward)
 {
 	// Convert inputs
 	PyObject* py_target = get_1D_list(target);
 	PyObject* py_time = get_1D_list(time);
+	PyObject* py_reward = get_2D_list(reward);
 	
 	// Call function
-	PyObject* result = PyObject_CallMethod(save_render_plot, "store_target_and_time", "(O,O)", py_target, py_time);
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_target_and_time", "(O,O,O)", py_target, py_time, py_reward);
 	if (result==NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_target_and_time function:\n");
@@ -798,6 +800,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 		// Initialize simulation variables
 		bool done = false;
 		double action_1=0.0, stdev_1=0.0, action_2=0.0, stdev_2=0.0, action_3=0.0, stdev_3=0.0, reward;
+		vector<double> reward_arr;
 		bool run_agent;
 		int step_in_trajectory = 0;
 		
@@ -849,7 +852,8 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 				done = FDS->step(action_1, action_2, action_3);
 
 				// Update the agent and collect critic loss data
-				reward = FDS->get_reward();
+				reward_arr = FDS->get_reward();
+				reward = reward_arr[0];
 				PyObject* py_critic_loss = PyObject_CallMethod(agent, "update_agent", "(O,f,f,f,f,f,f,f)", py_norm_temp_mesh, input_x_loc, input_y_loc, input_percent, action_1, action_2, action_3, reward);
 				if (py_critic_loss == NULL)
 				{
@@ -906,6 +910,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 	vector<double> input_percent;
 	vector<double> time;
 	vector<double> target;
+	vector<vector<double>> reward;
 	vector<double> front_velocity;
 	vector<double> front_temperature;
 	vector<double> front_shape_param;
@@ -943,6 +948,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 			// Store simualtion target and time data
 			time.push_back(FDS->get_curr_sim_time());
 			target.push_back(FDS->get_curr_target());
+			reward.push_back(FDS->get_reward());
 			
 			// Store simulation front data
 			front_velocity.push_back(FDS->get_front_vel());
@@ -1014,7 +1020,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent) == 1) {return 1;}
 	if(store_field_history(save_render_plot, temperature_field, cure_field, fine_temperature_field, fine_cure_field, fine_mesh_loc) == 1) {return 1;}
 	if(store_front_history(save_render_plot, front_curve, front_velocity, front_temperature, front_shape_param) == 1) {return 1;}
-	if(store_target_and_time(save_render_plot, target, time) == 1) {return 1;}
+	if(store_target_and_time(save_render_plot, target, time, reward) == 1) {return 1;}
 	if(store_top_mesh(save_render_plot, FDS->get_coarse_x_mesh_z0(), FDS->get_coarse_y_mesh_z0()) == 1) {return 1;}
 	if(store_input_params(save_render_plot, FDS->get_peak_input_mag(), FDS->get_input_const()) == 1) {return 1;}
 	if(store_options(save_render_plot, FDS->get_control_mode()) == 1) {return 1;}

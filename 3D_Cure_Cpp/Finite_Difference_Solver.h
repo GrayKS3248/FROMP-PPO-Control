@@ -74,7 +74,7 @@ void print_progress(bool return_carriage);
 double get_progress();
 void reset();
 bool step(double x_slew_speed_cmd, double y_slew_speed_cmd, double mag_percent_rate_cmd);
-double get_reward();
+vector<double> get_reward();
 
 
 //******************************************************************** CONSTANTS ********************************************************************//

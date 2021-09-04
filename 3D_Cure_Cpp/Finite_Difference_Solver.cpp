@@ -1249,7 +1249,7 @@ bool Finite_Difference_Solver::step(double x_slew_speed_cmd, double y_slew_speed
 * Solves for the current state's reward
 * @return The calculated reward
 */
-double Finite_Difference_Solver::get_reward()
+vector<double> Finite_Difference_Solver::get_reward()
 {
 	// Initialize reward variables
 	double input_reward = 0.0;
@@ -1258,7 +1258,8 @@ double Finite_Difference_Solver::get_reward()
 	double target_reward = 0.0;
 
 	// Determine maximum mesh temperature
-	double max_temp = 0.0;
+	double num_coarse_vert_over_max_temp = 0.0;
+	double num_fine_vert_over_max_temp = 0.0;
 	int i_max = num_coarse_vert_x > num_fine_vert_x ? num_coarse_vert_x : num_fine_vert_x;
 	int j_max = num_coarse_vert_y > num_fine_vert_y ? num_coarse_vert_y : num_fine_vert_y;
 	int k_max = num_coarse_vert_z > num_fine_vert_z ? num_coarse_vert_z : num_fine_vert_z;
@@ -1269,11 +1270,11 @@ double Finite_Difference_Solver::get_reward()
 	{
 		if ( i < num_coarse_vert_x && j < num_coarse_vert_y && k < num_coarse_vert_z )
 		{
-			max_temp = coarse_temp_mesh[i][j][k] > max_temp ? coarse_temp_mesh[i][j][k] : max_temp;
+			num_coarse_vert_over_max_temp = coarse_temp_mesh[i][j][k] >= monomer_burn_temp ? num_coarse_vert_over_max_temp + 1.0 : num_coarse_vert_over_max_temp;
 		}
 		if ( i < num_fine_vert_x && j < num_fine_vert_y && k < num_fine_vert_z )
 		{
-			max_temp = fine_temp_mesh[get_ind(i)][j][k] > max_temp ? fine_temp_mesh[get_ind(i)][j][k] : max_temp;
+			num_fine_vert_over_max_temp = fine_temp_mesh[get_ind(i)][j][k] >= monomer_burn_temp ? num_fine_vert_over_max_temp + 1.0 : num_fine_vert_over_max_temp;
 		}
 	}
 	
@@ -1281,7 +1282,8 @@ double Finite_Difference_Solver::get_reward()
 	input_reward = input_reward_const * (1.0 - input_percent);
 
 	// Get the overage reward
-	max_temp_reward = max_temp > monomer_burn_temp ? 0.0 : max_temp_reward_const;
+	double norm_over = (num_coarse_vert_over_max_temp / (double)num_coarse_vert_y) + (num_fine_vert_over_max_temp / (double)num_fine_vert_y);
+	max_temp_reward = max_temp_reward_const * norm_over;
 
 	// Get the front shape reward
 	front_shape_reward = front_shape_reward_const * (1.0 - front_shape_param);
@@ -1289,14 +1291,39 @@ double Finite_Difference_Solver::get_reward()
 	// Get the total reward
 	if (control_code==1)
 	{
-		target_reward = target_reward_const * exp(-0.5 * pow(((front_temp-target_arr[curr_sim_step])/(0.30*target_arr[curr_sim_step])), 2.0));
+		target_reward = target_reward_const * exp(-0.5 * pow(((front_vel-target_arr[curr_sim_step])/(0.116497650444*target_arr[curr_sim_step])), 2.0));
 	}
 	else if (control_code==2)
 	{
-		target_reward = target_reward_const * exp(-0.5 * pow(((front_vel-target_arr[curr_sim_step])/(0.03*target_arr[curr_sim_step])), 2.0));
+		target_reward = target_reward_const * exp(-0.5 * pow(((front_temp-target_arr[curr_sim_step])/(0.03*target_arr[curr_sim_step])), 2.0));
 	}
 
-	return input_reward+max_temp_reward+front_shape_reward+target_reward;
+	// Generate return value
+	vector<double> ret_val = vector<double>(13, 0.0);
+	ret_val[0] = input_reward + max_temp_reward + front_shape_reward + target_reward;
+	ret_val[1] = input_reward;
+	ret_val[2] = input_percent;
+	ret_val[3] = max_temp_reward;
+	ret_val[4] = num_coarse_vert_over_max_temp;
+	ret_val[5] = num_fine_vert_over_max_temp;
+	ret_val[6] = norm_over;
+	ret_val[7] = front_shape_reward;
+	ret_val[8] = front_shape_param;
+	ret_val[9] = target_reward;
+	if (control_code==1)
+	{
+		ret_val[10] = front_vel;
+		ret_val[12] = exp(-0.5 * pow(((front_vel-target_arr[curr_sim_step])/(0.116497650444*target_arr[curr_sim_step])), 2.0));
+	}
+	else if (control_code==2)
+	{
+		ret_val[10] = front_temp;
+		ret_val[12] = exp(-0.5 * pow(((front_temp-target_arr[curr_sim_step])/(0.03*target_arr[curr_sim_step])), 2.0));
+	}
+	ret_val[11] = target_arr[curr_sim_step];
+	
+
+	return ret_val;
 }
 
 // ================================================================================================= PRIVATE FUNCTIONS ================================================================================================= //

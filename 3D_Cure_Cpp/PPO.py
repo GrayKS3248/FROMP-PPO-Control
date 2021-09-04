@@ -99,6 +99,10 @@ class Agent:
         print("")
         print("Critic " + str(self.critic)) 
 
+    # Loads a previous model for additional training
+    def load_previous_model(self, path):
+        pass
+
     # Gets the cpu or gpu on which to run NN
     # @return device code
     def get_device(self):
@@ -319,6 +323,7 @@ class Save_Plot_Render:
         self.front_shape_param = []
         self.target = []
         self.time = []
+        self.reward = []
         self.mesh_x_z0 = []
         self.mesh_y_z0 = []
         self.mesh_y_x0 = []
@@ -354,9 +359,10 @@ class Save_Plot_Render:
         self.front_temperature = np.array(front_temperature)
         self.front_shape_param = np.array(front_shape_param)
     
-    def store_target_and_time(self, target, time):
+    def store_target_and_time(self, target, time, reward):
         self.target = np.array(target)
         self.time = np.array(time)
+        self.reward = np.array(reward)
     
     def store_top_mesh(self, mesh_x_z0, mesh_y_z0):
         self.mesh_x_z0 = np.array(mesh_x_z0)
@@ -488,6 +494,7 @@ class Save_Plot_Render:
             'front_shape_param': self.front_shape_param,
             'target': self.target,
             'time': self.time,
+            'reward': self.reward,
             'mesh_x_z0' : self.mesh_x_z0,
             'mesh_y_z0' : self.mesh_y_z0,
             'max_input_mag' : self.max_input_mag,
@@ -565,6 +572,7 @@ class Save_Plot_Render:
             'front_shape_param': self.front_shape_param,
             'target': self.target,
             'time': self.time,
+            'reward': self.reward,
             'mesh_x_z0' : self.mesh_x_z0,
             'mesh_y_z0' : self.mesh_y_z0,
             'max_input_mag' : self.max_input_mag,
@@ -588,7 +596,7 @@ class Save_Plot_Render:
             plt.ylabel("Front Velocity [mm/s]",fontsize='large')
             plt.plot(self.time, 1000.0*self.front_velocity,c='r',lw=2.5)
             plt.plot(self.time, 1000.0*self.target,c='b',ls='--',lw=2.5)
-            plt.legend(('Actual','Target'),loc='best',fontsize='large')
+            plt.legend(('Actual','Target'),loc='upper right',fontsize='large')
             plt.ylim(0.0, 1500.0*np.max(self.target))
             plt.xlim(0.0, np.round(self.time[-1]))
             plt.xticks(fontsize='large')
@@ -637,7 +645,7 @@ class Save_Plot_Render:
             plt.ylabel("Front Temperature [C]",fontsize='large')
             plt.plot(sorted_mean_front_x_locations, sorted_front_temperature,c='r',lw=2.5)
             plt.plot(sorted_mean_front_x_locations, self.target-273.15,c='b',ls='--',lw=2.5)
-            plt.legend(('Actual','Target'),loc='best',fontsize='large')
+            plt.legend(('Actual','Target'),loc='upper right',fontsize='large')
             plt.ylim(0.0, 1.5*(np.max(self.target)-273.15))
             plt.xlim(0.0, 1000.0*self.mesh_x_z0[-1,0])
             plt.xticks(fontsize='large')
@@ -645,6 +653,24 @@ class Save_Plot_Render:
             plt.gcf().set_size_inches(8.5, 5.5)
             plt.savefig(self.path + "/trajectory.png", dpi = 500)
             plt.close()
+            
+        # Plot reward trajectory
+        plt.clf()
+        plt.title("Reward During Trajectory",fontsize='xx-large')
+        plt.xlabel("Simulation Time [s]",fontsize='large')
+        plt.ylabel("Reward [-]",fontsize='large')
+        plt.plot(self.time, self.reward[:,0],c='k',lw=2.5)
+        plt.plot(self.time, self.reward[:,1],c='r',lw=1.0)
+        plt.plot(self.time, self.reward[:,3],c='b',lw=1.0)
+        plt.plot(self.time, self.reward[:,7],c='g',lw=1.0)
+        plt.plot(self.time, self.reward[:,9],c='m',lw=1.0)
+        plt.legend(('Total','Input','Max Temp','Shape','Target'),loc='upper right',fontsize='large')
+        plt.xlim(0.0, np.round(self.time[-1]))
+        plt.xticks(fontsize='large')
+        plt.yticks(fontsize='large')
+        plt.gcf().set_size_inches(8.5, 5.5)
+        plt.savefig(self.path + "/reward.png", dpi = 500)
+        plt.close()
 
         #Plot actor learning curve
         if(len(self.r_per_episode)!=0):
@@ -775,7 +801,8 @@ class Save_Plot_Render:
             ax1.tick_params(axis='x',labelsize=12)
             ax1.tick_params(axis='y',labelsize=12)
             ax1.set_aspect('equal', adjustable='box')
-        
+            ax1.set_title('Reward = '+'{:.2f}'.format(self.reward[curr_step,0]),fontsize='large', fontname = 'monospace')
+                    
             # Determine front locations
             front_x_location = self.front_curve[curr_step][0]
             front_y_location = self.front_curve[curr_step][1]
