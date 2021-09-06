@@ -1291,7 +1291,7 @@ vector<double> Finite_Difference_Solver::get_reward()
 	// Get the total reward
 	if (control_code==1)
 	{
-		target_reward = target_reward_const * exp(-0.5 * pow(((front_vel-target_arr[curr_sim_step])/(0.116497650444*target_arr[curr_sim_step])), 2.0));
+		target_reward = target_reward_const * exp(-0.5 * pow(((front_vel-target_arr[curr_sim_step])/(0.046599060187785*target_arr[curr_sim_step])), 2.0));
 	}
 	else if (control_code==2)
 	{
@@ -1321,7 +1321,6 @@ vector<double> Finite_Difference_Solver::get_reward()
 		ret_val[12] = exp(-0.5 * pow(((front_temp-target_arr[curr_sim_step])/(0.03*target_arr[curr_sim_step])), 2.0));
 	}
 	ret_val[11] = target_arr[curr_sim_step];
-	
 
 	return ret_val;
 }
@@ -2424,7 +2423,14 @@ void Finite_Difference_Solver::step_meshes()
 	if (num_front_instances != 0)
 	{
 		// Determine quarter fine coarse_x_len normalized front x stdev and mean front x location
-		front_shape_param = sqrt((front_shape_param/(double)num_front_instances) - (front_mean_x_loc/(double)num_front_instances)*(front_mean_x_loc/(double)num_front_instances)) / (0.25 * fine_x_len);
+		if( front_shape_param <= 1.0e-4 )
+		{
+			front_shape_param = 0.0;
+		}
+		else
+		{
+			front_shape_param = sqrt((front_shape_param/(double)num_front_instances) - (front_mean_x_loc/(double)num_front_instances)*(front_mean_x_loc/(double)num_front_instances)) / (0.25 * fine_x_len);
+		}
 		front_shape_param = front_shape_param > 1.0 ? 1.0 : front_shape_param;
 		front_mean_x_loc = front_mean_x_loc / (double)num_front_instances;
 
