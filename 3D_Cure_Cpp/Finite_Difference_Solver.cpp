@@ -749,6 +749,19 @@ vector<double> Finite_Difference_Solver::get_input_location()
 	return ret_val;
 }
 
+/**
+* Gets the input magnitude and location
+* @return The input's magnitude and location as a vector {m,x,y}
+*/
+vector<double> Finite_Difference_Solver::get_input()
+{
+	vector<double> ret_val = vector<double>(3, 0.0);
+	ret_val[0] = input_percent;
+	ret_val[1] = input_location[0];
+	ret_val[2] = input_location[1];
+	
+	return ret_val;
+}
 
 // ************************************************** TARGET GETTERS ************************************************** //
 /**
@@ -1286,7 +1299,7 @@ vector<double> Finite_Difference_Solver::get_reward()
 	max_temp_reward = max_temp_reward_const * norm_over;
 
 	// Get the front shape reward
-	front_shape_reward = front_shape_reward_const * (1.0 - front_shape_param);
+	front_shape_reward = front_shape_reward_const * pow((1.0 - front_shape_param), 6.64385618978);
 
 	// Get the total reward
 	if (control_code==1)
@@ -1313,7 +1326,7 @@ vector<double> Finite_Difference_Solver::get_reward()
 	if (control_code==1)
 	{
 		ret_val[10] = front_vel;
-		ret_val[12] = exp(-0.5 * pow(((front_vel-target_arr[curr_sim_step])/(0.116497650444*target_arr[curr_sim_step])), 2.0));
+		ret_val[12] = exp(-0.5 * pow(((front_vel-target_arr[curr_sim_step])/(0.046599060187785*target_arr[curr_sim_step])), 2.0));
 	}
 	else if (control_code==2)
 	{
@@ -2429,7 +2442,7 @@ void Finite_Difference_Solver::step_meshes()
 		}
 		else
 		{
-			front_shape_param = sqrt((front_shape_param/(double)num_front_instances) - (front_mean_x_loc/(double)num_front_instances)*(front_mean_x_loc/(double)num_front_instances)) / (0.25 * fine_x_len);
+			front_shape_param = sqrt((front_shape_param/(double)num_front_instances) - (front_mean_x_loc/(double)num_front_instances)*(front_mean_x_loc/(double)num_front_instances)) / (0.10 * coarse_y_len);
 		}
 		front_shape_param = front_shape_param > 1.0 ? 1.0 : front_shape_param;
 		front_mean_x_loc = front_mean_x_loc / (double)num_front_instances;

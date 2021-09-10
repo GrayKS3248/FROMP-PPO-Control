@@ -11,7 +11,7 @@ import torch.nn.functional as F
 
 class Model(nn.Module):
     
-    def __init__(self, x_dim, y_dim, bottleneck, kernal_size):
+    def __init__(self, x_dim, y_dim, bottleneck, kernal_size, num_states, num_inputs):
         
         # Initialize inherited class
         super(Model, self).__init__()
@@ -19,14 +19,15 @@ class Model(nn.Module):
         #Initialize class variables
         self.size = 16 * x_dim//8 * y_dim//8
         self.conv_dim = torch.Size([1, 16, x_dim//8, y_dim//8])
+        self.bottleneck = bottleneck
+        self.num_states = num_states
+        self.num_inputs = num_inputs
         
         # Initialize the max pool function
         self.pool = nn.MaxPool2d(2, 2)
         
-        # Initialize the stdev for each output
-        self.stdev_1 = torch.nn.Parameter(-0.9 * torch.ones(1, dtype=torch.double).double())
-        self.stdev_2 = torch.nn.Parameter(-0.9 * torch.ones(1, dtype=torch.double).double())
-        self.stdev_3 = torch.nn.Parameter(-0.9 * torch.ones(1, dtype=torch.double).double())
+        # Initialize the stdev for each input
+        self.stdev = torch.nn.Parameter(-0.9*torch.ones(num_inputs,dtype=torch.double).double())
         
         #Initialize the encoding convolutional layers
         self.conv1 = nn.Conv2d(1, 2,  kernal_size, padding=kernal_size//2)
@@ -36,30 +37,30 @@ class Model(nn.Module):
         #Initialize the encoding linear layer
         self.fc0 = nn.Linear(self.size, bottleneck)
 
-        #Initialize the fully connected layers
-        self.fc1 = nn.Linear(bottleneck+3, bottleneck+3)
-        self.fc2 = nn.Linear(bottleneck+3, (bottleneck+3)//2)
-        self.fc3 = nn.Linear((bottleneck+3)//2, 3)
+        #Initialize the fully connected layers for action generation
+        self.fc1 = nn.Linear(num_states*bottleneck+num_inputs, num_states*bottleneck+num_inputs)
+        self.fc2 = nn.Linear(num_states*bottleneck+num_inputs, (num_states*bottleneck+num_inputs)//2)
+        self.fc3 = nn.Linear((num_states*bottleneck+num_inputs)//2, num_inputs)
         
 
-    def forward(self, x, y):
-        #Feed-forward through encoder
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = self.pool(F.relu(self.conv3(x)))
-        x = x.view(-1, self.size)
-        x = torch.sigmoid(self.fc0(x))
+    def forward(self, states, inputs):
+        
+        #Feed-forward states through encoder
+        states = self.pool(F.relu(self.conv1(states)))
+        states = self.pool(F.relu(self.conv2(states)))
+        states = self.pool(F.relu(self.conv3(states)))
+        states = states.view(-1, self.size)
+        states = torch.sigmoid(self.fc0(states))
+        states = states.view(-1, self.bottleneck*self.num_states)
         
         #Feed-forward through FC layers
-        x = torch.cat((x,y),1)
-        x = torch.tanh(self.fc1(x))
-        x = torch.tanh(self.fc2(x))
-        x = torch.tanh(self.fc3(x))
+        means = torch.cat((states,inputs),1)
+        means = torch.tanh(self.fc1(means))
+        means = torch.tanh(self.fc2(means))
+        means = torch.tanh(self.fc3(means))
         
         # Calculate stdev
-        stdev_1 = torch.exp(self.stdev_1)
-        stdev_2 = torch.exp(self.stdev_2)
-        stdev_3 = torch.exp(self.stdev_3)
+        stdevs = torch.exp(self.stdev)
         
-        #Return x
-        return x, stdev_1, stdev_2, stdev_3
+        #Return action means and stdevs
+        return means, stdevs

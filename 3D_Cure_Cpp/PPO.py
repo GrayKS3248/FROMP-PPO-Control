@@ -24,8 +24,8 @@ import matplotlib.pyplot as plt
 
 class Agent:
 
-    def __init__(self, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, 
-                 gamma, lamb, epsilon, alpha, decay_rate, autoencoder_path):
+    def __init__(self, num_states, num_inputs, steps_per_trajectory, trajectories_per_batch,
+                 epochs_per_batch, gamma, lamb, epsilon, alpha, decay_rate, autoencoder_path):
 
         # Batch memory
         self.states = [[]]
@@ -43,6 +43,8 @@ class Agent:
         self.epochs_per_batch = epochs_per_batch
 
         # Hyperparameters
+        self.num_states = num_states
+        self.num_inputs = num_inputs
         self.gamma = gamma
         self.lamb = lamb
         self.epsilon = epsilon
@@ -63,7 +65,7 @@ class Agent:
         self.kernal_size = loaded_encoder_data['kernal_size']
         
         # Build actor
-        self.actor = actor_nn(self.x_dim, self.y_dim, self.bottleneck, self.kernal_size)
+        self.actor = actor_nn(self.x_dim, self.y_dim, self.bottleneck, self.kernal_size, self.num_states, self.num_inputs)
         
         # Copy offline trained encoder parameters to actor CNN
         self.actor.conv1.load_state_dict(autoencoder.conv1.state_dict())
@@ -76,7 +78,7 @@ class Agent:
         self.actor_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.actor_optimizer, gamma=self.decay_rate)
         
         # Build critic
-        self.critic = critic_nn(self.x_dim, self.y_dim, self.bottleneck, self.kernal_size)
+        self.critic = critic_nn(self.x_dim, self.y_dim, self.bottleneck, self.kernal_size, self.num_states, self.num_inputs)
         
         # Copy offline trained encoder parameters to critc CNN 
         self.critic.conv1.load_state_dict(autoencoder.conv1.state_dict())
@@ -114,100 +116,95 @@ class Agent:
         return device
 
     # Calcuates determinisitc action given state and policy.
-    # @ param state - The state in which the policy is applied to calculate the action
+    # @ param states - The states in which the policy is applied to calculate the action
+    # @ param inputs - The inputs over which the policy is applied
     # @ return action - The calculated deterministic action based on the state and policy
-    def get_greedy_action(self, state, input_x, input_y, input_mag):
+    def get_greedy_action(self, states, inputs):
 
         # Get the gaussian distribution parameters used to sample the action for the old and new policy
         with torch.no_grad():
             # Format input state
-            state = torch.tensor(state)
-            state = state.reshape(1,1,state.shape[0],state.shape[1]).float().to(self.device)
+            states = torch.tensor(states)
+            states = states.reshape(states.shape[0],1,states.shape[1],states.shape[2]).float().to(self.device)
             
             # Format input 
-            input = torch.tensor([input_x, input_y, input_mag])
-            input = input.reshape(1,input.shape[0]).float().to(self.device)
+            inputs = torch.tensor(inputs)
+            inputs = inputs.reshape(1,inputs.shape[0]).float().to(self.device)
             
             # Forward propogate formatted state
-            means, stdev_1, stdev_2, stdev_3 = self.actor.forward(state, input)
+            means, stdevs = self.actor.forward(states, inputs)
             means = means.squeeze().to('cpu')
             
-        # Return the means
-        action_1 = means[0].item()
-        action_2 = means[1].item()
-        action_3 = means[2].item()
-        return action_1, action_2, action_3
+        # Return the actions
+        actions = []
+        for i in range(self.num_inputs):
+            actions.append(means[i].item())
+        return tuple(actions)
 
     # Calcuates stochastic action given state and policy.
     # @ param state - The state in which the policy is applied to calculate the action
+    # @ param inputs - The inputs over which the policy is applied
     # @ return action - The calculated stochastic action based on the state and policy
     # @ return stdev - The calculated stdev based on the policy
-    def get_action(self, state, input_x, input_y, input_mag):
-
+    def get_action(self, states, inputs):
+        
         # Get the gaussian distribution parameters used to sample the action for the old and new policy
         with torch.no_grad():
-            # Format state
-            state = torch.tensor(state)
-            state = state.reshape(1,1,state.shape[0],state.shape[1]).float().to(self.device)
+            # Format input state
+            states = torch.tensor(states)
+            states = states.reshape(states.shape[0],1,states.shape[1],states.shape[2]).float().to(self.device)
             
             # Format input 
-            input = torch.tensor([input_x, input_y, input_mag])
-            input = input.reshape(1,input.shape[0]).float().to(self.device)
+            inputs = torch.tensor(inputs)
+            inputs = inputs.reshape(1,inputs.shape[0]).float().to(self.device)
         
             # Forward propogate formatted state
-            means, stdev_1, stdev_2, stdev_3 = self.actor.forward(state, input)
+            means, stdevs = self.actor.forward(states, inputs)
             means = means.squeeze().to('cpu')
             
-            # Sample the first action
-            dist_1 = torch.distributions.normal.Normal(means[0].item(), stdev_1.to('cpu'))
-            action_1 = dist_1.sample().item()
-            stdev_1 = stdev_1.item()
-    
-            # Sample the second action
-            dist_2 = torch.distributions.normal.Normal(means[1].item(), stdev_2.to('cpu'))
-            action_2 = dist_2.sample().item()
-            stdev_2 = stdev_2.item()
-    
-            # Sample the second action
-            dist_3 = torch.distributions.normal.Normal(means[2].item(), stdev_3.to('cpu'))
-            action_3 = dist_3.sample().item()
-            stdev_3 = stdev_3.item()
+            # Sample the actions
+            action = []
+            stdev = []
+            for i in range(self.num_inputs):
+                dist = torch.distributions.normal.Normal(means[i].item(), stdevs[i].to('cpu'))
+                action.append(dist.sample().item())
+                stdev.append(stdevs[i].item())
 
-        return action_1, stdev_1, action_2, stdev_2, action_3, stdev_3
+        # Return the actions and stdevs
+        return tuple(action) + tuple(stdev)
 
     # Updates the trajectory memory given an arbitrary time step
-    # @ param state - state to be added to trajectory memory
-    # @ param action_1 - first action to be added to trajectory memory
-    # @ param action_2 - second action to be added to trajectory memory
-    # @ param action_3 - third action to be added to trajectory memory
+    # @ param state - states to be added to trajectory memory
+    # @ param input - inputs to be added to trajectory memory
+    # @ param action - actions to be added to trajectory memory
     # @ param reward - reward to be added to trajectory memory
-    def update_agent(self, state, input_x, input_y, input_mag, action_1, action_2, action_3, reward):
+    def update_agent(self, state, input, action, reward):
 
         # Update the state, action, and reward memory
         self.states[-1].append(state)
-        self.inputs[-1].append([input_x, input_y, input_mag])
-        self.actions[-1].append([action_1, action_2, action_3])
+        self.inputs[-1].append(input)
+        self.actions[-1].append(action)
         self.rewards[-1].append(reward)
         
         # Get the current (will become the old during learning) log probs
         with torch.no_grad():
             # Convert the state type
             state = torch.tensor(state)
-            state = state.reshape(1,1,state.shape[0],state.shape[1]).float().to(self.device)
+            state = state.reshape(state.shape[0],1,state.shape[1],state.shape[2]).float().to(self.device)
             
             # Format input 
-            input = torch.tensor([input_x, input_y, input_mag])
+            input = torch.tensor(input)
             input = input.reshape(1,input.shape[0]).float().to(self.device)
             
             # Calculate the distributions provided by actor
-            means, stdev_1, stdev_2, stdev_3 = self.actor.forward(state, input)
+            means, stdevs = self.actor.forward(state, input)
             means = means.squeeze().to('cpu')
-            stdevs = torch.tensor([stdev_1.to('cpu'), stdev_2.to('cpu'), stdev_3.to('cpu')])
+            stdevs = stdevs.to('cpu')
             
             # Get log prob of actions selected
-            actions = torch.tensor([action_1, action_2, action_3])
+            action = torch.tensor(action)
             dist = torch.distributions.normal.Normal(means, stdevs)
-            self.old_log_probs[-1].append(dist.log_prob(actions).sum())
+            self.old_log_probs[-1].append(dist.log_prob(action).sum())
             
             # Gather current value estimates. Will be used for advantage estimate and value target calculations
             self.value_targets[-1].append(self.critic.forward(state, input).item())
@@ -247,9 +244,9 @@ class Agent:
             else:
                 # Convert batch data 
                 with torch.no_grad():
-                    self.states = torch.reshape(torch.tensor(self.states, dtype=torch.float), (self.steps_per_batch, 1, self.x_dim, self.y_dim)).to(self.device)
-                    self.inputs = torch.reshape(torch.tensor(self.inputs, dtype=torch.float), (self.steps_per_batch, 3)).to(self.device)
-                    self.actions = torch.reshape(torch.tensor(self.actions, dtype=torch.double), (self.steps_per_batch,3)).to(self.device)
+                    self.states = torch.reshape(torch.tensor(self.states, dtype=torch.float), (self.steps_per_batch*self.num_states, 1, self.x_dim, self.y_dim)).to(self.device)
+                    self.inputs = torch.reshape(torch.tensor(self.inputs, dtype=torch.float), (self.steps_per_batch, self.num_inputs)).to(self.device)
+                    self.actions = torch.reshape(torch.tensor(self.actions, dtype=torch.double), (self.steps_per_batch, self.num_inputs)).to(self.device)
                     self.rewards = torch.reshape(torch.tensor(self.rewards, dtype=torch.double), (-1,))
                     self.old_log_probs = torch.reshape(torch.tensor(self.old_log_probs, dtype=torch.double), (-1,)).to(self.device)
                     self.value_targets = torch.reshape(torch.tensor(self.value_targets, dtype=torch.double), (-1,)).to(self.device)
@@ -259,11 +256,13 @@ class Agent:
                 # Actor optimization
                 for i in range(self.epochs_per_batch):
                     self.actor_optimizer.zero_grad()
-                    means, stdev_1, stdev_2, stdev_3 = self.actor.forward(self.states, self.inputs)
-                    dist_1 = torch.distributions.normal.Normal(means[:,0], stdev_1)
-                    dist_2 = torch.distributions.normal.Normal(means[:,1], stdev_2)
-                    dist_3 = torch.distributions.normal.Normal(means[:,2], stdev_3)
-                    log_prob = dist_1.log_prob(self.actions[:,0]) + dist_2.log_prob(self.actions[:,1]) + dist_3.log_prob(self.actions[:,2])
+                    means, stdevs = self.actor.forward(self.states, self.inputs)
+                    means = means.to(self.device)
+                    stdevs = stdevs.to(self.device)
+                    log_prob = torch.tensor(0.0).to(self.device)
+                    for j in range(self.num_inputs):
+                        dist = torch.distributions.normal.Normal(means[:,j], stdevs[j])                        
+                        log_prob = log_prob + dist.log_prob(self.actions[:,j])
                     prob_ratio = torch.exp(log_prob - self.old_log_probs)
                     loss = -(torch.min(self.advantage_estimates*prob_ratio, self.advantage_estimates*torch.clamp(prob_ratio, 1-self.epsilon, 1+self.epsilon))).mean()
                     loss.backward()

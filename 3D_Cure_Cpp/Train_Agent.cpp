@@ -10,7 +10,7 @@ using namespace std;
 * Loads parameters from .cfg file
 * @return 0 on success, 1 on failure
 */
-int load_config(string& autoencoder_path_str, int& total_trajectories, int& steps_per_trajectory, int& trajectories_per_batch, int& epochs_per_batch, double& gamma, double& lamb, double& epsilon, double& start_alpha, double& end_alpha, double& frame_rate)
+int load_config(string& autoencoder_path_str, int& total_trajectories, int& steps_per_trajectory, int& trajectories_per_batch, int& epochs_per_batch, double& gamma, double& lamb, double& epsilon, double& start_alpha, double& end_alpha, double& frame_rate, int&frames_per_state, double&time_between_state_frames)
 {
 	// Load from config file
 	ifstream config_file;
@@ -284,6 +284,8 @@ vector<double> get_vector(PyObject* list)
 //******************************************************************** PYTHON API INITIALIZATION FUNCTIONS ********************************************************************//
 /**
 * Initializes the python PPO agent
+* @param The number of normalized temperature frames used per state
+* @param The number of inputs to the system
 * @param The number of (state, action, reward) tuples per trajectory
 * @param The number of trajectories per batch
 * @param The number of optimization epochs taken per batch
@@ -295,9 +297,8 @@ vector<double> get_vector(PyObject* list)
 * @param Path to autoencoder loaded
 * @return PyObject pointer pointing at the initialized PPO agent on success, NULL on failure
 */
-PyObject* init_agent(long steps_per_trajectory, long trajectories_per_batch, long epochs_per_batch, 
-double gamma, double lamb, double epsilon, double alpha, double decay_rate,
-const char* autoencoder_path)
+PyObject* init_agent(long num_states, long num_inputs, long steps_per_trajectory, long trajectories_per_batch,
+long epochs_per_batch, double gamma, double lamb, double epsilon, double alpha, double decay_rate, const char* autoencoder_path)
 {
 	// Define module name
 	PyObject* name = PyUnicode_DecodeFSDefault("PPO");
@@ -337,16 +338,18 @@ const char* autoencoder_path)
 	Py_DECREF(dict);
 
 	// Build the initialization arguments
-	PyObject* init_args = PyTuple_New(9);
-	PyTuple_SetItem(init_args, 0, PyLong_FromLong(steps_per_trajectory));
-	PyTuple_SetItem(init_args, 1, PyLong_FromLong(trajectories_per_batch));
-	PyTuple_SetItem(init_args, 2, PyLong_FromLong(epochs_per_batch));
-	PyTuple_SetItem(init_args, 3, PyFloat_FromDouble(gamma));
-	PyTuple_SetItem(init_args, 4, PyFloat_FromDouble(lamb));
-	PyTuple_SetItem(init_args, 5, PyFloat_FromDouble(epsilon));
-	PyTuple_SetItem(init_args, 6, PyFloat_FromDouble(alpha));
-	PyTuple_SetItem(init_args, 7, PyFloat_FromDouble(decay_rate));
-	PyTuple_SetItem(init_args, 8, PyUnicode_DecodeFSDefault(autoencoder_path));
+	PyObject* init_args = PyTuple_New(11);
+	PyTuple_SetItem(init_args, 0, PyLong_FromLong(num_states));
+	PyTuple_SetItem(init_args, 1, PyLong_FromLong(num_inputs));
+	PyTuple_SetItem(init_args, 2, PyLong_FromLong(steps_per_trajectory));
+	PyTuple_SetItem(init_args, 3, PyLong_FromLong(trajectories_per_batch));
+	PyTuple_SetItem(init_args, 4, PyLong_FromLong(epochs_per_batch));
+	PyTuple_SetItem(init_args, 5, PyFloat_FromDouble(gamma));
+	PyTuple_SetItem(init_args, 6, PyFloat_FromDouble(lamb));
+	PyTuple_SetItem(init_args, 7, PyFloat_FromDouble(epsilon));
+	PyTuple_SetItem(init_args, 8, PyFloat_FromDouble(alpha));
+	PyTuple_SetItem(init_args, 9, PyFloat_FromDouble(decay_rate));
+	PyTuple_SetItem(init_args, 10, PyUnicode_DecodeFSDefault(autoencoder_path));
 
 	// Initialize ppo object
 	PyObject* object = PyObject_CallObject(init, init_args);
@@ -776,10 +779,12 @@ int save_agent_results(PyObject* save_render_plot, PyObject* agent)
 * @param The total number of trajectories to be executed
 * @param The number of simulation steps taken per single agent cycle
 * @param The number of simulation steps taken per single render frame
+* @param The number of temperature frames used per state
+* @param The number of simulation steps taken per single state frame
 * @param The number of agent cycles steps in each trajectory
 * @return 0 on success, 1 on failure
 */
-int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_plot, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory, auto &start_time)
+int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_plot, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory, int frames_per_state, int steps_per_state_frame, auto &start_time)
 {
 	// Agent training data storage
 	vector<double> r_per_episode;
@@ -792,7 +797,6 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 	double total_reward = 0.0;
 	double best_episode_reward = 0.0;
 	double prev_episode_reward = 0.0;
-	vector<double> input_location;
 
 	// Run a set of episodes
 	for (int i = 0; i < total_trajectories; i++)
@@ -803,6 +807,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 		vector<double> reward_arr;
 		bool run_agent;
 		int step_in_trajectory = 0;
+		vector<vector<vector<double>>> norm_temp_mesh_history = vector<vector<vector<double>>>(1,vector<vector<double>>());
 		
 		// User readout
 		print_training_info(i, total_trajectories, prev_episode_reward, steps_per_trajectory, r_per_episode, best_episode_reward);
@@ -822,45 +827,56 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 			if (run_agent)
 			{
 				// Gather temperature state data
-				vector<vector<double>> norm_temp_mesh = FDS->get_norm_coarse_temp_z0();
-				PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
-				double input_x_loc = FDS->get_input_location()[0];
-				double input_y_loc = FDS->get_input_location()[1];
-				double input_percent = FDS->get_input_percent();
+				norm_temp_mesh_history[0] = FDS->get_norm_coarse_temp_z0();
+				PyObject* py_norm_temp_mesh_history = get_3D_list(norm_temp_mesh_history);
+				
+				// Gather input data
+				vector<double> inputs = FDS->get_input();
+				PyObject* py_inputs = get_1D_list(inputs);
 				
 				// Get agent action based on temperature state data
-				PyObject* py_action = PyObject_CallMethod(agent, "get_action", "O,f,f,f", py_norm_temp_mesh, input_x_loc, input_y_loc, input_percent);
-				if (py_action == NULL)
+				PyObject* py_action_and_stdev = PyObject_CallMethod(agent, "get_action", "O,O", py_norm_temp_mesh_history, py_inputs);
+				if (py_action_and_stdev == NULL)
 				{
 					fprintf(stderr, "\nFailed to call get action function.\n");
 					PyErr_Print();
-					Py_DECREF(py_norm_temp_mesh);
+					Py_DECREF(py_norm_temp_mesh_history);
+					Py_DECREF(py_inputs);
 					return 1;
 				}
 				
 				// Get the agent commanded action
-				action_1 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 0));
-				action_2 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 2));
-				action_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 4));
+				action_1 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 0));
+				action_2 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 1));
+				action_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 2));
 				
 				// Get the agent's stdev
-				stdev_1 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 1));
-				stdev_2 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 3));
-				stdev_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 5));
+				stdev_1 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 3));
+				stdev_2 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 4));
+				stdev_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 5));
 
 				// Step the environment
 				done = FDS->step(action_1, action_2, action_3);
 
+				// Combine the action data
+				vector<double> actions = vector<double>(3,0.0);
+				actions[0] = action_1;
+				actions[1] = action_2;
+				actions[2] = action_3;
+				PyObject* py_actions = get_1D_list(actions);
+
 				// Update the agent and collect critic loss data
 				reward_arr = FDS->get_reward();
 				reward = reward_arr[0];
-				PyObject* py_critic_loss = PyObject_CallMethod(agent, "update_agent", "(O,f,f,f,f,f,f,f)", py_norm_temp_mesh, input_x_loc, input_y_loc, input_percent, action_1, action_2, action_3, reward);
+				PyObject* py_critic_loss = PyObject_CallMethod(agent, "update_agent", "(O,O,O,f)", py_norm_temp_mesh_history, py_inputs, py_actions, reward);
 				if (py_critic_loss == NULL)
 				{
 					fprintf(stderr, "\nFailed to update agent\n");
 					PyErr_Print();
-					Py_DECREF(py_norm_temp_mesh);
-					Py_DECREF(py_action);
+					Py_DECREF(py_norm_temp_mesh_history);
+					Py_DECREF(py_inputs);
+					Py_DECREF(py_action_and_stdev);
+					Py_DECREF(py_actions);
 					return 1;
 				}
 				vector<double> curr_critic_loss = get_vector(py_critic_loss);
@@ -874,8 +890,10 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 				total_reward = total_reward + reward;
 				
 				// Release the python memory
-				Py_DECREF(py_norm_temp_mesh);
-				Py_DECREF(py_action);
+				Py_DECREF(py_norm_temp_mesh_history);
+				Py_DECREF(py_inputs);
+				Py_DECREF(py_action_and_stdev);
+				Py_DECREF(py_actions);
 			}
 			
 			// Step the environment 
@@ -926,6 +944,8 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 	double action_1=0.0, action_2=0.0, action_3=0.0;
 	bool run_agent, save_frame;
 	int step_in_trajectory = 0;
+	vector<double> input_location;
+	vector<vector<vector<double>>> norm_temp_mesh_history = vector<vector<vector<double>>>(1,vector<vector<double>>());
 	FDS->reset();
 	while (!done)
 	{
@@ -971,19 +991,21 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 		if (run_agent)
 		{
 			// Gather temperature state data
-			vector<vector<double>> norm_temp_mesh = FDS->get_norm_coarse_temp_z0();
-			PyObject* py_norm_temp_mesh = get_2D_list(norm_temp_mesh);
-			double input_x_loc = FDS->get_input_location()[0];
-			double input_y_loc = FDS->get_input_location()[1];
-			double input_percent = FDS->get_input_percent();
+			norm_temp_mesh_history[0] = FDS->get_norm_coarse_temp_z0();
+			PyObject* py_norm_temp_mesh_history = get_3D_list(norm_temp_mesh_history);
+			
+			// Gather input data
+			vector<double> inputs = FDS->get_input();
+			PyObject* py_inputs = get_1D_list(inputs);
 			
 			// Get agent action based on temperature state data
-			PyObject* py_action = PyObject_CallMethod(agent, "get_greedy_action", "O,f,f,f", py_norm_temp_mesh, input_x_loc, input_y_loc, input_percent);
+			PyObject* py_action = PyObject_CallMethod(agent, "get_greedy_action", "O,O", py_norm_temp_mesh_history, py_inputs);
 			if (py_action == NULL)
 			{
 				fprintf(stderr, "\nFailed to call get greedy action function.\n");
 				PyErr_Print();
-				Py_DECREF(py_norm_temp_mesh);
+				Py_DECREF(py_norm_temp_mesh_history);
+				Py_DECREF(py_inputs);
 				return 1;
 			}
 			
@@ -996,7 +1018,8 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 			done = FDS->step(action_1, action_2, action_3);
 			
 			// Release the python memory
-			Py_DECREF(py_norm_temp_mesh);
+			Py_DECREF(py_norm_temp_mesh_history);
+			Py_DECREF(py_inputs);
 			Py_DECREF(py_action);
 		}
 		
@@ -1043,6 +1066,8 @@ int main()
 	int total_trajectories;
 	int steps_per_trajectory;
 	int trajectories_per_batch;
+	int frames_per_state;
+	double time_between_state_frames;
 	int epochs_per_batch;
 	double gamma;
 	double lamb;
@@ -1050,7 +1075,7 @@ int main()
 	double start_alpha;
 	double end_alpha;
 	double frame_rate;
-	if (load_config(autoencoder_path_str, total_trajectories, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha, frame_rate) == 1) { return 1; }
+	if (load_config(autoencoder_path_str, total_trajectories, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha, frame_rate, frames_per_state, time_between_state_frames) == 1) { return 1; }
 	const char* autoencoder_path = autoencoder_path_str.c_str();
 
 	// Initialize FDS
@@ -1069,6 +1094,7 @@ int main()
 	double decay_rate = pow(end_alpha/start_alpha, (double)trajectories_per_batch/(double)total_trajectories);
 	double agent_execution_period = (FDS->get_sim_duration() / (double)steps_per_trajectory);
 	int steps_per_agent_cycle = (int) round(agent_execution_period / FDS->get_coarse_time_step());
+	int steps_per_state_frame = (int) round(time_between_state_frames / FDS->get_coarse_time_step());
 
 	// Calculated rendering parameters
 	int steps_per_frame = (int) round(1.0 / (FDS->get_coarse_time_step() * frame_rate));
@@ -1080,7 +1106,7 @@ int main()
 	PyRun_SimpleString("sys.path.append('./')");
     
 	// Init agent
-	PyObject* agent = init_agent(steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, decay_rate, autoencoder_path);
+	PyObject* agent = init_agent(1, 3, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, decay_rate, autoencoder_path);
 	if (agent == NULL) { Py_FinalizeEx(); return 1; }
 
 	// Init save_render_plot
@@ -1094,7 +1120,7 @@ int main()
 	// Train agent
 	cout << "\nSimulating...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(FDS, agent, save_render_plot, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory, start_time) == 1) { return 1; };
+	if (run(FDS, agent, save_render_plot, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory, frames_per_state, steps_per_state_frame, start_time) == 1) { return 1; };
 	
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;

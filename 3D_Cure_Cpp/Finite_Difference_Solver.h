@@ -47,6 +47,7 @@ double get_max_input_slew_speed();
 // Input state getters
 double get_input_percent();
 vector<double> get_input_location();
+vector<double> get_input();
 
 // Target getters
 double get_curr_target();
