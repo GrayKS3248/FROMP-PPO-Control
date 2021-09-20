@@ -10,7 +10,7 @@ using namespace std;
 * Loads parameters from .cfg file
 * @return 0 on success, 1 on failure
 */
-int load_config(string& autoencoder_path_str, int& total_trajectories, int& steps_per_trajectory, int& trajectories_per_batch, int& epochs_per_batch, double& gamma, double& lamb, double& epsilon, double& start_alpha, double& end_alpha, double& frame_rate, int&frames_per_state, double&time_between_state_frames)
+int load_config(string& autoencoder_path_str, string& estimator_path_str, int& total_trajectories, int& steps_per_trajectory, int& trajectories_per_batch, int& epochs_per_batch, double& gamma, double& lamb, double& epsilon, double& start_alpha, double& end_alpha, double& frame_rate)
 {
 	// Load from config file
 	ifstream config_file;
@@ -20,6 +20,8 @@ int load_config(string& autoencoder_path_str, int& total_trajectories, int& step
 	{
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file >> config_dump >> autoencoder_path_str;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> config_dump >> estimator_path_str;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -176,7 +178,8 @@ int steps_per_trajectory, vector<double> r_per_episode, double best_episode)
 * @param The vector used to create list
 * @return PyObject pointer pointing at the created list
 */
-PyObject* get_1D_list(vector<double> arr)
+template <typename T>
+PyObject* get_1D_list(T arr)
 {
 	PyObject *list;
 	
@@ -189,11 +192,12 @@ PyObject* get_1D_list(vector<double> arr)
 }
 
 /**
-* Converts 2D vector<vector<double>> to a 2D PyList
+* Converts 2D vector<vector<int>> to a 2D PyList
 * @param The vector used to create list
 * @return PyObject pointer pointing at the created list
 */
-PyObject* get_2D_list(vector<vector<double>> arr)
+template <typename T>
+PyObject* get_2D_list(T arr)
 {
 	PyObject *mat, *vec;
 
@@ -212,34 +216,12 @@ PyObject* get_2D_list(vector<vector<double>> arr)
 }
 
 /**
-* Converts 2D vector<vector<int>> to a 2D PyList
+* Converts 3D object to a 3D PyList
 * @param The vector used to create list
 * @return PyObject pointer pointing at the created list
 */
-PyObject* get_2D_int_list(vector<vector<int>> arr)
-{
-	PyObject *mat, *vec;
-
-	mat = PyList_New(arr.size());
-	for (unsigned int i = 0; i < arr.size(); i++)
-	{
-		vec = PyList_New(arr[0].size());
-		for (unsigned int j = 0; j < arr[0].size(); j++)
-		{
-			PyList_SetItem(vec, j, PyLong_FromLong(arr[i][j]));
-		}
-		PyList_SetItem(mat, i, vec);
-	}
-	
-	return mat;
-}
-
-/**
-* Converts 3D vector<vector<vector<double>>> to a 3D PyList
-* @param The vector used to create list
-* @return PyObject pointer pointing at the created list
-*/
-PyObject* get_3D_list(vector<vector<vector<double>>> arr)
+template <typename T>
+PyObject* get_3D_list(T arr)
 {
 	PyObject *ten, *mat, *vec;
 
@@ -427,6 +409,78 @@ PyObject* init_save_render_plot()
 }
 
 
+/**
+* Initializes the python speed estimator
+* @param Path to trained speed estimator
+* @return PyObject pointer pointing at the initialized speed estimator on success, NULL on failure
+*/
+PyObject* init_speed_estimator(const char* load_path)
+{
+	// Define module name
+	PyObject* name = PyUnicode_DecodeFSDefault("Speed_Estimator");
+
+	// Initialize module
+	PyObject* module = PyImport_Import(name);
+	if (module == NULL)
+	{
+		fprintf(stderr, "\nFailed to find Speed_Estimator module.\n");
+		PyErr_Print();
+		Py_DECREF(name);
+		return NULL;
+	}
+	Py_DECREF(name);
+
+	// Load dictionary of module methods and variables
+	PyObject* dict = PyModule_GetDict(module);
+	if (dict == NULL)
+	{
+		fprintf(stderr, "\nFailed to load Speed_Estimator module dictionary.\n");
+		PyErr_Print();
+		Py_DECREF(module);
+		return NULL;
+	}
+	Py_DECREF(module);
+
+	// Get the initialization function from the module dictionary
+	PyObject* init = PyDict_GetItemString(dict, "Estimator");
+	if (init == NULL || !PyCallable_Check(init))
+	{
+		fprintf(stderr, "\nFailed to find Speed_Estimator Estimator __init__ function.\n");
+		PyErr_Print();
+		Py_DECREF(dict);
+		if (init != NULL) { Py_DECREF(init); }
+		return NULL;
+	}
+	Py_DECREF(dict);
+
+	// Build the initialization arguments
+	PyObject* init_args = PyTuple_New(8);
+	PyTuple_SetItem(init_args, 0, PyUnicode_DecodeFSDefault(""));
+	PyTuple_SetItem(init_args, 1, PyLong_FromLong(0));
+	PyTuple_SetItem(init_args, 2, PyLong_FromLong(0));
+	PyTuple_SetItem(init_args, 3, PyLong_FromLong(0));
+	PyTuple_SetItem(init_args, 4, PyLong_FromLong(0));
+	PyTuple_SetItem(init_args, 5, PyLong_FromLong(0));
+	PyTuple_SetItem(init_args, 6, PyLong_FromLong(0));
+	PyTuple_SetItem(init_args, 7, PyUnicode_DecodeFSDefault(load_path));
+
+	// Initialize ppo object
+	PyObject* object = PyObject_CallObject(init, init_args);
+	if (object == NULL)
+	{
+		fprintf(stderr, "\nFailed to call Estimator __init__ function.\n");
+		PyErr_Print();
+		Py_DECREF(init);
+		Py_DECREF(init_args);
+		return NULL;
+	}
+	Py_DECREF(init);
+	Py_DECREF(init_args);
+
+	// return the class
+	return object;
+}
+
 //******************************************************************** PYTHON API CALL METHOD FUNCTIONS ********************************************************************//
 /**
 * Stores training curves to the save_render_plot class
@@ -438,8 +492,8 @@ PyObject* init_save_render_plot()
 int store_training_curves(PyObject* save_render_plot, vector<double> r_per_episode, vector<double> value_error)
 {
 	// Convert inputs
-	PyObject* py_r_per_episode = get_1D_list(r_per_episode);
-	PyObject* py_value_error = get_1D_list(value_error);
+	PyObject* py_r_per_episode = get_1D_list<vector<double>>(r_per_episode);
+	PyObject* py_value_error = get_1D_list<vector<double>>(value_error);
 	
 	// Call function
 	PyObject* result = PyObject_CallMethod(save_render_plot, "store_training_curves", "(O,O)", py_r_per_episode, py_value_error);
@@ -470,9 +524,9 @@ int store_training_curves(PyObject* save_render_plot, vector<double> r_per_episo
 int store_stdev_history(PyObject* save_render_plot, vector<double> x_rate_stdev, vector<double> y_rate_stdev, vector<double> mag_stdev)
 {
 	// Convert inputs
-	PyObject* py_x_rate_stdev = get_1D_list(x_rate_stdev);
-	PyObject* py_y_rate_stdev = get_1D_list(y_rate_stdev);
-	PyObject* py_mag_stdev = get_1D_list(mag_stdev);
+	PyObject* py_x_rate_stdev = get_1D_list<vector<double>>(x_rate_stdev);
+	PyObject* py_y_rate_stdev = get_1D_list<vector<double>>(y_rate_stdev);
+	PyObject* py_mag_stdev = get_1D_list<vector<double>>(mag_stdev);
 	
 	// Call function
 	PyObject* result = PyObject_CallMethod(save_render_plot, "store_stdev_history", "(O,O,O)", py_x_rate_stdev, py_y_rate_stdev, py_mag_stdev);
@@ -505,9 +559,9 @@ int store_stdev_history(PyObject* save_render_plot, vector<double> x_rate_stdev,
 int store_input_history(PyObject* save_render_plot, vector<double> input_location_x, vector<double> input_location_y, vector<double> input_percent)
 {
 	// Convert inputs
-	PyObject* py_input_location_x = get_1D_list(input_location_x);
-	PyObject* py_input_location_y = get_1D_list(input_location_y);
-	PyObject* py_input_percent = get_1D_list(input_percent);
+	PyObject* py_input_location_x = get_1D_list<vector<double>>(input_location_x);
+	PyObject* py_input_location_y = get_1D_list<vector<double>>(input_location_y);
+	PyObject* py_input_percent = get_1D_list<vector<double>>(input_percent);
 	
 	// Call function
 	PyObject* result = PyObject_CallMethod(save_render_plot, "store_input_history", "(O,O,O)", py_input_location_x, py_input_location_y, py_input_percent);
@@ -539,12 +593,13 @@ int store_input_history(PyObject* save_render_plot, vector<double> input_locatio
 int store_field_history(PyObject* save_render_plot, vector<vector<vector<double>>> temperature_field, vector<vector<vector<double>>> cure_field, 
 vector<vector<vector<double>>> fine_temperature_field, vector<vector<vector<double>>> fine_cure_field, vector<vector<double>> fine_mesh_loc)
 {
+	
 	// Convert inputs
-	PyObject* py_temperature_field = get_3D_list(temperature_field);
-	PyObject* py_cure_field = get_3D_list(cure_field);
-	PyObject* py_fine_temperature_field = get_3D_list(fine_temperature_field);
-	PyObject* py_fine_cure_field = get_3D_list(fine_cure_field);
-	PyObject* py_fine_mesh_loc = get_2D_list(fine_mesh_loc);
+	PyObject* py_temperature_field = get_3D_list<vector<vector<vector<double>>>>(temperature_field);
+	PyObject* py_cure_field = get_3D_list<vector<vector<vector<double>>>>(cure_field);
+	PyObject* py_fine_temperature_field = get_3D_list<vector<vector<vector<double>>>>(fine_temperature_field);
+	PyObject* py_fine_cure_field = get_3D_list<vector<vector<vector<double>>>>(fine_cure_field);
+	PyObject* py_fine_mesh_loc = get_2D_list<vector<vector<double>>>(fine_mesh_loc);
 	
 	// Call function
 	PyObject* result = PyObject_CallMethod(save_render_plot, "store_field_history", "(O,O,O,O,O)", py_temperature_field, py_cure_field, py_fine_temperature_field, py_fine_cure_field, py_fine_mesh_loc);
@@ -583,10 +638,10 @@ vector<vector<vector<double>>> fine_temperature_field, vector<vector<vector<doub
 int store_front_history(PyObject* save_render_plot, vector<vector<vector<double>>> front_curve, vector<double> front_velocity, vector<double> front_temperature, vector<double> front_shape_param)
 {
 	// Convert inputs
-	PyObject* py_front_curve = get_3D_list(front_curve);
-	PyObject* py_front_velocity = get_1D_list(front_velocity);
-	PyObject* py_front_temperature = get_1D_list(front_temperature);
-	PyObject* py_front_shape_param = get_1D_list(front_shape_param);
+	PyObject* py_front_curve = get_3D_list<vector<vector<vector<double>>>>(front_curve);
+	PyObject* py_front_velocity = get_1D_list<vector<double>>(front_velocity);
+	PyObject* py_front_temperature = get_1D_list<vector<double>>(front_temperature);
+	PyObject* py_front_shape_param = get_1D_list<vector<double>>(front_shape_param);
 	
 	// Call function
 	PyObject* result = PyObject_CallMethod(save_render_plot, "store_front_history", "(O,O,O,O)", py_front_curve, py_front_velocity, py_front_temperature, py_front_shape_param);
@@ -621,9 +676,9 @@ int store_front_history(PyObject* save_render_plot, vector<vector<vector<double>
 int store_target_and_time(PyObject* save_render_plot, vector<double> target, vector<double> time, vector<vector<double>> reward)
 {
 	// Convert inputs
-	PyObject* py_target = get_1D_list(target);
-	PyObject* py_time = get_1D_list(time);
-	PyObject* py_reward = get_2D_list(reward);
+	PyObject* py_target = get_1D_list<vector<double>>(target);
+	PyObject* py_time = get_1D_list<vector<double>>(time);
+	PyObject* py_reward = get_2D_list<vector<vector<double>>>(reward);
 	
 	// Call function
 	PyObject* result = PyObject_CallMethod(save_render_plot, "store_target_and_time", "(O,O,O)", py_target, py_time, py_reward);
@@ -653,8 +708,8 @@ int store_target_and_time(PyObject* save_render_plot, vector<double> target, vec
 int store_top_mesh(PyObject* save_render_plot, vector<vector<double>> mesh_x_z0, vector<vector<double>> mesh_y_z0)
 {
 	// Convert inputs
-	PyObject* py_mesh_x_z0 = get_2D_list(mesh_x_z0);
-	PyObject* py_mesh_y_z0 = get_2D_list(mesh_y_z0);
+	PyObject* py_mesh_x_z0 = get_2D_list<vector<vector<double>>>(mesh_x_z0);
+	PyObject* py_mesh_y_z0 = get_2D_list<vector<vector<double>>>(mesh_y_z0);
 	
 	// Call function
 	PyObject* result = PyObject_CallMethod(save_render_plot, "store_top_mesh", "(O,O)", py_mesh_x_z0, py_mesh_y_z0);
@@ -770,21 +825,71 @@ int save_agent_results(PyObject* save_render_plot, PyObject* agent)
 }
 
 
+//******************************************************************** PYTHON API SPEED ESTIMATOR FUNCTIONS ********************************************************************//
+/**
+* Calls the speed estimator's get params
+* @param pointer to the speed_estimator class
+* @return 0 on success, 1 on failure
+*/
+int get_estimator_params(PyObject* speed_estimator, int&sequence_length, double&image_spacing)
+{	
+	
+	PyObject* py_params = PyObject_CallMethod(speed_estimator, "get_params", NULL);
+	if(py_params == NULL)
+	{
+		fprintf(stderr, "\nFailed to call Estimator's get_params function:\n");
+		PyErr_Print();
+		return 1;
+	}
+	
+	sequence_length = PyLong_AsLong(PyTuple_GetItem(py_params, 0));
+	image_spacing = PyFloat_AsDouble(PyTuple_GetItem(py_params, 1));
+	
+	Py_DECREF(py_params);
+	return 0;
+}
+
+/**
+* Calls the speed estimator's get speed function
+* @param pointer to the speed_estimator class
+* @return estimated speed
+*/
+int estimate_error(PyObject* error_estimator, deque<vector<vector<double>>> image_sequence, double&estimated_error)
+{
+	PyObject* py_image_sequence = get_3D_list<deque<vector<vector<double>>>>(image_sequence);
+	
+	
+	PyObject* py_estimated_error = PyObject_CallMethod(error_estimator, "get_estimate", "O", py_image_sequence);
+	if(py_estimated_error == NULL)
+	{
+		fprintf(stderr, "\nFailed to call Estimator's get_estimate function:\n");
+		PyErr_Print();
+		Py_DECREF(py_image_sequence);
+		return 1;
+	}
+	
+	estimated_error = PyFloat_AsDouble(py_estimated_error);
+	
+	Py_DECREF(py_image_sequence);
+	Py_DECREF(py_estimated_error);
+	return 0;
+}
+
+
 //******************************************************************** TRAINING LOOP ********************************************************************//
 /**
 * Runs a set of trajectories using the PPO policy, updates the PPO agent, and collects relevant training data
 * @param The finite element solver object used to propogate time
 * @param The ppo agent being trained
+* @param The pretrained front error estimator
 * @param The save render and plotting class of the ppo agent being trained
 * @param The total number of trajectories to be executed
 * @param The number of simulation steps taken per single agent cycle
 * @param The number of simulation steps taken per single render frame
 * @param The number of temperature frames used per state
-* @param The number of simulation steps taken per single state frame
-* @param The number of agent cycles steps in each trajectory
 * @return 0 on success, 1 on failure
 */
-int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_plot, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory, int frames_per_state, int steps_per_state_frame, auto &start_time)
+int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimator, PyObject* save_render_plot, int total_trajectories, int steps_per_agent_cycle, int steps_per_frame, int steps_per_trajectory, auto &start_time)
 {
 	// Agent training data storage
 	vector<double> r_per_episode;
@@ -797,17 +902,24 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 	double total_reward = 0.0;
 	double best_episode_reward = 0.0;
 	double prev_episode_reward = 0.0;
-
+	
+	// Image sequence variables
+	int sequence_length;
+	double image_spacing;
+	if(get_estimator_params(error_estimator, sequence_length, image_spacing) == 1) {return 1;}
+	int steps_per_image_sequence_frame = (int) round(image_spacing / FDS->get_coarse_time_step());
+ 
 	// Run a set of episodes
 	for (int i = 0; i < total_trajectories; i++)
 	{
 		// Initialize simulation variables
 		bool done = false;
-		double action_1=0.0, stdev_1=0.0, action_2=0.0, stdev_2=0.0, action_3=0.0, stdev_3=0.0, reward;
+		double action_1=0.0, stdev_1=0.0, action_2=0.0, stdev_2=0.0, action_3=0.0, stdev_3=0.0, reward, estimated_error;
 		vector<double> reward_arr;
-		bool run_agent;
+		bool run_agent, take_snapshot;
 		int step_in_trajectory = 0;
-		vector<vector<vector<double>>> norm_temp_mesh_history = vector<vector<vector<double>>>(1,vector<vector<double>>());
+		deque<vector<vector<double>>> image_sequence;
+		vector<vector<vector<double>>> norm_temp_mesh = vector<vector<vector<double>>>(1, vector<vector<double>>());
 		
 		// User readout
 		print_training_info(i, total_trajectories, prev_episode_reward, steps_per_trajectory, r_per_episode, best_episode_reward);
@@ -815,32 +927,51 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 
 		// Reset environment
 		FDS->reset();
+		
+		// Populate the initial image_sequence
+		for (int i = 0; i < sequence_length; i++)
+		{
+			image_sequence.push_back(FDS->get_norm_coarse_temp_z0());
+		}
 
 		// Simulation loop
 		while (!done)
 		{
 			// Determine what to run this simulation step
 			run_agent = (step_in_trajectory % steps_per_agent_cycle == 0) || (step_in_trajectory==0);
+			take_snapshot = (step_in_trajectory % steps_per_image_sequence_frame == 0);
 			step_in_trajectory++;
+			
+			// Take a snapshot
+			if (take_snapshot)
+			{
+				image_sequence.push_back(FDS->get_norm_coarse_temp_z0());
+				image_sequence.pop_front();
+				if (estimate_error(error_estimator, image_sequence, estimated_error) == 1) {return 1;}
+				estimated_error = estimated_error / FDS->get_curr_target();
+			}
 			
 			// Run the agent
 			if (run_agent)
 			{
 				// Gather temperature state data
-				norm_temp_mesh_history[0] = FDS->get_norm_coarse_temp_z0();
-				PyObject* py_norm_temp_mesh_history = get_3D_list(norm_temp_mesh_history);
+				norm_temp_mesh[0] = FDS->get_norm_coarse_temp_z0();
+				PyObject* py_norm_temp_mesh = get_3D_list<vector<vector<vector<double>>>>(norm_temp_mesh);
+				
+				// Gather target error data
+				PyObject* py_estimated_error = PyFloat_FromDouble(estimated_error);
 				
 				// Gather input data
-				vector<double> inputs = FDS->get_input();
-				PyObject* py_inputs = get_1D_list(inputs);
+				PyObject* py_inputs = get_1D_list<vector<double>>(FDS->get_input());
 				
 				// Get agent action based on temperature state data
-				PyObject* py_action_and_stdev = PyObject_CallMethod(agent, "get_action", "O,O", py_norm_temp_mesh_history, py_inputs);
+				PyObject* py_action_and_stdev = PyObject_CallMethod(agent, "get_action", "(O,d,O)", py_norm_temp_mesh, py_estimated_error, py_inputs);
 				if (py_action_and_stdev == NULL)
 				{
 					fprintf(stderr, "\nFailed to call get action function.\n");
 					PyErr_Print();
-					Py_DECREF(py_norm_temp_mesh_history);
+					Py_DECREF(py_norm_temp_mesh);
+					Py_DECREF(py_estimated_error);
 					Py_DECREF(py_inputs);
 					return 1;
 				}
@@ -863,17 +994,18 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 				actions[0] = action_1;
 				actions[1] = action_2;
 				actions[2] = action_3;
-				PyObject* py_actions = get_1D_list(actions);
+				PyObject* py_actions = get_1D_list<vector<double>>(actions);
 
 				// Update the agent and collect critic loss data
 				reward_arr = FDS->get_reward();
 				reward = reward_arr[0];
-				PyObject* py_critic_loss = PyObject_CallMethod(agent, "update_agent", "(O,O,O,f)", py_norm_temp_mesh_history, py_inputs, py_actions, reward);
+				PyObject* py_critic_loss = PyObject_CallMethod(agent, "update_agent", "(O,d,O,O,f)", py_norm_temp_mesh, py_estimated_error, py_inputs, py_actions, reward);
 				if (py_critic_loss == NULL)
 				{
 					fprintf(stderr, "\nFailed to update agent\n");
 					PyErr_Print();
-					Py_DECREF(py_norm_temp_mesh_history);
+					Py_DECREF(py_norm_temp_mesh);
+					Py_DECREF(py_estimated_error);
 					Py_DECREF(py_inputs);
 					Py_DECREF(py_action_and_stdev);
 					Py_DECREF(py_actions);
@@ -890,7 +1022,8 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 				total_reward = total_reward + reward;
 				
 				// Release the python memory
-				Py_DECREF(py_norm_temp_mesh_history);
+				Py_DECREF(py_norm_temp_mesh);
+				Py_DECREF(py_estimated_error);
 				Py_DECREF(py_inputs);
 				Py_DECREF(py_action_and_stdev);
 				Py_DECREF(py_actions);
@@ -932,8 +1065,8 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 	vector<double> front_velocity;
 	vector<double> front_temperature;
 	vector<double> front_shape_param;
-	vector<vector<vector<double>>> front_curve;
 	vector<vector<double>> fine_mesh_loc;
+	vector<vector<vector<double>>> front_curve;
 	vector<vector<vector<double>>> temperature_field;
 	vector<vector<vector<double>>> cure_field;
 	vector<vector<vector<double>>> fine_temperature_field;
@@ -941,24 +1074,42 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 	
 	// Run the simulation loop again to generate trajectory data
 	bool done = false;
-	double action_1=0.0, action_2=0.0, action_3=0.0;
-	bool run_agent, save_frame;
+	double action_1=0.0, action_2=0.0, action_3=0.0, estimated_error;
+	bool run_agent, save_frame, take_snapshot;
 	int step_in_trajectory = 0;
-	vector<double> input_location;
-	vector<vector<vector<double>>> norm_temp_mesh_history = vector<vector<vector<double>>>(1,vector<vector<double>>());
+	deque<vector<vector<double>>> image_sequence;
+	vector<vector<vector<double>>> norm_temp_mesh = vector<vector<vector<double>>>(1, vector<vector<double>>());
 	FDS->reset();
+	
+	// Populate the initial image_sequence
+	for (int i = 0; i < sequence_length; i++)
+	{
+		image_sequence.push_back(FDS->get_norm_coarse_temp_z0());
+	}
+		
+		
 	while (!done)
 	{
 		// Determine what to run this simulation step
 		run_agent = (step_in_trajectory % steps_per_agent_cycle == 0) || (step_in_trajectory==0);
+		take_snapshot = (step_in_trajectory % steps_per_image_sequence_frame == 0);
 		save_frame = (step_in_trajectory % steps_per_frame == 0) || (step_in_trajectory==0);
 		step_in_trajectory++;
+		
+		// Take a snapshot
+		if (take_snapshot)
+		{
+			image_sequence.push_back(FDS->get_norm_coarse_temp_z0());
+			image_sequence.pop_front();
+			if (estimate_error(error_estimator, image_sequence, estimated_error) == 1) {return 1;}
+			estimated_error = estimated_error / FDS->get_curr_target();
+		}
 		
 		// Update the logs
 		if (save_frame)
 		{
 			// Get environment data
-			input_location = FDS->get_input_location();
+			vector<double> input_location = FDS->get_input_location();
 			
 			// Store simulation input data
 			input_location_x.push_back(input_location[0]);
@@ -991,20 +1142,22 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 		if (run_agent)
 		{
 			// Gather temperature state data
-			norm_temp_mesh_history[0] = FDS->get_norm_coarse_temp_z0();
-			PyObject* py_norm_temp_mesh_history = get_3D_list(norm_temp_mesh_history);
+			norm_temp_mesh[0] = FDS->get_norm_coarse_temp_z0();
+			PyObject* py_norm_temp_mesh = get_3D_list<vector<vector<vector<double>>>>(norm_temp_mesh);
 			
+			// Gather target error data
+			PyObject* py_estimated_error = PyFloat_FromDouble(estimated_error);
+				
 			// Gather input data
-			vector<double> inputs = FDS->get_input();
-			PyObject* py_inputs = get_1D_list(inputs);
+			PyObject* py_inputs = get_1D_list<vector<double>>(FDS->get_input());
 			
 			// Get agent action based on temperature state data
-			PyObject* py_action = PyObject_CallMethod(agent, "get_greedy_action", "O,O", py_norm_temp_mesh_history, py_inputs);
+			PyObject* py_action = PyObject_CallMethod(agent, "get_greedy_action", "(O,d,O)", py_norm_temp_mesh, py_estimated_error, py_inputs);
 			if (py_action == NULL)
 			{
 				fprintf(stderr, "\nFailed to call get greedy action function.\n");
 				PyErr_Print();
-				Py_DECREF(py_norm_temp_mesh_history);
+				Py_DECREF(py_norm_temp_mesh);
 				Py_DECREF(py_inputs);
 				return 1;
 			}
@@ -1018,7 +1171,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* save_render_pl
 			done = FDS->step(action_1, action_2, action_3);
 			
 			// Release the python memory
-			Py_DECREF(py_norm_temp_mesh_history);
+			Py_DECREF(py_norm_temp_mesh);
 			Py_DECREF(py_inputs);
 			Py_DECREF(py_action);
 		}
@@ -1063,11 +1216,10 @@ int main()
 {	
 	// Load parameters
 	string autoencoder_path_str;
+	string estimator_path_str;
 	int total_trajectories;
 	int steps_per_trajectory;
 	int trajectories_per_batch;
-	int frames_per_state;
-	double time_between_state_frames;
 	int epochs_per_batch;
 	double gamma;
 	double lamb;
@@ -1075,8 +1227,9 @@ int main()
 	double start_alpha;
 	double end_alpha;
 	double frame_rate;
-	if (load_config(autoencoder_path_str, total_trajectories, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha, frame_rate, frames_per_state, time_between_state_frames) == 1) { return 1; }
+	if (load_config(autoencoder_path_str, estimator_path_str, total_trajectories, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha, frame_rate) == 1) { return 1; }
 	const char* autoencoder_path = autoencoder_path_str.c_str();
+	const char* estimator_path = estimator_path_str.c_str();
 
 	// Initialize FDS
 	Finite_Difference_Solver* FDS;
@@ -1094,7 +1247,6 @@ int main()
 	double decay_rate = pow(end_alpha/start_alpha, (double)trajectories_per_batch/(double)total_trajectories);
 	double agent_execution_period = (FDS->get_sim_duration() / (double)steps_per_trajectory);
 	int steps_per_agent_cycle = (int) round(agent_execution_period / FDS->get_coarse_time_step());
-	int steps_per_state_frame = (int) round(time_between_state_frames / FDS->get_coarse_time_step());
 
 	// Calculated rendering parameters
 	int steps_per_frame = (int) round(1.0 / (FDS->get_coarse_time_step() * frame_rate));
@@ -1108,10 +1260,14 @@ int main()
 	// Init agent
 	PyObject* agent = init_agent(1, 3, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, decay_rate, autoencoder_path);
 	if (agent == NULL) { Py_FinalizeEx(); return 1; }
-
-	// Init save_render_plot
+    
+    	// Init save_render_plot
 	PyObject* save_render_plot = init_save_render_plot();
 	if (save_render_plot == NULL) { Py_FinalizeEx(); return 1; }
+
+	// Init speed estimator
+	PyObject* error_estimator = init_speed_estimator(estimator_path);
+	if (error_estimator == NULL) { Py_FinalizeEx(); return 1; }
 
 	// Print parameters to stdout
 	print_params(autoencoder_path, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha);
@@ -1120,7 +1276,7 @@ int main()
 	// Train agent
 	cout << "\nSimulating...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(FDS, agent, save_render_plot, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory, frames_per_state, steps_per_state_frame, start_time) == 1) { return 1; };
+	if (run(FDS, agent, error_estimator, save_render_plot, total_trajectories, steps_per_agent_cycle, steps_per_frame, steps_per_trajectory, start_time) == 1) { return 1; };
 	
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;

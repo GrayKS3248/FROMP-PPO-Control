@@ -42,7 +42,7 @@ if __name__ == "__main__":
     x_dim = 256
     y_dim = 32
     initial_training_criterion = 0.60
-    path = 'training_data/DCPD_GC2'
+    path = 'training_data/DCPD_GC2/Autoencoder'
     
     # Hyperparameters May train up to three autoencoders at once
     kernal_size  = [7]

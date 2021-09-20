@@ -38,12 +38,12 @@ class Model(nn.Module):
         self.fc0 = nn.Linear(self.size, bottleneck)
 
         #Initialize the fully connected layers for action generation
-        self.fc1 = nn.Linear(num_states*bottleneck+num_inputs, num_states*bottleneck+num_inputs)
-        self.fc2 = nn.Linear(num_states*bottleneck+num_inputs, (num_states*bottleneck+num_inputs)//2)
-        self.fc3 = nn.Linear((num_states*bottleneck+num_inputs)//2, num_inputs)
+        self.fc1 = nn.Linear(num_states*bottleneck+num_inputs+1, 4*(num_states*bottleneck+num_inputs+1))
+        self.fc2 = nn.Linear(4*(num_states*bottleneck+num_inputs+1), 4*(num_states*bottleneck+num_inputs+1))
+        self.fc3 = nn.Linear(4*(num_states*bottleneck+num_inputs+1), num_inputs)
         
 
-    def forward(self, states, inputs):
+    def forward(self, states, error, inputs):
         
         #Feed-forward states through encoder
         states = self.pool(F.relu(self.conv1(states)))
@@ -54,7 +54,7 @@ class Model(nn.Module):
         states = states.view(-1, self.bottleneck*self.num_states)
         
         #Feed-forward through FC layers
-        means = torch.cat((states,inputs),1)
+        means = torch.cat((states,error,inputs),1)
         means = torch.tanh(self.fc1(means))
         means = torch.tanh(self.fc2(means))
         means = torch.tanh(self.fc3(means))

@@ -901,6 +901,17 @@ vector<vector<double>> Finite_Difference_Solver::get_front_curve()
 }
 
 /**
+* Gets the current front curve
+* @return Front's mean x location at the current time point
+*/
+double Finite_Difference_Solver::get_front_mean_x_loc()
+{
+	double ret_val = front_mean_x_loc_history.back();	
+	return ret_val;
+}
+
+
+/**
 * Gets the current front velocity
 * @return The current mean front velocity
 */
@@ -1255,6 +1266,7 @@ bool Finite_Difference_Solver::step(double x_slew_speed_cmd, double y_slew_speed
 
 	// Step time
 	bool done = step_time();
+	
 	return done;
 }
 
@@ -1292,7 +1304,8 @@ vector<double> Finite_Difference_Solver::get_reward()
 	}
 	
 	// Get the input reward
-	input_reward = input_reward_const * (1.0 - input_percent);
+	input_reward = input_reward_const * exp(-0.5 * pow(((get_input_location()[0] - get_front_mean_x_loc())/(0.1647525572449*coarse_x_len)), 2.0));
+	//input_reward = input_reward_const * (1.0 - input_percent);
 
 	// Get the overage reward
 	double norm_over = (num_coarse_vert_over_max_temp / (double)num_coarse_vert_y) + (num_fine_vert_over_max_temp / (double)num_fine_vert_y);

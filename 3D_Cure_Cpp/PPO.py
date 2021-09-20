@@ -29,6 +29,7 @@ class Agent:
 
         # Batch memory
         self.states = [[]]
+        self.errors = [[]]
         self.inputs = [[]]
         self.actions = [[]]
         self.rewards = [[]]
@@ -117,9 +118,10 @@ class Agent:
 
     # Calcuates determinisitc action given state and policy.
     # @ param states - The states in which the policy is applied to calculate the action
+    # @ param error - Normalized error from target variable
     # @ param inputs - The inputs over which the policy is applied
     # @ return action - The calculated deterministic action based on the state and policy
-    def get_greedy_action(self, states, inputs):
+    def get_greedy_action(self, states, error, inputs):
 
         # Get the gaussian distribution parameters used to sample the action for the old and new policy
         with torch.no_grad():
@@ -127,12 +129,16 @@ class Agent:
             states = torch.tensor(states)
             states = states.reshape(states.shape[0],1,states.shape[1],states.shape[2]).float().to(self.device)
             
+            # Format error
+            error = torch.tensor(error)
+            error = error.reshape(1,1).float().to(self.device)
+            
             # Format input 
             inputs = torch.tensor(inputs)
             inputs = inputs.reshape(1,inputs.shape[0]).float().to(self.device)
             
             # Forward propogate formatted state
-            means, stdevs = self.actor.forward(states, inputs)
+            means, stdevs = self.actor.forward(states, error, inputs)
             means = means.squeeze().to('cpu')
             
         # Return the actions
@@ -143,10 +149,11 @@ class Agent:
 
     # Calcuates stochastic action given state and policy.
     # @ param state - The state in which the policy is applied to calculate the action
+    # @ param error - Normalized error from target variable
     # @ param inputs - The inputs over which the policy is applied
     # @ return action - The calculated stochastic action based on the state and policy
     # @ return stdev - The calculated stdev based on the policy
-    def get_action(self, states, inputs):
+    def get_action(self, states, error, inputs):
         
         # Get the gaussian distribution parameters used to sample the action for the old and new policy
         with torch.no_grad():
@@ -154,12 +161,16 @@ class Agent:
             states = torch.tensor(states)
             states = states.reshape(states.shape[0],1,states.shape[1],states.shape[2]).float().to(self.device)
             
+            # Format error
+            error = torch.tensor(error)
+            error = error.reshape(1,1).float().to(self.device)
+            
             # Format input 
             inputs = torch.tensor(inputs)
             inputs = inputs.reshape(1,inputs.shape[0]).float().to(self.device)
         
             # Forward propogate formatted state
-            means, stdevs = self.actor.forward(states, inputs)
+            means, stdevs = self.actor.forward(states, error, inputs)
             means = means.squeeze().to('cpu')
             
             # Sample the actions
@@ -174,14 +185,16 @@ class Agent:
         return tuple(action) + tuple(stdev)
 
     # Updates the trajectory memory given an arbitrary time step
-    # @ param state - states to be added to trajectory memory
-    # @ param input - inputs to be added to trajectory memory
+    # @ param states - states to be added to trajectory memory
+    # @ param error - Normalized error from target variable
+    # @ param inputs - inputs to be added to trajectory memory
     # @ param action - actions to be added to trajectory memory
     # @ param reward - reward to be added to trajectory memory
-    def update_agent(self, state, input, action, reward):
+    def update_agent(self, state, error, input, action, reward):
 
         # Update the state, action, and reward memory
         self.states[-1].append(state)
+        self.errors[-1].append(error)
         self.inputs[-1].append(input)
         self.actions[-1].append(action)
         self.rewards[-1].append(reward)
@@ -192,12 +205,16 @@ class Agent:
             state = torch.tensor(state)
             state = state.reshape(state.shape[0],1,state.shape[1],state.shape[2]).float().to(self.device)
             
+            # Format error
+            error = torch.tensor(error)
+            error = error.reshape(1,1).float().to(self.device)
+            
             # Format input 
             input = torch.tensor(input)
             input = input.reshape(1,input.shape[0]).float().to(self.device)
             
             # Calculate the distributions provided by actor
-            means, stdevs = self.actor.forward(state, input)
+            means, stdevs = self.actor.forward(state, error, input)
             means = means.squeeze().to('cpu')
             stdevs = stdevs.to('cpu')
             
@@ -207,7 +224,7 @@ class Agent:
             self.old_log_probs[-1].append(dist.log_prob(action).sum())
             
             # Gather current value estimates. Will be used for advantage estimate and value target calculations
-            self.value_targets[-1].append(self.critic.forward(state, input).item())
+            self.value_targets[-1].append(self.critic.forward(state, error, input).item())
 
         # If the current trajectory is complete, calculate advantage estimates, value targets, and add another trajectory column to the batch memory
         if len(self.states[-1]) == self.steps_per_trajectory:
@@ -231,6 +248,7 @@ class Agent:
             if len(self.states) != self.trajectories_per_batch:
                 
                 self.states.append([])
+                self.errors.append([])
                 self.inputs.append([])
                 self.actions.append([])
                 self.rewards.append([])
@@ -245,6 +263,7 @@ class Agent:
                 # Convert batch data 
                 with torch.no_grad():
                     self.states = torch.reshape(torch.tensor(self.states, dtype=torch.float), (self.steps_per_batch*self.num_states, 1, self.x_dim, self.y_dim)).to(self.device)
+                    self.errors = torch.reshape(torch.tensor(self.errors, dtype=torch.float), (self.steps_per_batch, 1)).to(self.device)
                     self.inputs = torch.reshape(torch.tensor(self.inputs, dtype=torch.float), (self.steps_per_batch, self.num_inputs)).to(self.device)
                     self.actions = torch.reshape(torch.tensor(self.actions, dtype=torch.double), (self.steps_per_batch, self.num_inputs)).to(self.device)
                     self.rewards = torch.reshape(torch.tensor(self.rewards, dtype=torch.double), (-1,))
@@ -256,7 +275,7 @@ class Agent:
                 # Actor optimization
                 for i in range(self.epochs_per_batch):
                     self.actor_optimizer.zero_grad()
-                    means, stdevs = self.actor.forward(self.states, self.inputs)
+                    means, stdevs = self.actor.forward(self.states, self.errors, self.inputs)
                     means = means.to(self.device)
                     stdevs = stdevs.to(self.device)
                     log_prob = torch.tensor(0.0).to(self.device)
@@ -273,7 +292,7 @@ class Agent:
                 critic_losses = []
                 for i in range(self.epochs_per_batch):
                     self.critic_optimizer.zero_grad()
-                    value_estimates = self.critic.forward(self.states, self.inputs).double()
+                    value_estimates = self.critic.forward(self.states, self.errors, self.inputs).double()
                     loss = torch.nn.MSELoss()(value_estimates[:, 0], self.value_targets)
                     with torch.no_grad():
                         critic_losses.append(loss.item())
@@ -283,6 +302,7 @@ class Agent:
                 
                 # After learning, reset the memory
                 self.states = [[]]
+                self.errors = [[]]
                 self.inputs = [[]]
                 self.actions = [[]]
                 self.rewards = [[]]

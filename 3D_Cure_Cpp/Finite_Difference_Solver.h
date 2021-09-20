@@ -64,6 +64,7 @@ vector<vector<double>> get_fine_cure_z0();
 
 // Front state getters
 vector<vector<double>> get_front_curve();
+double get_front_mean_x_loc();
 double get_front_vel();
 double get_front_temp();
 double get_front_shape_param();

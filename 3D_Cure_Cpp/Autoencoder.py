@@ -20,7 +20,7 @@ class Autoencoder:
     def __init__(self, alpha, decay, x_dim_input, y_dim_input, bottleneck, samples_per_batch, objective_fnc, kernal_size, weighted, noise_stdev, verbose=True):
         
         # Initialize model
-        self.model = cnn(x_dim_input, y_dim_input, bottleneck, objective_fnc, kernal_size)
+        self.model = cnn(x_dim_input,bottleneck, objective_fnc)
             
         # Initialize loss criterion, and optimizer
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=alpha)
@@ -142,6 +142,36 @@ class Autoencoder:
         else:
             device = 'cpu'
         return device
+ 
+    # Converts any non square frame into a square frame via linear interpolation along the shortest axis
+    # @param the frame to be converted
+    # @param the squared frame
+    def convert_to_square(self, frame):
+        
+        # Extract dimensions
+        largest_dim = max(frame.shape)
+        smallest_dim = min(frame.shape)
+        smallest_ax = np.argmin(frame.shape)
+        new_frame = np.zeros((largest_dim, largest_dim))
+        start_point_of_interpolant = 0
+        
+        # Extract information regarding the interpolation
+        length_of_interpolant = largest_dim // (smallest_dim - 1)
+        num_of_interpolants_one_longer = largest_dim - (length_of_interpolant * (smallest_dim - 1)) - 1
+        spacing_on_longer_interpolants = (smallest_dim - 1) / num_of_interpolants_one_longer
+        indicies_of_longer_interpolants = np.round(np.arange(0, smallest_dim - 1, spacing_on_longer_interpolants))
+        
+        # Interpolate
+        for curr_interpolant_index in range(frame.shape[smallest_ax]-1):
+            if (indicies_of_longer_interpolants == curr_interpolant_index).any():
+                length_of_curr_interpolant = length_of_interpolant+2
+            else:
+               length_of_curr_interpolant = length_of_interpolant+1
+            curr_interpolant = np.transpose(np.linspace( frame[:,curr_interpolant_index], frame[:,curr_interpolant_index+1], length_of_curr_interpolant) )
+            new_frame[:,start_point_of_interpolant:start_point_of_interpolant+length_of_curr_interpolant] = curr_interpolant
+            start_point_of_interpolant = start_point_of_interpolant + length_of_curr_interpolant-1
+            
+        return new_frame
  
     # Forward propagates the temperature through the autoencoder
     # @param the temperature field that informs data reconstruction
@@ -301,6 +331,8 @@ class Autoencoder:
     # @param cure field to be added to training batch
     # @return average epoch training loss or -1 if no optimization epoch occured
     def learn(self, temp, cure):
+        
+        self.convert_to_square(temp)
         
         # Store the current temperature and cure frames in the batch (add noise if noisy)
         if self.noisy:

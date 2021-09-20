@@ -28,6 +28,10 @@ int load_config(int& total_trajectories, int& samples_per_trajectory, int& sampl
 		{
 			target_code = 1;
 		}
+		else if (string_dump.compare("loc")==0)
+		{
+			target_code = 2;
+		}
 		else
 		{
 			cout << "\nTarget not recognized.";
@@ -81,6 +85,10 @@ void print_params(int total_trajectories, int samples_per_trajectory, int action
 	else if (target_code == 1)
 	{
 		cout << "  (Target): Temperature\n";
+	}
+	else if (target_code == 2)
+	{
+		cout << "  (Target): Front Location\n";
 	}
 	cout << "  (Frames per State): " << num_states << "\n";
 	cout << "  (Time Between State Frames): " << time_between_state_frame << " s\n";
@@ -276,6 +284,10 @@ int run(Finite_Difference_Solver* FDS, int total_trajectories, int num_states, i
 						else if(target_code==1)
 						{
 							target_frames.push_back(FDS->get_front_temp());
+						}
+						else if(target_code==2)
+						{
+							target_frames.push_back(FDS->get_front_mean_x_loc());
 						}
 					}
 				}
