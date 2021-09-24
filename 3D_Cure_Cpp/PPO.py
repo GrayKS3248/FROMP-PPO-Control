@@ -8,7 +8,6 @@ Created on Wed Nov 11 10:41:07 2020
 # Deep RL networks + autoencoder
 from CNN_MLP_Actor import Model as actor_nn
 from CNN_MLP_Critic import Model as critic_nn
-from Autoencoder import Autoencoder
 
 # Number manipulation
 import torch
@@ -24,13 +23,12 @@ import matplotlib.pyplot as plt
 
 class Agent:
 
-    def __init__(self, num_states, num_inputs, steps_per_trajectory, trajectories_per_batch,
+    def __init__(self, num_additional_states, num_inputs, steps_per_trajectory, trajectories_per_batch,
                  epochs_per_batch, gamma, lamb, epsilon, alpha, decay_rate, autoencoder_path):
 
         # Batch memory
-        self.states = [[]]
-        self.errors = [[]]
-        self.inputs = [[]]
+        self.state_images = [[]]
+        self.state_vectors = [[]]
         self.actions = [[]]
         self.rewards = [[]]
         self.old_log_probs = [[]]
@@ -44,7 +42,7 @@ class Agent:
         self.epochs_per_batch = epochs_per_batch
 
         # Hyperparameters
-        self.num_states = num_states
+        self.num_additional_states = num_additional_states
         self.num_inputs = num_inputs
         self.gamma = gamma
         self.lamb = lamb
@@ -57,35 +55,37 @@ class Agent:
             raise RuntimeError("Could not find load file: " + autoencoder_path)
         with open(autoencoder_path + "/output", 'rb') as file:
             loaded_encoder_data = pickle.load(file)
-        autoencoder = loaded_encoder_data['autoencoder']
+        autoencoder_model = loaded_encoder_data['model']
         
         # Set encoder parameters from loaded data
-        self.x_dim = loaded_encoder_data['x_dim']
-        self.y_dim = loaded_encoder_data['y_dim']
-        self.bottleneck = loaded_encoder_data['bottleneck']
-        self.kernal_size = loaded_encoder_data['kernal_size']
+        self.x_dim = loaded_encoder_data['dim_1']
+        self.y_dim = loaded_encoder_data['dim_2']
         
         # Build actor
-        self.actor = actor_nn(self.x_dim, self.y_dim, self.bottleneck, self.kernal_size, self.num_states, self.num_inputs)
+        self.actor = actor_nn(np.max((self.x_dim, self.y_dim)), self.num_additional_states+2+self.num_inputs, self.num_inputs)
         
         # Copy offline trained encoder parameters to actor CNN
-        self.actor.conv1.load_state_dict(autoencoder.conv1.state_dict())
-        self.actor.conv2.load_state_dict(autoencoder.conv2.state_dict())
-        self.actor.conv3.load_state_dict(autoencoder.conv3.state_dict())
-        self.actor.fc0.load_state_dict(autoencoder.fc1.state_dict())
+        self.actor.conv1.load_state_dict(autoencoder_model.conv1.state_dict())
+        self.actor.conv2.load_state_dict(autoencoder_model.conv2.state_dict())
+        self.actor.conv3.load_state_dict(autoencoder_model.conv3.state_dict())
+        self.actor.conv4.load_state_dict(autoencoder_model.conv4.state_dict())
+        self.actor.conv5.load_state_dict(autoencoder_model.conv5.state_dict())
+        self.actor.fc1.load_state_dict(autoencoder_model.fc1.state_dict())
         
         # Create optimizer and lr scheduler for actor
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters() , lr=self.alpha)
         self.actor_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.actor_optimizer, gamma=self.decay_rate)
         
         # Build critic
-        self.critic = critic_nn(self.x_dim, self.y_dim, self.bottleneck, self.kernal_size, self.num_states, self.num_inputs)
+        self.critic = critic_nn(np.max((self.x_dim, self.y_dim)), self.num_additional_states+2+self.num_inputs)
         
         # Copy offline trained encoder parameters to critc CNN 
-        self.critic.conv1.load_state_dict(autoencoder.conv1.state_dict())
-        self.critic.conv2.load_state_dict(autoencoder.conv2.state_dict())
-        self.critic.conv3.load_state_dict(autoencoder.conv3.state_dict())
-        self.critic.fc0.load_state_dict(autoencoder.fc1.state_dict())
+        self.critic.conv1.load_state_dict(autoencoder_model.conv1.state_dict())
+        self.critic.conv2.load_state_dict(autoencoder_model.conv2.state_dict())
+        self.critic.conv3.load_state_dict(autoencoder_model.conv3.state_dict())
+        self.critic.conv4.load_state_dict(autoencoder_model.conv4.state_dict())
+        self.critic.conv5.load_state_dict(autoencoder_model.conv5.state_dict())
+        self.critic.fc1.load_state_dict(autoencoder_model.fc1.state_dict())
         
         # Create optimizer and lr scheduler for critic
         self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=self.alpha)
@@ -116,29 +116,89 @@ class Agent:
             device = 'cpu'
         return device
 
+    # Converts any non square input image into a square input image via linear interpolation about the shortest axis
+    # @param The state image to be converted
+    # @return The squared state image
+    def convert_to_square(self, state_image):
+        
+        # Extract dimensions
+        state_image = np.array(state_image)
+        largest_dim = max(state_image.shape)
+        smallest_dim = min(state_image.shape)
+        smallest_ax = np.argmin(state_image.shape)
+        new_image = np.zeros((largest_dim, largest_dim))
+        start_point_of_interpolant = 0
+        
+        # Extract information regarding the interpolation
+        length_of_interpolant = largest_dim // (smallest_dim - 1)
+        num_of_interpolants_one_longer = largest_dim - (length_of_interpolant * (smallest_dim - 1)) - 1
+        spacing_on_longer_interpolants = (smallest_dim - 1) / num_of_interpolants_one_longer
+        indicies_of_longer_interpolants = np.round(np.arange(0, smallest_dim - 1, spacing_on_longer_interpolants))
+        
+        # Interpolate
+        for curr_interpolant_index in range(state_image.shape[smallest_ax]-1):
+            if (indicies_of_longer_interpolants == curr_interpolant_index).any():
+                length_of_curr_interpolant = length_of_interpolant+2
+            else:
+               length_of_curr_interpolant = length_of_interpolant+1
+            curr_interpolant = np.transpose(np.linspace( state_image[:,curr_interpolant_index], state_image[:,curr_interpolant_index+1], length_of_curr_interpolant) )
+            new_image[:,start_point_of_interpolant:start_point_of_interpolant+length_of_curr_interpolant] = curr_interpolant
+            start_point_of_interpolant = start_point_of_interpolant + length_of_curr_interpolant-1
+        
+        return new_image
+    
+    # Normalizes input image so that the min is 0 and max is 1
+    # @param The input image to be normalized
+    # @param Reference value against which to normalize the min and max of the input image
+    # @return The normalized input image and range of prenormalization
+    def normalize(self, state_image, state_image_ref):
+        
+        # Normalize from 0 to 1
+        min_of_input = np.min(state_image)
+        max_of_input = np.max(state_image)
+        new_image = (state_image - min_of_input) / (max_of_input - min_of_input)
+        
+        # Normalize min and max of input image based on reference
+        min_of_input = min_of_input / state_image_ref
+        max_of_input = max_of_input / state_image_ref
+        
+        return new_image, min_of_input, max_of_input
+
     # Calcuates determinisitc action given state and policy.
-    # @ param states - The states in which the policy is applied to calculate the action
-    # @ param error - Normalized error from target variable
+    # @ param state_image - The state image in which the policy is applied to calculate the action
+    # @param Reference value against which to normalize the min and max of the input image
+    # @ param additional_states - Any additional states generated by external estimators used to inform action generation
     # @ param inputs - The inputs over which the policy is applied
     # @ return action - The calculated deterministic action based on the state and policy
-    def get_greedy_action(self, states, error, inputs):
+    def get_greedy_action(self, state_image, state_image_ref, additional_states, inputs):
 
         # Get the gaussian distribution parameters used to sample the action for the old and new policy
         with torch.no_grad():
-            # Format input state
+            
+            # Square and normalize state image
+            sq_state_image = self.convert_to_square(state_image)
+            norm_sq_state_image, min_of_state_image, max_of_state_image = self.normalize(sq_state_image, state_image_ref)
+            
+            # Convert to tensor of correct dimensions
+            norm_sq_state_image = torch.tensor(norm_sq_state_image)
+            norm_sq_state_image = norm_sq_state_image.reshape(1,1,norm_sq_state_image.shape[0],norm_sq_state_image.shape[1]).float()
+            norm_sq_state_image = norm_sq_state_image.to(self.device)
+            
+            # Populate state vector
+            states = []
+            states.append(min_of_state_image)
+            states.append(max_of_state_image)
+            for i in range(self.num_additional_states):
+                states.append(additional_states[i])
+            for i in range(self.num_inputs):
+                states.append(inputs[i])
+                
+            # Format state vector
             states = torch.tensor(states)
-            states = states.reshape(states.shape[0],1,states.shape[1],states.shape[2]).float().to(self.device)
-            
-            # Format error
-            error = torch.tensor(error)
-            error = error.reshape(1,1).float().to(self.device)
-            
-            # Format input 
-            inputs = torch.tensor(inputs)
-            inputs = inputs.reshape(1,inputs.shape[0]).float().to(self.device)
+            states = states.reshape(1,states.shape[0]).float().to(self.device)
             
             # Forward propogate formatted state
-            means, stdevs = self.actor.forward(states, error, inputs)
+            means, stdevs = self.actor.forward(norm_sq_state_image, states)
             means = means.squeeze().to('cpu')
             
         # Return the actions
@@ -148,29 +208,41 @@ class Agent:
         return tuple(actions)
 
     # Calcuates stochastic action given state and policy.
-    # @ param state - The state in which the policy is applied to calculate the action
-    # @ param error - Normalized error from target variable
+    # @ param state_image - The state image in which the policy is applied to calculate the action
+    # @param Reference value against which to normalize the min and max of the input image
+    # @ param additional_states - Any additional states generated by external estimators used to inform action generation
     # @ param inputs - The inputs over which the policy is applied
     # @ return action - The calculated stochastic action based on the state and policy
     # @ return stdev - The calculated stdev based on the policy
-    def get_action(self, states, error, inputs):
+    def get_action(self, state_image, state_image_ref, additional_states, inputs):
         
         # Get the gaussian distribution parameters used to sample the action for the old and new policy
         with torch.no_grad():
-            # Format input state
+            
+            # Square and normalize state image
+            sq_state_image = self.convert_to_square(state_image)
+            norm_sq_state_image, min_of_state_image, max_of_state_image = self.normalize(sq_state_image, state_image_ref)
+            
+            # Convert to tensor of correct dimensions
+            norm_sq_state_image = torch.tensor(norm_sq_state_image)
+            norm_sq_state_image = norm_sq_state_image.reshape(1,1,norm_sq_state_image.shape[0],norm_sq_state_image.shape[1]).float()
+            norm_sq_state_image = norm_sq_state_image.to(self.device)
+            
+            # Populate state vector
+            states = []
+            states.append(min_of_state_image)
+            states.append(max_of_state_image)
+            for i in range(self.num_additional_states):
+                states.append(additional_states[i])
+            for i in range(self.num_inputs):
+                states.append(inputs[i])
+                
+            # Format state vector
             states = torch.tensor(states)
-            states = states.reshape(states.shape[0],1,states.shape[1],states.shape[2]).float().to(self.device)
+            states = states.reshape(1,states.shape[0]).float().to(self.device)
             
-            # Format error
-            error = torch.tensor(error)
-            error = error.reshape(1,1).float().to(self.device)
-            
-            # Format input 
-            inputs = torch.tensor(inputs)
-            inputs = inputs.reshape(1,inputs.shape[0]).float().to(self.device)
-        
             # Forward propogate formatted state
-            means, stdevs = self.actor.forward(states, error, inputs)
+            means, stdevs = self.actor.forward(norm_sq_state_image, states)
             means = means.squeeze().to('cpu')
             
             # Sample the actions
@@ -185,49 +257,65 @@ class Agent:
         return tuple(action) + tuple(stdev)
 
     # Updates the trajectory memory given an arbitrary time step
-    # @ param states - states to be added to trajectory memory
-    # @ param error - Normalized error from target variable
-    # @ param inputs - inputs to be added to trajectory memory
+    # @ param state_image - The state image in which the policy is applied to calculate the action
+    # @param Reference value against which to normalize the min and max of the input image
+    # @ param additional_states - Any additional states generated by external estimators used to inform action generation
+    # @ param inputs - The inputs over which the policy wass applied
     # @ param action - actions to be added to trajectory memory
     # @ param reward - reward to be added to trajectory memory
-    def update_agent(self, state, error, input, action, reward):
-
-        # Update the state, action, and reward memory
-        self.states[-1].append(state)
-        self.errors[-1].append(error)
-        self.inputs[-1].append(input)
-        self.actions[-1].append(action)
+    def update_agent(self, state_image, state_image_ref, additional_states, inputs, action, reward):     
+    
+        # Update the action and reward memory
+        self.actions[-1].append(np.array(action))
         self.rewards[-1].append(reward)
         
         # Get the current (will become the old during learning) log probs
         with torch.no_grad():
-            # Convert the state type
-            state = torch.tensor(state)
-            state = state.reshape(state.shape[0],1,state.shape[1],state.shape[2]).float().to(self.device)
+            # Square and normalize state image
+            sq_state_image = self.convert_to_square(state_image)
+            norm_sq_state_image, min_of_state_image, max_of_state_image = self.normalize(sq_state_image, state_image_ref)        
+    
+            # Update the state image memory
+            self.state_images[-1].append(norm_sq_state_image)
             
-            # Format error
-            error = torch.tensor(error)
-            error = error.reshape(1,1).float().to(self.device)
+            # Convert to tensor of correct dimensions
+            norm_sq_state_image = torch.tensor(norm_sq_state_image)
+            norm_sq_state_image = norm_sq_state_image.reshape(1,1,norm_sq_state_image.shape[0],norm_sq_state_image.shape[1]).float()
+            norm_sq_state_image = norm_sq_state_image.to(self.device)
+    
+            # Populate state vector
+            states = []
+            states.append(min_of_state_image)
+            states.append(max_of_state_image)
+            for i in range(self.num_additional_states):
+                states.append(additional_states[i])
+            for i in range(self.num_inputs):
+                states.append(inputs[i])   
             
-            # Format input 
-            input = torch.tensor(input)
-            input = input.reshape(1,input.shape[0]).float().to(self.device)
+            # Update the state vector memory
+            self.state_vectors[-1].append(np.array(states))
             
-            # Calculate the distributions provided by actor
-            means, stdevs = self.actor.forward(state, error, input)
+            # Format state vector
+            states = torch.tensor(states)
+            states = states.reshape(1,states.shape[0]).float().to(self.device)
+            
+            # Forward propogate formatted state
+            means, stdevs = self.actor.forward(norm_sq_state_image, states)
             means = means.squeeze().to('cpu')
             stdevs = stdevs.to('cpu')
             
             # Get log prob of actions selected
             action = torch.tensor(action)
             dist = torch.distributions.normal.Normal(means, stdevs)
+
+            # Update the old log prob memory
             self.old_log_probs[-1].append(dist.log_prob(action).sum())
             
             # Gather current value estimates. Will be used for advantage estimate and value target calculations
-            self.value_targets[-1].append(self.critic.forward(state, error, input).item())
+            self.value_targets[-1].append(self.critic.forward(norm_sq_state_image, states).item())
 
         # If the current trajectory is complete, calculate advantage estimates, value targets, and add another trajectory column to the batch memory
-        if len(self.states[-1]) == self.steps_per_trajectory:
+        if len(self.state_images[-1]) == self.steps_per_trajectory:
             
             # Bootstrap value estimates with 0.0
             self.value_targets[-1].append(0.0)
@@ -236,20 +324,19 @@ class Agent:
             self.advantage_estimates[-1] = np.array(self.rewards[-1]) + (self.gamma * np.array(self.value_targets[-1][1:])) - np.array(self.value_targets[-1][:-1])
 
             # Calculate advantage estimates using GAE
-            for t in reversed(range(len(self.states[-1]) - 1)):
+            for t in reversed(range(len(self.state_images[-1]) - 1)):
                 self.advantage_estimates[-1][t] = self.advantage_estimates[-1][t] + (self.gamma * self.lamb * self.advantage_estimates[-1][t + 1])
                     
             # Get the value targets using TD(0)
-            for t in reversed(range(len(self.states[-1]))):
+            for t in reversed(range(len(self.state_images[-1]))):
                 self.value_targets[-1][t] = self.rewards[-1][t] + (self.gamma * self.value_targets[-1][t + 1])
             self.value_targets[-1] = self.value_targets[-1][:-1]
                 
             # Add another trajectory column to the batch memory so long as the batch is not full
-            if len(self.states) != self.trajectories_per_batch:
+            if len(self.state_images) != self.trajectories_per_batch:
                 
-                self.states.append([])
-                self.errors.append([])
-                self.inputs.append([])
+                self.state_images.append([])
+                self.state_vectors.append([])
                 self.actions.append([])
                 self.rewards.append([])
                 self.old_log_probs.append([])
@@ -262,9 +349,8 @@ class Agent:
             else:
                 # Convert batch data 
                 with torch.no_grad():
-                    self.states = torch.reshape(torch.tensor(self.states, dtype=torch.float), (self.steps_per_batch*self.num_states, 1, self.x_dim, self.y_dim)).to(self.device)
-                    self.errors = torch.reshape(torch.tensor(self.errors, dtype=torch.float), (self.steps_per_batch, 1)).to(self.device)
-                    self.inputs = torch.reshape(torch.tensor(self.inputs, dtype=torch.float), (self.steps_per_batch, self.num_inputs)).to(self.device)
+                    self.state_images = torch.reshape(torch.tensor(self.state_images, dtype=torch.float), (self.steps_per_batch, 1, np.max((self.x_dim, self.y_dim)), np.max((self.x_dim, self.y_dim)))).to(self.device)
+                    self.state_vectors = torch.reshape(torch.tensor(self.state_vectors, dtype=torch.float), (self.steps_per_batch, self.num_additional_states+2+self.num_inputs)).to(self.device)
                     self.actions = torch.reshape(torch.tensor(self.actions, dtype=torch.double), (self.steps_per_batch, self.num_inputs)).to(self.device)
                     self.rewards = torch.reshape(torch.tensor(self.rewards, dtype=torch.double), (-1,))
                     self.old_log_probs = torch.reshape(torch.tensor(self.old_log_probs, dtype=torch.double), (-1,)).to(self.device)
@@ -275,7 +361,7 @@ class Agent:
                 # Actor optimization
                 for i in range(self.epochs_per_batch):
                     self.actor_optimizer.zero_grad()
-                    means, stdevs = self.actor.forward(self.states, self.errors, self.inputs)
+                    means, stdevs = self.actor.forward(self.state_images, self.state_vectors)
                     means = means.to(self.device)
                     stdevs = stdevs.to(self.device)
                     log_prob = torch.tensor(0.0).to(self.device)
@@ -286,23 +372,23 @@ class Agent:
                     loss = -(torch.min(self.advantage_estimates*prob_ratio, self.advantage_estimates*torch.clamp(prob_ratio, 1-self.epsilon, 1+self.epsilon))).mean()
                     loss.backward()
                     self.actor_optimizer.step()
-                    self.actor_lr_scheduler.step()
+                self.actor_lr_scheduler.step()
                 
                 # Critic optimization
                 critic_losses = []
                 for i in range(self.epochs_per_batch):
                     self.critic_optimizer.zero_grad()
-                    value_estimates = self.critic.forward(self.states, self.errors, self.inputs).double()
+                    value_estimates = self.critic.forward(self.state_images, self.state_vectors).double()
                     loss = torch.nn.MSELoss()(value_estimates[:, 0], self.value_targets)
                     with torch.no_grad():
                         critic_losses.append(loss.item())
                     loss.backward()
                     self.critic_optimizer.step()
-                    self.actor_lr_scheduler.step()
+                self.actor_lr_scheduler.step()
                 
                 # After learning, reset the memory
-                self.states = [[]]
-                self.errors = [[]]
+                self.state_images = [[]]
+                self.state_vectors = [[]]
                 self.inputs = [[]]
                 self.actions = [[]]
                 self.rewards = [[]]

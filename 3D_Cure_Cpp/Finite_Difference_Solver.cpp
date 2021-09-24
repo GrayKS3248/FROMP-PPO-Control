@@ -773,6 +773,15 @@ double Finite_Difference_Solver::get_curr_target()
 	return target_arr[curr_sim_step];
 }
 
+/**
+* Gets the temperature in kelvin at which the monomer will burn
+* @return The monomer burn temp
+*/
+double Finite_Difference_Solver::get_monomer_burn_temp()
+{
+	return monomer_burn_temp;
+}
+
 
 // ************************************************** SIM OPTION GETTERS ************************************************** //
 /**
@@ -1250,18 +1259,18 @@ void Finite_Difference_Solver::reset()
 
 /**
 * Steps the environment forward one time step
-* @param normalized X slew speed command (-1.0, 1.0)
-* @param normalized Y slew speed command (-1.0, 1.0)
+* @param normalized X position command (-1.0, 1.0)
+* @param normalized Y position command (-1.0, 1.0)
 * @param normalized magnitude percent rate command (-1.0, 1.0)
 * @return Whether the sim is done or not
 */
-bool Finite_Difference_Solver::step(double x_slew_speed_cmd, double y_slew_speed_cmd, double mag_percent_rate_cmd)
+bool Finite_Difference_Solver::step(double x_pos_cmd, double y_pos_cmd, double mag_percent_cmd)
 {
 	// Determine state of trigger
 	step_trigger();
 	
 	// Step the input, cure, front, and temperature
-	step_input(x_slew_speed_cmd, y_slew_speed_cmd, mag_percent_rate_cmd);
+	step_input(x_pos_cmd, y_pos_cmd, mag_percent_cmd);
 	step_meshes();
 
 	// Step time
@@ -1686,19 +1695,29 @@ void Finite_Difference_Solver::step_trigger()
 }
 
 /** Step the input through time
-* @param normalized X slew speed command (-1.0, 1.0)
-* @param normalized Y slew speed command (-1.0, 1.0)
-* @param normalized magnitude percent rate command (-1.0, 1.0)
+* @param normalized X position command (-1.0, 1.0)
+* @param normalized Y position command (-1.0, 1.0)
+* @param magnitude percent command (-1.0, 1.0)
 */
-void Finite_Difference_Solver::step_input(double x_slew_speed_cmd, double y_slew_speed_cmd, double mag_percent_rate_cmd)
+void Finite_Difference_Solver::step_input(double x_pos_cmd, double y_pos_cmd, double mag_percent_cmd)
 {
 	// Convert the raw PPO x command to usable, clipped x location rate command
-	double cmd_x = x_slew_speed_cmd * max_input_slew_speed;
-	cmd_x = cmd_x > max_input_slew_speed ? max_input_slew_speed : cmd_x;
-	cmd_x = cmd_x < -max_input_slew_speed ? -max_input_slew_speed : cmd_x;
-
+	double x_delta = ((x_pos_cmd + 1.0) / 2.0)*coarse_x_len - input_location[0];
+	double x_loc_rate = 0.0;
+	if ( x_delta > 0.0 )
+	{
+		x_loc_rate = max_input_slew_speed;
+		x_loc_rate = x_loc_rate > x_delta/coarse_time_step ? x_delta/coarse_time_step : x_loc_rate;
+		
+	}
+	else if ( x_delta < 0.0 )
+	{
+		x_loc_rate = -max_input_slew_speed;
+		x_loc_rate = x_loc_rate < x_delta/coarse_time_step ? x_delta/coarse_time_step : x_loc_rate;
+	}
+	
 	// Update the input's x location from the converted location rate commands
-	input_location[0] = input_location[0] + cmd_x * coarse_time_step;
+	input_location[0] = input_location[0] + x_loc_rate * coarse_time_step;
 	input_location[0] = input_location[0] > max_input_x_loc ? max_input_x_loc : input_location[0];
 	input_location[0] = input_location[0] < min_input_x_loc ? min_input_x_loc : input_location[0];
 	
@@ -1706,25 +1725,45 @@ void Finite_Difference_Solver::step_input(double x_slew_speed_cmd, double y_slew
 	int input_x_index = (int)round(input_location[0] / coarse_x_step) + 1;
 
 	// Convert the raw PPO y command to usable, clipped y location rate command
-	double cmd_y = y_slew_speed_cmd * max_input_slew_speed;
-	cmd_y = cmd_y > max_input_slew_speed ? max_input_slew_speed : cmd_y;
-	cmd_y = cmd_y < -max_input_slew_speed ? -max_input_slew_speed : cmd_y;
-
+	double y_delta = ((y_pos_cmd + 1.0) / 2.0)*coarse_y_len - input_location[1];
+	double y_loc_rate = 0.0;
+	if ( y_delta > 0.0 )
+	{
+		y_loc_rate = max_input_slew_speed;
+		y_loc_rate = y_loc_rate > y_delta/coarse_time_step ? y_delta/coarse_time_step : y_loc_rate;
+		
+	}
+	else if ( y_delta < 0.0 )
+	{
+		y_loc_rate = -max_input_slew_speed;
+		y_loc_rate = y_loc_rate < y_delta/coarse_time_step ? y_delta/coarse_time_step : y_loc_rate;
+	}
+	
 	// Update the input's y location from the converted location rate commands
-	input_location[1] = input_location[1] + cmd_y * coarse_time_step;
+	input_location[1] = input_location[1] + y_loc_rate * coarse_time_step;
 	input_location[1] = input_location[1] > max_input_y_loc ? max_input_y_loc : input_location[1];
 	input_location[1] = input_location[1] < min_input_y_loc ? min_input_y_loc : input_location[1];
 
 	// Determine the approximate mesh y index of the input location
 	int input_y_index = (int)round(input_location[1] / coarse_y_step) + 1;
 
-	// Convert the raw PPO magnitude percent rate command to usable, clipped magnitude percent rate command
-	double cmd_mag = mag_percent_rate_cmd * max_input_mag_percent_rate;
-	cmd_mag = cmd_mag > max_input_mag_percent_rate ? max_input_mag_percent_rate : cmd_mag;
-	cmd_mag = cmd_mag < -max_input_mag_percent_rate ? -max_input_mag_percent_rate : cmd_mag;
+	// Set magnitude rate command to maximum value corresponding to rate direction
+	double mag_delta = ((mag_percent_cmd + 1.0) / 2.0) - input_percent;
+	double mag_percent_rate = 0.0;
+	if ( mag_delta > 0.0 )
+	{
+		mag_percent_rate = max_input_mag_percent_rate;
+		mag_percent_rate = mag_percent_rate > mag_delta/coarse_time_step ? mag_delta/coarse_time_step : mag_percent_rate;
+		
+	}
+	else if ( mag_delta < 0.0 )
+	{
+		mag_percent_rate = -max_input_mag_percent_rate;
+		mag_percent_rate = mag_percent_rate < mag_delta/coarse_time_step ? mag_delta/coarse_time_step : mag_percent_rate;
+	}
 
 	// Update the input's magnitude from the converted magnitude rate commands
-	input_percent = input_percent + cmd_mag * coarse_time_step;
+	input_percent = input_percent + mag_percent_rate * coarse_time_step;
 	input_percent = input_percent > 1.0 ? 1.0 : input_percent;
 	input_percent = input_percent < 0.0 ? 0.0 : input_percent;
 	

@@ -264,7 +264,7 @@ int run(Finite_Difference_Solver* FDS, int total_trajectories, int num_states, i
 				// Save data to files
 				if (save_frame)
 				{
-					states_frames.push_back(FDS->get_norm_coarse_temp_z0());						
+					states_frames.push_back(FDS->get_coarse_temp_z0());						
 					
 					// Update which frame is to be saved next
 					sub_frame_count++;

@@ -51,6 +51,7 @@ vector<double> get_input();
 
 // Target getters
 double get_curr_target();
+double get_monomer_burn_temp();
 
 // Sim option getter
 bool get_control_mode();

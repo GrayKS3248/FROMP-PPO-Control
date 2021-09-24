@@ -8,56 +8,104 @@ Created on Tue Mar  9 16:11:39 2021
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 class Model(nn.Module):
     
-    def __init__(self, x_dim, y_dim, bottleneck, kernal_size, num_states, num_inputs):
+    def __init__(self, dim, num_additional_inputs, num_outputs):
         
         # Initialize inherited class
         super(Model, self).__init__()
         
-        #Initialize class variables
-        self.size = 16 * x_dim//8 * y_dim//8
-        self.conv_dim = torch.Size([1, 16, x_dim//8, y_dim//8])
-        self.bottleneck = bottleneck
-        self.num_states = num_states
-        self.num_inputs = num_inputs
+        #Initialize convolution size variables
+        self.dim = dim
+        self.num_additional_inputs = num_additional_inputs
+        self.num_outputs = num_outputs
+        self.bottleneck = 128
         
-        # Initialize the max pool function
-        self.pool = nn.MaxPool2d(2, 2)
+        # Conv layer 1
+        self.f_1 = 6
+        self.k_1 = 11
+        self.p_1 = 4
+        self.s_1 = 4
         
-        # Initialize the stdev for each input
-        self.stdev = torch.nn.Parameter(-0.9*torch.ones(num_inputs,dtype=torch.double).double())
+        # Conv layer 2
+        self.f_2 = 16
+        self.k_2 = 5
+        self.p_2 = 2
+        self.s_2 = 1
+        
+        # Conv layer 3
+        self.f_3 = 24
+        self.k_3 = 3
+        self.p_3 = 1
+        self.s_3 = 1
+        
+        # Conv layer 4
+        self.f_4 = 24
+        self.k_4 = 3
+        self.p_4 = 1
+        self.s_4 = 1
+        
+        # Conv layer 5
+        self.f_5 = 16
+        self.k_5 = 3
+        self.p_5 = 1
+        self.s_5 = 1
+        
+        # Max pool
+        self.k_pool = 3
+        self.p_pool = 1
+        self.s_pool = 2
+        
+        # Calcualte size after convolutional operations
+        self.size_after_op1 = np.floor((self.dim + 2*self.p_1 - self.k_1) / self.s_1) + 1
+        self.size_after_op2 = np.floor((self.size_after_op1 + 2*self.p_pool - self.k_pool) / self.s_pool) + 1
+        self.size_after_op3 = np.floor((self.size_after_op2 + 2*self.p_2 - self.k_2) / self.s_2) + 1
+        self.size_after_op4 = np.floor((self.size_after_op3 + 2*self.p_pool - self.k_pool) / self.s_pool) + 1
+        self.size_after_op5 = np.floor((self.size_after_op4 + 2*self.p_3 - self.k_3) / self.s_3) + 1
+        self.size_after_op6 = np.floor((self.size_after_op5 + 2*self.p_4 - self.k_4) / self.s_4) + 1
+        self.size_after_op7 = np.floor((self.size_after_op6 + 2*self.p_5 - self.k_5) / self.s_5) + 1
+        self.size_after_op8 = np.floor((self.size_after_op7 + 2*self.p_pool - self.k_pool) / self.s_pool) + 1
+        self.latent_size = np.long(self.f_5 * self.size_after_op8 * self.size_after_op8)
         
         #Initialize the encoding convolutional layers
-        self.conv1 = nn.Conv2d(1, 2,  kernal_size, padding=kernal_size//2)
-        self.conv2 = nn.Conv2d(2, 4,  kernal_size, padding=kernal_size//2)
-        self.conv3 = nn.Conv2d(4, 16, kernal_size, padding=kernal_size//2)
+        self.conv1 = nn.Conv2d(1, self.f_1, self.k_1, stride=self.s_1, padding=self.p_1)
+        self.conv2 = nn.Conv2d(self.f_1, self.f_2, self.k_2, stride=self.s_2, padding=self.p_2)
+        self.conv3 = nn.Conv2d(self.f_2, self.f_3, self.k_3, stride=self.s_3, padding=self.p_3)
+        self.conv4 = nn.Conv2d(self.f_3, self.f_4, self.k_4, stride=self.s_4, padding=self.p_4)
+        self.conv5 = nn.Conv2d(self.f_4, self.f_5, self.k_5, stride=self.s_5, padding=self.p_5)
+        self.pool = nn.MaxPool2d(self.k_pool, stride=self.s_pool, padding=self.p_pool)
         
-        #Initialize the encoding linear layer
-        self.fc0 = nn.Linear(self.size, bottleneck)
+        #Initialize the encoding linear layers
+        self.fc1 = nn.Linear(self.latent_size, self.bottleneck)
+        
+        # Initialize the stdev for each input
+        self.stdev = torch.nn.Parameter(-0.9*torch.ones(self.num_outputs,dtype=torch.double).double())
 
         #Initialize the fully connected layers for action generation
-        self.fc1 = nn.Linear(num_states*bottleneck+num_inputs+1, 4*(num_states*bottleneck+num_inputs+1))
-        self.fc2 = nn.Linear(4*(num_states*bottleneck+num_inputs+1), 4*(num_states*bottleneck+num_inputs+1))
-        self.fc3 = nn.Linear(4*(num_states*bottleneck+num_inputs+1), num_inputs)
-        
+        self.fc2 = nn.Linear(self.bottleneck + self.num_additional_inputs, self.bottleneck + self.num_additional_inputs)
+        self.fc3 = nn.Linear(self.bottleneck + self.num_additional_inputs, (self.bottleneck + self.num_additional_inputs)//2)
+        self.fc4 = nn.Linear((self.bottleneck + self.num_additional_inputs)//2, (self.bottleneck + self.num_additional_inputs)//2)
+        self.fc5 = nn.Linear((self.bottleneck + self.num_additional_inputs)//2, self.num_outputs)
 
-    def forward(self, states, error, inputs):
+    def forward(self, x, additional_x):
         
-        #Feed-forward states through encoder
-        states = self.pool(F.relu(self.conv1(states)))
-        states = self.pool(F.relu(self.conv2(states)))
-        states = self.pool(F.relu(self.conv3(states)))
-        states = states.view(-1, self.size)
-        states = torch.sigmoid(self.fc0(states))
-        states = states.view(-1, self.bottleneck*self.num_states)
+        #Feed-forward x through convolutional layers
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.conv4(x))
+        x = self.pool(F.relu(self.conv5(x)))
+        x = x.view(-1, self.latent_size)
+        x = F.relu(self.fc1(x))
         
-        #Feed-forward through FC layers
-        means = torch.cat((states,error,inputs),1)
-        means = torch.tanh(self.fc1(means))
+        #Feed-forward x and additional x through FC layers
+        means = torch.cat((x,additional_x),1)
         means = torch.tanh(self.fc2(means))
         means = torch.tanh(self.fc3(means))
+        means = torch.tanh(self.fc4(means))
+        means = torch.tanh(self.fc5(means))
         
         # Calculate stdev
         stdevs = torch.exp(self.stdev)

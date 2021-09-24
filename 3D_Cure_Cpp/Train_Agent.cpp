@@ -914,12 +914,12 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 	{
 		// Initialize simulation variables
 		bool done = false;
-		double action_1=0.0, stdev_1=0.0, action_2=0.0, stdev_2=0.0, action_3=0.0, stdev_3=0.0, reward, estimated_error;
+		double action_1=0.0, stdev_1=0.0, action_2=0.0, stdev_2=0.0, action_3=0.0, stdev_3=0.0, reward, estimated_error, monomer_burn_temp;
 		vector<double> reward_arr;
 		bool run_agent, take_snapshot;
 		int step_in_trajectory = 0;
 		deque<vector<vector<double>>> image_sequence;
-		vector<vector<vector<double>>> norm_temp_mesh = vector<vector<vector<double>>>(1, vector<vector<double>>());
+		vector<vector<double>> state_image;
 		
 		// User readout
 		print_training_info(i, total_trajectories, prev_episode_reward, steps_per_trajectory, r_per_episode, best_episode_reward);
@@ -955,22 +955,27 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 			if (run_agent)
 			{
 				// Gather temperature state data
-				norm_temp_mesh[0] = FDS->get_norm_coarse_temp_z0();
-				PyObject* py_norm_temp_mesh = get_3D_list<vector<vector<vector<double>>>>(norm_temp_mesh);
+				state_image = FDS->get_coarse_temp_z0();
+				PyObject* py_state_image = get_2D_list<vector<vector<double>>>(state_image);
+				
+				// Gather reference temperature
+				monomer_burn_temp = FDS->get_monomer_burn_temp();
 				
 				// Gather target error data
-				PyObject* py_estimated_error = PyFloat_FromDouble(estimated_error);
+				PyObject *py_estimated_error;
+				py_estimated_error = PyList_New(1);
+				PyList_SetItem(py_estimated_error, 0, PyFloat_FromDouble(estimated_error));
 				
 				// Gather input data
 				PyObject* py_inputs = get_1D_list<vector<double>>(FDS->get_input());
 				
 				// Get agent action based on temperature state data
-				PyObject* py_action_and_stdev = PyObject_CallMethod(agent, "get_action", "(O,d,O)", py_norm_temp_mesh, py_estimated_error, py_inputs);
+				PyObject* py_action_and_stdev = PyObject_CallMethod(agent, "get_action", "(O,f,O,O)", py_state_image, monomer_burn_temp, py_estimated_error, py_inputs);
 				if (py_action_and_stdev == NULL)
 				{
 					fprintf(stderr, "\nFailed to call get action function.\n");
 					PyErr_Print();
-					Py_DECREF(py_norm_temp_mesh);
+					Py_DECREF(py_state_image);
 					Py_DECREF(py_estimated_error);
 					Py_DECREF(py_inputs);
 					return 1;
@@ -999,12 +1004,12 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 				// Update the agent and collect critic loss data
 				reward_arr = FDS->get_reward();
 				reward = reward_arr[0];
-				PyObject* py_critic_loss = PyObject_CallMethod(agent, "update_agent", "(O,d,O,O,f)", py_norm_temp_mesh, py_estimated_error, py_inputs, py_actions, reward);
+				PyObject* py_critic_loss = PyObject_CallMethod(agent, "update_agent", "(O,f,O,O,O,f)", py_state_image, monomer_burn_temp, py_estimated_error, py_inputs, py_actions, reward);
 				if (py_critic_loss == NULL)
 				{
 					fprintf(stderr, "\nFailed to update agent\n");
 					PyErr_Print();
-					Py_DECREF(py_norm_temp_mesh);
+					Py_DECREF(py_state_image);
 					Py_DECREF(py_estimated_error);
 					Py_DECREF(py_inputs);
 					Py_DECREF(py_action_and_stdev);
@@ -1022,7 +1027,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 				total_reward = total_reward + reward;
 				
 				// Release the python memory
-				Py_DECREF(py_norm_temp_mesh);
+				Py_DECREF(py_state_image);
 				Py_DECREF(py_estimated_error);
 				Py_DECREF(py_inputs);
 				Py_DECREF(py_action_and_stdev);
@@ -1040,7 +1045,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 
 		// Update the best trajectory memory
 		prev_episode_reward = total_reward - prev_episode_reward;
-		if (prev_episode_reward > best_episode_reward || i == 0)
+		if (prev_episode_reward > best_episode_reward)
 		{
 			best_episode_reward = prev_episode_reward;
 		}
@@ -1074,11 +1079,11 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 	
 	// Run the simulation loop again to generate trajectory data
 	bool done = false;
-	double action_1=0.0, action_2=0.0, action_3=0.0, estimated_error;
+	double action_1=0.0, action_2=0.0, action_3=0.0, estimated_error, monomer_burn_temp;
 	bool run_agent, save_frame, take_snapshot;
 	int step_in_trajectory = 0;
 	deque<vector<vector<double>>> image_sequence;
-	vector<vector<vector<double>>> norm_temp_mesh = vector<vector<vector<double>>>(1, vector<vector<double>>());
+	vector<vector<double>> state_image;
 	FDS->reset();
 	
 	// Populate the initial image_sequence
@@ -1142,22 +1147,27 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 		if (run_agent)
 		{
 			// Gather temperature state data
-			norm_temp_mesh[0] = FDS->get_norm_coarse_temp_z0();
-			PyObject* py_norm_temp_mesh = get_3D_list<vector<vector<vector<double>>>>(norm_temp_mesh);
+			state_image = FDS->get_coarse_temp_z0();
+			PyObject* py_state_image = get_2D_list<vector<vector<double>>>(state_image);
 			
+			// Gather reference temperature
+			monomer_burn_temp = FDS->get_monomer_burn_temp();
+				
 			// Gather target error data
-			PyObject* py_estimated_error = PyFloat_FromDouble(estimated_error);
+			PyObject *py_estimated_error;
+			py_estimated_error = PyList_New(1);
+			PyList_SetItem(py_estimated_error, 0, PyFloat_FromDouble(estimated_error));
 				
 			// Gather input data
 			PyObject* py_inputs = get_1D_list<vector<double>>(FDS->get_input());
 			
 			// Get agent action based on temperature state data
-			PyObject* py_action = PyObject_CallMethod(agent, "get_greedy_action", "(O,d,O)", py_norm_temp_mesh, py_estimated_error, py_inputs);
+			PyObject* py_action = PyObject_CallMethod(agent, "get_greedy_action", "(O,f,O,O)", py_state_image, monomer_burn_temp, py_estimated_error, py_inputs);
 			if (py_action == NULL)
 			{
 				fprintf(stderr, "\nFailed to call get greedy action function.\n");
 				PyErr_Print();
-				Py_DECREF(py_norm_temp_mesh);
+				Py_DECREF(py_state_image);
 				Py_DECREF(py_inputs);
 				return 1;
 			}
@@ -1171,7 +1181,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 			done = FDS->step(action_1, action_2, action_3);
 			
 			// Release the python memory
-			Py_DECREF(py_norm_temp_mesh);
+			Py_DECREF(py_state_image);
 			Py_DECREF(py_inputs);
 			Py_DECREF(py_action);
 		}

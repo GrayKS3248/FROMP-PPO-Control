@@ -132,6 +132,7 @@ class Autoencoder:
     def convert_to_square(self, input_image):
         
         # Extract dimensions
+        input_image = np.array(input_image)
         largest_dim = max(input_image.shape)
         smallest_dim = min(input_image.shape)
         smallest_ax = np.argmin(input_image.shape)
@@ -163,15 +164,19 @@ class Autoencoder:
     
     # Normalizes input image so that the min is 0 and max is 1
     # @param The input image to be normalized
+    # @param Boolean flag that indiciates whether the min and max of the input image are returned
     # @return The normalized input image
-    def normalize(self, input_image):
+    def normalize(self, input_image, return_range=False):
         
         # Normalize from 0 to 1
         min_of_input = np.min(input_image)
         max_of_input = np.max(input_image)
         new_image = (input_image - min_of_input) / (max_of_input - min_of_input)
-            
-        return new_image
+        
+        if return_range:
+            return new_image, min_of_input, max_of_input
+        else:
+            return new_image
     
     # Denormalizes output image so that the mean and stdev match the original image
     # @param The output image to be denormalized
