@@ -14,145 +14,129 @@ import os
 
 class Autoencoder:
     
-    # OBJECTIVE FNC 1: Target temperature field
-    # OBJECTIVE FNC 2: Target temperature field, and blurred front location
-    # OBJECTIVE FNC 3: Target temperature field, blurred front location, and cure field
-    def __init__(self, alpha, decay, x_dim_input, y_dim_input, bottleneck, samples_per_batch, objective_fnc, kernal_size, weighted, noise_stdev, verbose=True):
+    # Initializes an object of the autoencoder class. This class compresses input images to a linear 128 element latent representation 
+    # via a compressed form of the AlexNet CNN. This class requires that input images and target images have the same dimensions.
+    # @param Learning rate
+    # @param Exponential learning rate decay
+    # @param Path from which a previous model will be loaded
+    # @param First dimension of the input and target images
+    # @param Second dimension of the input and target images
+    # @param The number of targets reconstructed by the autoencoder from the input image
+    # @param Stdev of white noise added to the input image before convolution
+    # @param Verbose
+    def __init__(self, alpha, decay, load_path="", dim_1=0, dim_2=0, num_targets=0, noise_stdev=0.0, verbose=True):
         
-        # Initialize model
-        self.model = cnn(x_dim_input,bottleneck, objective_fnc)
-            
-        # Initialize loss criterion, and optimizer
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=alpha)
-        self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer, gamma=decay)
-    
-        # Load model onto GPU
-        self.device = self.get_device()
-        self.model.to(self.device)
-        
-        if verbose:
-            # User printout 1
-            print("Device(")
-            print("  " + self.device)
-            print(")\n")
-            
-            # User printout 2
-            print(self.model)
-            
-            # User printout 3
-            print("\nAutoencoder Parameters(")
-            print("  (Dimensions): " + str(x_dim_input) + "x" + str(y_dim_input))
-            print("  (Objective): " + str(objective_fnc))
-            print("  (Bottleneck): " + str(bottleneck))
-            print("  (Kernal Size): " + str(kernal_size))
-            if weighted == 1:
-                print("  (Weighted): True")
-            else:
-                print("  (Weighted): False")
-            if noise_stdev != 0.0:
-                print("  (Noise Stdev): {0:.3f}".format(noise_stdev))
-            print(")")
-        
-        # Store NN shape parameters
-        self.x_dim = x_dim_input
-        self.y_dim = y_dim_input
-        self.bottleneck = bottleneck
-        self.kernal_size = kernal_size
-        self.weighted = weighted
+        # Initialize hyperparameters
+        self.alpha_zero = alpha
+        self.alpha_decay = decay
         self.noise_stdev = noise_stdev
         if noise_stdev==0.0:
             self.noisy = False
         else:
             self.noisy = True
+            
+        # Initialize or load model
+        if (load_path==""):
+            
+            # Store NN size parameters
+            self.dim_1 = dim_1
+            self.dim_2 = dim_2
+            self.num_targets = num_targets
+            
+            # Initialize model
+            self.model = cnn(np.max((self.dim_1, self.dim_2)), self.num_targets)
+            
+            # Initialize buffer for training curve and lr curve
+            self.loss_curve = []
+            self.lr_curve = []
+            
+            # Initialize variables to track snapshots during training
+            self.batch_num = 0
+            self.input_snapshots = [[], [], []]
+            self.targets_snapshots = [[], [], []]
+            self.outputs_snapshots = [[], [], []]
+            self.loss_snapshots = [[], [], []]
+            self.batch_num_snapshots = []
+       
+        else:
+            self.load(load_path, verbose=verbose)
+            
+        # Initialize optimizer, scheduler, and criterion
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.alpha_zero)
+        self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer, gamma=self.alpha_decay)
+        self.criterion_BCE = torch.nn.BCELoss()
         
-        # Objective fnc type
-        self.objective_fnc = objective_fnc
-        if objective_fnc > 3 or objective_fnc <= 0:
-            raise RuntimeError('Objective function must be greater than or equal to 1 and less than or equal to 3.')
+        # Load model onto GPU
+        self.device = self.get_device()
+        self.model.to(self.device)
         
-        # Initialize batches
-        self.samples_per_batch = samples_per_batch
-        self.temp_batch = []
-        self.cure_batch = []
+        # User readout
+        if verbose:
+            print("Device(")
+            print("  " + self.device)
+            print(")\n")
+            print(self.model)
+            print("\nAutoencoder Parameters(")
+            print("  (Dimensions): " + str(dim_1) + "x" + str(dim_2))
+            print("  (Num Targets): " + str(num_targets))
+            if self.noisy:
+                print("  (Noise Stdev): {0:.3f}".format(noise_stdev))
+            print(")\n")
         
-        # Save frames
-        self.temp_save_buffer = []
-        self.cure_save_buffer = []
-        
-    # Loads a given saved autoencoder
-    # @param the path from which the autoencoder will be loaded
-    # @return the training curve of the loaded autoencoder
-    def load(self, path, verbose=True):
+    # Loads a saved autoencoder at path/output
+    # @param Path from which the autoencoder will be loaded
+    def load(self, load_path, verbose=True):
         
         # Copy NN at path to current module
         if verbose:
-            print("Loading: " + path + "\n")
-        if not os.path.isdir(path):
-            raise RuntimeError("Could not find " + path)
+            print("Loading: " + load_path + "/output \n")
+        if not os.path.isdir(load_path):
+            raise RuntimeError("Could not find " + load_path)
         else:
-            with open(path+"/output", 'rb') as file:
+            with open(load_path+"/output", 'rb') as file:
                 loaded_data = pickle.load(file)
 
-            # Load hyperparameters
-            self.x_dim = loaded_data['x_dim']
-            self.y_dim = loaded_data['y_dim']
-            self.bottleneck = loaded_data['bottleneck']
-            self.kernal_size = loaded_data['kernal_size']
+            # Load network size parameters
+            self.dim_1 = loaded_data['dim_1']
+            self.dim_2 = loaded_data['dim_2']
+            self.num_targets = loaded_data['num_targets']
             
-            # Load parameters
-            self.model = cnn(self.x_dim, self.y_dim, self.bottleneck, self.objective_fnc, self.kernal_size)
-            loaded_model = loaded_data['autoencoder']
-            self.model.load_state_dict(loaded_model.state_dict())
+            # Load model parameters
+            self.model = cnn(np.max((self.dim_1, self.dim_2)), self.num_targets)
+            self.model.load_state_dict(loaded_data['model'].state_dict())
             
-            # Load model onto GPU
-            self.device = self.get_device()
-            self.model.to(self.device)
+            # Initialize buffer for training curve and lr curve
+            self.loss_curve = loaded_data['loss_curve']
+            self.lr_curve = loaded_data['lr_curve']
             
-            if verbose:
-                # User printout 1
-                print("Device(")
-                print("  " + self.device)
-                print(")\n")
-                
-                # User printout 2
-                print(self.model)
-                
-                # User printout 3
-                print("\nAutoencoder Parameters(")
-                print("  (Dimensions): " + str(self.x_dim) + "x" + str(self.y_dim))
-                print("  (Objective): " + str(self.objective_fnc))
-                print("  (Bottleneck): " + str(self.bottleneck))
-                print("  (Kernal Size): " + str(self.kernal_size))
-                if self.weighted == 1:
-                    print("  (Weighted): True")
-                else:
-                    print("  (Weighted): False")
-                if self.noise_stdev != 0.0:
-                    print("  (Noise Stdev): {0:.3f}".format(self.noise_stdev))
-                print(")")
+            # Initialize snapshot variables
+            self.batch_num = loaded_data['batch_num']
+            self.input_snapshots = loaded_data['input_snapshots']
+            self.targets_snapshots = loaded_data['targets_snapshots']
+            self.outputs_snapshots = loaded_data['outputs_snapshots']
+            self.batch_num_snapshots = loaded_data['batch_num_snapshots']
+            self.loss_snapshots = loaded_data['loss_snapshots']
             
-        return loaded_data['training_curve']
-        
-    # Gets the cpu or gpu on which to run NN
+    # Gets the cpu or gpu on which to run
     # @return device code
     def get_device(self):
-        
         if torch.cuda.is_available():
             device = 'cuda:0'
         else:
             device = 'cpu'
         return device
  
-    # Converts any non square frame into a square frame via linear interpolation along the shortest axis
-    # @param the frame to be converted
-    # @param the squared frame
-    def convert_to_square(self, frame):
+    # Converts any non square input image into a square input image via linear interpolation about the shortest axis
+    # @param The input image to be converted
+    # @return The squared input image
+    def convert_to_square(self, input_image):
         
         # Extract dimensions
-        largest_dim = max(frame.shape)
-        smallest_dim = min(frame.shape)
-        smallest_ax = np.argmin(frame.shape)
-        new_frame = np.zeros((largest_dim, largest_dim))
+        largest_dim = max(input_image.shape)
+        smallest_dim = min(input_image.shape)
+        smallest_ax = np.argmin(input_image.shape)
+        new_image = np.zeros((largest_dim, largest_dim))
+        new_image_mask = np.zeros(smallest_dim)
         start_point_of_interpolant = 0
         
         # Extract information regarding the interpolation
@@ -162,788 +146,469 @@ class Autoencoder:
         indicies_of_longer_interpolants = np.round(np.arange(0, smallest_dim - 1, spacing_on_longer_interpolants))
         
         # Interpolate
-        for curr_interpolant_index in range(frame.shape[smallest_ax]-1):
+        for curr_interpolant_index in range(input_image.shape[smallest_ax]-1):
             if (indicies_of_longer_interpolants == curr_interpolant_index).any():
                 length_of_curr_interpolant = length_of_interpolant+2
             else:
                length_of_curr_interpolant = length_of_interpolant+1
-            curr_interpolant = np.transpose(np.linspace( frame[:,curr_interpolant_index], frame[:,curr_interpolant_index+1], length_of_curr_interpolant) )
-            new_frame[:,start_point_of_interpolant:start_point_of_interpolant+length_of_curr_interpolant] = curr_interpolant
+            curr_interpolant = np.transpose(np.linspace( input_image[:,curr_interpolant_index], input_image[:,curr_interpolant_index+1], length_of_curr_interpolant) )
+            new_image[:,start_point_of_interpolant:start_point_of_interpolant+length_of_curr_interpolant] = curr_interpolant
+            new_image_mask[curr_interpolant_index] = start_point_of_interpolant
             start_point_of_interpolant = start_point_of_interpolant + length_of_curr_interpolant-1
+        
+        # Complete last entry of image mask
+        new_image_mask[-1] = largest_dim - 1
+        
+        return new_image, new_image_mask
+    
+    # Normalizes input image so that the min is 0 and max is 1
+    # @param The input image to be normalized
+    # @return The normalized input image
+    def normalize(self, input_image):
+        
+        # Normalize from 0 to 1
+        min_of_input = np.min(input_image)
+        max_of_input = np.max(input_image)
+        new_image = (input_image - min_of_input) / (max_of_input - min_of_input)
             
-        return new_frame
+        return new_image
+    
+    # Denormalizes output image so that the mean and stdev match the original image
+    # @param The output image to be denormalized
+    # @param The minimum value of the target image
+    # @param The maximum value of the target image
+    # @return The denormalized output image
+    def denormalize(self, output_image, min_of_target, max_of_target):
+        new_image = output_image * (max_of_target - min_of_target) + min_of_target
+            
+        return new_image
  
-    # Forward propagates the temperature through the autoencoder
-    # @param the temperature field that informs data reconstruction
-    # @return the reconstructed data
-    def forward(self, temp):
+    # Converts any squared output image back to its original dimensions via linear regression along the shortest axis
+    # @param The squared output image to be converted
+    # @param Mask indicating the interpolant index at each point of square output image
+    # @return The output image in its original dimensions
+    def convert_to_orig_dim(self, output_image, sq_image_mask):
         
-        # Convert frame to proper data type
-        with torch.no_grad():
-            temp = torch.tensor(temp)
-            temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
-            temp = temp.to(self.device)
-            rebuilt_data = self.model.forward(temp).to('cpu')
+        # Create linear regression across each super sample and grab intercept values
+        new_image = np.zeros((self.dim_1, self.dim_2))
+        for i in range(len(sq_image_mask) - 1):
+            x_coords = np.arange(sq_image_mask[i], sq_image_mask[i+1]+1) - sq_image_mask[i]
+            y_coords = output_image[:,np.int(sq_image_mask[i]):np.int(sq_image_mask[i+1]+1)]
+            A = np.vstack([x_coords, np.ones(len(x_coords))]).T
+            slope_intercept = np.matmul(np.matmul(np.linalg.inv(np.matmul(A.T,A)),A.T),y_coords.T)
+            if i == 0:
+                new_image[:, i] = slope_intercept[1]
+            else:
+                new_image[:, i] = 0.5 * (new_image[:, i] + slope_intercept[1])
+            new_image[:,i+1] = slope_intercept[1] + slope_intercept[0] * x_coords[-1]
             
-            # convert encoded frame to proper data type
-            rebuilt_data = rebuilt_data.squeeze().numpy().tolist()
+        return new_image   
+ 
+    # Forward propagates an input image through the autoencoder
+    # @param The input image to be propogated
+    # @param Target images used to denormalize output images
+    # @return The propogated output images
+    def forward(self, input_image, target_images):
         
-        # Return the encoded frame of the proper data type
-        return rebuilt_data
-    
-    # Forward propagates the temperature through the autoencoder and collects the feature maps at each layer
-    # @param the temperature field that informs data reconstruction
-    # @return the reconstructed data as np array
-    # @return The first feature map as np array
-    # @return The second feature map as np array
-    # @return The third feature map as np array
-    def forward_features(self, temp):
-        
-        # Convert frame to proper data type
+        # Convert input to proper data type
         with torch.no_grad():
-            temp = torch.tensor(temp)
-            temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
-            temp = temp.to(self.device)
-            rebuilt_data, features_1, features_2, features_3 = self.model.forward_features(temp)
             
-            # convert encoded frame to proper data type
-            rebuilt_data = rebuilt_data.to('cpu').squeeze().numpy()
-            features_1 = features_1.to('cpu').squeeze().numpy()
-            features_2 = features_2.to('cpu').squeeze().numpy()
-            features_3 = features_3.to('cpu').squeeze().numpy()
-        
+            # Square and normalize input
+            sq_input_image, sq_image_mask = self.convert_to_square(input_image)
+            norm_sq_input_image = self.normalize(sq_input_image)
+            
+            # Convert to tensor of correct dimensions
+            norm_sq_input_image = torch.tensor(norm_sq_input_image)
+            norm_sq_input_image = norm_sq_input_image.reshape(1,1,norm_sq_input_image.shape[0],norm_sq_input_image.shape[1]).float()
+            norm_sq_input_image = norm_sq_input_image.to(self.device)
+            
+            # Forward through model
+            norm_sq_output_image = self.model.forward(norm_sq_input_image).to('cpu').squeeze().numpy()
+            
+            # Return to original distribution and dimensions
+            output_images = []
+            for target in range(self.num_targets):
+                min_of_target = np.min(target_images[target])
+                max_of_target = np.max(target_images[target])
+                if self.num_targets == 1:
+                    sq_output_image = self.denormalize(norm_sq_output_image, min_of_target, max_of_target)
+                else: 
+                    sq_output_image = self.denormalize(norm_sq_output_image[target], min_of_target, max_of_target)
+                output_images.append(self.convert_to_orig_dim(sq_output_image, sq_image_mask))
+            output_images = np.array(output_images)
+                
         # Return the encoded frame of the proper data type
-        return rebuilt_data, features_1, features_2, features_3
+        return output_images
        
-    # Encodes a given temperature field
-    # @param the temperature field to encode
-    # @return list of the encoded data
-    def encode(self, temp):
-        # Convert frame to proper data type
+    # Encodes a given input image
+    # @param The input image to be encoded
+    # @return The linear latent representation
+    def encode(self, input_image):
+
+        # Convert input to proper data type
         with torch.no_grad():
-            temp = torch.tensor(temp)
-            temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
-            temp = temp.to(self.device)
-            encoded_data = self.model.encode(temp).to('cpu')
             
-            # convert encoded frame to proper data type
-            encoded_data = encoded_data.squeeze().numpy().tolist()
+            # Square and normalize input
+            sq_input_image, sq_image_mask = self.convert_to_square(input_image)
+            norm_sq_input_image = self.normalize(sq_input_image)
+            
+            # Convert to tensor of correct dimensions
+            norm_sq_input_image = torch.tensor(norm_sq_input_image)
+            norm_sq_input_image = norm_sq_input_image.reshape(1,1,norm_sq_input_image.shape[0],norm_sq_input_image.shape[1]).float()
+            norm_sq_input_image = norm_sq_input_image.to(self.device)
+            
+            # Forward through model
+            latent_representation = self.model.encode(norm_sq_input_image).to('cpu').squeeze().numpy()
         
         # Return the encoded frame of the proper data type
-        return encoded_data
-    
-    # Adds temperature and cure frame to save buffer
-    # @param the temperature frame
-    # @param the cure frame
-    def save_frame(self, temp, cure):
-        self.temp_save_buffer.append(np.array(temp))
-        self.cure_save_buffer.append(np.array(cure))
-    
-    # Calculates the blurred front location
-    # @param cure field used to determine front location
-    # @return blurred front location 
-    def get_front_location(self, cure, blur_half_range=0.04):
+        return latent_representation.tolist()
         
-        # Solve for cure front
-        front_location = np.concatenate(((abs(np.diff(cure,axis=0))) > 0.25, np.zeros((1,self.y_dim))))
-        distance_indices = np.arange(len(cure))
-                
-        # Apply blur
-        for j in range(len(cure[0,:])):
-            front_slice = distance_indices[(front_location[:,j] == 1.0)]
-            for ind in range(len(front_slice)):
-                i = front_slice[ind]
-                start_blur = int(round(i - blur_half_range * len(cure)))
-                if start_blur < 0:
-                    start_blur = 0
-                end_blur = int(round(i + blur_half_range * len(cure)))
-                if end_blur > len(cure) - 1:
-                    end_blur = len(cure) - 1
-                for ii in range(start_blur, end_blur+1):
-                    if ii < i:
-                        front_location[ii,j] =  max((ii - int(round(i-blur_half_range*len(cure)))) / (i - int(round(i-blur_half_range*len(cure)))), front_location[ii,j])
-                    elif ii == i:
-                        front_location[ii,j] = 1.0
-                    elif ii > i:
-                        front_location[ii,j] = max(1.0 - (ii - i) / (int(round(i+blur_half_range*len(cure))) - i), front_location[ii,j])
-                
-        # Format data
-        front_location = torch.tensor(front_location)
-        front_location = front_location.reshape(1,1,front_location.shape[0],front_location.shape[1]).float()
-                
-        return front_location
-    
-    # Calculates the training target given the objective function ID
-    # @param temperature field used to get target
-    # @param cure field used to get target
-    # @return target given input temperature, cure, and objective function ID
-    # @return weight tensor
-    def get_target(self, temp, cure):
-        
-        # Convert temperature frame to proper data form
-        with torch.no_grad():
-            temp = torch.tensor(temp)
-            temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
-            weights = self.get_front_location(cure,blur_half_range=0.10)+0.25
-            weights = weights / torch.mean(weights)
-            
-            if self.objective_fnc == 1:
-                target = temp
-            
-            elif self.objective_fnc == 2:
-                front_location = self.get_front_location(cure)
-                target = torch.cat((temp, front_location), 1)
-                
-            elif self.objective_fnc == 3:
-                front_location = self.get_front_location(cure)
-                cure = torch.tensor(cure)
-                cure = cure.reshape(1,1,cure.shape[0],cure.shape[1]).float()
-                target = torch.cat((temp, front_location, cure), 1)
-            
-        target = target.to(self.device)
-        
-        return target, weights.squeeze().to(self.device)
-    
-    # Calcualtes the loss for autoencoder learning
-    # @param Autoencoder rebuilt differentiable data
-    # @param Target of objective function
-    # @return Differentialable training loss
-    def get_loss(self, rebuilt_data, target, weights):
-        
-        # Set all weights to 1.0 if the data is to be unweighted
-        if self.weighted != 1:
-            weights = 1.0
-        
-        # Get rebuilt loss
-        if self.objective_fnc == 3:
-            curr_loss = torch.mean(weights * (rebuilt_data[0,0:3,:,:] - target[0,0:3,:,:])**2.0)
-            
-        elif self.objective_fnc == 2:
-            curr_loss = torch.mean(weights * (rebuilt_data[0,0:2,:,:] - target[0,0:2,:,:])**2.0)
-            
-        elif self.objective_fnc == 1:
-            curr_loss = torch.mean(weights * (rebuilt_data[0,0,:,:] - target[0,0,:,:])**2.0)
-            
-        return curr_loss
-        
-    # Updates the autoencoder
-    # @param temperature field to be added to training batch
-    # @param cure field to be added to training batch
-    # @return average epoch training loss or -1 if no optimization epoch occured
-    def learn(self, temp, cure):
-        
-        self.convert_to_square(temp)
-        
-        # Store the current temperature and cure frames in the batch (add noise if noisy)
+    # Adds white noise to image based on initialization function noise stdev.
+    # @param The input image to which noise is added
+    # @return The noisy input image
+    def add_noise(self, input_image):
         if self.noisy:
-            self.temp_batch.append((np.array(temp) + np.random.normal(0,self.noise_stdev,len(temp)*len(temp[0])).reshape([len(temp), len(temp[0])])))
-            self.cure_batch.append((np.array(cure) + np.random.normal(0,self.noise_stdev,len(cure)*len(cure[0])).reshape([len(cure), len(cure[0])])))
-            
+            norm_input_image = self.normalize(input_image)
+            noisy_norm_input_image = norm_input_image + np.random.normal(0.0, self.noise_stdev, input_image.shape)
+            noisy_norm_input_image[noisy_norm_input_image>1.0]=1.0
+            noisy_norm_input_image[noisy_norm_input_image<0.0]=0.0
+            noisy_image = self.denormalize(noisy_norm_input_image, np.min(input_image), np.max(input_image))
         else:
-            self.temp_batch.append(np.array(temp))
-            self.cure_batch.append(np.array(cure))
-        
-        # If the batch is full, perform one epoch of stochastic gradient descent
-        if len(self.temp_batch) >= self.samples_per_batch:
+            noisy_image = input_image
             
-            # Step through batch
-            RMS_loss = 0.0
-            rand_indcies = np.random.permutation(self.samples_per_batch)
-            for i in range(self.samples_per_batch):
-                
-                # Get temperature and cure at random location from bacth
-                curr_temp = self.temp_batch[rand_indcies[i]]
-                curr_cure = self.cure_batch[rand_indcies[i]]
-                
-                # Calculate target
-                target, weights = self.get_target(curr_temp, curr_cure)
-                        
-                # Format and forward propagate temperature data
-                curr_temp = torch.tensor(curr_temp)
-                curr_temp = curr_temp.reshape(1,1,curr_temp.shape[0],curr_temp.shape[1]).float()
-                curr_temp = curr_temp.to(self.device)
-                rebuilt_data = self.model.forward(curr_temp)
+        return noisy_image
+    
+    # Performs one epoch of stochastic gradient descent.
+    # @param Full batch of input images
+    # @param Full batch of target images
+    # @return Average training loss over entire batch
+    def learn(self, input_batch, targets_batch, take_snapshot=False):
         
-                # Get the loss
-                curr_loss = self.get_loss(rebuilt_data, target, weights)
+        # Snapshot mechanics
+        if take_snapshot:
+            loss_buffer = []
+            input_buffer = []
+            targets_buffer = []
         
-                # Take optimization step and learning rate step
-                self.optimizer.zero_grad()
-                curr_loss.backward()
-                self.optimizer.step()
-                self.lr_scheduler.step()
-                
-                # Sum the epoch's total loss
-                RMS_loss = RMS_loss + np.sqrt(curr_loss.item())
+        # Perform one step of stochastic gradient descent for each member of the batch
+        avg_loss = 0.0
+        rand_indcies = np.random.permutation(len(input_batch[:,0,0]))
+        for i in range(len(input_batch[:,0,0])):
             
-            # Empty the batches
-            self.temp_batch = []
-            self.cure_batch = []
+            # Get temperature and cure at random location from bacth
+            input_image = input_batch[rand_indcies[i],:,:]
+            targets = targets_batch[:,rand_indcies[i],:,:]
+                    
+            # Square, normalize, and add noise to input
+            noisy_input_image = self.add_noise(input_image)
+            noisy_sq_input_image, _ = self.convert_to_square(noisy_input_image)
+            noisy_norm_sq_input_image = self.normalize(noisy_sq_input_image)
+            
+            # Convert to tensor of correct dimensions
+            noisy_norm_sq_input_image = torch.tensor(noisy_norm_sq_input_image, requires_grad=True)
+            noisy_norm_sq_input_image = noisy_norm_sq_input_image.reshape(1,1,noisy_norm_sq_input_image.shape[0],noisy_norm_sq_input_image.shape[1]).float()
+            noisy_norm_sq_input_image = noisy_norm_sq_input_image.to(self.device)
+            
+            # Forward through model
+            norm_sq_output_images = self.model.forward(noisy_norm_sq_input_image)
+            
+            # Square and normalize targets
+            norm_sq_targets = np.zeros((self.num_targets, max(self.dim_1,self.dim_2), max(self.dim_1,self.dim_2)))
+            for j in range(self.num_targets):
+                sq_targets, _ = self.convert_to_square(targets[j,:,:])
+                norm_sq_targets[j,:,:] = self.normalize(sq_targets)
+    
+            # Convert to tensor of correct dimensions
+            norm_sq_targets = torch.tensor(norm_sq_targets, requires_grad=False)
+            norm_sq_targets = norm_sq_targets.reshape(1,norm_sq_targets.shape[0],norm_sq_targets.shape[1],norm_sq_targets.shape[2]).float()
+            norm_sq_targets = norm_sq_targets.to(self.device)
+            
+            # Take optimization step
+            loss = self.criterion_BCE(norm_sq_output_images, norm_sq_targets)
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+            
+            # Sum the epoch's total loss
+            avg_loss = avg_loss + loss.item()
+            
+            # Snapshot mechanics
+            if take_snapshot:
+                loss_buffer.append(loss.item())
+                input_buffer.append(noisy_input_image)
+                targets_buffer.append(targets)
+            
+        # Step the learning rate scheduler
+        lr = self.lr_scheduler.get_last_lr()[0]
+        self.lr_scheduler.step()
 
-            # Return the average RMS reconstruction error
-            return RMS_loss / (float(self.objective_fnc) * self.samples_per_batch)
+        # Append training data
+        self.loss_curve.append(avg_loss / len(input_batch[:,0,0]))
+        self.lr_curve.append(lr)
+
+        # Snapshot mechanics
+        self.batch_num = self.batch_num + 1
+        if take_snapshot:
+            index_of_min_loss = np.argmin(loss_buffer)
+            index_of_avg_loss = np.argmin(abs(np.array(loss_buffer) - np.mean(loss_buffer)))
+            index_of_max_loss = np.argmax(loss_buffer)
+            self.input_snapshots[0].append(input_buffer[index_of_min_loss])
+            self.input_snapshots[1].append(input_buffer[index_of_avg_loss])
+            self.input_snapshots[2].append(input_buffer[index_of_max_loss])
+            self.targets_snapshots[0].append(targets_buffer[index_of_min_loss])
+            self.targets_snapshots[1].append(targets_buffer[index_of_avg_loss])
+            self.targets_snapshots[2].append(targets_buffer[index_of_max_loss])
+            self.outputs_snapshots[0].append(self.forward(input_buffer[index_of_min_loss], targets_buffer[index_of_min_loss]))
+            self.outputs_snapshots[1].append(self.forward(input_buffer[index_of_avg_loss], targets_buffer[index_of_min_loss]))
+            self.outputs_snapshots[2].append(self.forward(input_buffer[index_of_max_loss], targets_buffer[index_of_min_loss]))
+            self.loss_snapshots[0].append(np.round(loss_buffer[index_of_min_loss],3))
+            self.loss_snapshots[1].append(np.round(loss_buffer[index_of_avg_loss],3))
+            self.loss_snapshots[2].append(np.round(loss_buffer[index_of_max_loss],3))
+            self.batch_num_snapshots.append(self.batch_num)
         
-        # return -1 if no optimization epoch occured
-        return -1
+        # Return the average RMS reconstruction error
+        return avg_loss / len(input_batch[:,0,0]), lr
     
-    # Calculates the RMS error in the temperature field reconstruction over a set of saved temperature fields
-    # @param the set of temperature fields over which the RMS error is computed
-    # @return RMS error in temperature field reconstruction in percent points
-    def get_temp_error(self, temp_array):
-        print("Getting temperature reconstruction error...")
-        
-        RMS_error = 0.0
-        with torch.no_grad():
-            for i in range(len(temp_array)):
-                
-                # Format temperature field data
-                temp = torch.tensor(temp_array[i,:,:])
-                temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
-            
-                # Forward propogate the frame through the autoencoder
-                temp = temp.to(self.device)
-                rebuilt_temp = self.model.forward(temp)[0,0,:,:].to('cpu').numpy().squeeze()
-                
-                # Calcualte temperature reconstruction error
-                RMS_error = RMS_error + np.sqrt(np.mean((rebuilt_temp-temp_array[i])**2.0))
-                
-        # Get RMS reconstruction error
-        return (100.0*RMS_error) / len(temp_array)
-    
-    # Calculates the RMS error in the front location reconstruction over a set of saved temperature fields
-    # @param the set of temperature fields over which the RMS error is computed
-    # @param the set of cure fields over which the RMS error is computed
-    # @return RMS error in front location reconstruction in percent points
-    def get_front_error(self, temp_array, cure_array):
-        print("Getting front location reconstruction error...")
-        
-        RMS_error = 0.0
-        with torch.no_grad():
-            for i in range(len(temp_array)):
-                
-                # Format temperature field data
-                temp = torch.tensor(temp_array[i])
-                temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
-            
-                # Forward propogate the frame through the autoencoder
-                temp = temp.to(self.device)
-                rebuilt_front = self.model.forward(temp)[0,1,:,:].to('cpu').numpy().squeeze()
-                
-                # get the current front location
-                front = self.get_front_location(cure_array[i])[0,0,:,:].to('cpu').numpy().squeeze()
-                
-                # Calcualte temperature reconstruction error
-                RMS_error = RMS_error + np.sqrt(np.mean((rebuilt_front-front)**2.0))
-                
-        # Get RMS reconstruction error
-        return (100.0*RMS_error) / len(temp_array)
-    
-    # Calculates the RMS error in the cure field reconstruction over a set of saved temperature fields
-    # @param the set of temperature fields over which the RMS error is computed
-    # @param the set of cure fields over which the RMS error is computed
-    # @return RMS error in cure field reconstruction in percent points
-    def get_cure_error(self, temp_array, cure_array):
-        print("Getting cure reconstruction error...")
-        
-        RMS_error = 0.0
-        with torch.no_grad():
-            for i in range(len(temp_array)):
-                
-                # Format temperature field data
-                temp = torch.tensor(temp_array[i])
-                temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
-            
-                # Forward propogate the frame through the autoencoder
-                temp = temp.to(self.device)
-                rebuilt_cure = self.model.forward(temp)[0,2,:,:].to('cpu').numpy().squeeze()
-                
-                # Calcualte temperature reconstruction error
-                RMS_error = RMS_error + np.sqrt(np.mean((rebuilt_cure-cure_array[i])**2.0))
-                
-        # Get RMS reconstruction error
-        return (100.0*RMS_error) / len(temp_array)
-    
-    # Saves the training data and trained autoencoder model
-    # @param training loss curve
-    # @return path at which data has been saved
-    def save(self, training_curve):
+    # Saves the training data and trained model
+    # @param Boolean flag indicating to draw loss curve and learning rate curve for all training
+    # @param Boolean flag indicating to render snapshots taken during all training
+    def save(self, draw=True, render=True):
         print("\nSaving autoencoder results...")
 
         # Store data to dictionary
         data = {
-            'x_dim' : self.x_dim, 
-            'y_dim' : self.y_dim, 
-            'bottleneck' : self.bottleneck, 
-            'objective_fnc' : self.objective_fnc, 
-            'kernal_size' : self.kernal_size,
-            'weighted' : self.weighted,
-            'noisy' : self.noisy,
-            'noise_stdev' : self.noise_stdev,
-            'samples_per_batch' : self.samples_per_batch, 
-            'training_curve' : np.array(training_curve),
-            'autoencoder' : self.model.to('cpu'),
+            "dim_1" : self.dim_1,
+            "dim_2" : self.dim_2,
+            "num_targets" : self.num_targets,
+            "loss_curve" : self.loss_curve,
+            "lr_curve" : self.lr_curve,
+            "model" : self.model.to('cpu'),
+            "batch_num" : self.batch_num,
+            "input_snapshots" : self.input_snapshots,
+            "targets_snapshots" : self.targets_snapshots,
+            "outputs_snapshots" : self.outputs_snapshots,
+            "batch_num_snapshots" : self.batch_num_snapshots,
+            "loss_snapshots" : self.loss_snapshots,
         }
         self.model.to(self.device)
 
         # Find save paths
-        initial_path = "results/" + str(self.objective_fnc) + "_" + str(self.bottleneck) + "_" + str(self.kernal_size) + "_" + str(self.weighted) + '_{0:.3f}'.format(self.noise_stdev)
-        path = initial_path
-        done = False
         curr_dir_num = 1
+        path = "results/AE_" + str(curr_dir_num)
+        done = False
         while not done:
             if not os.path.isdir(path):
                 os.mkdir(path)
                 done = True
             else:
                 curr_dir_num = curr_dir_num + 1
-                path = initial_path + "(" + str(curr_dir_num) + ")"
+                path = "results/AE_" + str(curr_dir_num)
 
         # Pickle all important outputs
         save_file = path + "/output"
         with open(save_file, 'wb') as file:
             pickle.dump(data, file)
+        self.path = path
+        
+        # Draw and render
+        if draw:
+            self.draw()
+        if render:
+            self.render()
 
-        return path
-
-    # Draw and save the training curve
-    # @param training curve to be drawn
-    # @param path at which training curve is saved
-    def draw_training_curve(self, training_curve, path):
+    # Draws and saves the loss and learning rate curves
+    def draw(self):
         print("Plotting autoencoder training curve...")
         
+        # Draw training curve
         plt.clf()
-        plt.title("Autoencoder Learning Curve",fontsize='xx-large')
-        plt.xlabel("Optimization Batch",fontsize='large')
-        plt.ylabel("RMS Reconstruction Error",fontsize='large')
-        plt.plot([*range(len(training_curve))],training_curve,lw=2.5,c='r')
+        plt.title("Loss Curve",fontsize='xx-large')
+        plt.xlabel("Batch",fontsize='large')
+        plt.ylabel("BCE",fontsize='large')
+        plt.plot([*range(len(self.loss_curve))],self.loss_curve,lw=2.5,c='r')
         plt.yscale("log")
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
         plt.gcf().set_size_inches(8.5, 5.5)
-        save_file = path + "/autoencoder_learning.png"
+        save_file = self.path + "/loss.png"
+        plt.savefig(save_file, dpi = 500)
+        plt.close()
+        
+        # Draw learning rate curve
+        plt.clf()
+        plt.title("Learning Rate",fontsize='xx-large')
+        plt.xlabel("Batch",fontsize='large')
+        plt.ylabel("Learning Rate",fontsize='large')
+        plt.plot([*range(len(self.lr_curve))],self.lr_curve,lw=2.5,c='r')
+        plt.xticks(fontsize='large')
+        plt.yticks(fontsize='large')
+        plt.gcf().set_size_inches(8.5, 5.5)
+        save_file = self.path + "/lr.png"
         plt.savefig(save_file, dpi = 500)
         plt.close()
     
-    # Draws the current frame for autoencoder with objective function 1
-    # @param x grid over which data are plotted
-    # @param y grid over which data are plotted
-    # @param temperature field
-    # @param rebuilt temperature field
-    # @param path to which rendered video is saved (in folder called 'video')
-    # @param frame number
-    def draw_obj_1(self, x_grid, y_grid, temp, rebuilt_temp, path, frame_number):
-        
-        # Make figure
-        plt.cla()
-        plt.clf()
-        fig, (ax0, ax1) = plt.subplots(1, 2, constrained_layout=True)
-        fig.set_size_inches(16,2.6667)
-        
-        # Plot temperature
-        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
-        ax0.tick_params(axis='x',labelsize=12)
-        ax0.tick_params(axis='y',labelsize=12)
-        ax0.set_aspect(0.25, adjustable='box')
-        ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
-        
-        # Plot rebuilt temperature
-        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
-        cbar1 = fig.colorbar(c1, ax=ax1, pad=0.1)
-        cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
-        cbar1.ax.tick_params(labelsize=12)
-        ax1.tick_params(axis='x',labelsize=12)
-        ax1.tick_params(axis='y',labelsize=12)
-        ax1.set_aspect(0.25, adjustable='box')
-        ax1.set_title('Rebuilt Temperature Field',fontsize='x-large')
-        
-        # Set title and save
-        plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
-        plt.close()
-    
-    # Draws the current frame for autoencoder with objective function 2
-    # @param x grid over which data are plotted
-    # @param y grid over which data are plotted
-    # @param temperature field
-    # @param front location
-    # @param rebuilt temperature field
-    # @param rebuilt front location
-    # @param path to which rendered video is saved (in folder called 'video')
-    # @param frame number
-    def draw_obj_2(self, x_grid, y_grid, temp, front, rebuilt_temp, rebuilt_front, path, frame_number):
-        
-        # Make figure
-        plt.cla()
-        plt.clf()
-        fig, ((ax0, ax1), (ax2, ax3)) = plt.subplots(2, 2, constrained_layout=True)
-        fig.set_size_inches(16,5.333)
-        
-        # Plot temperature
-        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
-        ax0.tick_params(axis='x',labelsize=12)
-        ax0.tick_params(axis='y',labelsize=12)
-        ax0.set_aspect(0.25, adjustable='box')
-        ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
-        
-        # Plot rebuilt temperature
-        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
-        cbar1 = fig.colorbar(c1, ax=ax1, pad=0.1)
-        cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
-        cbar1.ax.tick_params(labelsize=12)
-        ax1.tick_params(axis='x',labelsize=12)
-        ax1.tick_params(axis='y',labelsize=12)
-        ax1.set_aspect(0.25, adjustable='box')
-        ax1.set_title('Rebuilt Temperature Field',fontsize='x-large')
-        
-        # Plot front location
-        ax2.pcolormesh(x_grid, y_grid, np.transpose(front), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax2.tick_params(axis='x',labelsize=12)
-        ax2.tick_params(axis='y',labelsize=12)
-        ax2.set_aspect(0.25, adjustable='box')
-        ax2.set_title('True Front Mask (Unobserved)',fontsize='x-large')
-        
-        # Plot inferred front location
-        ax3.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_front), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax3.tick_params(axis='x',labelsize=12)
-        ax3.tick_params(axis='y',labelsize=12)
-        ax3.set_aspect(0.25, adjustable='box')
-        ax3.set_title('Inferred Front Mask',fontsize='x-large')
-        
-        # Set title and save
-        plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
-        plt.close()
-    
-    # Draws the current frame for autoencoder with objective function 3
-    # @param x grid over which data are plotted
-    # @param y grid over which data are plotted
-    # @param temperature field
-    # @param front location
-    # @param cure field
-    # @param rebuilt temperature field
-    # @param rebuilt front location
-    # @param rebuilt cure field
-    # @param path to which rendered video is saved (in folder called 'video')
-    # @param frame number
-    def draw_obj_3(self, x_grid, y_grid, temp, front, cure, rebuilt_temp, rebuilt_front, rebuilt_cure, path, frame_number):
-        
-        # Make figure
-        plt.cla()
-        plt.clf()
-        fig, ((ax0, ax1), (ax2, ax3), (ax4, ax5)) = plt.subplots(3, 2, constrained_layout=True)
-        fig.set_size_inches(16,8)
-        
-        # Plot temperature
-        ax0.pcolormesh(x_grid, y_grid, np.transpose(temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
-        ax0.tick_params(axis='x',labelsize=12)
-        ax0.tick_params(axis='y',labelsize=12)
-        ax0.set_aspect(0.25, adjustable='box')
-        ax0.set_title('True Temperature Field (Observed)',fontsize='x-large')
-        
-        # Plot rebuilt temperature
-        c1 = ax1.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
-        cbar1 = fig.colorbar(c1, ax=ax1, pad=0.025)
-        cbar1.set_label('T / '+r'$T_{ref}$'+'   [-]',labelpad=10,fontsize='large')
-        cbar1.ax.tick_params(labelsize=12)
-        ax1.tick_params(axis='x',labelsize=12)
-        ax1.tick_params(axis='y',labelsize=12)
-        ax1.set_aspect(0.25, adjustable='box')
-        ax1.set_title('Rebuilt Temperature Field',fontsize='x-large')
-        
-        # Plot front location
-        ax2.pcolormesh(x_grid, y_grid, np.transpose(front), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax2.tick_params(axis='x',labelsize=12)
-        ax2.tick_params(axis='y',labelsize=12)
-        ax2.set_aspect(0.25, adjustable='box')
-        ax2.set_title('True Front Mask (Unobserved)',fontsize='x-large')
-        
-        # Plot inferred front location
-        ax3.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_front), shading='nearest', cmap='binary', vmin=0.0, vmax=1.0)
-        ax3.tick_params(axis='x',labelsize=12)
-        ax3.tick_params(axis='y',labelsize=12)
-        ax3.set_aspect(0.25, adjustable='box')
-        ax3.set_title('Inferred Front Mask',fontsize='x-large')
-        
-        # Cure frame
-        ax4.pcolormesh(x_grid, y_grid, np.transpose(cure), shading='nearest', cmap='YlOrRd', vmin=0.0, vmax=1.0)
-        ax4.tick_params(axis='x',labelsize=12)
-        ax4.tick_params(axis='y',labelsize=12)
-        ax4.set_aspect(0.25, adjustable='box')
-        ax4.set_title('True Cure Field (Unobserved)',fontsize='x-large')
-        
-        # Inferred cure degree
-        c5 = ax5.pcolormesh(x_grid, y_grid, np.transpose(rebuilt_cure), shading='nearest', cmap='YlOrRd', vmin=0.0, vmax=1.0)
-        cbar5 = fig.colorbar(c5, ax=ax5, pad=0.025)
-        cbar5.set_label('Degree Cure [-]',labelpad=10,fontsize='large')
-        cbar5.ax.tick_params(labelsize=12)
-        ax5.tick_params(axis='x',labelsize=12)
-        ax5.tick_params(axis='y',labelsize=12)
-        ax5.set_aspect(0.25, adjustable='box')
-        ax5.set_title('Inferred Cure Field',fontsize='x-large')
-        
-        # Set title and save
-        plt.savefig(path+"/"+str(frame_number).zfill(4)+'.png', dpi=100)
-        plt.close()
-    
-    # Renders video showing reconstruction of all objective functions based on save frame batch
-    # @param path to which rendered video is saved (in folder called 'video')
-    def render(self, path):
+    # Renders snapshots taken during training to single folder
+    def render(self):
         print("Rendering...")
         
         # Find save paths
-        if not os.path.isdir(path):
-            os.mkdir(path)
-        path = path + "/video"
-        if not os.path.isdir(path):
-            os.mkdir(path)
-        
-        x_grid, y_grid = np.meshgrid(np.linspace(0,1,self.x_dim), np.linspace(0,1,self.y_dim))
-        for i in range(len(self.temp_save_buffer)):
-            with torch.no_grad():
-                # Get rebuilt data
-                temp = torch.tensor(self.temp_save_buffer[i])
-                temp = temp.reshape(1,1,temp.shape[0],temp.shape[1]).float()
-                temp = temp.to(self.device)
-                rebuilt_data = self.model.forward(temp)
-                
-                # Get temperature field, front location, and cure field
-                temp = self.temp_save_buffer[i]
-                front = self.get_front_location(self.cure_save_buffer[i])[0,0,:,:].to('cpu').numpy().squeeze()
-                cure = self.cure_save_buffer[i]
-                
-                if len(rebuilt_data[0,:,0,0]) == 1:
-                    rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
-                    
-                elif len(rebuilt_data[0,:,0,0]) == 2:
-                    rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_front = rebuilt_data[0,1,:,:].to('cpu').numpy().squeeze()
-                    
-                elif len(rebuilt_data[0,:,0,0]) == 3:
-                    rebuilt_temp = rebuilt_data[0,0,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_front = rebuilt_data[0,1,:,:].to('cpu').numpy().squeeze()
-                    rebuilt_cure = rebuilt_data[0,2,:,:].to('cpu').numpy().squeeze()
+        if not os.path.isdir(self.path + "/video"):
+            os.mkdir(self.path + "/video")
             
-            # Draw and save the current frame
-            if len(rebuilt_data[0,:,0,0]) == 1:
-                self.draw_obj_1(x_grid, y_grid, temp, rebuilt_temp, path, i)
+        # Create grids
+        x_grid, y_grid = np.meshgrid(np.linspace(0,1,self.dim_1), np.linspace(0,1,self.dim_2))
             
-            elif len(rebuilt_data[0,:,0,0]) == 2:
-                self.draw_obj_2(x_grid, y_grid, temp, front, rebuilt_temp, rebuilt_front, path, i)
+        for snapshot in range(len(self.batch_num_snapshots)):
+                   
+            # Minimum loss figure
+            plt.cla()
+            plt.clf()
+            fig = plt.figure(constrained_layout=True, figsize=(8, 8))
+            subfigs = fig.subfigures(3, 1)
+            input_ax = subfigs[0].subplots(1,1)
+            target_axs = subfigs[1].subplots(1, self.num_targets)
+            output_axs = subfigs[2].subplots(1, self.num_targets)
             
-            elif len(rebuilt_data[0,:,0,0]) == 3:
-                self.draw_obj_3(x_grid, y_grid, temp, front, cure, rebuilt_temp, rebuilt_front, rebuilt_cure, path, i)
-               
-    # Plots each layer's feature maps at a given input temperautre
-    # @param temperature field over which to generate feature maps
-    # @param path to which feature maps are saved
-    def plot_feature_maps(self, temp, path):
-        # Generate feature maps
-        _, features_1, features_2, features_3 = self.forward_features(temp)
-        
-        # Create grid spaces over which to render
-        temp_x_grid, temp_y_grid = np.meshgrid(np.linspace(0,1,len(temp)), np.linspace(0,1,len(temp[0])))
-        features_1_x_grid, features_1_y_grid = np.meshgrid(np.linspace(0,1,len(features_1[0,:,0])), np.linspace(0,1,len(features_1[0,0,:])))
-        features_2_x_grid, features_2_y_grid = np.meshgrid(np.linspace(0,1,len(features_2[0,:,0])), np.linspace(0,1,len(features_2[0,0,:])))
-        features_3_x_grid, features_3_y_grid = np.meshgrid(np.linspace(0,1,len(features_3[0,:,0])), np.linspace(0,1,len(features_3[0,0,:])))
-        
-        # Make input layer map
-        plt.cla()
-        plt.clf()
-        fig, ax0 = plt.subplots(1, 1, constrained_layout=True)
-        fig.set_size_inches(8,2.6667)
-        
-        # Plot input
-        ax0.pcolormesh(temp_x_grid, temp_y_grid, np.transpose(temp), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
-        ax0.axes.xaxis.set_visible(False)
-        ax0.axes.yaxis.set_visible(False)
-        ax0.set_aspect(0.25, adjustable='box')
-        
-        # Set title and save
-        plt.suptitle('Input Image',fontsize='xx-large')
-        plt.savefig(path+'/input_image.png', dpi=100)
-        plt.close()
-        
-        # Make first features map figure
-        plt.cla()
-        plt.clf()
-        fig, (ax0, ax1) = plt.subplots(1, 2, constrained_layout=True)
-        fig.set_size_inches(16,3.0)
-        
-        # Plot fm1
-        ax0.pcolormesh(features_1_x_grid, features_1_y_grid, np.transpose(features_1[0,:,:]), shading='nearest', cmap='jet')
-        ax0.axes.xaxis.set_visible(False)
-        ax0.axes.yaxis.set_visible(False)
-        ax0.set_aspect(0.25, adjustable='box')
-        ax0.set_title('Feature Map 1',fontsize='x-large')
-        
-        # Plot fm2
-        ax1.pcolormesh(features_1_x_grid, features_1_y_grid, np.transpose(features_1[1,:,:]), shading='nearest', cmap='jet')
-        ax1.axes.xaxis.set_visible(False)
-        ax1.axes.yaxis.set_visible(False)
-        ax1.set_aspect(0.25, adjustable='box')
-        ax1.set_title('Feature Map 2',fontsize='x-large')
-        
-        # Set title and save
-        plt.suptitle('First Convolutional Layer',fontsize='xx-large')
-        plt.savefig(path+'/layer_1_feature_maps.png', dpi=100)
-        plt.close()
-        
-        # Make second features map figure
-        plt.cla()
-        plt.clf()
-        fig, ((ax0, ax1), (ax2, ax3)) = plt.subplots(2, 2, constrained_layout=True)
-        fig.set_size_inches(16,6.0)
-        
-        # Plot fm1
-        ax0.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[0,:,:]), shading='nearest', cmap='jet')
-        ax0.axes.xaxis.set_visible(False)
-        ax0.axes.yaxis.set_visible(False)
-        ax0.set_aspect(0.25, adjustable='box')
-        ax0.set_title('Feature Map 1',fontsize='x-large')
-        
-        # Plot fm2
-        ax1.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[1,:,:]), shading='nearest', cmap='jet')
-        ax1.axes.xaxis.set_visible(False)
-        ax1.axes.yaxis.set_visible(False)
-        ax1.set_aspect(0.25, adjustable='box')
-        ax1.set_title('Feature Map 2',fontsize='x-large')
-        
-        # Plot fm3
-        ax2.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[2,:,:]), shading='nearest', cmap='jet')
-        ax2.axes.xaxis.set_visible(False)
-        ax2.axes.yaxis.set_visible(False)
-        ax2.set_aspect(0.25, adjustable='box')
-        ax2.set_title('Feature Map 3',fontsize='x-large')
-        
-        # Plot fm4
-        ax3.pcolormesh(features_2_x_grid, features_2_y_grid, np.transpose(features_2[3,:,:]), shading='nearest', cmap='jet')
-        ax3.axes.xaxis.set_visible(False)
-        ax3.axes.yaxis.set_visible(False)
-        ax3.set_aspect(0.25, adjustable='box')
-        ax3.set_title('Feature Map 4',fontsize='x-large')
-        
-        # Set title and save
-        plt.suptitle('Second Convolutional Layer',fontsize='xx-large')
-        plt.savefig(path+'/layer_2_feature_maps.png', dpi=100)
-        plt.close()
-        
-        # Make third features map figure
-        plt.cla()
-        plt.clf()
-        fig, ((ax0, ax1), (ax2, ax3), (ax4, ax5), (ax6, ax7), (ax8, ax9), (ax10, ax11), (ax12, ax13), (ax14, ax15)) = plt.subplots(8, 2, constrained_layout=True)
-        fig.set_size_inches(16,24.0)
-        
-        # Plot fm1
-        ax0.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[0,:,:]), shading='nearest', cmap='jet')
-        ax0.axes.xaxis.set_visible(False)
-        ax0.axes.yaxis.set_visible(False)
-        ax0.set_aspect(0.25, adjustable='box')
-        ax0.set_title('Feature Map 1',fontsize='x-large')
-        
-        # Plot fm2
-        ax1.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[1,:,:]), shading='nearest', cmap='jet')
-        ax1.axes.xaxis.set_visible(False)
-        ax1.axes.yaxis.set_visible(False)
-        ax1.set_aspect(0.25, adjustable='box')
-        ax1.set_title('Feature Map 2',fontsize='x-large')
-        
-        # Plot fm3
-        ax2.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[2,:,:]), shading='nearest', cmap='jet')
-        ax2.axes.xaxis.set_visible(False)
-        ax2.axes.yaxis.set_visible(False)
-        ax2.set_aspect(0.25, adjustable='box')
-        ax2.set_title('Feature Map 3',fontsize='x-large')
-        
-        # Plot fm4
-        ax3.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[3,:,:]), shading='nearest', cmap='jet')
-        ax3.axes.xaxis.set_visible(False)
-        ax3.axes.yaxis.set_visible(False)
-        ax3.set_aspect(0.25, adjustable='box')
-        ax3.set_title('Feature Map 4',fontsize='x-large')
-        
-        # Plot fm5
-        ax4.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[4,:,:]), shading='nearest', cmap='jet')
-        ax4.axes.xaxis.set_visible(False)
-        ax4.axes.yaxis.set_visible(False)
-        ax4.set_aspect(0.25, adjustable='box')
-        ax4.set_title('Feature Map 5',fontsize='x-large')
-        
-        # Plot fm6
-        ax5.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[5,:,:]), shading='nearest', cmap='jet')
-        ax5.axes.xaxis.set_visible(False)
-        ax5.axes.yaxis.set_visible(False)
-        ax5.set_aspect(0.25, adjustable='box')
-        ax5.set_title('Feature Map 6',fontsize='x-large')
-        
-        # Plot fm7
-        ax6.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[6,:,:]), shading='nearest', cmap='jet')
-        ax6.axes.xaxis.set_visible(False)
-        ax6.axes.yaxis.set_visible(False)
-        ax6.set_aspect(0.25, adjustable='box')
-        ax6.set_title('Feature Map 7',fontsize='x-large')
-        
-        # Plot fm8
-        ax7.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[7,:,:]), shading='nearest', cmap='jet')
-        ax7.axes.xaxis.set_visible(False)
-        ax7.axes.yaxis.set_visible(False)
-        ax7.set_aspect(0.25, adjustable='box')
-        ax7.set_title('Feature Map 8',fontsize='x-large')
-        
-        # Plot fm9
-        ax8.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[8,:,:]), shading='nearest', cmap='jet')
-        ax8.axes.xaxis.set_visible(False)
-        ax8.axes.yaxis.set_visible(False)
-        ax8.set_aspect(0.25, adjustable='box')
-        ax8.set_title('Feature Map 9',fontsize='x-large')
-        
-        # Plot fm10
-        ax9.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[9,:,:]), shading='nearest', cmap='jet')
-        ax9.axes.xaxis.set_visible(False)
-        ax9.axes.yaxis.set_visible(False)
-        ax9.set_aspect(0.25, adjustable='box')
-        ax9.set_title('Feature Map 10',fontsize='x-large')
-        
-        # Plot fm11
-        ax10.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[10,:,:]), shading='nearest', cmap='jet')
-        ax10.axes.xaxis.set_visible(False)
-        ax10.axes.yaxis.set_visible(False)
-        ax10.set_aspect(0.25, adjustable='box')
-        ax10.set_title('Feature Map 11',fontsize='x-large')
-        
-        # Plot fm12
-        ax11.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[11,:,:]), shading='nearest', cmap='jet')
-        ax11.axes.xaxis.set_visible(False)
-        ax11.axes.yaxis.set_visible(False)
-        ax11.set_aspect(0.25, adjustable='box')
-        ax11.set_title('Feature Map 12',fontsize='x-large')
-        
-        # Plot fm13
-        ax12.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[12,:,:]), shading='nearest', cmap='jet')
-        ax12.axes.xaxis.set_visible(False)
-        ax12.axes.yaxis.set_visible(False)
-        ax12.set_aspect(0.25, adjustable='box')
-        ax12.set_title('Feature Map 13',fontsize='x-large')
-        
-        # Plot fm14
-        ax13.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[13,:,:]), shading='nearest', cmap='jet')
-        ax13.axes.xaxis.set_visible(False)
-        ax13.axes.yaxis.set_visible(False)
-        ax13.set_aspect(0.25, adjustable='box')
-        ax13.set_title('Feature Map 14',fontsize='x-large')
-        
-        # Plot fm15
-        ax14.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[14,:,:]), shading='nearest', cmap='jet')
-        ax14.axes.xaxis.set_visible(False)
-        ax14.axes.yaxis.set_visible(False)
-        ax14.set_aspect(0.25, adjustable='box')
-        ax14.set_title('Feature Map 15',fontsize='x-large')
-        
-        # Plot fm16
-        ax15.pcolormesh(features_3_x_grid, features_3_y_grid, np.transpose(features_3[15,:,:]), shading='nearest', cmap='jet')
-        ax15.axes.xaxis.set_visible(False)
-        ax15.axes.yaxis.set_visible(False)
-        ax15.set_aspect(0.25, adjustable='box')
-        ax15.set_title('Feature Map 16',fontsize='x-large')
-        
-        # Set title and save
-        plt.suptitle('Third Convolutional Layer',fontsize='xx-large')
-        plt.savefig(path+'/layer_3_feature_maps.png', dpi=100)
-        plt.close()
+            # Minimum loss input image
+            input_ax.pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.input_snapshots[0][snapshot])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+            input_ax.tick_params(axis='x',labelsize=12)
+            input_ax.tick_params(axis='y',labelsize=12)
+            input_ax.set_aspect(0.25, adjustable='box')
+            input_ax.set_title('Input',fontsize='x-large')
+            
+            # Minimum loss target image
+            if self.num_targets == 1:
+                target_axs.pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.targets_snapshots[0][snapshot][0])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+                target_axs.tick_params(axis='x',labelsize=12)
+                target_axs.tick_params(axis='y',labelsize=12)
+                target_axs.set_aspect(0.25, adjustable='box')
+                target_axs.set_title('Target',fontsize='x-large')
+            else:
+                for target in range(self.num_targets):
+                    target_axs[target].pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.targets_snapshots[0][snapshot][target])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+                    target_axs[target].tick_params(axis='x',labelsize=12)
+                    target_axs[target].tick_params(axis='y',labelsize=12)
+                    target_axs[target].set_aspect(0.25, adjustable='box')
+                    target_axs[target].set_title('Target '+str(target+1),fontsize='x-large')
+            
+            # Minimum loss output image
+            if self.num_targets == 1:
+                output_axs.pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.outputs_snapshots[0][snapshot][0])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+                output_axs.tick_params(axis='x',labelsize=12)
+                output_axs.tick_params(axis='y',labelsize=12)
+                output_axs.set_aspect(0.25, adjustable='box')
+                output_axs.set_title('Output',fontsize='x-large')
+            else:
+                for output in range(self.num_targets):
+                    output_axs[output].pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.outputs_snapshots[0][snapshot][output])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+                    output_axs[output].tick_params(axis='x',labelsize=12)
+                    output_axs[output].tick_params(axis='y',labelsize=12)
+                    output_axs[output].set_aspect(0.25, adjustable='box')
+                    output_axs[output].set_title('Output '+str(target+1),fontsize='x-large')
+            
+            # Save and close minimum loss figure
+            plt.suptitle('Minimum Loss in Batch ' + str(self.batch_num_snapshots[snapshot])+"\nLoss = " + '{:.3f}'.format(self.loss_snapshots[0][snapshot]) + "\n",fontsize='xx-large')
+            plt.savefig(self.path + "/video/min_in_"+str(snapshot).zfill(3)+'.png', dpi=100)
+            plt.close()
+            
+            # Average loss figure
+            plt.cla()
+            plt.clf()
+            fig = plt.figure(constrained_layout=True, figsize=(8, 8))
+            subfigs = fig.subfigures(3, 1)
+            input_ax = subfigs[0].subplots(1,1)
+            target_axs = subfigs[1].subplots(1, self.num_targets)
+            output_axs = subfigs[2].subplots(1, self.num_targets)
+            
+            # Average loss input image
+            input_ax.pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.input_snapshots[1][snapshot])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+            input_ax.tick_params(axis='x',labelsize=12)
+            input_ax.tick_params(axis='y',labelsize=12)
+            input_ax.set_aspect(0.25, adjustable='box')
+            input_ax.set_title('Input',fontsize='x-large')
+            
+            # Average loss target image
+            if self.num_targets == 1:
+                target_axs.pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.targets_snapshots[1][snapshot][0])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+                target_axs.tick_params(axis='x',labelsize=12)
+                target_axs.tick_params(axis='y',labelsize=12)
+                target_axs.set_aspect(0.25, adjustable='box')
+                target_axs.set_title('Target',fontsize='x-large')
+            else:
+                for target in range(self.num_targets):
+                    target_axs[target].pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.targets_snapshots[1][snapshot][target])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+                    target_axs[target].tick_params(axis='x',labelsize=12)
+                    target_axs[target].tick_params(axis='y',labelsize=12)
+                    target_axs[target].set_aspect(0.25, adjustable='box')
+                    target_axs[target].set_title('Target '+str(target+1),fontsize='x-large')
+            
+            # Average loss output image
+            if self.num_targets == 1:
+                output_axs.pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.outputs_snapshots[1][snapshot][0])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+                output_axs.tick_params(axis='x',labelsize=12)
+                output_axs.tick_params(axis='y',labelsize=12)
+                output_axs.set_aspect(0.25, adjustable='box')
+                output_axs.set_title('Output',fontsize='x-large')
+            else:
+                for output in range(self.num_targets):
+                    output_axs[output].pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.outputs_snapshots[1][snapshot][output])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+                    output_axs[output].tick_params(axis='x',labelsize=12)
+                    output_axs[output].tick_params(axis='y',labelsize=12)
+                    output_axs[output].set_aspect(0.25, adjustable='box')
+                    output_axs[output].set_title('Output '+str(target+1),fontsize='x-large')
+            
+            # Save and close average loss figure
+            plt.suptitle('Average Loss in Batch ' + str(self.batch_num_snapshots[snapshot])+"\nLoss = " + '{:.3f}'.format(self.loss_snapshots[1][snapshot]) + "\n",fontsize='xx-large')
+            plt.savefig(self.path + "/video/avg_in_"+str(snapshot).zfill(3)+'.png', dpi=100)
+            plt.close()
+            
+            # Maximum loss figure
+            plt.cla()
+            plt.clf()
+            fig = plt.figure(constrained_layout=True, figsize=(8, 8))
+            subfigs = fig.subfigures(3, 1)
+            input_ax = subfigs[0].subplots(1,1)
+            target_axs = subfigs[1].subplots(1, self.num_targets)
+            output_axs = subfigs[2].subplots(1, self.num_targets)
+            
+            # Maximum loss input image
+            input_ax.pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.input_snapshots[2][snapshot])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+            input_ax.tick_params(axis='x',labelsize=12)
+            input_ax.tick_params(axis='y',labelsize=12)
+            input_ax.set_aspect(0.25, adjustable='box')
+            input_ax.set_title('Input',fontsize='x-large')
+            
+            # Maximum loss target image
+            if self.num_targets == 1:
+                target_axs.pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.targets_snapshots[2][snapshot][0])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+                target_axs.tick_params(axis='x',labelsize=12)
+                target_axs.tick_params(axis='y',labelsize=12)
+                target_axs.set_aspect(0.25, adjustable='box')
+                target_axs.set_title('Target',fontsize='x-large')
+            else:
+                for target in range(self.num_targets):
+                    target_axs[target].pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.targets_snapshots[2][snapshot][target])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+                    target_axs[target].tick_params(axis='x',labelsize=12)
+                    target_axs[target].tick_params(axis='y',labelsize=12)
+                    target_axs[target].set_aspect(0.25, adjustable='box')
+                    target_axs[target].set_title('Target '+str(target+1),fontsize='x-large')
+            
+            # Maximum loss output image
+            if self.num_targets == 1:
+                output_axs.pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.outputs_snapshots[2][snapshot][0])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+                output_axs.tick_params(axis='x',labelsize=12)
+                output_axs.tick_params(axis='y',labelsize=12)
+                output_axs.set_aspect(0.25, adjustable='box')
+                output_axs.set_title('Output',fontsize='x-large')
+            else:
+                for output in range(self.num_targets):
+                    output_axs[output].pcolormesh(x_grid, y_grid, np.transpose(self.normalize(self.outputs_snapshots[2][snapshot][output])), shading='nearest', cmap='jet', vmin=0.0, vmax=1.0)
+                    output_axs[output].tick_params(axis='x',labelsize=12)
+                    output_axs[output].tick_params(axis='y',labelsize=12)
+                    output_axs[output].set_aspect(0.25, adjustable='box')
+                    output_axs[output].set_title('Output '+str(target+1),fontsize='x-large')
+            
+            # Save and close maximum loss figure
+            plt.suptitle('Maximum Loss in Batch ' + str(self.batch_num_snapshots[snapshot])+"\nLoss = " + '{:.3f}'.format(self.loss_snapshots[2][snapshot]) + "\n",fontsize='xx-large')
+            plt.savefig(self.path + "/video/max_in_"+str(snapshot).zfill(3)+'.png', dpi=100)
+            plt.close()
