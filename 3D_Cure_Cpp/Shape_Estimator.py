@@ -59,7 +59,7 @@ class Estimator:
         A_entries = []
         A_entries.append(len(y_coords))
         for i in range(1,2*order+1):
-            A_entries.append(np.sum(y_coords**i))
+            A_entries.append(np.sum((y_coords)**i))
             
         for i in range(order+1):
             for j in range(order+1):

@@ -21,6 +21,9 @@ all-w:
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_AE_Data.cpp -o get_ae_data.exe $(LDFLAGS-W)
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Train_Agent.cpp -o train_agent.exe $(LDFLAGS-W)
 	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_Estimator_Data.cpp -o get_estimator_data.exe $(LDFLAGS-W)
+
+run:
+	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Run_Solver.cpp -o run_solver.exe $(LDFLAGS-W)
 	
 clean-l:
 	rm -rf tune_params.so

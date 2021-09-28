@@ -910,7 +910,83 @@ vector<vector<double>> Finite_Difference_Solver::get_front_curve()
 }
 
 /**
-* Gets the current front curve
+* Gets a n order polynomial fit of the x position of the detected front as a function of the y coordinate
+* @param Order of polynomial fit
+* @return Vector containing fit data
+**/
+vector<double> Finite_Difference_Solver::get_front_fit(unsigned int order)
+{
+	// Create a vector to hold the fit data
+	vector<double> ret_val = vector<double>(order+1, 0.0);
+	
+	// Convert global front curve to front x and y coords
+	vector<double> front_x_coords;
+	vector<double> front_y_coords;
+	bool done = false;
+	for(int i = 0; i < max_front_instances; i++)
+	{
+		done = (global_front_curve[0][i] < 0.0) || (global_front_curve[1][i] < 0.0);
+		if(!done)
+		{
+			front_x_coords.push_back(global_front_curve[0][i]);
+			front_y_coords.push_back(global_front_curve[1][i]);
+		}
+		else
+		{
+			break;
+		}
+	}
+	
+	// Ensure there are sufficient front instances to apply fit
+	if(front_x_coords.size() <= order)
+	{
+		return ret_val;
+	}
+	
+	// Calculate the entires of the A matrix
+	vector<double> A_entries = vector<double>(2*order+1, 0.0);
+	A_entries[0] = (double)front_y_coords.size();
+	for ( unsigned int i=1; i<2*order+1; i++ )
+	{
+		double sum = 0.0;
+		for ( unsigned int j=0; j<front_y_coords.size(); j++ )
+		{
+			sum += pow(front_y_coords[j], (double)i);
+		}
+		A_entries[i] = sum;
+	}
+	
+	// Arrange the entries of the A matrix
+	vector<vector<double>> A_matrix = vector<vector<double>>(order+1, vector<double>(order+1, 0.0));
+	for( unsigned int i=0; i<order+1; i++ )
+	for( unsigned int j=0; j<order+1; j++ )
+	{
+		 A_matrix[i][j] = A_entries[i+j];
+	}		    
+		
+	// Invert the A matrix
+	vector<vector<double>> inv_A = get_inv(A_matrix);
+
+	// Create and Populate the B vector
+	vector<double> B_vector = vector<double>(order+1, 0.0);	
+	for( unsigned int i=0; i < order+1; i++ )
+	{
+		double sum = 0.0;
+		for ( unsigned int j=0; j<front_x_coords.size(); j++ )
+		{
+			sum += pow(front_y_coords[j], (double)i) * front_x_coords[j];
+		}
+		B_vector[i] = sum;
+	}
+	
+	// Calculate A^-1 * B
+	ret_val = mat_vec_mul(inv_A, B_vector);
+	    
+	return ret_val;
+}
+
+/**
+* Gets the current front mean x location
 * @return Front's mean x location at the current time point
 */
 double Finite_Difference_Solver::get_front_mean_x_loc()
@@ -2547,4 +2623,126 @@ bool Finite_Difference_Solver::step_time()
 	}
 
 	return done;
+}
+
+
+// ================================================================================================= MATRIX MATH FUNCTIONS ================================================================================================= //
+/** Multiplies a vector by a square matrix
+* @param The square matrix
+* @param The vector
+* @return The matrix product of the two parameters
+**/
+vector<double> Finite_Difference_Solver::mat_vec_mul( vector<vector<double>> input_matrix,  vector<double> input_vector )
+{
+	vector<double> product = vector<double>(input_matrix.size(), 0.0);
+	for(unsigned int i = 0; i < input_matrix.size(); i++)
+	{
+		double sum = 0.0;
+		for(unsigned int j = 0; j < input_matrix[0].size(); j++)
+		{
+			sum += input_matrix[i][j] * input_vector[j];
+		}
+		product[i] = sum;
+	}
+	
+	return product;
+}
+
+
+/** Gets the inverse of a square matrix
+* @param The matrix to be inverted
+* @return The inverse of the parameter matrix
+**/
+vector<vector<double>> Finite_Difference_Solver::get_inv( vector<vector<double>> matrix )
+{
+	vector<vector<double>> inv_matrix = vector<vector<double>>( matrix.size(), vector<double>( matrix[0].size(), 0.0 ) );
+	vector<vector<double>> adj_matrix = get_adj( matrix );
+	double inv_det = (1.0 / get_det( matrix ));
+	for(unsigned int i = 0; i < matrix.size(); i++)
+	for(unsigned int j = 0; j < matrix[0].size(); j++)
+	{
+		inv_matrix[i][j] = inv_det * adj_matrix[i][j];
+	}
+	return inv_matrix;
+}
+
+/** Gets the determinant of a square matrix
+* @param The matrix whose determinant is to be calcualted
+* @return The determinant of the parameter matrix
+**/
+double Finite_Difference_Solver::get_det( vector<vector<double>> matrix )
+{
+	double det = 0.0;
+	if ( matrix.size() == 2 && matrix[0].size() == 2 )
+	{
+		det = matrix[0][0]*matrix[1][1] - matrix[0][1]*matrix[1][0];
+	}
+	else
+	{
+		unsigned int i = 0;
+		for( unsigned int j = 0; j < matrix.size(); j++ )
+		{
+			det+= pow( -1.0, ((double)i+1.0)+((double)j+1.0) ) * matrix[i][j] * get_det( get_minor_matrix( matrix, i, j ) );
+		}
+	}
+	
+	return det;
+}
+
+/** Gets the square minor of a square matrix at specified masking coordinates
+* @param The matrix whose minor matrix is to be calculated
+* @param The index of the masked row
+* @param The index of the masked column
+* @return The minor matrix of the parameter matrix
+**/
+vector<vector<double>> Finite_Difference_Solver::get_minor_matrix( vector<vector<double>> matrix, unsigned int i, unsigned int j )
+{
+	vector<vector<double>> minor = vector<vector<double>>( matrix.size()-1, vector<double>( matrix[0].size()-1, 0.0 ) );
+	for(unsigned int p = 0; p < matrix.size()-1; p++)
+	for(unsigned int q = 0; q < matrix[0].size()-1; q++)
+	{
+		unsigned int p_access = p;
+		if(p>=i)
+		{
+			p_access = p + 1;
+		}
+		unsigned int q_access = q;
+		if(q>=j)
+		{
+			q_access = q + 1;
+		}
+		
+		minor[p][q] = matrix[p_access][q_access];
+	}
+	
+	return minor;
+}
+
+/** Gets the adjugate matrix of a square matrix
+* @param The matrix whose adjugate matrix is to be calculated
+* @return The adjugate matrix of the parameter matrix
+**/
+vector<vector<double>> Finite_Difference_Solver::get_adj( vector<vector<double>> matrix )
+{
+	vector<vector<double>> adj_matrix = vector<vector<double>>( matrix.size(), vector<double>( matrix[0].size(), 0.0 ) );
+	for(unsigned int i = 0; i < matrix.size(); i++)
+	for(unsigned int j = 0; j < matrix[0].size(); j++)
+	{
+		adj_matrix[i][j] = get_cofactor( matrix, j, i );
+	}
+	return adj_matrix;
+}
+
+
+/** Gets the cofactor of a square matrix at specified coordinates
+* @param The matrix whose cofactor is to be calculated
+* @param The index of the cofactor row
+* @param The index of the cofactor column
+* @return The cofactor of the parameter matrix
+**/
+double Finite_Difference_Solver::get_cofactor( vector<vector<double>> matrix, unsigned int i, unsigned int j )
+{
+	double minor = get_det( get_minor_matrix( matrix, i, j ) );
+	double cofactor = pow( -1.0, ((double)i+1.0)+((double)j+1.0) ) * minor;
+	return cofactor;
 }

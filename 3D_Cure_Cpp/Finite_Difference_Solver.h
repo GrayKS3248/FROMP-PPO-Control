@@ -65,6 +65,7 @@ vector<vector<double>> get_fine_cure_z0();
 
 // Front state getters
 vector<vector<double>> get_front_curve();
+vector<double> get_front_fit(unsigned int order);
 double get_front_mean_x_loc();
 double get_front_vel();
 double get_front_temp();
@@ -324,4 +325,13 @@ double get_coarse_laplacian(int i, int j, int k);
 double get_fine_laplacian(int i, int j, int k);
 void step_meshes();
 bool step_time();
+
+//******************************************************************** MATRIX MATH FUNCTIONS ********************************************************************//
+vector<double> mat_vec_mul( vector<vector<double>> input_matrix,  vector<double> input_vector );
+vector<vector<double>> get_inv( vector<vector<double>> matrix );
+double get_det( vector<vector<double>> matrix );
+vector<vector<double>> get_minor_matrix( vector<vector<double>> matrix, unsigned int i, unsigned int j );
+vector<vector<double>> get_adj( vector<vector<double>> matrix );
+double get_cofactor( vector<vector<double>> matrix, unsigned int i, unsigned int j );
+
 };

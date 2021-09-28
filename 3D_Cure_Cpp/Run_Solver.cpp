@@ -293,21 +293,23 @@ vector<vector<vector<double>>> fine_temperature_field, vector<vector<vector<doub
 * @return 0 on success, 1 on failure
 */
 
-int store_front_history(PyObject* save_render_plot, vector<vector<vector<double>>> front_curve, vector<double> front_velocity, vector<double> front_temperature, vector<double> front_shape_param)
+int store_front_history(PyObject* save_render_plot, vector<vector<vector<double>>> front_curve, vector<vector<double>> front_fit, vector<double> front_velocity, vector<double> front_temperature, vector<double> front_shape_param)
 {
 	// Convert inputs
 	PyObject* py_front_curve = get_3D_list(front_curve);
+	PyObject* py_front_fit = get_2D_list(front_fit);
 	PyObject* py_front_velocity = get_1D_list(front_velocity);
 	PyObject* py_front_temperature = get_1D_list(front_temperature);
 	PyObject* py_front_shape_param = get_1D_list(front_shape_param);
 	
 	// Call function
-	PyObject* result = PyObject_CallMethod(save_render_plot, "store_front_history", "(O,O,O,O)", py_front_curve, py_front_velocity, py_front_temperature, py_front_shape_param);
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_front_history", "(O,O,O,O,O)", py_front_curve, py_front_fit, py_front_velocity, py_front_temperature, py_front_shape_param);
 	if (result==NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_front_history function:\n");
 		PyErr_Print();
 		Py_DECREF(py_front_curve);
+		Py_DECREF(py_front_fit);
 		Py_DECREF(py_front_velocity);
 		Py_DECREF(py_front_temperature);
 		Py_DECREF(py_front_shape_param);
@@ -317,6 +319,7 @@ int store_front_history(PyObject* save_render_plot, vector<vector<vector<double>
 	// Free memory
 	Py_DECREF(result);
 	Py_DECREF(py_front_curve);
+	Py_DECREF(py_front_fit);
 	Py_DECREF(py_front_velocity);
 	Py_DECREF(py_front_temperature);
 	Py_DECREF(py_front_shape_param);
@@ -502,6 +505,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* save_render_plot, int steps_per
 	vector<double> front_shape_param;
 	vector<vector<double>> fine_mesh_loc;
 	vector<vector<vector<double>>> front_curve;
+	vector<vector<double>> front_fit;
 	vector<vector<vector<double>>> temperature_field;
 	vector<vector<vector<double>>> cure_field;
 	vector<vector<vector<double>>> fine_temperature_field;
@@ -553,6 +557,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* save_render_plot, int steps_per
 			front_temperature.push_back(FDS->get_front_temp());
 			front_shape_param.push_back(FDS->get_front_shape_param());
 			front_curve.push_back(FDS->get_front_curve());
+			front_fit.push_back(FDS->get_front_fit(3));
 			
 			// Store fine mesh data
 			fine_mesh_loc.push_back(FDS->get_fine_mesh_loc());
@@ -595,7 +600,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* save_render_plot, int steps_per
 	start_time = chrono::high_resolution_clock::now();
 	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent) == 1) {return 1;}
 	if(store_field_history(save_render_plot, temperature_field, cure_field, fine_temperature_field, fine_cure_field, fine_mesh_loc) == 1) {return 1;}
-	if(store_front_history(save_render_plot, front_curve, front_velocity, front_temperature, front_shape_param) == 1) {return 1;}
+	if(store_front_history(save_render_plot, front_curve, front_fit, front_velocity, front_temperature, front_shape_param) == 1) {return 1;}
 	if(store_target_and_time(save_render_plot, target, time, reward) == 1) {return 1;}
 	if(store_top_mesh(save_render_plot, FDS->get_coarse_x_mesh_z0(), FDS->get_coarse_y_mesh_z0()) == 1) {return 1;}
 	if(store_input_params(save_render_plot, FDS->get_peak_input_mag(), FDS->get_input_const()) == 1) {return 1;}

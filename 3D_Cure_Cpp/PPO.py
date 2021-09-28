@@ -456,6 +456,7 @@ class Save_Plot_Render:
         self.max_temperature_field = []
         self.max_theta_field = []
         self.front_curve = []
+        self.front_fit = []
         self.front_velocity = []
         self.front_temperature = []
         self.front_shape_param = []
@@ -495,8 +496,9 @@ class Save_Plot_Render:
         self.fine_cure_field = np.array(fine_cure_field)
         self.fine_mesh_loc = np.array(fine_mesh_loc)
     
-    def store_front_history(self, front_curve, front_velocity, front_temperature, front_shape_param):
+    def store_front_history(self, front_curve, front_fit, front_velocity, front_temperature, front_shape_param):
         self.front_curve = np.array(front_curve)
+        self.front_fit = np.array(front_fit)
         self.front_velocity = np.array(front_velocity)
         self.front_temperature = np.array(front_temperature)
         self.front_shape_param = np.array(front_shape_param)
@@ -641,6 +643,7 @@ class Save_Plot_Render:
             'global_fine_mesh_y': self.global_fine_mesh_y,
             'max_temperature_field': self.max_temperature_field,
             'front_curve': self.front_curve,
+            'front_fit' : self.front_fit,
             'mean_front_x_locations': self.mean_front_x_locations,
             'mean_front_y_locations': self.mean_front_y_locations,
             'front_velocity': self.front_velocity,
@@ -719,6 +722,7 @@ class Save_Plot_Render:
             'global_fine_mesh_y': self.global_fine_mesh_y,
             'max_temperature_field': self.max_temperature_field,
             'front_curve': self.front_curve,
+            'front_fit' : self.front_fit,
             'mean_front_x_locations': self.mean_front_x_locations,
             'mean_front_y_locations': self.mean_front_y_locations,
             'front_velocity': self.front_velocity,
@@ -937,6 +941,9 @@ class Save_Plot_Render:
         # Calculate the min and max temperatures of the extended front curve
         initial_temperature = self.front_temperature[0]
         
+        # Determine fit space for front fit
+        fit_y_coords = np.linspace(0.0, self.mesh_y_z0[0][-1], 100)
+        
         for curr_step in range(len(self.time)):
         
             # Calculate input field
@@ -986,7 +993,7 @@ class Save_Plot_Render:
             ax1.set_aspect('equal', adjustable='box')
             ax1.set_title('Reward = '+'{:.2f}'.format(self.reward[curr_step,0]),fontsize='large', fontname = 'monospace')
                     
-            # Determine front locations
+            # Determine front locations based on front curve data
             front_x_location = self.front_curve[curr_step][0]
             front_y_location = self.front_curve[curr_step][1]
             front_x_location = front_x_location[front_x_location >= 0.0]
@@ -995,10 +1002,16 @@ class Save_Plot_Render:
             front_y_location = 1000.0*front_y_location
             front_instances = len(front_x_location)
         
+            # Determine front locations based on fit data
+            fit_x_coords = np.zeros(len(fit_y_coords))
+            for order in range(len(self.front_fit[curr_step])):
+                fit_x_coords = fit_x_coords + self.front_fit[curr_step][order] * (fit_y_coords**order)
+        
             # Plot input
             c2 = ax2.pcolormesh(1000.0*self.mesh_x_z0, 1000.0*self.mesh_y_z0, 1.0e-3*input_mesh, shading='gouraud', cmap='coolwarm', vmin=0.0, vmax=1.0e-3*self.max_input_mag)
             if front_instances != 0:
                 ax2.plot(front_x_location, front_y_location, 's', color='black', markersize=2.25, markeredgecolor='black')
+                ax2.plot(1000.0*fit_x_coords, 1000.0*fit_y_coords, lw=2.0, c='m')
             ax2.axvline(1000.0*self.fine_mesh_loc[curr_step][0], color='red', alpha=0.70, ls='--')
             ax2.axvline(1000.0*self.fine_mesh_loc[curr_step][1], color='red', alpha=0.70, ls='--')
             cbar2 = fig.colorbar(c2, ax=ax2)
@@ -1006,6 +1019,8 @@ class Save_Plot_Render:
             cbar2.ax.tick_params(labelsize=12)
             ax2.set_xlabel('X Position [mm]',fontsize='large')
             ax2.set_ylabel('Y Position [mm]',fontsize='large')
+            ax2.set_xlim(0.0, 1000.0*self.mesh_x_z0[-1][0])
+            ax2.set_ylim(0.0, 1000.0*self.mesh_y_z0[0][-1])
             ax2.tick_params(axis='x',labelsize=12)
             ax2.tick_params(axis='y',labelsize=12)
             ax2.set_aspect('equal', adjustable='box')
