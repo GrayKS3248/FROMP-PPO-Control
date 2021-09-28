@@ -204,7 +204,8 @@ double max_input_mag_percent_rate;
 double max_input_slew_speed;
 
 // Reward constants
-double input_reward_const;
+double input_loc_reward_const;
+double input_mag_reward_const;
 double max_temp_reward_const;
 double front_shape_reward_const;
 double target_reward_const;
@@ -311,7 +312,7 @@ double input_percent;
 int load_config();
 void perturb_mesh(double*** arr, double max_deviation);
 void step_trigger();
-void step_input(double x_slew_speed_cmd, double y_slew_speed_cmd, double mag_percent_rate_cmd);
+void step_input(double x_loc_cmd, double y_loc_cmd, double mag_percent_cmd);
 int get_ind(int i);
 void copy_coarse_to_fine();
 void slide_fine_mesh_right();

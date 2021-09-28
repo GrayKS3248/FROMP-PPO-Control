@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 import os
+import pandas as pd
 
 class Autoencoder:
     
@@ -65,10 +66,25 @@ class Autoencoder:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.alpha_zero)
         self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer, gamma=self.alpha_decay)
         self.criterion_BCE = torch.nn.BCELoss()
+        self.criterion_MSE = torch.nn.MSELoss()
         
         # Load model onto GPU
         self.device = self.get_device()
         self.model.to(self.device)
+        
+        # Create laplacian filter
+        self.laplacian = torch.nn.Conv2d(1,1,7,stride=1,padding=0)
+        self.laplacian.weight = torch.nn.Parameter(torch.tensor([[[[0.0, 0.0, 0.0, 1.0/90.0, 0.0, 0.0, 0.0], 
+                                                                   [0.0, 0.0, 0.0, -3.0/20.0, 0.0, 0.0, 0.0], 
+                                                                   [0.0, 0.0, 0.0, 3.0/2.0, 0.0, 0.0, 0.0], 
+                                                                   [1.0/90.0, -3.0/20.0, 3.0/2.0, -49.0/9.0, 3.0/2.0, -3.0/20.0, 1.0/90.0], 
+                                                                   [0.0, 0.0, 0.0, 3.0/2.0, 0.0, 0.0, 0.0], 
+                                                                   [0.0, 0.0, 0.0, -3.0/20.0, 0.0, 0.0, 0.0], 
+                                                                   [0.0, 0.0, 0.0, 1.0/90.0, 0.0, 0.0, 0.0]]]]))
+        self.laplacian.weight.requires_grad = False
+        self.laplacian.bias = torch.nn.Parameter(torch.tensor([0.0]))
+        self.laplacian.bias.requires_grad = False
+        self.laplacian.to(self.device)
         
         # User readout
         if verbose:
@@ -82,6 +98,17 @@ class Autoencoder:
             if self.noisy:
                 print("  (Noise Stdev): {0:.3f}".format(noise_stdev))
             print(")\n")
+        
+    # BCE of laplacian
+    # @param The input image
+    # @param The target image
+    def criterion_laploss(self,input_image,target_image):
+        input_laplacian = self.laplacian(input_image)
+        target_laplacian = self.laplacian(target_image)
+        input_laplacian = (input_laplacian - torch.min(input_laplacian).item()) / (torch.max(input_laplacian).item() - torch.min(input_laplacian).item())
+        target_laplacian = (target_laplacian - torch.min(target_laplacian).item()) / (torch.max(target_laplacian).item() - torch.min(target_laplacian).item())
+        loss = self.criterion_MSE(input_laplacian, target_laplacian)
+        return loss
         
     # Loads a saved autoencoder at path/output
     # @param Path from which the autoencoder will be loaded
@@ -171,7 +198,11 @@ class Autoencoder:
         # Normalize from 0 to 1
         min_of_input = np.min(input_image)
         max_of_input = np.max(input_image)
-        new_image = (input_image - min_of_input) / (max_of_input - min_of_input)
+        
+        if min_of_input != max_of_input:
+            new_image = (input_image - min_of_input) / (max_of_input - min_of_input)
+        else:
+            new_image = input_image / min_of_input
         
         if return_range:
             return new_image, min_of_input, max_of_input
@@ -425,11 +456,33 @@ class Autoencoder:
     def draw(self):
         print("Plotting autoencoder training curve...")
         
+        # Get the moving average and stdev of the learning curve
+        window = len(self.loss_curve) // 50
+        if window > 1:
+            rolling_std = np.array(pd.Series(self.loss_curve).rolling(window).std())
+            rolling_avg = np.array(pd.Series(self.loss_curve).rolling(window).mean())
+            rolling_std = rolling_std[~np.isnan(rolling_std)]
+            rolling_avg = rolling_avg[~np.isnan(rolling_avg)]
+            
+            # Draw training curve with rolling values
+            plt.clf()
+            plt.title("Loss Curve, Window = " + str(window),fontsize='xx-large')
+            plt.xlabel("Batch",fontsize='large')
+            plt.ylabel("MSE",fontsize='large')
+            plt.plot(np.array([*range(len(rolling_avg))])+(len(self.loss_curve)-len(rolling_avg)+1),rolling_avg,lw=2.5,c='r')
+            plt.fill_between(np.array([*range(len(rolling_avg))])+(len(self.loss_curve)-len(rolling_avg)+1),rolling_avg+rolling_std,rolling_avg-rolling_std,color='r',alpha=0.2,lw=0.0)
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            save_file = self.path + "/rolling_loss.png"
+            plt.savefig(save_file, dpi = 500)
+            plt.close()
+        
         # Draw training curve
         plt.clf()
         plt.title("Loss Curve",fontsize='xx-large')
         plt.xlabel("Batch",fontsize='large')
-        plt.ylabel("BCE",fontsize='large')
+        plt.ylabel("MSE",fontsize='large')
         plt.plot([*range(len(self.loss_curve))],self.loss_curve,lw=2.5,c='r')
         plt.yscale("log")
         plt.xticks(fontsize='large')

@@ -33,8 +33,8 @@ def get_print_string(curr_epochs, num_epochs, batch_num, batch_count, num_batche
 if __name__ == "__main__":
     
     # Training data parameters
-    num_epochs = 1
-    num_traj = 100
+    num_epochs = 5
+    num_traj = 5000
     samples_per_traj = 20
     samples_per_batch = 100
     x_dim = 256
@@ -43,11 +43,11 @@ if __name__ == "__main__":
     training_data_path = 'training_data/DCPD_GC2/Autoencoder'
     
     # Hyperparameters
-    load_path = "validation/DCPD_GC2_Autoencoder/AE_2"
-    num_targets = 2
-    noise_stdev = 0.0
-    alpha_zero = 1.0e-5;
-    alpha_last = 1.0e-5;
+    load_path = ""
+    num_targets = 1
+    noise_stdev = 0.025
+    alpha_zero = 1.0e-3;
+    alpha_last = 1.0e-4;
     
     # Calculated parameters
     num_batches = int(num_traj//(samples_per_batch//samples_per_traj))

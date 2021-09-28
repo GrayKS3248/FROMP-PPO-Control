@@ -10,12 +10,13 @@ using namespace std;
 * Loads parameters from .cfg file
 * @return 0 on success, 1 on failure
 */
-int load_config(string& autoencoder_path_str, string& estimator_path_str, int& total_trajectories, int& steps_per_trajectory, int& trajectories_per_batch, int& epochs_per_batch, double& gamma, double& lamb, double& epsilon, double& start_alpha, double& end_alpha, double& frame_rate)
+int load_config(string& autoencoder_path_str, string& estimator_path_str, int& total_trajectories, int& steps_per_trajectory, int& trajectories_per_batch, int& epochs_per_batch, bool& reset_std, double& gamma, double& lamb, double& epsilon, double& start_alpha, double& end_alpha, double& frame_rate)
 {
 	// Load from config file
 	ifstream config_file;
 	config_file.open("config_files/train_agent.cfg");
 	string config_dump;
+	string bool_dump;
 	if (config_file.is_open())
 	{
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -34,6 +35,21 @@ int load_config(string& autoencoder_path_str, string& estimator_path_str, int& t
 		config_file >> config_dump >> epochs_per_batch;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> config_dump >> bool_dump;
+		if (bool_dump.compare("true")==0)
+		{
+			reset_std = true;
+		}
+		else if (bool_dump.compare("false")==0)
+		{
+			reset_std = false;
+		}
+		else
+		{
+			cout << "\nReset stdev configuration not recognized.";
+			return 1;
+		}
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file >> config_dump >> gamma;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -277,10 +293,11 @@ vector<double> get_vector(PyObject* list)
 * @param Initial learning rate
 * @param Learning rate exponential decay rate
 * @param Path to autoencoder loaded
+* @param Boolean flag indicating whether to reset actor stdev
 * @return PyObject pointer pointing at the initialized PPO agent on success, NULL on failure
 */
 PyObject* init_agent(long num_states, long num_inputs, long steps_per_trajectory, long trajectories_per_batch,
-long epochs_per_batch, double gamma, double lamb, double epsilon, double alpha, double decay_rate, const char* autoencoder_path)
+long epochs_per_batch, double gamma, double lamb, double epsilon, double alpha, double decay_rate, const char* autoencoder_path, bool reset_std)
 {
 	// Define module name
 	PyObject* name = PyUnicode_DecodeFSDefault("PPO");
@@ -320,7 +337,7 @@ long epochs_per_batch, double gamma, double lamb, double epsilon, double alpha, 
 	Py_DECREF(dict);
 
 	// Build the initialization arguments
-	PyObject* init_args = PyTuple_New(11);
+	PyObject* init_args = PyTuple_New(12);
 	PyTuple_SetItem(init_args, 0, PyLong_FromLong(num_states));
 	PyTuple_SetItem(init_args, 1, PyLong_FromLong(num_inputs));
 	PyTuple_SetItem(init_args, 2, PyLong_FromLong(steps_per_trajectory));
@@ -332,6 +349,14 @@ long epochs_per_batch, double gamma, double lamb, double epsilon, double alpha, 
 	PyTuple_SetItem(init_args, 8, PyFloat_FromDouble(alpha));
 	PyTuple_SetItem(init_args, 9, PyFloat_FromDouble(decay_rate));
 	PyTuple_SetItem(init_args, 10, PyUnicode_DecodeFSDefault(autoencoder_path));
+	if (reset_std)
+	{
+		PyTuple_SetItem(init_args, 11, Py_True);
+	}
+	else
+	{
+		PyTuple_SetItem(init_args, 11, Py_False);
+	}
 
 	// Initialize ppo object
 	PyObject* object = PyObject_CallObject(init, init_args);
@@ -514,6 +539,37 @@ int store_training_curves(PyObject* save_render_plot, vector<double> r_per_episo
 }
 
 /**
+* Stores learning rate curves to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param vector containing the actor lr curve
+* @param vector containing the critic lr curve
+* @return 0 on success, 1 on failure
+*/
+int store_lr_curves(PyObject* save_render_plot, vector<double> actor_lr, vector<double> critic_lr)
+{
+	// Convert inputs
+	PyObject* py_actor_lr = get_1D_list<vector<double>>(actor_lr);
+	PyObject* py_critic_lr = get_1D_list<vector<double>>(critic_lr);
+	
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_lr_curves", "(O,O)", py_actor_lr, py_critic_lr);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_lr_curves function:\n");
+		PyErr_Print();
+		Py_DECREF(py_actor_lr);
+		Py_DECREF(py_critic_lr);
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	Py_DECREF(py_actor_lr);
+	Py_DECREF(py_critic_lr);
+	return 0;
+}
+
+/**
 * Stores stdev history to the save_render_plot class
 * @param pointer to the save_render_plot class in the PPO module
 * @param vector containing x rate stdev data
@@ -521,29 +577,29 @@ int store_training_curves(PyObject* save_render_plot, vector<double> r_per_episo
 * @param vector containing magnitude stdev data
 * @return 0 on success, 1 on failure
 */
-int store_stdev_history(PyObject* save_render_plot, vector<double> x_rate_stdev, vector<double> y_rate_stdev, vector<double> mag_stdev)
+int store_stdev_history(PyObject* save_render_plot, vector<double> x_loc_stdev, vector<double> y_loc_stdev, vector<double> mag_stdev)
 {
 	// Convert inputs
-	PyObject* py_x_rate_stdev = get_1D_list<vector<double>>(x_rate_stdev);
-	PyObject* py_y_rate_stdev = get_1D_list<vector<double>>(y_rate_stdev);
+	PyObject* py_x_loc_stdev = get_1D_list<vector<double>>(x_loc_stdev);
+	PyObject* py_y_loc_stdev = get_1D_list<vector<double>>(y_loc_stdev);
 	PyObject* py_mag_stdev = get_1D_list<vector<double>>(mag_stdev);
 	
 	// Call function
-	PyObject* result = PyObject_CallMethod(save_render_plot, "store_stdev_history", "(O,O,O)", py_x_rate_stdev, py_y_rate_stdev, py_mag_stdev);
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_stdev_history", "(O,O,O)", py_x_loc_stdev, py_y_loc_stdev, py_mag_stdev);
 	if (result==NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_stdev_history function:\n");
 		PyErr_Print();
-		Py_DECREF(py_x_rate_stdev);
-		Py_DECREF(py_y_rate_stdev);
+		Py_DECREF(py_x_loc_stdev);
+		Py_DECREF(py_y_loc_stdev);
 		Py_DECREF(py_mag_stdev);
 		return 1;
 	}
 	
 	// Free memory
 	Py_DECREF(result);
-	Py_DECREF(py_x_rate_stdev);
-	Py_DECREF(py_y_rate_stdev);
+	Py_DECREF(py_x_loc_stdev);
+	Py_DECREF(py_y_loc_stdev);
 	Py_DECREF(py_mag_stdev);
 	return 0;
 }
@@ -894,8 +950,10 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 	// Agent training data storage
 	vector<double> r_per_episode;
 	vector<double> critic_loss;
-	vector<double> x_rate_stdev;
-	vector<double> y_rate_stdev;
+	vector<double> actor_lr;
+	vector<double> critic_lr;
+	vector<double> x_loc_stdev;
+	vector<double> y_loc_stdev;
 	vector<double> mag_rate_stdev;
 
 	// Simulation set variables
@@ -1004,8 +1062,8 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 				// Update the agent and collect critic loss data
 				reward_arr = FDS->get_reward();
 				reward = reward_arr[0];
-				PyObject* py_critic_loss = PyObject_CallMethod(agent, "update_agent", "(O,f,O,O,O,f)", py_state_image, monomer_burn_temp, py_estimated_error, py_inputs, py_actions, reward);
-				if (py_critic_loss == NULL)
+				PyObject* py_critic_loss_and_lr = PyObject_CallMethod(agent, "update_agent", "(O,f,O,O,O,f)", py_state_image, monomer_burn_temp, py_estimated_error, py_inputs, py_actions, reward);
+				if (py_critic_loss_and_lr == NULL)
 				{
 					fprintf(stderr, "\nFailed to update agent\n");
 					PyErr_Print();
@@ -1016,12 +1074,17 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 					Py_DECREF(py_actions);
 					return 1;
 				}
-				vector<double> curr_critic_loss = get_vector(py_critic_loss);
-				for (unsigned int i = 0; i < curr_critic_loss.size(); i++)
+				vector<double> curr_critic_loss_and_lr = get_vector(py_critic_loss_and_lr);
+				if (curr_critic_loss_and_lr.size() > 0)
 				{
-					critic_loss.push_back(curr_critic_loss[i]);
+					actor_lr.push_back(curr_critic_loss_and_lr[0]);
+					critic_lr.push_back(curr_critic_loss_and_lr[1]);
+					for (unsigned int i = 2; i < curr_critic_loss_and_lr.size(); i++)
+					{
+						critic_loss.push_back(curr_critic_loss_and_lr[i]);
+					}
 				}
-				Py_DECREF(py_critic_loss);
+				Py_DECREF(py_critic_loss_and_lr);
 	
 				// Update reward
 				total_reward = total_reward + reward;
@@ -1052,8 +1115,8 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 
 		// Store actor training data
 		r_per_episode.push_back(prev_episode_reward/(double)steps_per_trajectory);
-		x_rate_stdev.push_back(FDS->get_max_input_slew_speed()*stdev_1);
-		y_rate_stdev.push_back(FDS->get_max_input_slew_speed()*stdev_2);
+		x_loc_stdev.push_back(FDS->get_max_input_slew_speed()*stdev_1);
+		y_loc_stdev.push_back(FDS->get_max_input_slew_speed()*stdev_2);
 		mag_rate_stdev.push_back(FDS->get_peak_input_mag()*FDS->get_max_input_mag_percent_rate()*stdev_3);
 
 		// Final user readout
@@ -1202,7 +1265,8 @@ int run(Finite_Difference_Solver* FDS, PyObject* agent, PyObject* error_estimato
 	// Send all relevant data to save render and plot module
 	start_time = chrono::high_resolution_clock::now();
 	if(store_training_curves(save_render_plot, r_per_episode, critic_loss) == 1) {return 1;}
-	if(store_stdev_history(save_render_plot, x_rate_stdev, y_rate_stdev, mag_rate_stdev) == 1) {return 1;}
+	if(store_lr_curves(save_render_plot, actor_lr, critic_lr) == 1) {return 1;}
+	if(store_stdev_history(save_render_plot, x_loc_stdev, y_loc_stdev, mag_rate_stdev) == 1) {return 1;}
 	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent) == 1) {return 1;}
 	if(store_field_history(save_render_plot, temperature_field, cure_field, fine_temperature_field, fine_cure_field, fine_mesh_loc) == 1) {return 1;}
 	if(store_front_history(save_render_plot, front_curve, front_velocity, front_temperature, front_shape_param) == 1) {return 1;}
@@ -1231,13 +1295,14 @@ int main()
 	int steps_per_trajectory;
 	int trajectories_per_batch;
 	int epochs_per_batch;
+	bool reset_std;
 	double gamma;
 	double lamb;
 	double epsilon;
 	double start_alpha;
 	double end_alpha;
 	double frame_rate;
-	if (load_config(autoencoder_path_str, estimator_path_str, total_trajectories, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, end_alpha, frame_rate) == 1) { return 1; }
+	if (load_config(autoencoder_path_str, estimator_path_str, total_trajectories, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, reset_std, gamma, lamb, epsilon, start_alpha, end_alpha, frame_rate) == 1) { return 1; }
 	const char* autoencoder_path = autoencoder_path_str.c_str();
 	const char* estimator_path = estimator_path_str.c_str();
 
@@ -1268,7 +1333,7 @@ int main()
 	PyRun_SimpleString("sys.path.append('./')");
     
 	// Init agent
-	PyObject* agent = init_agent(1, 3, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, decay_rate, autoencoder_path);
+	PyObject* agent = init_agent(1, 3, steps_per_trajectory, trajectories_per_batch, epochs_per_batch, gamma, lamb, epsilon, start_alpha, decay_rate, autoencoder_path, reset_std);
 	if (agent == NULL) { Py_FinalizeEx(); return 1; }
     
     	// Init save_render_plot

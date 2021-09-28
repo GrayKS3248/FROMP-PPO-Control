@@ -4,44 +4,29 @@ Created on Sun Apr 25 21:53:17 2021
 
 @author: GKSch
 """
-from Autoencoder import Autoencoder
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.signal import savgol_filter
+import pickle
+import pandas as pd
 
 if __name__ == "__main__":
     
     # Define load paths
     paths = [
-        'results/1_64_7_0_0.000', 
-        'results/1_64_7_1_0.000', 
-        'results/1_64_7_0_0.010', 
-        'results/1_64_7_1_0.010', 
-        'results/1_64_5_0_0.000', 
-        'results/1_64_5_1_0.000', 
-        'results/1_64_5_0_0.010', 
-        'results/1_64_5_1_0.010', 
-        'results/1_64_3_0_0.000', 
-        'results/1_64_3_1_0.000', 
-        'results/1_64_3_0_0.010', 
-        'results/1_64_3_1_0.010', 
+        'results/AE_16_MSE', 
+        'results/AE_32_MSE', 
+        'results/AE_64_MSE', 
+        'results/AE_96_MSE', 
+        'results/AE_128_MSE', 
         ]
     
     # Define labels associated with each loaded autoencoder
-    label_description = 'Kernal Size___Objective___Bottleneck___Weighted/Unweighted'
     labels = [
-        '7_0_0.00', 
-        '7_1_0.00', 
-        '7_0_0.01', 
-        '7_1_0.01', 
-        '5_0_0.00', 
-        '5_1_0.00', 
-        '5_0_0.01', 
-        '5_1_0.01', 
-        '3_0_0.00', 
-        '3_1_0.00', 
-        '3_0_0.01', 
-        '3_1_0.01', 
+        '16',
+        '32', 
+        '64', 
+        '96', 
+        '128', 
         ]
     
     # Ensure proper number of paths and labels
@@ -49,43 +34,28 @@ if __name__ == "__main__":
         raise RuntimeError('Unable to parse number of autoencoders to load.')
     
     # Plotting memory
-    autoencoders = []
     training_curves = []
-    temp_reconstruction_errors = np.zeros(len(paths))
-    objectives = []
-    objective_types = [] 
-    kernal_sizes = []
-    kernal_sizes_types = []
-    bottlenecks = []
-    bottlenecks_types = []
+    training_curve_avg = []
+    training_curve_std = []
     
     for i in range(len(paths)):
         
+        with open(paths[i]+"/output", 'rb') as file:
+            loaded_data = pickle.load(file)
+        
         # Load autoencoders and store their training curves
-        autoencoders.append(Autoencoder(10, 10, 10, 10, 10, 100, 1, 10, 0, 0.0, verbose=False))
-        training_curve = autoencoders[i].load(paths[i], verbose=False)
-        training_curve = savgol_filter(training_curve, 25, 3)
-        training_curves.append(training_curve)
+        training_curves.append(loaded_data['loss_curve'])
         
-        # Gather temperature field reconstruction error
-        num = 5
-        for j in range(num):
-            temp_batch = np.genfromtxt('training_data/DCPD_GC2/temp_data_'+str(j)+'.csv', delimiter=',')
-            temp_batch = temp_batch.reshape(len(temp_batch)//autoencoders[i].x_dim, autoencoders[i].x_dim, autoencoders[i].y_dim)
-            temp_reconstruction_errors[i] = temp_reconstruction_errors[i] + autoencoders[i].get_temp_error(temp_batch)
-        temp_reconstruction_errors[i] = temp_reconstruction_errors[i] / float(num)
-        
-        # Determine which parameters are independent variables
-        if len(objective_types)==0 or (np.array(objectives) != autoencoders[i].objective_fnc).all():
-            objective_types.append(autoencoders[i].objective_fnc)
-        if len(kernal_sizes_types)==0 or (np.array(kernal_sizes) != autoencoders[i].kernal_size).all():
-            kernal_sizes_types.append(autoencoders[i].kernal_size)
-        if len(bottlenecks_types)==0 or (np.array(bottlenecks) != autoencoders[i].bottleneck).all():
-            bottlenecks_types.append(autoencoders[i].bottleneck)
-        objectives.append(autoencoders[i].objective_fnc)
-        kernal_sizes.append(autoencoders[i].kernal_size)
-        bottlenecks.append(autoencoders[i].bottleneck)
-    
+        # Get the moving average and stdev of the learning curve
+        window = len(loaded_data['loss_curve']) // 5
+        if window > 1:
+            rolling_std = np.array(pd.Series(loaded_data['loss_curve']).rolling(window).std())
+            rolling_avg = np.array(pd.Series(loaded_data['loss_curve']).rolling(window).mean())
+            rolling_std = rolling_std[~np.isnan(rolling_std)]
+            rolling_avg = rolling_avg[~np.isnan(rolling_avg)]
+            training_curve_avg.append(rolling_avg)
+            training_curve_std.append(rolling_std)
+            
     # Set font to monospace
     plt.rcParams['font.family'] = 'monospace'
     plt.rcParams['font.monospace'] = ['DejaVu Sans Mono']
@@ -94,111 +64,28 @@ if __name__ == "__main__":
     plt.close()
     plt.clf()
     plt.title('Autoencoder Learning Curves',fontsize='xx-large')
-    plt.xlabel("Optimization Batch",fontsize='large', labelpad=15)
-    plt.ylabel("RMS Reconstruction Error",fontsize='large', labelpad=15)
+    plt.xlabel("Batch",fontsize='large', labelpad=15)
+    plt.ylabel("Loss",fontsize='large', labelpad=15)
     for i in range(len(training_curves)):
-        plt.plot(np.arange(len(training_curves[i])),training_curves[i],lw=2.5,label=labels[i])
+        plt.plot(np.arange(len(training_curves[i])),training_curves[i],lw=2.0,label=labels[i])
     plt.yscale("log")
     plt.xticks(fontsize='large')
     plt.yticks(fontsize='large')
-    plt.legend(fontsize='large', loc='upper right')
+    plt.legend(title='Bottleneck', fontsize='large', loc='upper right')
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.savefig("results/training.png", dpi = 500)
     plt.close()
     
-    # Plot temperature reconstruction errors
-    fig,ax = plt.subplots()
-    index = np.arange(len(temp_reconstruction_errors))
-    bar_width=0.75
-    rects_1=plt.barh(index, temp_reconstruction_errors, bar_width, alpha=0.90, edgecolor='k', color='b')
-    for i, v in enumerate(temp_reconstruction_errors):
-        ax.text(v-0.12*(max(temp_reconstruction_errors)-min(temp_reconstruction_errors)), i-0.20, str(round(v,2)),color='w',fontsize='large')
-    plt.yticks(index, tuple(labels), fontsize='large')
+    # Draw training curve with rolling values
+    plt.clf()
+    plt.title("Loss Curve, Window = " + str(window),fontsize='xx-large')
+    plt.xlabel("Batch",fontsize='large')
+    plt.ylabel("Loss",fontsize='large')
+    for i in range(len(training_curves)):
+        plt.plot(np.array([*range(len(training_curve_avg[i]))])+(len(training_curves[i])-len(training_curve_avg[i])+1),training_curve_avg[i],lw=2.0,label=labels[i])
     plt.xticks(fontsize='large')
-    plt.ylabel(label_description,fontsize='large', labelpad=15)
-    plt.xlabel('RMS Error [%]',fontsize='large', labelpad=15)
-    plt.title("Temperature Field Reconstruction",fontsize='xx-large')
-    plt.gcf().set_size_inches(11., 8.5)
-    save_file = "results/temp_reconstruction.png"
-    plt.savefig(save_file, dpi = 500)
+    plt.yticks(fontsize='large')
+    plt.legend(title='Bottleneck', fontsize='large', loc='upper right')
+    plt.gcf().set_size_inches(8.5, 5.5)
+    plt.savefig("results/training_window.png", dpi = 500)
     plt.close()
-    
-    # Plot ordered temperature reconstruction errors
-    sorted_labels = [x for _, x in sorted(zip(temp_reconstruction_errors, labels))]
-    sorted_labels.reverse()
-    sorted_temp_reconstruction_errors = np.flip(np.sort(temp_reconstruction_errors))
-    fig,ax = plt.subplots()
-    index = np.arange(len(sorted_temp_reconstruction_errors))
-    bar_width=0.75
-    rects_1=plt.barh(index, sorted_temp_reconstruction_errors, bar_width, alpha=0.90, edgecolor='k', color='b')
-    for i, v in enumerate(sorted_temp_reconstruction_errors):
-        ax.text(v-0.12*(max(sorted_temp_reconstruction_errors)-min(sorted_temp_reconstruction_errors)), i-0.20, str(round(v,2)),color='w',fontsize='large')
-    plt.yticks(index, tuple(sorted_labels), fontsize='large')
-    plt.xticks(fontsize='large')
-    plt.ylabel(label_description,fontsize='large', labelpad=15)
-    plt.xlabel('RMS Error [%]',fontsize='large', labelpad=15)
-    plt.title("Temperature Field Reconstruction",fontsize='xx-large')
-    plt.gcf().set_size_inches(11., 8.5)
-    save_file = "results/ordered_temp_reconstruction.png"
-    plt.savefig(save_file, dpi = 500)
-    plt.close()
-        
-    if len(objective_types) != 1:
-        for i in range(len(objective_types)):
-            
-            # Plot training curves of same objective functions
-            plt.close()
-            plt.clf()
-            plt.title('Autoencoder Learning Curves (Objective '+str(objective_types[i])+')',fontsize='xx-large')
-            plt.xlabel("Optimization Batch",fontsize='large', labelpad=15)
-            plt.ylabel("RMS Reconstruction Error",fontsize='large', labelpad=15)
-            for j in range(len(training_curves)):
-                if objectives[j] == objective_types[i]:
-                    plt.plot(np.arange(len(training_curves[j])),training_curves[j],lw=2.5,label=labels[j])
-            plt.yscale("log")
-            plt.xticks(fontsize='large')
-            plt.yticks(fontsize='large')
-            plt.legend(fontsize='large', loc='upper right')
-            plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig("results/training_obj_"+str(objective_types[i])+".png", dpi = 500)
-            plt.close()
-    
-    if len(kernal_sizes_types) != 1:
-        for i in range(len(kernal_sizes_types)):
-            
-            # Plot training curves of same kernal sizes
-            plt.close()
-            plt.clf()
-            plt.title('Autoencoder Learning Curves (Kernal Size '+str(kernal_sizes_types[i])+'x'+str(kernal_sizes_types[i])+')',fontsize='xx-large')
-            plt.xlabel("Optimization Batch",fontsize='large', labelpad=15)
-            plt.ylabel("RMS Reconstruction Error",fontsize='large', labelpad=15)
-            for j in range(len(training_curves)):
-                if kernal_sizes[j] == kernal_sizes_types[i]:
-                    plt.plot(np.arange(len(training_curves[j])),training_curves[j],lw=2.5,label=labels[j])
-            plt.yscale("log")
-            plt.xticks(fontsize='large')
-            plt.yticks(fontsize='large')
-            plt.legend(fontsize='large', loc='upper right')
-            plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig("results/training_ks_"+str(kernal_sizes_types[i])+'x'+str(kernal_sizes_types[i])+".png", dpi = 500)
-            plt.close()
-    
-    if len(bottlenecks_types) != 1:
-        for i in range(len(bottlenecks_types)):
-            
-            # Plot training curves of same bottlenecks
-            plt.close()
-            plt.clf()
-            plt.title('Autoencoder Learning Curves (Bottleneck '+str(bottlenecks_types[i])+')',fontsize='xx-large')
-            plt.xlabel("Optimization Batch",fontsize='large', labelpad=15)
-            plt.ylabel("RMS Reconstruction Error",fontsize='large', labelpad=15)
-            for j in range(len(training_curves)):
-                if bottlenecks[j] == bottlenecks_types[i]:
-                    plt.plot(np.arange(len(training_curves[j])),training_curves[j],lw=2.5,label=labels[j])
-            plt.yscale("log")
-            plt.xticks(fontsize='large')
-            plt.yticks(fontsize='large')
-            plt.legend(fontsize='large', loc='upper right')
-            plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig("results/training_bn_"+str(bottlenecks_types[i])+".png", dpi = 500)
-            plt.close()

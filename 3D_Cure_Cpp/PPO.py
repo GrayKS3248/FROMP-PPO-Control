@@ -24,8 +24,66 @@ import matplotlib.pyplot as plt
 class Agent:
 
     def __init__(self, num_additional_states, num_inputs, steps_per_trajectory, trajectories_per_batch,
-                 epochs_per_batch, gamma, lamb, epsilon, alpha, decay_rate, autoencoder_path):
+                 epochs_per_batch, gamma, lamb, epsilon, alpha, decay_rate, load_path, reset_std):
 
+        # Find load file for either offline trained autoencoder or previously trained PPO agent
+        if not os.path.exists(load_path + "/output"):
+            raise RuntimeError("Could not find load file: " + load_path)
+        with open(load_path + "/output", 'rb') as file:
+            loaded_data = pickle.load(file)
+            
+        # Load offline trained autoencoder
+        if ( ('model' in loaded_data) and ('dim_1' in loaded_data) and ('dim_2' in loaded_data) ):
+            autoencoder_model = loaded_data['model']
+            self.x_dim = loaded_data['dim_1']
+            self.y_dim = loaded_data['dim_2']
+            self.num_additional_states = num_additional_states
+            self.num_inputs = num_inputs
+            
+            self.actor = actor_nn(np.max((self.x_dim, self.y_dim)), self.num_additional_states+2+self.num_inputs, self.num_inputs)
+            self.actor.conv1.load_state_dict(autoencoder_model.conv1.state_dict())
+            self.actor.conv2.load_state_dict(autoencoder_model.conv2.state_dict())
+            self.actor.conv3.load_state_dict(autoencoder_model.conv3.state_dict())
+            self.actor.conv4.load_state_dict(autoencoder_model.conv4.state_dict())
+            self.actor.conv5.load_state_dict(autoencoder_model.conv5.state_dict())
+            self.actor.fc1.load_state_dict(autoencoder_model.fc1.state_dict())
+            
+            self.critic = critic_nn(np.max((self.x_dim, self.y_dim)), self.num_additional_states+2+self.num_inputs)
+            self.critic.conv1.load_state_dict(autoencoder_model.conv1.state_dict())
+            self.critic.conv2.load_state_dict(autoencoder_model.conv2.state_dict())
+            self.critic.conv3.load_state_dict(autoencoder_model.conv3.state_dict())
+            self.critic.conv4.load_state_dict(autoencoder_model.conv4.state_dict())
+            self.critic.conv5.load_state_dict(autoencoder_model.conv5.state_dict())
+            self.critic.fc1.load_state_dict(autoencoder_model.fc1.state_dict())
+        
+            self.prev_r_per_episode = np.array([])
+            self.prev_value_error = np.array([])
+            self.prev_actor_lr = np.array([])
+            self.prev_critic_lr = np.array([])
+            self.prev_x_loc_stdev = np.array([])
+            self.prev_y_loc_stdev = np.array([])
+            self.prev_mag_stdev = np.array([])
+            
+        # Load previously trained PPO agent 
+        elif ( ('actor' in loaded_data) and ('critic' in loaded_data) ):
+            self.actor = loaded_data['actor']
+            self.critic = loaded_data['critic']
+            self.num_inputs = loaded_data['actor'].num_outputs
+            self.num_additional_states = loaded_data['actor'].num_additional_inputs - 2 - self.num_inputs
+            self.x_dim = loaded_data['actor'].dim
+            self.y_dim = loaded_data['actor'].dim
+            self.prev_r_per_episode = loaded_data['r_per_episode']
+            self.prev_value_error = loaded_data['value_error']
+            self.prev_actor_lr = loaded_data['actor_lr']
+            self.prev_critic_lr = loaded_data['critic_lr']
+            self.prev_x_loc_stdev = loaded_data['x_loc_stdev']
+            self.prev_y_loc_stdev = loaded_data['y_loc_stdev']
+            self.prev_mag_stdev = loaded_data['mag_stdev']
+            
+        # Throw error if autoencoder or PPO agent not found
+        else:
+            raise RuntimeError("Invalid data type at: " + load_path)
+            
         # Batch memory
         self.state_images = [[]]
         self.state_vectors = [[]]
@@ -42,50 +100,19 @@ class Agent:
         self.epochs_per_batch = epochs_per_batch
 
         # Hyperparameters
-        self.num_additional_states = num_additional_states
-        self.num_inputs = num_inputs
         self.gamma = gamma
         self.lamb = lamb
         self.epsilon = epsilon
         self.alpha = alpha
         self.decay_rate = decay_rate
         
-        # Find load file for encoder trained offline
-        if not os.path.exists(autoencoder_path + "/output"):
-            raise RuntimeError("Could not find load file: " + autoencoder_path)
-        with open(autoencoder_path + "/output", 'rb') as file:
-            loaded_encoder_data = pickle.load(file)
-        autoencoder_model = loaded_encoder_data['model']
-        
-        # Set encoder parameters from loaded data
-        self.x_dim = loaded_encoder_data['dim_1']
-        self.y_dim = loaded_encoder_data['dim_2']
-        
-        # Build actor
-        self.actor = actor_nn(np.max((self.x_dim, self.y_dim)), self.num_additional_states+2+self.num_inputs, self.num_inputs)
-        
-        # Copy offline trained encoder parameters to actor CNN
-        self.actor.conv1.load_state_dict(autoencoder_model.conv1.state_dict())
-        self.actor.conv2.load_state_dict(autoencoder_model.conv2.state_dict())
-        self.actor.conv3.load_state_dict(autoencoder_model.conv3.state_dict())
-        self.actor.conv4.load_state_dict(autoencoder_model.conv4.state_dict())
-        self.actor.conv5.load_state_dict(autoencoder_model.conv5.state_dict())
-        self.actor.fc1.load_state_dict(autoencoder_model.fc1.state_dict())
-        
+        # Reset the actor stdev if requested
+        if reset_std:
+            self.actor.stdev = torch.nn.Parameter(-0.9*torch.ones(self.actor.fc5.out_features,dtype=torch.double).double())
+            
         # Create optimizer and lr scheduler for actor
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters() , lr=self.alpha)
         self.actor_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.actor_optimizer, gamma=self.decay_rate)
-        
-        # Build critic
-        self.critic = critic_nn(np.max((self.x_dim, self.y_dim)), self.num_additional_states+2+self.num_inputs)
-        
-        # Copy offline trained encoder parameters to critc CNN 
-        self.critic.conv1.load_state_dict(autoencoder_model.conv1.state_dict())
-        self.critic.conv2.load_state_dict(autoencoder_model.conv2.state_dict())
-        self.critic.conv3.load_state_dict(autoencoder_model.conv3.state_dict())
-        self.critic.conv4.load_state_dict(autoencoder_model.conv4.state_dict())
-        self.critic.conv5.load_state_dict(autoencoder_model.conv5.state_dict())
-        self.critic.fc1.load_state_dict(autoencoder_model.fc1.state_dict())
         
         # Create optimizer and lr scheduler for critic
         self.critic_optimizer =  torch.optim.Adam(self.critic.parameters() , lr=self.alpha)
@@ -101,10 +128,6 @@ class Agent:
         print("Actor " + str(self.actor)) 
         print("")
         print("Critic " + str(self.critic)) 
-
-    # Loads a previous model for additional training
-    def load_previous_model(self, path):
-        pass
 
     # Gets the cpu or gpu on which to run NN
     # @return device code
@@ -156,8 +179,12 @@ class Agent:
         # Normalize from 0 to 1
         min_of_input = np.min(state_image)
         max_of_input = np.max(state_image)
-        new_image = (state_image - min_of_input) / (max_of_input - min_of_input)
         
+        if min_of_input != max_of_input:
+            new_image = (state_image - min_of_input) / (max_of_input - min_of_input)
+        else:
+            new_image = state_image / min_of_input
+            
         # Normalize min and max of input image based on reference
         min_of_input = min_of_input / state_image_ref
         max_of_input = max_of_input / state_image_ref
@@ -358,6 +385,11 @@ class Agent:
                     self.advantage_estimates = torch.reshape(torch.tensor(self.advantage_estimates, dtype=torch.double), (-1,)).to(self.device)
                     self.advantage_estimates = (self.advantage_estimates - torch.mean(self.advantage_estimates)) / torch.std(self.advantage_estimates)
                 
+                # Store learning rates
+                output = []
+                output.append(self.actor_lr_scheduler.get_last_lr()[0])
+                output.append(self.critic_lr_scheduler.get_last_lr()[0])
+                
                 # Actor optimization
                 for i in range(self.epochs_per_batch):
                     self.actor_optimizer.zero_grad()
@@ -375,16 +407,15 @@ class Agent:
                 self.actor_lr_scheduler.step()
                 
                 # Critic optimization
-                critic_losses = []
                 for i in range(self.epochs_per_batch):
                     self.critic_optimizer.zero_grad()
                     value_estimates = self.critic.forward(self.state_images, self.state_vectors).double()
                     loss = torch.nn.MSELoss()(value_estimates[:, 0], self.value_targets)
                     with torch.no_grad():
-                        critic_losses.append(loss.item())
+                        output.append(loss.item())
                     loss.backward()
                     self.critic_optimizer.step()
-                self.actor_lr_scheduler.step()
+                self.critic_lr_scheduler.step()
                 
                 # After learning, reset the memory
                 self.state_images = [[]]
@@ -396,7 +427,7 @@ class Agent:
                 self.value_targets = [[]]
                 self.advantage_estimates = [[]]
                 
-                return critic_losses
+                return output
         
         return []
 
@@ -407,8 +438,10 @@ class Save_Plot_Render:
         # Set all save params and values to trival
         self.r_per_episode = []
         self.value_error = []
-        self.x_rate_stdev = []
-        self.y_rate_stdev = []
+        self.actor_lr = []
+        self.critic_lr = []
+        self.x_loc_stdev = []
+        self.y_loc_stdev = []
         self.mag_stdev = []
         self.input_location_x = []
         self.input_location_y = []
@@ -441,9 +474,13 @@ class Save_Plot_Render:
         self.r_per_episode = np.array(r_per_episode)
         self.value_error = np.array(value_error)
     
-    def store_stdev_history(self, x_rate_stdev, y_rate_stdev, mag_stdev):
-        self.x_rate_stdev = np.array(x_rate_stdev)
-        self.y_rate_stdev = np.array(y_rate_stdev)
+    def store_lr_curves(self, actor_lr, critic_lr):
+        self.actor_lr = np.array(actor_lr)
+        self.critic_lr = np.array(critic_lr)
+        
+    def store_stdev_history(self, x_loc_stdev, y_loc_stdev, mag_stdev):
+        self.x_loc_stdev = np.array(x_loc_stdev)
+        self.y_loc_stdev = np.array(y_loc_stdev)
         self.mag_stdev = np.array(mag_stdev)
     
     def store_input_history(self, input_location_x, input_location_y, input_percent):
@@ -573,12 +610,24 @@ class Save_Plot_Render:
         # Calculate the max temperature field
         self.global_fine_mesh_x, self.global_fine_mesh_y, self.max_temperature_field = self.get_max_temperature_field()
         
+        # Concatenate previous training results
+        if len(agent.prev_r_per_episode) != 0:
+            self.r_per_episode = np.concatenate((agent.prev_r_per_episode, self.r_per_episode))
+            self.value_error = np.concatenate((agent.prev_value_error, self.value_error))
+            self.actor_lr = np.concatenate((agent.prev_actor_lr, self.actor_lr))
+            self.critic_lr = np.concatenate((agent.prev_critic_lr, self.critic_lr))
+            self.x_loc_stdev = np.concatenate((agent.prev_x_loc_stdev, self.x_loc_stdev))
+            self.y_loc_stdev = np.concatenate((agent.prev_y_loc_stdev, self.y_loc_stdev))
+            self.mag_stdev = np.concatenate((agent.prev_mag_stdev, self.mag_stdev))
+        
         # Compile all stored data to dictionary
         data = {
             'r_per_episode' : self.r_per_episode,
             'value_error' : self.value_error,
-            'x_rate_stdev': self.x_rate_stdev,
-            'y_rate_stdev': self.y_rate_stdev,
+            'actor_lr' : self.actor_lr,
+            'critic_lr' : self.critic_lr,
+            'x_loc_stdev': self.x_loc_stdev,
+            'y_loc_stdev': self.y_loc_stdev,
             'mag_stdev': self.mag_stdev,
             'input_location_x': self.input_location_x,
             'input_location_y': self.input_location_y,
@@ -766,10 +815,11 @@ class Save_Plot_Render:
         plt.ylabel("Reward [-]",fontsize='large')
         plt.plot(self.time, self.reward[:,0],c='k',lw=2.5)
         plt.plot(self.time, self.reward[:,1],c='r',lw=1.0)
-        plt.plot(self.time, self.reward[:,3],c='b',lw=1.0)
-        plt.plot(self.time, self.reward[:,7],c='g',lw=1.0)
-        plt.plot(self.time, self.reward[:,9],c='m',lw=1.0)
-        plt.legend(('Total','Input','Max Temp','Shape','Target'),loc='upper right',fontsize='large')
+        plt.plot(self.time, self.reward[:,2],c='b',lw=1.0)
+        plt.plot(self.time, self.reward[:,3],c='g',lw=1.0)
+        plt.plot(self.time, self.reward[:,4],c='m',lw=1.0)
+        plt.plot(self.time, self.reward[:,5],c='c',lw=1.0)
+        plt.legend(('Total','Input Loc','Input Mag','Max Temp','Shape','Target'),loc='upper right',fontsize='large')
         plt.xlim(0.0, np.round(self.time[-1]))
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
@@ -782,7 +832,7 @@ class Save_Plot_Render:
             plt.clf()
             plt.title("Actor Learning Curve, Episode-Wise",fontsize='xx-large')
             plt.xlabel("Episode",fontsize='large')
-            plt.ylabel("Average Reward per Simulation Step",fontsize='large')
+            plt.ylabel("Average Reward per Simulation Step [-]",fontsize='large')
             plt.plot([*range(len(self.r_per_episode))],self.r_per_episode,lw=2.5,c='r')
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
@@ -796,7 +846,7 @@ class Save_Plot_Render:
             title_str = "Critic Learning Curve"
             plt.title(title_str,fontsize='xx-large')
             plt.xlabel("Optimization Step",fontsize='large')
-            plt.ylabel("MSE Loss",fontsize='large')
+            plt.ylabel("MSE Loss [-]",fontsize='large')
             plt.plot([*range(len(self.value_error))],self.value_error,lw=2.5,c='r')
             plt.yscale("log")
             plt.xticks(fontsize='large')
@@ -804,44 +854,72 @@ class Save_Plot_Render:
             plt.gcf().set_size_inches(8.5, 5.5)
             plt.savefig(self.path + "/critic_learning.png", dpi = 500)
             plt.close()
-
-        # Plot x rate stdev curve
-        if(len(self.x_rate_stdev)!=0):
+            
+        # Plot actor learning rate curve
+        if(len(self.actor_lr)!=0):
             plt.clf()
-            plt.title("Laser X Position Rate Stdev",fontsize='xx-large')
-            plt.xlabel("Episode",fontsize='large')
-            plt.ylabel("Laser X Position Rate Stdev [mm/s]",fontsize='large')
-            plt.plot([*range(len(self.x_rate_stdev))],1000.0*np.array(self.x_rate_stdev),lw=2.5,c='r')
+            title_str = "Actor Learning Rate"
+            plt.title(title_str,fontsize='xx-large')
+            plt.xlabel("Batch",fontsize='large')
+            plt.ylabel("Alpha [-]",fontsize='large')
+            plt.plot([*range(len(self.actor_lr))],self.actor_lr,lw=2.5,c='r')
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
             plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig(self.path + "/x_rate_stdev.png", dpi = 500)
+            plt.savefig(self.path + "/actor_alpha.png", dpi = 500)
+            plt.close()
+            
+        # Plot critic learning rate curve
+        if(len(self.actor_lr)!=0):
+            plt.clf()
+            title_str = "Critic Learning Rate"
+            plt.title(title_str,fontsize='xx-large')
+            plt.xlabel("Batch",fontsize='large')
+            plt.ylabel("Alpha [-]",fontsize='large')
+            plt.plot([*range(len(self.critic_lr))],self.critic_lr,lw=2.5,c='r')
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.savefig(self.path + "/critic_alpha.png", dpi = 500)
             plt.close()
 
-        # Plot y rate stdev curve
-        if(len(self.y_rate_stdev)!=0):
+        # Plot x loc stdev curve
+        if(len(self.x_loc_stdev)!=0):
             plt.clf()
-            plt.title("Laser Y Position Rate Stdev",fontsize='xx-large')
+            plt.title("X Position Stdev, Episode-Wise",fontsize='xx-large')
             plt.xlabel("Episode",fontsize='large')
-            plt.ylabel("Laser Y Position Rate Stdev [mm/s]",fontsize='large')
-            plt.plot([*range(len(self.y_rate_stdev))],1000.0*np.array(self.y_rate_stdev),lw=2.5,c='r')
+            plt.ylabel("X Position Stdev [mm]",fontsize='large')
+            plt.plot([*range(len(self.x_loc_stdev))],1000.0*np.array(self.x_loc_stdev),lw=2.5,c='r')
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
             plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig(self.path + "/y_rate_stdev.png", dpi = 500)
+            plt.savefig(self.path + "/x_loc_stdev.png", dpi = 500)
+            plt.close()
+
+        # Plot y loc stdev curve
+        if(len(self.y_loc_stdev)!=0):
+            plt.clf()
+            plt.title("Y Position Stdev, Episode-Wise",fontsize='xx-large')
+            plt.xlabel("Episode",fontsize='large')
+            plt.ylabel("Y Position Stdev [mm]",fontsize='large')
+            plt.plot([*range(len(self.y_loc_stdev))],1000.0*np.array(self.y_loc_stdev),lw=2.5,c='r')
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.savefig(self.path + "/y_loc_stdev.png", dpi = 500)
             plt.close()
 
         # Plot magnitude stdev curve
         if(len(self.mag_stdev)!=0):
             plt.clf()
-            plt.title("Laser Magnitude Rate Stdev",fontsize='xx-large')
+            plt.title("Magnitude Stdev, Episode-Wise",fontsize='xx-large')
             plt.xlabel("Episode",fontsize='large')
-            plt.ylabel('Laser Magnitude Rate Stdev [KW/m^2-s]',fontsize='large')
+            plt.ylabel('Magnitude Stdev [KW/m^2-s]',fontsize='large')
             plt.plot([*range(len(self.mag_stdev))],0.001*np.array(self.mag_stdev),lw=2.5,c='r')
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
             plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig(self.path + "/mag_rate_stdev.png", dpi = 500)
+            plt.savefig(self.path + "/mag_stdev.png", dpi = 500)
             plt.close()
     
     def render(self):

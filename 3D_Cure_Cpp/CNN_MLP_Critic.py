@@ -20,7 +20,7 @@ class Model(nn.Module):
         #Initialize convolution size variables
         self.dim = dim
         self.num_additional_inputs = num_additional_inputs
-        self.bottleneck = 128
+        self.bottleneck = 96
         
         # Conv layer 1
         self.f_1 = 6
@@ -81,8 +81,8 @@ class Model(nn.Module):
 
         #Initialize the fully connected layers for action generation
         self.fc2 = nn.Linear(self.bottleneck + self.num_additional_inputs, self.bottleneck + self.num_additional_inputs)
-        self.fc3 = nn.Linear(self.bottleneck + self.num_additional_inputs, (self.bottleneck + self.num_additional_inputs)//2)
-        self.fc4 = nn.Linear((self.bottleneck + self.num_additional_inputs)//2, (self.bottleneck + self.num_additional_inputs)//2)
+        self.fc3 = nn.Linear(self.bottleneck + self.num_additional_inputs, self.bottleneck + self.num_additional_inputs)
+        self.fc4 = nn.Linear(self.bottleneck + self.num_additional_inputs, (self.bottleneck + self.num_additional_inputs)//2)
         self.fc5 = nn.Linear((self.bottleneck + self.num_additional_inputs)//2, 1)
 
     def forward(self, x, additional_x):

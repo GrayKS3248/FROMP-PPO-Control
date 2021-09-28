@@ -1286,7 +1286,8 @@ bool Finite_Difference_Solver::step(double x_pos_cmd, double y_pos_cmd, double m
 vector<double> Finite_Difference_Solver::get_reward()
 {
 	// Initialize reward variables
-	double input_reward = 0.0;
+	double input_loc_reward = 0.0;
+	double input_mag_reward = 0.0;
 	double max_temp_reward = 0.0;
 	double front_shape_reward = 0.0;
 	double target_reward = 0.0;
@@ -1313,8 +1314,8 @@ vector<double> Finite_Difference_Solver::get_reward()
 	}
 	
 	// Get the input reward
-	input_reward = input_reward_const * exp(-0.5 * pow(((get_input_location()[0] - get_front_mean_x_loc())/(0.1647525572449*coarse_x_len)), 2.0));
-	//input_reward = input_reward_const * (1.0 - input_percent);
+	input_loc_reward = input_loc_reward_const * exp(-0.5 * pow(((get_input_location()[0] - get_front_mean_x_loc())/(0.1647525572449*coarse_x_len)), 2.0));
+	input_mag_reward = input_mag_reward_const * (1.0 - input_percent);
 
 	// Get the overage reward
 	double norm_over = (num_coarse_vert_over_max_temp / (double)num_coarse_vert_y) + (num_fine_vert_over_max_temp / (double)num_fine_vert_y);
@@ -1334,28 +1335,13 @@ vector<double> Finite_Difference_Solver::get_reward()
 	}
 
 	// Generate return value
-	vector<double> ret_val = vector<double>(13, 0.0);
-	ret_val[0] = input_reward + max_temp_reward + front_shape_reward + target_reward;
-	ret_val[1] = input_reward;
-	ret_val[2] = input_percent;
+	vector<double> ret_val = vector<double>(6, 0.0);
+	ret_val[0] = input_loc_reward + input_mag_reward + max_temp_reward + front_shape_reward + target_reward;
+	ret_val[1] = input_loc_reward;
+	ret_val[2] = input_mag_reward;
 	ret_val[3] = max_temp_reward;
-	ret_val[4] = num_coarse_vert_over_max_temp;
-	ret_val[5] = num_fine_vert_over_max_temp;
-	ret_val[6] = norm_over;
-	ret_val[7] = front_shape_reward;
-	ret_val[8] = front_shape_param;
-	ret_val[9] = target_reward;
-	if (control_code==1)
-	{
-		ret_val[10] = front_vel;
-		ret_val[12] = exp(-0.5 * pow(((front_vel-target_arr[curr_sim_step])/(0.046599060187785*target_arr[curr_sim_step])), 2.0));
-	}
-	else if (control_code==2)
-	{
-		ret_val[10] = front_temp;
-		ret_val[12] = exp(-0.5 * pow(((front_temp-target_arr[curr_sim_step])/(0.03*target_arr[curr_sim_step])), 2.0));
-	}
-	ret_val[11] = target_arr[curr_sim_step];
+	ret_val[4] = front_shape_reward;
+	ret_val[5] = target_reward;
 
 	return ret_val;
 }
@@ -1621,7 +1607,9 @@ int Finite_Difference_Solver::load_config()
 		
 		
 		// ************************************************** REWARD PARAMS ************************************************** //
-		config_file >> config_dump >> input_reward_const;
+		config_file >> config_dump >> input_loc_reward_const;
+		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
+		config_file >> config_dump >> input_mag_reward_const;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file >> config_dump >> max_temp_reward_const;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
