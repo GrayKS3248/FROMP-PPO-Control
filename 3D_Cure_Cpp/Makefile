@@ -8,33 +8,52 @@ CFLAGS-W+=-Wno-unused-result -Wsign-compare -Wformat -Werror=format-security -fw
 LDFLAGS-W+=-L$(PYTHONPATH)
 LDFLAGS-W+=-lpython39
 
-all-l: 
-	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Tune_Params.cpp -o tune_params.so $(LDFLAGS-L)
-	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Run_Solver.cpp -o run_solver.so $(LDFLAGS-L)
-	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_AE_Data.cpp -o get_ae_data.so $(LDFLAGS-L)
-	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Train_Agent.cpp -o train_agent.so $(LDFLAGS-L)
-	g++ $(CFLAGS-L) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_Estimator_Data.cpp -o get_estimator_data.so $(LDFLAGS-L)
+all-w: tuner-w solver-w autoencoder-w estimator-w trainer-w
 	
-all-w: 
-	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Tune_Params.cpp -o tune_params.exe $(LDFLAGS-W)
-	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Run_Solver.cpp -o run_solver.exe $(LDFLAGS-W)
-	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_AE_Data.cpp -o get_ae_data.exe $(LDFLAGS-W)
-	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Train_Agent.cpp -o train_agent.exe $(LDFLAGS-W)
-	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Get_Estimator_Data.cpp -o get_estimator_data.exe $(LDFLAGS-W)
+all-l: tuner-l solver-l autoencoder-l estimator-l trainer-l
 
-run:
-	g++ $(CFLAGS-W) Finite_Difference_Solver.h Finite_Difference_Solver.cpp Run_Solver.cpp -o run_solver.exe $(LDFLAGS-W)
-	
-clean-l:
-	rm -rf tune_params.so
-	rm -rf run_solver.so
-	rm -rf get_ae_data.so
-	rm -rf train_agent.so
-	rm -rf get_estimator_data.so
+tuner-w:
+	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Tune_Params.cpp -o bin/tuner.exe $(LDFLAGS-W)
+solver-w:
+	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Run_Solver.cpp -o bin/solver.exe $(LDFLAGS-W)
+autoencoder-w:
+	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Get_AE_Data.cpp -o bin/gen_ae_data.exe $(LDFLAGS-W)
+estimator-w:
+	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Get_Estimator_Data.cpp -o bin/gen_est_data.exe $(LDFLAGS-W)
+trainer-w:
+	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Train_Agent.cpp -o bin/trainer.exe $(LDFLAGS-W)
+
+tuner-l:
+	g++ $(CFLAGS-L) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Tune_Params.cpp -o bin/tuner.so $(LDFLAGS-L)
+solver-l:
+	g++ $(CFLAGS-L) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Run_Solver.cpp -o bin/solver.so $(LDFLAGS-L)
+autoencoder-l:
+	g++ $(CFLAGS-L) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Get_AE_Data.cpp -o bin/gen_ae_data.so $(LDFLAGS-L)
+estimator-l:
+	g++ $(CFLAGS-L) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Get_Estimator_Data.cpp -o bin/gen_est_data.so $(LDFLAGS-L)
+trainer-l:
+	g++ $(CFLAGS-L) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Train_Agent.cpp -o bin/trainer.so $(LDFLAGS-L)
 	
 clean-w:
-	del /f tune_params.exe
-	del /f run_solver.exe
-	del /f get_ae_data.exe
-	del /f train_agent.exe
-	del /f get_estimator_data.exe
+	del /f bin/tuner.exe
+	del /f bin/solver.exe
+	del /f bin/gen_ae_data.exe
+	del /f bin/gen_est_data.exe
+	del /f bin/trainer.exe
+	del /f bin/tuner.so
+	del /f bin/solver.so
+	del /f bin/gen_ae_data.so
+	del /f bin/gen_est_data.so
+	del /f bin/trainer.so
+	
+clean-l:
+	rm -rf bin/tuner.so
+	rm -rf bin/solver.so
+	rm -rf bin/gen_ae_data.so
+	rm -rf bin/gen_est_data.so
+	rm -rf bin/trainer.so
+	rm -rf bin/tuner.exe
+	rm -rf bin/solver.exe
+	rm -rf bin/gen_ae_data.exe
+	rm -rf bin/gen_est_data.exe
+	rm -rf bin/trainer.exe
