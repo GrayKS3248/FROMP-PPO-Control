@@ -34,8 +34,7 @@ if __name__ == "__main__":
     
     # Training data parameters
     num_epochs = 5
-    num_traj = 5040
-    samples_per_traj = 20
+    num_batches = 1008
     samples_per_batch = 100
     total_snapshots = 100
     training_data_path = '../training_data/DCPD_GC2/Autoencoder'
@@ -54,7 +53,6 @@ if __name__ == "__main__":
     alpha_last = 1.0e-4;
     
     # Calculated parameters
-    num_batches = int(num_traj//(samples_per_batch//samples_per_traj))
     alpha_decay = (alpha_last/alpha_zero) ** (1.0/(num_batches*num_epochs))
     
     # Initialize the estimator

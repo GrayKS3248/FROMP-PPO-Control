@@ -1,4 +1,4 @@
-#include "Finite_Difference_Solver.h"
+#include "Finite_Difference_Solver9.h"
 #ifndef M_PI
 #define M_PI   3.14159265358979323846264338327950288
 #endif
@@ -1463,7 +1463,7 @@ int Finite_Difference_Solver::load_config()
 {
 	// Load from config file
 	ifstream config_file;
-	config_file.open("../config_files/fds.cfg");
+	config_file.open("../config_files/fds9.cfg");
 	string config_dump;
 	string bool_dump;
 	string string_dump;
@@ -1726,7 +1726,7 @@ int Finite_Difference_Solver::load_config()
 	}
 	else
 	{
-		cout << "Unable to open ../config_files/fds.cfg." << endl;
+		cout << "Unable to open ../config_files/fds9.cfg." << endl;
 		return 1;
 	}
 	config_file.close();
