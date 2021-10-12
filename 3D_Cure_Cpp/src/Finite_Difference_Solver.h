@@ -145,9 +145,9 @@ double coarse_z_len;
 
 // Fine mesh parameters
 double fine_x_len;
-int fine_x_steps_per_coarse_x_step;
-int fine_y_steps_per_coarse_y_step;
-int fine_z_steps_per_coarse_z_step;
+int fine_x_resolution_multiplier;
+int fine_y_resolution_multiplier;
+int fine_z_resolution_multiplier;
 
 // Temporal parameters
 double sim_duration;
@@ -232,9 +232,9 @@ double*** coarse_cure_mesh;
 double coarse_x_step;
 double coarse_y_step;
 double coarse_z_step;
-int coarse_x_steps_per_fine_x_len;
-int coarse_y_steps_per_fine_y_len;
-int coarse_z_steps_per_fine_z_len;
+int coarse_x_verts_per_fine_x_len;
+int coarse_y_verts_per_fine_y_len;
+int coarse_z_verts_per_fine_z_len;
 int coarse_x_index_at_fine_mesh_start;
 
 // Calcualted fine mesh parameters

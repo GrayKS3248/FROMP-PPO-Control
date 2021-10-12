@@ -12,7 +12,7 @@ import numpy as np
 
 class Model(nn.Module):
     
-    def __init__(self, dim, num_outputs):
+    def __init__(self, dim, num_outputs, num_latent):
         
         # Initialize inherited class
         super(Model, self).__init__()
@@ -20,6 +20,7 @@ class Model(nn.Module):
         #Initialize convolution size variables
         self.dim = dim
         self.num_outputs = num_outputs
+        self.num_latent = num_latent
         self.bottleneck = 128
         
         # Conv layer 1
@@ -79,6 +80,12 @@ class Model(nn.Module):
         #Initialize the encoding linear layers
         self.fc1 = nn.Linear(self.latent_size, self.bottleneck)
         
+        #Initialize the latent variable reconstruction layers
+        if self.num_latent >= 1:
+            self.fc2 = nn.Linear(self.latent_size, self.latent_size//2)
+            self.fc3 = nn.Linear(self.latent_size//2, self.latent_size//4)
+            self.fc4 = nn.Linear(self.latent_size//4, self.num_latent)
+        
         #Initialize the decoding linear layers
         self.t_fc1 = nn.Linear(self.bottleneck, self.latent_size)
         
@@ -91,14 +98,22 @@ class Model(nn.Module):
         self.NN_Up = torch.nn.Upsample(scale_factor=2, mode='nearest')
         
     def forward(self, x):
-        #Feed-forward x
+        #Feed-forward through encoder
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = F.relu(self.conv3(x))
         x = F.relu(self.conv4(x))
         x = self.pool(F.relu(self.conv5(x)))
         x = x.view(-1, self.latent_size)
+        
+        # Feed-forward through latent MLP
+        if self.num_latent >= 1:
+            latent = F.relu(self.fc2(x))
+            latent = F.relu(self.fc3(latent))
+            latent = self.fc4(latent)
         x = F.relu(self.fc1(x))
+        
+        #Feed-forward through decoder
         x = F.relu(self.t_fc1(x))
         x = x.view((1, self.f_5, np.long(self.size_after_op8), np.long(self.size_after_op8))) 
         x = self.NN_Up(F.relu(self.t_conv1(x)))
@@ -108,20 +123,32 @@ class Model(nn.Module):
         x = torch.sigmoid(self.t_conv5(x))
         
         #Return x
-        return x
+        if self.num_latent >= 1:
+            return x, latent
+        else:
+            return x
     
     def encode(self, x):
-        #Feed-forward x
+        #Feed-forward through encoder
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = F.relu(self.conv3(x))
         x = F.relu(self.conv4(x))
         x = self.pool(F.relu(self.conv5(x)))
         x = x.view(-1, self.latent_size)
+        
+        # Feed-forward through latent MLP
+        if self.num_latent >= 1:
+            latent = F.relu(self.fc2(x))
+            latent = F.relu(self.fc3(latent))
+            latent = self.fc4(latent)
         x = F.relu(self.fc1(x))
         
         #Return x
-        return x  
+        if self.num_latent >= 1:
+            return x, latent
+        else:
+            return x
     
     def generate(self, x):
         #Feed-forward x

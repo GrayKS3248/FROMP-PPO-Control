@@ -104,21 +104,21 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 	coarse_z_step = coarse_z_mesh[0][0][1];
 	
 	// Calculate coarse/fine ratios
-	coarse_x_steps_per_fine_x_len = (int)ceil( (double)num_coarse_vert_x * (fine_x_len/coarse_x_len) );
-	coarse_y_steps_per_fine_y_len = num_coarse_vert_y;
-	coarse_z_steps_per_fine_z_len = num_coarse_vert_z;
+	coarse_x_verts_per_fine_x_len = (int)ceil( (double)num_coarse_vert_x * (fine_x_len/coarse_x_len) );
+	coarse_y_verts_per_fine_y_len = num_coarse_vert_y;
+	coarse_z_verts_per_fine_z_len = num_coarse_vert_z;
 	
 	
 	// ************************************************** FINE MESH ************************************************** //
 	// Calculate fine x coarse_x_len such that the number of coarse steps per fine mesh x coarse_x_len is a whole number
-	fine_x_len = coarse_x_len * ((double)coarse_x_steps_per_fine_x_len/(double)num_coarse_vert_x);
+	fine_x_len = coarse_x_len * (  ((double)coarse_x_verts_per_fine_x_len - 1.0) / ((double)num_coarse_vert_x - 1.0)  );
 	fine_y_len = coarse_y_len;
 	fine_z_len = coarse_z_len;
 
 	// Calculate fine mesh vertices
-	num_fine_vert_x = coarse_x_steps_per_fine_x_len * fine_x_steps_per_coarse_x_step;
-	num_fine_vert_y = coarse_y_steps_per_fine_y_len * fine_y_steps_per_coarse_y_step;
-	num_fine_vert_z = coarse_z_steps_per_fine_z_len * fine_z_steps_per_coarse_z_step;
+	num_fine_vert_x = (coarse_x_verts_per_fine_x_len-1) * fine_x_resolution_multiplier + 1;
+	num_fine_vert_y = (coarse_y_verts_per_fine_y_len-1) * fine_y_resolution_multiplier + 1;
+	num_fine_vert_z = (coarse_z_verts_per_fine_z_len-1) * fine_z_resolution_multiplier + 1;
 	
 	// Generate fine mesh
 	fine_temp_mesh = new double**[num_fine_vert_x];
@@ -1434,7 +1434,7 @@ vector<double> Finite_Difference_Solver::get_reward()
 	// Get the total reward
 	if (control_code==1)
 	{
-		target_reward = target_reward_const * exp(-0.5 * pow(((front_vel-target_arr[curr_sim_step])/(0.046599060187785*target_arr[curr_sim_step])), 2.0));
+		target_reward = target_reward_const * exp(-0.5 * pow(((front_vel-target_arr[curr_sim_step])/(0.164752557245*target_arr[curr_sim_step])), 2.0));
 	}
 	else if (control_code==2)
 	{
@@ -1677,11 +1677,11 @@ int Finite_Difference_Solver::load_config()
 		// ************************************************** FINE MESH PARAMS ************************************************** //
 		config_file >> config_dump >> fine_x_len;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> fine_x_steps_per_coarse_x_step;
+		config_file >> config_dump >> fine_x_resolution_multiplier;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> fine_y_steps_per_coarse_y_step;
+		config_file >> config_dump >> fine_y_resolution_multiplier;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> fine_z_steps_per_coarse_z_step;
+		config_file >> config_dump >> fine_z_resolution_multiplier;
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1844,7 +1844,6 @@ void Finite_Difference_Solver::step_input(double x_cmd, double y_cmd, bool input
 			y_loc_rate = y_loc_rate < y_delta/coarse_time_step ? y_delta/coarse_time_step : y_loc_rate;
 		}
 	}
-
 	
 	// Update the input's x location from the location rate
 	input_location[0] = input_location[0] + x_loc_rate * coarse_time_step;
@@ -1926,8 +1925,8 @@ void Finite_Difference_Solver::copy_coarse_to_fine()
 	// Assign the starting index of the fine and coarse meshes
 	fine_mesh_zero_index = 0;
 	coarse_x_index_at_fine_mesh_start = 0;
-	fine_mesh_start_loc = 0.0;
-	fine_mesh_end_loc = coarse_x_mesh[((int)floor((double)(num_fine_vert_x-1) / (double)fine_x_steps_per_coarse_x_step))+1][0][0];
+	fine_mesh_start_loc = coarse_x_mesh[coarse_x_index_at_fine_mesh_start][0][0];
+	fine_mesh_end_loc = coarse_x_mesh[coarse_x_index_at_fine_mesh_start+coarse_x_verts_per_fine_x_len-1][0][0];
 
 	// Assign coarse mesh values to their respective fine mesh counterparts
 	for(int i = 0; i < num_fine_vert_x; i++)
@@ -1935,9 +1934,9 @@ void Finite_Difference_Solver::copy_coarse_to_fine()
 	for(int k = 0; k < num_fine_vert_z; k++)
 	{	
 		// Determine location in coarse mesh
-		int curr_coarse_x_index = (int)floor((double)i / (double)fine_x_steps_per_coarse_x_step);
-		int curr_coarse_y_index = (int)floor((double)j / (double)fine_y_steps_per_coarse_y_step);
-		int curr_coarse_z_index = (int)floor((double)k / (double)fine_z_steps_per_coarse_z_step);
+		int curr_coarse_x_index = (int)round((double)i / (double)fine_x_resolution_multiplier);
+		int curr_coarse_y_index = (int)round((double)j / (double)fine_y_resolution_multiplier);
+		int curr_coarse_z_index = (int)round((double)k / (double)fine_z_resolution_multiplier);
 		
 		// Assign coarse values to fine mesh
 		fine_temp_mesh[i][j][k] = coarse_temp_mesh[curr_coarse_x_index][curr_coarse_y_index][curr_coarse_z_index];
@@ -1951,7 +1950,7 @@ void Finite_Difference_Solver::copy_coarse_to_fine()
 void Finite_Difference_Solver::slide_fine_mesh_right()
 {
 	// Ensure fine mesh is not slid off of simulation domain
-	int coarse_mesh_x_slice_being_added = coarse_x_index_at_fine_mesh_start + coarse_x_steps_per_fine_x_len;
+	int coarse_mesh_x_slice_being_added = coarse_x_index_at_fine_mesh_start + coarse_x_verts_per_fine_x_len;
 	if(coarse_mesh_x_slice_being_added >= num_coarse_vert_x)
 	{
 		return;
@@ -1968,13 +1967,13 @@ void Finite_Difference_Solver::slide_fine_mesh_right()
 	coarse_x_index_at_fine_mesh_start++;
 			
 	// Copy coarse values to fine mesh
-	for(int i = 0; i < fine_x_steps_per_coarse_x_step; i++)
+	for(int i = 0; i < fine_x_resolution_multiplier; i++)
 	for(int j = 0; j < num_fine_vert_y; j++)
 	for(int k = 0; k < num_fine_vert_z; k++)
 	{
 		// Determine location in coarse mesh
-		int curr_coarse_y_index = (int)floor((double)j / (double)fine_y_steps_per_coarse_y_step);
-		int curr_coarse_z_index = (int)floor((double)k / (double)fine_z_steps_per_coarse_z_step);
+		int curr_coarse_y_index = (int)floor((double)j / (double)fine_y_resolution_multiplier);
+		int curr_coarse_z_index = (int)floor((double)k / (double)fine_z_resolution_multiplier);
 		
 		// Assign coarse values to fine mesh
 		fine_temp_mesh[get_ind(i)][j][k] = coarse_temp_mesh[coarse_mesh_x_slice_being_added][curr_coarse_y_index][curr_coarse_z_index];
@@ -1982,7 +1981,7 @@ void Finite_Difference_Solver::slide_fine_mesh_right()
 	}
 
 	// Update the fine mesh starting index
-	fine_mesh_zero_index += fine_x_steps_per_coarse_x_step;
+	fine_mesh_zero_index += fine_x_resolution_multiplier;
 	if( fine_mesh_zero_index >= num_fine_vert_x )
 	{
 		fine_mesh_zero_index = fine_mesh_zero_index - num_fine_vert_x;
@@ -1994,27 +1993,27 @@ void Finite_Difference_Solver::slide_fine_mesh_right()
 void Finite_Difference_Solver::copy_fine_to_coarse()
 {	
 	#pragma omp parallel for collapse(3)
-	for(int i = 0; i < coarse_x_steps_per_fine_x_len; i++)
-	for(int j = 0; j < coarse_y_steps_per_fine_y_len; j++)
-	for(int k = 0; k < coarse_z_steps_per_fine_z_len; k++)
+	for(int i = 0; i < coarse_x_verts_per_fine_x_len; i++)
+	for(int j = 0; j < coarse_y_verts_per_fine_y_len; j++)
+	for(int k = 0; k < coarse_z_verts_per_fine_z_len; k++)
 	{
 		double temp_avg = 0.0;
 		double cure_avg = 0.0;
 		
-		int start_fine_x_index = i * fine_x_steps_per_coarse_x_step;
-		int start_fine_y_index = j * fine_y_steps_per_coarse_y_step;
-		int start_fine_z_index = k * fine_z_steps_per_coarse_z_step;
+		int start_fine_x_index = i * fine_x_resolution_multiplier;
+		int start_fine_y_index = j * fine_y_resolution_multiplier;
+		int start_fine_z_index = k * fine_z_resolution_multiplier;
 		
-		for(int p = start_fine_x_index; p < start_fine_x_index + fine_x_steps_per_coarse_x_step; p++)
-		for(int q = start_fine_y_index; q < start_fine_y_index + fine_y_steps_per_coarse_y_step; q++)
-		for(int r = start_fine_z_index; r < start_fine_z_index + fine_z_steps_per_coarse_z_step; r++)
+		for(int p = start_fine_x_index; p < start_fine_x_index + fine_x_resolution_multiplier; p++)
+		for(int q = start_fine_y_index; q < start_fine_y_index + fine_y_resolution_multiplier; q++)
+		for(int r = start_fine_z_index; r < start_fine_z_index + fine_z_resolution_multiplier; r++)
 		{	
 			temp_avg += fine_temp_mesh[get_ind(p)][q][r];
 			cure_avg += fine_cure_mesh[get_ind(p)][q][r];
 		}
 		
-		coarse_temp_mesh[coarse_x_index_at_fine_mesh_start+i][j][k] = temp_avg / ((double)(fine_x_steps_per_coarse_x_step*fine_y_steps_per_coarse_y_step*fine_z_steps_per_coarse_z_step));
-		coarse_cure_mesh[coarse_x_index_at_fine_mesh_start+i][j][k] = cure_avg / ((double)(fine_x_steps_per_coarse_x_step*fine_y_steps_per_coarse_y_step*fine_z_steps_per_coarse_z_step));
+		coarse_temp_mesh[coarse_x_index_at_fine_mesh_start+i][j][k] = temp_avg / ((double)(fine_x_resolution_multiplier*fine_y_resolution_multiplier*fine_z_resolution_multiplier));
+		coarse_cure_mesh[coarse_x_index_at_fine_mesh_start+i][j][k] = cure_avg / ((double)(fine_x_resolution_multiplier*fine_y_resolution_multiplier*fine_z_resolution_multiplier));
 	}
 }
 
@@ -2038,7 +2037,7 @@ void Finite_Difference_Solver::update_lr_bc_temps()
 			}
 		}
 		
-		if(coarse_x_index_at_fine_mesh_start + coarse_x_steps_per_fine_x_len != num_coarse_vert_x)
+		if(coarse_x_index_at_fine_mesh_start + coarse_x_verts_per_fine_x_len != num_coarse_vert_x)
 		{
 			coarse_lr_bc_temps[1][j][k] = -4.0*((coarse_x_step*htc/thermal_conductivity)*(coarse_temp_mesh[num_coarse_vert_x-1][j][k]-amb_temp) + (5.0/6.0)*coarse_temp_mesh[num_coarse_vert_x-1][j][k] + (-3.0/2.0)*coarse_temp_mesh[num_coarse_vert_x-2][j][k] + (1.0/2.0)*coarse_temp_mesh[num_coarse_vert_x-3][j][k] + (-1.0/12.0)*coarse_temp_mesh[num_coarse_vert_x-4][j][k]);
 		}
@@ -2049,8 +2048,8 @@ void Finite_Difference_Solver::update_lr_bc_temps()
 	for(int k = 0; k < num_fine_vert_z; k++)
 	{
 		// Determine location in coarse mesh
-		int curr_coarse_y_index = (int)floor((double)j / (double)fine_y_steps_per_coarse_y_step);
-		int curr_coarse_z_index = (int)floor((double)k / (double)fine_z_steps_per_coarse_z_step);
+		int curr_coarse_y_index = (int)floor((double)j / (double)fine_y_resolution_multiplier);
+		int curr_coarse_z_index = (int)floor((double)k / (double)fine_z_resolution_multiplier);
 		
 		// Left BC if fine mesh is on left edge of domain
 		if(coarse_x_index_at_fine_mesh_start == 0)
@@ -2073,14 +2072,14 @@ void Finite_Difference_Solver::update_lr_bc_temps()
 		}
 		
 		// Right BC if fine mesh is on right edge of domain
-		if(coarse_x_index_at_fine_mesh_start + coarse_x_steps_per_fine_x_len == num_coarse_vert_x)
+		if(coarse_x_index_at_fine_mesh_start + coarse_x_verts_per_fine_x_len == num_coarse_vert_x)
 		{
 			fine_lr_bc_temps[1][j][k] = -4.0*((fine_x_step*htc/thermal_conductivity)*(fine_temp_mesh[get_ind(num_fine_vert_x-1)][j][k]-amb_temp) + (5.0/6.0)*fine_temp_mesh[get_ind(num_fine_vert_x-1)][j][k] + (-3.0/2.0)*fine_temp_mesh[get_ind(num_fine_vert_x-2)][j][k] + (1.0/2.0)*fine_temp_mesh[get_ind(num_fine_vert_x-3)][j][k] + (-1.0/12.0)*fine_temp_mesh[get_ind(num_fine_vert_x-4)][j][k]);
 		}
 		// Right BC if fine mesh is in middle of domain
 		else
 		{
-			fine_lr_bc_temps[1][j][k] = coarse_temp_mesh[coarse_x_index_at_fine_mesh_start + coarse_x_steps_per_fine_x_len][curr_coarse_y_index][curr_coarse_z_index];
+			fine_lr_bc_temps[1][j][k] = coarse_temp_mesh[coarse_x_index_at_fine_mesh_start + coarse_x_verts_per_fine_x_len][curr_coarse_y_index][curr_coarse_z_index];
 		}
 		
 	}
@@ -2094,7 +2093,7 @@ void Finite_Difference_Solver::update_fb_bc_temps()
 	for(int j = 0; j < num_coarse_vert_x; j++)
 	for(int k = 0; k < num_coarse_vert_z; k++)
 	{
-		if( !((j > coarse_x_index_at_fine_mesh_start) && (j < coarse_x_index_at_fine_mesh_start+coarse_x_steps_per_fine_x_len-1)) )
+		if( !((j > coarse_x_index_at_fine_mesh_start) && (j < coarse_x_index_at_fine_mesh_start+coarse_x_verts_per_fine_x_len-1)) )
 		{
 			coarse_fb_bc_temps[0][j][k] = -4.0*((coarse_y_step*htc/thermal_conductivity)*(coarse_temp_mesh[j][0][k]-amb_temp) + (5.0/6.0)*coarse_temp_mesh[j][0][k] + (-3.0/2.0)*coarse_temp_mesh[j][1][k] + (1.0/2.0)*coarse_temp_mesh[j][2][k] + (-1.0/12.0)*coarse_temp_mesh[j][3][k]);
 			coarse_fb_bc_temps[1][j][k] = -4.0*((coarse_y_step*htc/thermal_conductivity)*(coarse_temp_mesh[j][num_coarse_vert_y-1][k]-amb_temp) + (5.0/6.0)*coarse_temp_mesh[j][num_coarse_vert_y-1][k] + (-3.0/2.0)*coarse_temp_mesh[j][num_coarse_vert_y-2][k] + (1.0/2.0)*coarse_temp_mesh[j][num_coarse_vert_y-3][k] + (-1.0/12.0)*coarse_temp_mesh[j][num_coarse_vert_y-4][k]);
@@ -2117,7 +2116,7 @@ void Finite_Difference_Solver::update_tb_bc_temps()
 	for(int j = 0; j < num_coarse_vert_x; j++)
 	for(int k = 0; k < num_coarse_vert_y; k++)
 	{
-		if( !((j > coarse_x_index_at_fine_mesh_start) && (j < coarse_x_index_at_fine_mesh_start+coarse_x_steps_per_fine_x_len-1)) )
+		if( !((j > coarse_x_index_at_fine_mesh_start) && (j < coarse_x_index_at_fine_mesh_start+coarse_x_verts_per_fine_x_len-1)) )
 		{
 			coarse_tb_bc_temps[0][j][k] = coarse_temp_mesh[j][k][0] - (coarse_z_step/thermal_conductivity)*(htc*(coarse_temp_mesh[j][k][0]-amb_temp)-input_mesh[j][k]);
 			coarse_tb_bc_temps[1][j][k] = coarse_temp_mesh[j][k][num_coarse_vert_z-1] - (coarse_z_step*htc/thermal_conductivity)*(coarse_temp_mesh[j][k][num_coarse_vert_z-1]-amb_temp);
@@ -2128,8 +2127,8 @@ void Finite_Difference_Solver::update_tb_bc_temps()
 	for(int j = 0; j < num_fine_vert_x; j++)
 	for(int k = 0; k < num_fine_vert_y; k++)
 	{
-		int curr_coarse_x_index = (int)floor((double)j / (double)fine_x_steps_per_coarse_x_step) + coarse_x_index_at_fine_mesh_start;
-		int curr_coarse_y_index = (int)floor((double)k / (double)fine_y_steps_per_coarse_y_step);
+		int curr_coarse_x_index = (int)floor((double)j / (double)fine_x_resolution_multiplier) + coarse_x_index_at_fine_mesh_start;
+		int curr_coarse_y_index = (int)floor((double)k / (double)fine_y_resolution_multiplier);
 		
 		fine_tb_bc_temps[0][get_ind(j)][k] = fine_temp_mesh[get_ind(j)][k][0] - (fine_z_step/thermal_conductivity)*(htc*(fine_temp_mesh[get_ind(j)][k][0]-amb_temp)-input_mesh[curr_coarse_x_index][curr_coarse_y_index]);
 		fine_tb_bc_temps[1][get_ind(j)][k] = fine_temp_mesh[get_ind(j)][k][num_fine_vert_z-1] - (fine_z_step*htc/thermal_conductivity)*(fine_temp_mesh[get_ind(j)][k][num_fine_vert_z-1]-amb_temp);
@@ -2377,7 +2376,7 @@ void Finite_Difference_Solver::step_meshes()
 		// ************************************************** Right coarse ************************************************** //
 		// Calculate the laplacian mesh for the right side of the coarse mesh
 		#pragma	omp for collapse(3)
-		for (int i = coarse_x_index_at_fine_mesh_start + coarse_x_steps_per_fine_x_len; i < num_coarse_vert_x; i++)
+		for (int i = coarse_x_index_at_fine_mesh_start + coarse_x_verts_per_fine_x_len; i < num_coarse_vert_x; i++)
 		for (int j = 0; j < num_coarse_vert_y; j++)
 		for (int k = 0; k < num_coarse_vert_z; k++)
 		{
@@ -2387,7 +2386,7 @@ void Finite_Difference_Solver::step_meshes()
 		
 		// Update the temperature and cure mesh for the right side of the coarse mesh
 		#pragma	omp for collapse(3) nowait
-		for (int i = coarse_x_index_at_fine_mesh_start + coarse_x_steps_per_fine_x_len; i < num_coarse_vert_x; i++)
+		for (int i = coarse_x_index_at_fine_mesh_start + coarse_x_verts_per_fine_x_len; i < num_coarse_vert_x; i++)
 		for (int j = 0; j < num_coarse_vert_y; j++)
 		for (int k = 0; k < num_coarse_vert_z; k++)
 		{
@@ -2636,7 +2635,7 @@ void Finite_Difference_Solver::step_meshes()
 
 		// Determine if fine mesh is to be slid to the right
 		int avg_front_coarse_ind = (int)floor(front_mean_x_loc / coarse_x_step);
-		int cen_fine_mesh_coarse_ind = (int)floor( (double)coarse_x_index_at_fine_mesh_start + (double)coarse_x_steps_per_fine_x_len/2.0 );
+		int cen_fine_mesh_coarse_ind = (int)floor( (double)coarse_x_index_at_fine_mesh_start + (double)coarse_x_verts_per_fine_x_len/2.0 );
 		while( avg_front_coarse_ind > cen_fine_mesh_coarse_ind)
 		{
 			slide_fine_mesh_right();

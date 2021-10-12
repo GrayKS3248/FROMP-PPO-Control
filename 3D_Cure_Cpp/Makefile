@@ -8,8 +8,6 @@ CFLAGS-W+=-Wno-unused-result -Wsign-compare -Wformat -Werror=format-security -fw
 LDFLAGS-W+=-L$(PYTHONPATH)
 LDFLAGS-W+=-lpython39
 
-batch-w: autoencoder-w1 autoencoder-w2 autoencoder-w3 autoencoder-w4 autoencoder-w5 autoencoder-w6 autoencoder-w7 autoencoder-w8 autoencoder-w9 autoencoder-w10 autoencoder-w11 autoencoder-w12
-
 all-w: tuner-w solver-w autoencoder-w estimator-w trainer-w
 	
 all-l: tuner-l solver-l autoencoder-l estimator-l trainer-l
@@ -18,30 +16,8 @@ tuner-w:
 	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Tune_Params.cpp -o bin/tuner.exe $(LDFLAGS-W)
 solver-w:
 	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Run_Solver.cpp -o bin/solver.exe $(LDFLAGS-W)
-autoencoder-w1:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver1.h src/Finite_Difference_Solver1.cpp src/Get_AE_Data1.cpp -o bin/gen_ae_data1.exe $(LDFLAGS-W)
-autoencoder-w2:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver2.h src/Finite_Difference_Solver2.cpp src/Get_AE_Data2.cpp -o bin/gen_ae_data2.exe $(LDFLAGS-W)
-autoencoder-w3:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver3.h src/Finite_Difference_Solver3.cpp src/Get_AE_Data3.cpp -o bin/gen_ae_data3.exe $(LDFLAGS-W)
-autoencoder-w4:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver4.h src/Finite_Difference_Solver4.cpp src/Get_AE_Data4.cpp -o bin/gen_ae_data4.exe $(LDFLAGS-W)
-autoencoder-w5:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver5.h src/Finite_Difference_Solver5.cpp src/Get_AE_Data5.cpp -o bin/gen_ae_data5.exe $(LDFLAGS-W)
-autoencoder-w6:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver6.h src/Finite_Difference_Solver6.cpp src/Get_AE_Data6.cpp -o bin/gen_ae_data6.exe $(LDFLAGS-W)
-autoencoder-w7:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver7.h src/Finite_Difference_Solver7.cpp src/Get_AE_Data7.cpp -o bin/gen_ae_data7.exe $(LDFLAGS-W)
-autoencoder-w8:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver8.h src/Finite_Difference_Solver8.cpp src/Get_AE_Data8.cpp -o bin/gen_ae_data8.exe $(LDFLAGS-W)
-autoencoder-w9:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver9.h src/Finite_Difference_Solver9.cpp src/Get_AE_Data9.cpp -o bin/gen_ae_data9.exe $(LDFLAGS-W)
-autoencoder-w10:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver10.h src/Finite_Difference_Solver10.cpp src/Get_AE_Data10.cpp -o bin/gen_ae_data10.exe $(LDFLAGS-W)
-autoencoder-w11:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver11.h src/Finite_Difference_Solver11.cpp src/Get_AE_Data11.cpp -o bin/gen_ae_data11.exe $(LDFLAGS-W)
-autoencoder-w12:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver12.h src/Finite_Difference_Solver12.cpp src/Get_AE_Data12.cpp -o bin/gen_ae_data12.exe $(LDFLAGS-W)
+autoencoder-w:
+	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Get_AE_Data.cpp -o bin/gen_ae_data.exe $(LDFLAGS-W)
 estimator-w:
 	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Get_Estimator_Data.cpp -o bin/gen_est_data.exe $(LDFLAGS-W)
 trainer-w:

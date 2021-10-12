@@ -352,7 +352,7 @@ int run(Finite_Difference_Solver* FDS, int total_trajectories, int num_states, i
 						}
 						else if(target_code==1)
 						{
-							target_frames.push_back(FDS->get_front_temp());
+							target_frames.push_back(FDS->get_front_temp(true));
 						}
 						else if(target_code==2)
 						{

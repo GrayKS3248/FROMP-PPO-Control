@@ -47,7 +47,7 @@ if __name__ == "__main__":
     
     # Hyperparameters
     load_path = ""
-    num_targets = 1
+    num_targets = 2
     noise_stdev = 0.025
     alpha_zero = 1.0e-3;
     alpha_last = 1.0e-4;
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     alpha_decay = (alpha_last/alpha_zero) ** (1.0/(num_batches*num_epochs))
     
     # Initialize the estimator
-    autoencoder = Autoencoder(alpha_zero, alpha_decay, load_path=load_path, dim_1=x_dim, dim_2=y_dim, norm_min=norm_min, norm_max=norm_max, num_targets=num_targets, noise_stdev=noise_stdev, verbose=True)
+    autoencoder = Autoencoder(alpha_zero, alpha_decay, load_path=load_path, dim_1=x_dim, dim_2=y_dim, norm_min=norm_min, norm_max=norm_max, num_targets=num_targets, num_latent=2, noise_stdev=noise_stdev, verbose=True)
     
     # Run the epochs
     optimization_count = 0
@@ -72,6 +72,7 @@ if __name__ == "__main__":
         for batch in range(num_batches):
                 
             # Load and format current batches's temperature field data 
+            print()
             temperature_file = training_data_path+'/temp_data_' + str(access_order[batch]) + '.csv'
             temperature_batch = np.genfromtxt(temperature_file, delimiter=',')
             temperature_batch = temperature_batch.reshape(samples_per_batch, x_dim, y_dim)
@@ -81,13 +82,19 @@ if __name__ == "__main__":
             cure_batch = np.genfromtxt(cure_file, delimiter=',')
             cure_batch = cure_batch.reshape(samples_per_batch, x_dim, y_dim)
             
+            # Load and format current batches's cure field data 
+            loc_file = training_data_path+'/loc_data_' + str(access_order[batch]) + '.csv'
+            loc_batch = np.genfromtxt(loc_file, delimiter=',')
+            
+            # Load and format current batches's cure field data 
+            ftemp_file = training_data_path+'/ftemp_data_' + str(access_order[batch]) + '.csv'
+            ftemp_batch = np.genfromtxt(ftemp_file, delimiter=',')
+            
             # Designate target
             if num_targets==1:
-                target_batch = temperature_batch.reshape(1,samples_per_batch,x_dim,y_dim)
+                target_batch = [loc_batch, ftemp_batch, temperature_batch]
             elif num_targets==2:
-                target_batch = np.zeros((2,samples_per_batch,x_dim,y_dim))
-                target_batch[0,:,:,:] = temperature_batch.reshape(1,samples_per_batch,x_dim,y_dim)
-                target_batch[1,:,:,:] = cure_batch.reshape(1,samples_per_batch,x_dim,y_dim)
+                target_batch = [loc_batch, ftemp_batch, temperature_batch, cure_batch]
             
             # Update the weight and bias of the estimator
             loss, lr = autoencoder.learn(temperature_batch, target_batch, take_snapshot=(optimization_count in snapshot_optimizations))

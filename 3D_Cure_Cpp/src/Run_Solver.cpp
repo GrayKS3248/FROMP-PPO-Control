@@ -598,7 +598,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* save_render_plot, int steps_per
 			
 			// Store simulation front data
 			front_velocity.push_back(FDS->get_front_vel());
-			front_temperature.push_back(FDS->get_front_temp());
+			front_temperature.push_back(FDS->get_front_temp(false));
 			front_shape_param.push_back(FDS->get_front_shape_param());
 			front_curve.push_back(FDS->get_front_curve());
 			front_fit.push_back(FDS->get_front_fit(3));

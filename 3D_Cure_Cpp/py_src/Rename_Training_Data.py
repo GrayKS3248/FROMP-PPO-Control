@@ -45,10 +45,10 @@ if __name__ == "__main__":
         with os.scandir(path=path+"/"+directory) as it:
             for entry in it:
                 for file_type in range(len(file_types)):
-                    if file_types[file_type] in entry.name:
+                    if entry.name[0:len(file_types[file_type])] == file_types[file_type]:
                         shutil.copyfile(path+"/"+directory+"/"+entry.name, path+"/"+new_dir+"/"+file_types[file_type]+"_"+str(batch[file_type])+entry.name[entry.name.rfind("."):])
                         batch[file_type] = batch[file_type] + 1
-                if settings_name in entry.name:
+                if entry.name[0:len(settings_name)] == settings_name:
                     shutil.copyfile(path+"/"+directory+"/"+entry.name, path+"/"+new_dir+"/"+settings_name+str(setting_num)+entry.name[entry.name.rfind("."):])
                     setting_num = setting_num + 1
                     
