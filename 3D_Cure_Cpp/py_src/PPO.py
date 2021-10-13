@@ -472,6 +472,7 @@ class Save_Plot_Render:
         self.global_fine_mesh_x = []
         self.global_fine_mesh_y = []
         self.max_temperature_field = []
+        self.interpolated_temperature_field = []
         self.max_theta_field = []
         self.front_curve = []
         self.front_fit = []
@@ -543,54 +544,41 @@ class Save_Plot_Render:
     
     def get_max_temperature_field(self):
         
-        coarse_index_of_fine_mesh_start = np.argmin(abs(self.fine_mesh_loc[curr_frame,0] - self.mesh_x_z0[:,0]))
-        coarse_index_of_fine_mesh_end   = np.argmin(abs(self.fine_mesh_loc[curr_frame,1] - self.mesh_x_z0[:,0]))
+        # Calculate variables relating to upsampling coarse temperature image
+        fine_mesh_x_length = np.mean(self.fine_mesh_loc[:,1]-self.fine_mesh_loc[:,0])
+        fine_mesh_x_step = fine_mesh_x_length / (len(self.fine_temperature_field[0,:])-1)
+        coarse_mesh_x_length = self.mesh_x_z0[-1,0]-self.mesh_x_z0[0,0]
+        num_fine_x_verts_global = round(coarse_mesh_x_length / fine_mesh_x_step) + 1
+        coarse_mesh_y_length = self.mesh_y_z0[0,-1]-self.mesh_y_z0[0,0]
         
         # Define fine resolution mesh over which temperature data will be interpolated
-        global_fine_x_linspace = np.linspace(0.0, self.fine_mesh_loc[0,1], len(self.fine_cure_field[0]))
-        global_fine_y_linspace = np.linspace(0.0, self.mesh_y_z0[0, -1], len(self.fine_cure_field[0][0]))
-        global_fine_x_linspace = np.linspace(0.0, self.mesh_x_z0[-1,0], np.int32(np.round(self.mesh_x_z0[-1,0] / global_fine_x_linspace[1])) + 1)
+        global_fine_x_linspace = np.linspace(0.0, coarse_mesh_x_length, num_fine_x_verts_global)
+        global_fine_y_linspace = np.linspace(0.0, coarse_mesh_y_length, len(self.fine_temperature_field[0,0,:]))
         global_fine_mesh_y, global_fine_mesh_x = np.meshgrid(global_fine_y_linspace, global_fine_x_linspace)
         
-        # Create interpolated_coarse_temperature_field and populate with zeros
-        interpolated_coarse_temperature_field = np.zeros( (len(global_fine_x_linspace), len(global_fine_y_linspace)) )
-        extended_fine_temperature_field = np.zeros( (len(global_fine_x_linspace), len(global_fine_y_linspace)) )
+        # Initialize interpolated temperature fields
+        interpolated_temperature_field = np.zeros( (len(self.time), len(global_fine_x_linspace), len(global_fine_y_linspace)) )
         max_temperature_field = np.zeros( (len(self.time), len(global_fine_x_linspace), len(global_fine_y_linspace)) )
-                
-        # Define coordinates over which coarse temperature data is collected
-        coarse_x_coords = self.mesh_x_z0[:,0]
-        coarse_y_coords = self.mesh_y_z0[0,:]
-        
-        # Determine number of indicies in fine mesh data
-        fine_mesh_indicies = len(self.fine_temperature_field[0,:,0])
         
         # Determine the maximum temperature at fine resolution at each frame
-        for i in range(len(self.time)):
+        for curr_frame in range(len(self.time)):
             
             # At each frame, interpolate the coarse temperautre field to the fine field resolution
-            f = interpolate.interp2d(coarse_x_coords, coarse_y_coords, np.transpose(self.temperature_field[i]))
-            interpolated_coarse_temperature_field = np.transpose(f(global_fine_x_linspace, global_fine_y_linspace))
+            f = interpolate.interp2d(self.mesh_x_z0[:,0], self.mesh_y_z0[0,:], np.transpose(self.temperature_field[curr_frame]))
+            interpolated_temperature_field[curr_frame] = np.transpose(f(global_fine_x_linspace, global_fine_y_linspace))
             
-            # At each frame, determine the global indices of the fine mesh
-            mean_fine_mesh_x_location = (self.fine_mesh_loc[i][1] + self.fine_mesh_loc[i][0]) / 2.0
-            mean_fine_mesh_x_index = np.argmin(abs(global_fine_x_linspace - mean_fine_mesh_x_location))
-            fine_mesh_start_index = mean_fine_mesh_x_index - fine_mesh_indicies // 2
-            if fine_mesh_start_index < 0:
-                fine_mesh_start_index = 0
-            fine_mesh_end_index = fine_mesh_start_index + fine_mesh_indicies
-            if fine_mesh_end_index >= len(global_fine_x_linspace):
-                fine_mesh_end_index = len(global_fine_x_linspace) - 1
-                fine_mesh_start_index = fine_mesh_end_index - fine_mesh_indicies
-            
-            # Extend the fine mesh
-            extended_fine_temperature_field = np.zeros( (len(global_fine_x_linspace), len(global_fine_y_linspace)) )
-            extended_fine_temperature_field[fine_mesh_start_index:fine_mesh_end_index, :] = self.fine_temperature_field[i,:,:]
+            # Paint over the interpolated temperature field with the fine temperature field
+            fine_mesh_start_loc = self.fine_mesh_loc[curr_frame][0]
+            fine_mesh_end_loc = self.fine_mesh_loc[curr_frame][1]
+            fine_mesh_start_index = np.argmin(abs(global_fine_x_linspace-fine_mesh_start_loc))
+            fine_mesh_end_index = np.argmin(abs(global_fine_x_linspace-fine_mesh_end_loc))
+            interpolated_temperature_field[curr_frame][fine_mesh_start_index:(fine_mesh_end_index+1),:] = self.fine_temperature_field[curr_frame]
             
             # Compare the fine temperature mesh to the fine resolution corase temperature mesh
-            max_temperature_field[i,:,:] = np.maximum(interpolated_coarse_temperature_field, extended_fine_temperature_field)
+            max_temperature_field[curr_frame,:,:] = np.max(interpolated_temperature_field[0:curr_frame+1], axis=0)
             
         # Return the maximum temperature field and mesh used to plot it
-        return global_fine_mesh_x, global_fine_mesh_y, max_temperature_field
+        return global_fine_mesh_x, global_fine_mesh_y, max_temperature_field, interpolated_temperature_field
        
     def get_steady_state(self):
         # Determine the average front speed in steady state propogation (region wherein front velocity is +- 0.05mm/s of the non zero mean front velocity
@@ -692,7 +680,7 @@ class Save_Plot_Render:
                 self.mean_front_y_locations[curr_frame] = 0.0
         
         # Calculate the max temperature field
-        self.global_fine_mesh_x, self.global_fine_mesh_y, self.max_temperature_field = self.get_max_temperature_field()
+        self.global_fine_mesh_x, self.global_fine_mesh_y, self.max_temperature_field, self.interpolated_temperature_field = self.get_max_temperature_field()
         
         # Calculate steady state stuff
         self.steady_masks, self.steady_speed, self.steady_temp = self.get_steady_state()
@@ -730,6 +718,7 @@ class Save_Plot_Render:
             'global_fine_mesh_x': self.global_fine_mesh_x, 
             'global_fine_mesh_y': self.global_fine_mesh_y,
             'max_temperature_field': self.max_temperature_field,
+            'interpolated_temperature_field' : self.interpolated_temperature_field,
             'front_curve': self.front_curve,
             'front_fit' : self.front_fit,
             'mean_front_x_locations': self.mean_front_x_locations,
@@ -802,7 +791,7 @@ class Save_Plot_Render:
                 self.mean_front_y_locations[curr_frame] = 0.0
         
         # Calculate the max temperature field
-        self.global_fine_mesh_x, self.global_fine_mesh_y, self.max_temperature_field = self.get_max_temperature_field()
+        self.global_fine_mesh_x, self.global_fine_mesh_y, self.max_temperature_field, self.interpolated_temperature_field = self.get_max_temperature_field()
         
         # Calculate steady state stuff
         self.steady_masks, self.steady_speed, self.steady_temp = self.get_steady_state()
@@ -823,6 +812,7 @@ class Save_Plot_Render:
             'global_fine_mesh_x': self.global_fine_mesh_x, 
             'global_fine_mesh_y': self.global_fine_mesh_y,
             'max_temperature_field': self.max_temperature_field,
+            'interpolated_temperature_field' : self.interpolated_temperature_field,
             'front_curve': self.front_curve,
             'front_fit' : self.front_fit,
             'mean_front_x_locations': self.mean_front_x_locations,
@@ -1096,6 +1086,10 @@ class Save_Plot_Render:
         # Determine fit space for front fit
         fit_y_coords = np.linspace(0.0, self.mesh_y_z0[0][-1], 100)
         
+        # Determine temperature ranges to use for plotting
+        max_temp = round(np.max(self.max_temperature_field[-1]) + 0.05 - (np.max(self.max_temperature_field[-1]) % 0.05),2)
+        min_temp = np.mean(self.max_temperature_field[-1]) - np.mean(self.max_temperature_field[-1]) % 0.05
+        
         for curr_step in range(len(self.time)):
         
             # Calculate input field
@@ -1118,7 +1112,7 @@ class Save_Plot_Render:
             fine_mesh_y, fine_mesh_x = np.meshgrid(y_linspace, x_linspace)
             
             # Plot max normalized temperature
-            c0 = ax0.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.max_temperature_field[curr_step], shading='gouraud', cmap='jet', vmin=0.9, vmax=1.1)
+            c0 = ax0.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.max_temperature_field[curr_step], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
             cbar0 = fig.colorbar(c0, ax=ax0)
             cbar0.set_label("Max ϴ [-]",labelpad=20,fontsize='large')
             cbar0.ax.tick_params(labelsize=12)
