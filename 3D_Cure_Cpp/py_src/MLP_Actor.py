@@ -22,7 +22,7 @@ class Model(nn.Module):
         self.num_outputs = num_outputs
         
         # Initialize the stdev for each input
-        self.stdev = torch.nn.Parameter(np.log(0.5)*torch.ones(self.num_outputs,dtype=torch.double).double())
+        self.stdev = torch.nn.Parameter(np.log(0.75)*torch.ones(self.num_outputs,dtype=torch.double).double())
 
         #Initialize the fully connected layers for action generation
         self.fc1 = nn.Linear(self.len_encoded_image + self.num_additional_states, self.len_encoded_image + self.num_additional_states)
@@ -43,4 +43,4 @@ class Model(nn.Module):
         return x, stdevs
     
     def reset_stdev(self):
-        self.stdev = torch.nn.Parameter(np.log(0.5)*torch.ones(self.num_outputs,dtype=torch.double).double())
+        self.stdev = torch.nn.Parameter(np.log(0.75)*torch.ones(self.num_outputs,dtype=torch.double).double())
