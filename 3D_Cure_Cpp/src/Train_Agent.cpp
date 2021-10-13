@@ -136,7 +136,6 @@ Config_Handler::Config_Handler()
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
 		
 		// {Rendering parameters}
 		config_file >> config_dump >> frame_rate;

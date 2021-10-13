@@ -1087,8 +1087,9 @@ class Save_Plot_Render:
         fit_y_coords = np.linspace(0.0, self.mesh_y_z0[0][-1], 100)
         
         # Determine temperature ranges to use for plotting
-        max_temp = round(np.max(self.max_temperature_field[-1]) + 0.05 - (np.max(self.max_temperature_field[-1]) % 0.05),2)
         min_temp = np.mean(self.max_temperature_field[-1]) - np.mean(self.max_temperature_field[-1]) % 0.05
+        max_temp = round(np.max(self.max_temperature_field[-1]) + 0.05 - (np.max(self.max_temperature_field[-1]) % 0.05),2)
+        max_temp = min(min_temp + 2*(np.std(self.max_temperature_field[-1]) - np.std(self.max_temperature_field[-1]) % 0.05), max_temp)
         
         for curr_step in range(len(self.time)):
         
