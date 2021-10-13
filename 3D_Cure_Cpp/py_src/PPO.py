@@ -626,11 +626,11 @@ class Save_Plot_Render:
         average_steady_speed = []
         average_steady_temp = []
         for i in range(len(bool_masks)):
-            average_steady_speed.append(self.front_velocity[bool_masks[i]])
-            average_steady_temp.append(self.front_temperature[bool_masks[i]])
+            average_steady_speed.append(list(self.front_velocity[bool_masks[i]]))
+            average_steady_temp.append(list(self.front_temperature[bool_masks[i]]))
         if len(bool_masks)!=0:
-            average_steady_speed = np.mean(np.array(average_steady_speed))
-            average_steady_temp = np.mean(np.array(average_steady_temp))
+            average_steady_speed = np.mean(np.array(sum(average_steady_speed,[])))
+            average_steady_temp = np.mean(np.array(sum(average_steady_temp,[])))
         
         return bool_masks, average_steady_speed, average_steady_temp
     
