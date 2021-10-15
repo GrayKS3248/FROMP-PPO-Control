@@ -270,10 +270,10 @@ class Speed_Estimator
 {
 	public:
 		// public constructor and destructor
-		Speed_Estimator(Config_Handler* config_handler);
+		Speed_Estimator(Config_Handler* config_handler, Finite_Difference_Solver* FDS);
 		
 		// public functions
-		int observe(double front_loc, double time);
+		int observe(vector<vector<double>> temperature_image, double time);
 		double estimate();
 		int reset();
 		
@@ -281,12 +281,16 @@ class Speed_Estimator
 		// private variables
 		int sequence_length;
 		double filter_time_const;
+		vector<vector<double>> coarse_x_mesh_z0;
+		double coarse_x_step;
 		deque<double> front_location_history;
 		deque<double> observation_time_history;
+		double x_loc_estimate;
 		double speed_estimate;
 		
 		// private functions
 		double get_avg(deque<double> input);
+		double estimate_front_location(vector<vector<double>> temperature_image);
 };
 
 
@@ -294,11 +298,12 @@ class Speed_Estimator
 * Constructor for speed estimator
 * @param Configuration handler object that contains all loaded and calculated configuration data
 */
-Speed_Estimator::Speed_Estimator(Config_Handler* config_handler)
+Speed_Estimator::Speed_Estimator(Config_Handler* config_handler, Finite_Difference_Solver* FDS)
 {	
 	// Set sequence length and filter time constant
 	sequence_length = config_handler->sequence_length;
 	filter_time_const = config_handler->filter_time_const;
+	coarse_x_mesh_z0 = FDS->get_coarse_x_mesh_z0();
 	
 	// Populate observation histories
 	for( int i = 0; i < sequence_length; i++ )
@@ -307,7 +312,8 @@ Speed_Estimator::Speed_Estimator(Config_Handler* config_handler)
 		observation_time_history.push_back( double(sequence_length - i)*(-0.02) );
 	}
 	
-	// Set speed estimate to 0
+	// Set location and speed estimate to 0
+	x_loc_estimate = 0.0;
 	speed_estimate = 0.0;
 }
 
@@ -333,10 +339,13 @@ double Speed_Estimator::get_avg(deque<double> input)
 * @param Simulated time at observation
 * @return 0 on success, 1 on failure
 */
-int Speed_Estimator::observe(double front_loc, double time)
+int Speed_Estimator::observe(vector<vector<double>> temperature_image, double time)
 {
+	// Estimate the mean x location of the leading edge of the front
+	x_loc_estimate = estimate_front_location(temperature_image);
+	
 	//  Add newest observation
-	front_location_history.push_back(front_loc);
+	front_location_history.push_back(x_loc_estimate);
 	observation_time_history.push_back(time);
 	
 	// Remove oldest observation
@@ -346,10 +355,83 @@ int Speed_Estimator::observe(double front_loc, double time)
 	return 0;
 }
 
+/** 
+* Estimates the mean x location of the front's leading edge given temperature field observation
+* @param Normalized image of temperature field
+* @return X location of the mean x location of the front's leading edge based on dT/dx (NON NORMALIZED)
+*/
+double Speed_Estimator::estimate_front_location(vector<vector<double>> temperature_image)
+{
+	// Find the x location that corresponds to the max amplitude temperature derivative in the x direction for each column j
+	vector<double> dt_dx_max_x_loc = vector<double>(temperature_image[0].size(), -1.0);
+	for(unsigned int j = 0; j < temperature_image[0].size(); j++)
+	{
+		// Tracks the maximum observed temperature derivative in the x direction in column j
+		double max_abs_dt_dx_j = 0.0;
+		
+		for(unsigned int i = 0; i < temperature_image.size(); i++)
+		{
+			// Store the magnitude of the temperature derivative in the x direction at point (i,j)
+			double abs_dt_dx_ij = 0.0;
+			
+			// Left boundary condition
+			if( i==0 )
+			{
+				abs_dt_dx_ij = abs(-1.5*temperature_image[i][j] + 2.0*temperature_image[i+1][j] + -0.5*temperature_image[i+2][j]);
+			}
+			
+			// Right boundary condition
+			else if( i==temperature_image.size()-1 )
+			{
+				abs_dt_dx_ij = abs(0.5*temperature_image[i-2][j] + -2.0*temperature_image[i-1][j] + 1.5*temperature_image[i][j]);
+			}
+			
+			// Bulk condition
+			else
+			{
+				abs_dt_dx_ij = abs(-0.5*temperature_image[i-1][j] + 0.5*temperature_image[i+1][j]);
+			}
+			
+			// Save max derivative x location so long as the derivate is greater than some threshold
+			if ( abs_dt_dx_ij >= max_abs_dt_dx_j || abs_dt_dx_ij > 0.15 )
+			{
+				dt_dx_max_x_loc[j] = coarse_x_mesh_z0[i][j];
+				max_abs_dt_dx_j = abs_dt_dx_ij;
+			}
+		}
+	}
+	
+	// Sum the admissable front x locations
+	double x_loc_sum = 0.0;
+	double count = 0.0;
+	for(unsigned int j = 0; j < temperature_image[0].size(); j++)
+	{
+		if( dt_dx_max_x_loc[j] > 0.0 )
+		{
+			x_loc_sum += dt_dx_max_x_loc[j];
+			count = count + 1.0;
+		}
+	}
+	
+	// If there are more than 0 instances of fronts, take the average and update the front location estimate, other do not update the front x location
+	double curr_estimate = x_loc_estimate;
+	if(count > 0.0)
+	{
+		// Average
+		curr_estimate = x_loc_sum / count;
+	}
+	else
+	{
+		curr_estimate = x_loc_estimate;
+	}
+	
+	return curr_estimate;
+	
+}
+
 /**
-* Edits the FDS config file to run the monomer, initial cure, initial temperature, and target front speed of the defined test point index
-* @param index of monomer, cure, temp, and target to be set
-* @return 0 on success, 1 on failure
+* Estimates the front velocity based on previous observations of the temperature field
+* @return Estiamte of the front velocity (NON NORMALIZED)
 */
 double Speed_Estimator::estimate()
 {
@@ -403,7 +485,8 @@ int Speed_Estimator::reset()
 		observation_time_history.push_back( double(sequence_length - i)*(-0.02) );
 	}
 	
-	// Set speed estimate to 0
+	// Set x location and speed estimate to 0
+	x_loc_estimate = 0.0;
 	speed_estimate = 0.0;
 	
 	return 0;
@@ -1192,27 +1275,9 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* config_handler, Speed_Est
 			{
 				// Gather temperature state data
 				state_image = FDS->get_coarse_temp_z0(true);
-				PyObject* py_state_image = get_2D_list<vector<vector<double>>>(state_image);
-				
-				// Feed temperature state data through encoder to get front location
-				PyObject* py_loc_and_temp = PyObject_CallMethod(agent, "get_latent_vars", "(O)", py_state_image);
-				if (py_loc_and_temp == NULL)
-				{
-					fprintf(stderr, "\nFailed to call get latent vars function.\n");
-					PyErr_Print();
-					Py_DECREF(py_state_image);
-					return 1;
-				}
-				
-				// Get the front location data
-				double front_loc = PyFloat_AsDouble(PyTuple_GetItem(py_loc_and_temp, 0)) * FDS->get_coarse_x_len();
 				
 				// Add observation to speed estimator
-				estimator->observe(front_loc, FDS->get_curr_sim_time());
-				
-				// Free memory
-				Py_DECREF(py_state_image);
-				Py_DECREF(py_loc_and_temp);
+				estimator->observe(state_image, FDS->get_curr_sim_time());
 			}
 			
 			// Run the agent
@@ -1383,27 +1448,9 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* config_handler, Speed_Est
 		{
 			// Gather temperature state data
 			state_image = FDS->get_coarse_temp_z0(true);
-			PyObject* py_state_image = get_2D_list<vector<vector<double>>>(state_image);
-			
-			// Feed temperature state data through encoder to get front location
-			PyObject* py_loc_and_temp = PyObject_CallMethod(agent, "get_latent_vars", "(O)", py_state_image);
-			if (py_loc_and_temp == NULL)
-			{
-				fprintf(stderr, "\nFailed to call get latent vars function.\n");
-				PyErr_Print();
-				Py_DECREF(py_state_image);
-				return 1;
-			}
-			
-			// Get the front location data
-			double front_loc = PyFloat_AsDouble(PyTuple_GetItem(py_loc_and_temp, 0));
 			
 			// Add observation to speed estimator
-			estimator->observe(front_loc, FDS->get_curr_sim_time());
-			
-			// Free memory
-			Py_DECREF(py_state_image);
-			Py_DECREF(py_loc_and_temp);
+			estimator->observe(state_image, FDS->get_curr_sim_time());
 		}
 		
 		// Update the logs
@@ -1552,7 +1599,7 @@ int main()
 	}
 
 	// Initialize front speed estimator
-	Speed_Estimator* estimator = new Speed_Estimator(config_handler);
+	Speed_Estimator* estimator = new Speed_Estimator(config_handler, FDS);
 
 	// Init py environment
 	Py_Initialize();
