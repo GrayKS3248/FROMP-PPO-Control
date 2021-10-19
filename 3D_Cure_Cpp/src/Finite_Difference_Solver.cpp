@@ -2514,9 +2514,9 @@ void Finite_Difference_Solver::step_meshes()
 							precalc_pow_index = (int)round((second_stage_cure-precalc_start_cure) / precalc_cure_step);
 							precalc_pow_index = precalc_pow_index < 0 ? 0 : precalc_pow_index;
 							precalc_pow_index = precalc_pow_index >= precalc_pow_arr_len ? precalc_pow_arr_len-1 : precalc_pow_index;
-							fourth_stage_cure = precalc_exp_arr[precalc_exp_index] * precalc_pow_arr[precalc_pow_index];
+							fourth_stage_cure_rate = precalc_exp_arr[precalc_exp_index] * precalc_pow_arr[precalc_pow_index];
 						}
-						else {fourth_stage_cure=0.0;}
+						else {fourth_stage_cure_rate=0.0;}
 						
 						// Apply RK4 algorithm
 						cure_rate = (first_stage_cure_rate + 2.0*second_stage_cure_rate + 2.0*third_stage_cure_rate + fourth_stage_cure_rate)/6.0;
