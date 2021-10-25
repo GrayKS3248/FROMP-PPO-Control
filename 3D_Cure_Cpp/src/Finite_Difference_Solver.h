@@ -293,6 +293,8 @@ double* precalc_exp_arr;
 int precalc_exp_arr_len;
 double* precalc_pow_arr;
 int precalc_pow_arr_len;
+int arg_max_precalc_pow_arr;
+double max_precalc_pow_arr;
 
 // Trigger conditions
 bool trigger_is_on;

@@ -576,6 +576,7 @@ class Save_Plot_Render:
             
             # Compare the fine temperature mesh to the fine resolution corase temperature mesh
             max_temperature_field[curr_frame,:,:] = np.max(interpolated_temperature_field[0:curr_frame+1], axis=0)
+            max_temperature_field[curr_frame,:,:] = interpolated_temperature_field[curr_frame]
             
         # Return the maximum temperature field and mesh used to plot it
         return global_fine_mesh_x, global_fine_mesh_y, max_temperature_field, interpolated_temperature_field

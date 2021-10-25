@@ -343,6 +343,18 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 		{
 			precalc_pow_arr[i] = pow((1.0 - curr_precalc_cure), COD_model_fit_order) * pow(curr_precalc_cure, COD_m_fit);
 		}
+		
+		// Find the index of the max value of the power array
+		if (i!=0)
+		{
+			if ( precalc_pow_arr[i] > precalc_pow_arr[i-1] )
+			{
+				arg_max_precalc_pow_arr = i;
+				max_precalc_pow_arr = precalc_pow_arr[i];
+			}
+		}
+		
+		// Step the precalculation alpha value
 		curr_precalc_cure += precalc_cure_step;
 	}
 
@@ -2455,7 +2467,6 @@ void Finite_Difference_Solver::step_meshes()
 			{
 				int i_ind = get_ind(i);
 				
-				//double exponential_term = 0.0;
 				double cure_rate = 0.0;
 				double first_stage_cure_rate = 0.0;
 				double second_stage_cure = 0.0;
@@ -2485,7 +2496,70 @@ void Finite_Difference_Solver::step_meshes()
 					}
 					else
 					{
-						// Stage 2
+						// Implict Euler constants
+						double precalc_exp = precalc_exp_arr[precalc_exp_index];
+						double curr_alpha = fine_cure_mesh[i_ind][j][k];
+						
+						// Determine the maximum possible next degree of cure
+						double max_alpha;
+						if( precalc_pow_index > arg_max_precalc_pow_arr )
+						{
+							max_alpha = curr_alpha + fine_time_step * precalc_exp * precalc_pow_arr[precalc_pow_index];
+						}
+						else
+						{
+							max_alpha = curr_alpha + fine_time_step * precalc_exp * max_precalc_pow_arr;
+						}
+						max_alpha = max_alpha > 1.0 ? 1.0 : max_alpha;
+						
+						// Implicit Euler iterates
+						double min_alpha = curr_alpha;
+						double prev_error = 1.0;
+						int count = 0;
+						
+						// Implicit Euler iterative solver (binary search)
+						while (  abs(prev_error) > 1.0e-4 )
+						{
+							// Make new index guess in middle of known admissable range
+							double guess_alpha = min_alpha + (max_alpha - min_alpha) / 2.0;
+							precalc_pow_index = (int)round( (guess_alpha - precalc_start_cure) / precalc_cure_step );
+							precalc_pow_index = precalc_pow_index < 0 ? 0 : precalc_pow_index;
+							precalc_pow_index = precalc_pow_index >= precalc_pow_arr_len ? precalc_pow_arr_len-1 : precalc_pow_index;
+							
+							// Calcute error given new guess
+							double curr_error = curr_alpha + fine_time_step * precalc_exp * precalc_pow_arr[precalc_pow_index] - guess_alpha;
+							
+							// Split range and continue
+							if( curr_error > 0.0 ) // Underestimate a
+							{
+								min_alpha = guess_alpha;
+							}
+							else if ( curr_error < 0.0 ) // Overestimate a
+							{
+								max_alpha = guess_alpha;
+							}
+							else
+							{
+								break;
+							}
+							
+							// Check termination condition
+							if(count==14)
+							{
+								break;
+							}
+							
+							// Step error
+							prev_error = curr_error;
+							count++;
+							
+						}
+						second_stage_cure_rate = precalc_exp * precalc_pow_arr[precalc_pow_index];
+						
+						// Apply Implicit Euler algorithm
+						cure_rate = second_stage_cure_rate;
+	
+/* 						// Stage 2
 						second_stage_cure = fine_cure_mesh[i_ind][j][k] + 0.5*fine_time_step*first_stage_cure_rate;
 						if(second_stage_cure<1.0)
 						{
@@ -2519,7 +2593,7 @@ void Finite_Difference_Solver::step_meshes()
 						else {fourth_stage_cure_rate=0.0;}
 						
 						// Apply RK4 algorithm
-						cure_rate = (first_stage_cure_rate + 2.0*second_stage_cure_rate + 2.0*third_stage_cure_rate + fourth_stage_cure_rate)/6.0;
+						cure_rate = (first_stage_cure_rate + 2.0*second_stage_cure_rate + 2.0*third_stage_cure_rate + fourth_stage_cure_rate)/6.0; */
 					}
 						
 					
