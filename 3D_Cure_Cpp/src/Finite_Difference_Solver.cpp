@@ -2469,26 +2469,32 @@ void Finite_Difference_Solver::step_meshes()
 				
 				double cure_rate = 0.0;
 				double first_stage_cure_rate = 0.0;
-				double second_stage_cure = 0.0;
+				//double second_stage_cure = 0.0;
 				double second_stage_cure_rate = 0.0;
-				double third_stage_cure = 0.0;
-				double third_stage_cure_rate = 0.0;
-				double fourth_stage_cure = 0.0;
-				double fourth_stage_cure_rate = 0.0;
+				//double third_stage_cure = 0.0;
+				//double third_stage_cure_rate = 0.0;
+				//double fourth_stage_cure = 0.0;
+				//double fourth_stage_cure_rate = 0.0;
+					
+				
 					
 				// Only calculate the cure rate if curing has started but is incomplete
 				if ((fine_temp_mesh[i_ind][j][k] >= critical_temp) && (fine_cure_mesh[i_ind][j][k] < 1.0))
 				{
+					// Save current degree cure at i,j,k to variables
+					double curr_alpha = fine_cure_mesh[i_ind][j][k];
+				
 					// Search precalculated array
 					int precalc_exp_index = (int)round((fine_temp_mesh[i_ind][j][k]-precalc_start_temp) / precalc_temp_step);
 					precalc_exp_index = precalc_exp_index < 0 ? 0 : precalc_exp_index;
 					precalc_exp_index = precalc_exp_index >= precalc_exp_arr_len ? precalc_exp_arr_len-1 : precalc_exp_index;
+					double precalc_exp = precalc_exp_arr[precalc_exp_index];
 					
-					int precalc_pow_index = (int)round((fine_cure_mesh[i_ind][j][k]-precalc_start_cure) / precalc_cure_step);
+					int precalc_pow_index = (int)round((curr_alpha-precalc_start_cure) / precalc_cure_step);
 					precalc_pow_index = precalc_pow_index < 0 ? 0 : precalc_pow_index;
 					precalc_pow_index = precalc_pow_index >= precalc_pow_arr_len ? precalc_pow_arr_len-1 : precalc_pow_index;
 					
-					first_stage_cure_rate = precalc_exp_arr[precalc_exp_index] * precalc_pow_arr[precalc_pow_index];
+					first_stage_cure_rate = precalc_exp * precalc_pow_arr[precalc_pow_index];
 					
 					if( first_stage_cure_rate < transition_cure_rate )
 					{
@@ -2496,10 +2502,6 @@ void Finite_Difference_Solver::step_meshes()
 					}
 					else
 					{
-						// Implict Euler constants
-						double precalc_exp = precalc_exp_arr[precalc_exp_index];
-						double curr_alpha = fine_cure_mesh[i_ind][j][k];
-						
 						// Determine the maximum possible next degree of cure
 						double max_alpha;
 						if( precalc_pow_index > arg_max_precalc_pow_arr )
