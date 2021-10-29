@@ -14,6 +14,7 @@ from Autoencoder import Autoencoder
 import torch
 import numpy as np
 from scipy import interpolate
+from scipy import integrate
 
 # File saving and formatting
 import pickle
@@ -464,6 +465,7 @@ class Save_Plot_Render:
         self.input_location_x = []
         self.input_location_y = []
         self.input_percent = []
+        self.power = []
         self.temperature_field = []
         self.cure_field = []
         self.fine_temperature_field = []
@@ -505,10 +507,11 @@ class Save_Plot_Render:
         self.y_stdev = np.array(y_stdev)
         self.mag_stdev = np.array(mag_stdev)
     
-    def store_input_history(self, input_location_x, input_location_y, input_percent):
+    def store_input_history(self, input_location_x, input_location_y, input_percent, power):
         self.input_location_x = np.array(input_location_x)
         self.input_location_y = np.array(input_location_y)
         self.input_percent = np.array(input_percent)
+        self.power = np.array(power)
     
     def store_field_history(self, temperature_field, cure_field, fine_temperature_field, fine_cure_field, fine_mesh_loc):
         self.temperature_field = np.array(temperature_field)
@@ -707,6 +710,7 @@ class Save_Plot_Render:
             'input_location_x': self.input_location_x,
             'input_location_y': self.input_location_y,
             'input_percent': self.input_percent,
+            'power': self.power,
             'temperature_field': self.temperature_field,
             'cure_field': self.cure_field,
             'fine_temperature_field': self.fine_temperature_field,
@@ -801,6 +805,7 @@ class Save_Plot_Render:
             'input_location_x': self.input_location_x,
             'input_location_y': self.input_location_y,
             'input_percent': self.input_percent,
+            'power': self.power,
             'temperature_field': self.temperature_field,
             'cure_field': self.cure_field,
             'fine_temperature_field': self.fine_temperature_field,
@@ -959,6 +964,28 @@ class Save_Plot_Render:
         plt.yticks(fontsize='large')
         plt.gcf().set_size_inches(8.5, 5.5)
         plt.savefig(self.path + "/reward.png", dpi = 500)
+        plt.close()
+
+        # Plot energy trajectory
+        energy = integrate.cumtrapz(self.power, x=self.time)
+        energy = np.insert(energy, 0, 0.0)
+        fig, ax1 = plt.subplots()
+        fig.set_size_inches(8.5,5.5)
+        ax1.set_xlabel("Simulation Time [s]",fontsize='large')
+        ax1.set_ylabel("Power [W]",fontsize='large',color='b')
+        ax1.plot(self.time, self.power,c='b',lw=2.5)
+        ax1.set_xlim(0.0, np.round(self.time[-1]))
+        ax1.tick_params(axis='x', labelsize=12)
+        ax1.tick_params(axis='y', labelsize=12, labelcolor='b')
+        ax2 = ax1.twinx()
+        ax2.set_ylabel("Cumulative Energy Consumed [J]",fontsize='large',color='r')
+        ax2.plot(self.time, energy,c='r',lw=2.5)
+        ax2.set_xlim(0.0, np.round(self.time[-1]))
+        ax2.tick_params(axis='x', labelsize=12)
+        ax2.tick_params(axis='y', labelsize=12, labelcolor='r')
+        title_str = "External Energy Input"
+        fig.suptitle(title_str,fontsize='xx-large')
+        plt.savefig(self.path + "/energy.png", dpi = 500)
         plt.close()
 
         #Plot actor learning curve

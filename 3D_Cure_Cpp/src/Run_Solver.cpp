@@ -251,17 +251,19 @@ PyObject* init_save_render_plot()
 * @param vector containing input x location history
 * @param vector containing input y location history
 * @param vector containing input magnitude percent history
+* @param vector containing total power history
 * @return 0 on success, 1 on failure
 */
-int store_input_history(PyObject* save_render_plot, vector<double> input_location_x, vector<double> input_location_y, vector<double> input_percent)
+int store_input_history(PyObject* save_render_plot, vector<double> input_location_x, vector<double> input_location_y, vector<double> input_percent, vector<double> power)
 {
 	// Convert inputs
 	PyObject* py_input_location_x = get_1D_list<vector<double>>(input_location_x);
 	PyObject* py_input_location_y = get_1D_list<vector<double>>(input_location_y);
 	PyObject* py_input_percent = get_1D_list<vector<double>>(input_percent);
+	PyObject* py_power = get_1D_list<vector<double>>(power);
 	
 	// Call function
-	PyObject* result = PyObject_CallMethod(save_render_plot, "store_input_history", "(O,O,O)", py_input_location_x, py_input_location_y, py_input_percent);
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_input_history", "(O,O,O,O)", py_input_location_x, py_input_location_y, py_input_percent, py_power);
 	if (result==NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_input_history function:\n");
@@ -541,6 +543,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* save_render_plot, int steps_per
 	vector<double> input_location_x;
 	vector<double> input_location_y;
 	vector<double> input_percent;
+	vector<double> power;
 	vector<double> time;
 	vector<double> target;
 	vector<vector<double>> reward;
@@ -590,6 +593,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* save_render_plot, int steps_per
 			input_percent.push_back(input_state[0]);
 			input_location_x.push_back(input_state[1]);
 			input_location_y.push_back(input_state[2]);
+			power.push_back(FDS->get_power());
 			
 			// Store simualtion target and time data
 			time.push_back(FDS->get_curr_sim_time());
@@ -642,7 +646,7 @@ int run(Finite_Difference_Solver* FDS, PyObject* save_render_plot, int steps_per
 	
 	// Send all relevant data to save render and plot module
 	start_time = chrono::high_resolution_clock::now();
-	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent) == 1) {return 1;}
+	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent, power) == 1) {return 1;}
 	if(store_field_history(save_render_plot, temperature_field, cure_field, fine_temperature_field, fine_cure_field, fine_mesh_loc) == 1) {return 1;}
 	if(store_front_history(save_render_plot, front_curve, front_fit, front_velocity, front_temperature, front_shape_param) == 1) {return 1;}
 	if(store_target_and_time(save_render_plot, target, time, reward) == 1) {return 1;}

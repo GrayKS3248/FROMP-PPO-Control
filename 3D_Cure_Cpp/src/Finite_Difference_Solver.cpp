@@ -785,6 +785,30 @@ double Finite_Difference_Solver::get_max_input_slew_speed()
 	return max_input_slew_speed;
 }
 
+/**
+* Gets the total heat power being input to the system (input + trigger)
+* @return Total heat power input in watts
+*/
+double Finite_Difference_Solver::get_power()
+{
+	double total_power = 0.0;
+	
+	// Trigger power
+	if (trigger_is_on)
+	{
+		// Flux times area
+		total_power += trigger_flux * coarse_y_len * coarse_z_len;
+	}
+	
+	// Input power
+	if (input_is_on)
+	{
+		// Flux times area
+		total_power += input_percent * input_total_power;
+	}
+	
+	return total_power;
+}
 
 // ************************************************** TARGET GETTERS ************************************************** //
 /**
@@ -2466,17 +2490,9 @@ void Finite_Difference_Solver::step_meshes()
 			for (int k = 0; k < num_fine_vert_z; k++)
 			{
 				int i_ind = get_ind(i);
-				
 				double cure_rate = 0.0;
-				double first_stage_cure_rate = 0.0;
-				//double second_stage_cure = 0.0;
-				double second_stage_cure_rate = 0.0;
-				//double third_stage_cure = 0.0;
-				//double third_stage_cure_rate = 0.0;
-				//double fourth_stage_cure = 0.0;
-				//double fourth_stage_cure_rate = 0.0;
-					
-				
+				double explicit_cure_rate = 0.0;
+				double implicit_cure_rate = 0.0;
 					
 				// Only calculate the cure rate if curing has started but is incomplete
 				if ((fine_temp_mesh[i_ind][j][k] >= critical_temp) && (fine_cure_mesh[i_ind][j][k] < 1.0))
@@ -2494,11 +2510,11 @@ void Finite_Difference_Solver::step_meshes()
 					precalc_pow_index = precalc_pow_index < 0 ? 0 : precalc_pow_index;
 					precalc_pow_index = precalc_pow_index >= precalc_pow_arr_len ? precalc_pow_arr_len-1 : precalc_pow_index;
 					
-					first_stage_cure_rate = precalc_exp * precalc_pow_arr[precalc_pow_index];
+					explicit_cure_rate = precalc_exp * precalc_pow_arr[precalc_pow_index];
 					
-					if( first_stage_cure_rate < transition_cure_rate )
+					if( explicit_cure_rate < transition_cure_rate )
 					{
-						cure_rate = first_stage_cure_rate;
+						cure_rate = explicit_cure_rate;
 					}
 					else
 					{
@@ -2556,46 +2572,10 @@ void Finite_Difference_Solver::step_meshes()
 							count++;
 							
 						}
-						second_stage_cure_rate = precalc_exp * precalc_pow_arr[precalc_pow_index];
+						implicit_cure_rate = precalc_exp * precalc_pow_arr[precalc_pow_index];
 						
 						// Apply Implicit Euler algorithm
-						cure_rate = second_stage_cure_rate;
-	
-/* 						// Stage 2
-						second_stage_cure = fine_cure_mesh[i_ind][j][k] + 0.5*fine_time_step*first_stage_cure_rate;
-						if(second_stage_cure<1.0)
-						{
-							precalc_pow_index = (int)round((second_stage_cure-precalc_start_cure) / precalc_cure_step);
-							precalc_pow_index = precalc_pow_index < 0 ? 0 : precalc_pow_index;
-							precalc_pow_index = precalc_pow_index >= precalc_pow_arr_len ? precalc_pow_arr_len-1 : precalc_pow_index;
-							second_stage_cure_rate = precalc_exp_arr[precalc_exp_index] * precalc_pow_arr[precalc_pow_index];
-						}
-						else {second_stage_cure_rate=0.0;}
-						
-						// Stage 3
-						third_stage_cure = fine_cure_mesh[i_ind][j][k] + 0.5*fine_time_step*second_stage_cure_rate;
-						if(third_stage_cure<1.0)
-						{
-							precalc_pow_index = (int)round((second_stage_cure-precalc_start_cure) / precalc_cure_step);
-							precalc_pow_index = precalc_pow_index < 0 ? 0 : precalc_pow_index;
-							precalc_pow_index = precalc_pow_index >= precalc_pow_arr_len ? precalc_pow_arr_len-1 : precalc_pow_index;
-							third_stage_cure_rate = precalc_exp_arr[precalc_exp_index] * precalc_pow_arr[precalc_pow_index];
-						}
-						else {third_stage_cure_rate=0.0;}
-						
-						// Stage 4
-						fourth_stage_cure = fine_cure_mesh[i_ind][j][k] + fine_time_step*third_stage_cure_rate;
-						if(fourth_stage_cure<1.0)
-						{
-							precalc_pow_index = (int)round((second_stage_cure-precalc_start_cure) / precalc_cure_step);
-							precalc_pow_index = precalc_pow_index < 0 ? 0 : precalc_pow_index;
-							precalc_pow_index = precalc_pow_index >= precalc_pow_arr_len ? precalc_pow_arr_len-1 : precalc_pow_index;
-							fourth_stage_cure_rate = precalc_exp_arr[precalc_exp_index] * precalc_pow_arr[precalc_pow_index];
-						}
-						else {fourth_stage_cure_rate=0.0;}
-						
-						// Apply RK4 algorithm
-						cure_rate = (first_stage_cure_rate + 2.0*second_stage_cure_rate + 2.0*third_stage_cure_rate + fourth_stage_cure_rate)/6.0; */
+						cure_rate = implicit_cure_rate;
 					}
 						
 					

@@ -47,6 +47,7 @@ double get_peak_input_mag();
 double get_input_const();
 double get_max_input_mag_percent_rate();
 double get_max_input_slew_speed();
+double get_power();
 
 // Target getters
 double get_curr_target();
