@@ -1769,45 +1769,152 @@ int Finite_Difference_Solver::load_config()
 	return 0;
 }
 
-/** Perturb mesh with smooth, 3D noise
+/** Perturb mesh with smooth, 3D noise (improved Perlin)
 * @ param array being perturbed
 * @ param maximum magnitude of perturbation
 * @ return sum of size_array and smooth continuous perturbation of magnitude delta
 */
 void Finite_Difference_Solver::perturb_mesh(double*** arr, double max_deviation)
-{
-	// Get magnitude and biases
-	double mag_1 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;			// -1.0 to 1.0
-	double mag_2 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;			// -1.0 to 1.0
-	double mag_3 = 2.0 * (double)rand()/(double)RAND_MAX - 1.0;			// -1.0 to 1.0
-	double bias_1 = 4.0 * M_PI * (double)rand()/(double)RAND_MAX - 2.0 * M_PI;	// -2pi to 2pi
-	double bias_2 = 4.0 * M_PI * (double)rand()/(double)RAND_MAX - 2.0 * M_PI;	// -2pi to 2pi
-	double bias_3 = 4.0 * M_PI * (double)rand()/(double)RAND_MAX - 2.0 * M_PI;	// -2pi to 2pi
-	double min_mag = (double)rand()/(double)RAND_MAX;				// 0.0 to 1.0
-	double max_mag = (double)rand()/(double)RAND_MAX;				// 0.0 to 1.0
-	double min_x_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;			// -1.0 to 1.0
-	double max_x_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;			// -1.0 to 1.0
-	double min_y_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;			// -1.0 to 1.0
-	double max_y_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;			// -1.0 to 1.0
-	double min_z_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;			// -1.0 to 1.0
-	double max_z_bias = 2.0*(double)rand()/(double)RAND_MAX-1.0;			// -1.0 to 1.0
+{	
+	// Input parameters
+	double gradient_grid_size_multiplier = 13.0;
+	int noise_grid_multiplier = 1;
 
-	// Get x*y*z over perturbation field
-	double x, y, z, xyz, perturbation;
-	double scale = abs(mag_1) + abs(mag_2) + abs(mag_3);
+	// Base length scale on max length
+	double length_scale = coarse_x_len;
+	length_scale = coarse_y_len > length_scale ? coarse_y_len : length_scale;
+	length_scale = coarse_z_len > length_scale ? coarse_z_len : length_scale;
+	length_scale = length_scale / gradient_grid_size_multiplier;
+
+	// Define a grid of random unit length gradient vectors
+	int num_grad_vert_x = (int)round(coarse_x_len/length_scale);
+	int num_grad_vert_y = (int)round(coarse_y_len/length_scale);
+	int num_grad_vert_z = (int)round(coarse_z_len/length_scale);
+	num_grad_vert_x = num_grad_vert_x < 3 ? 3 : num_grad_vert_x;
+	num_grad_vert_y = num_grad_vert_y < 3 ? 3 : num_grad_vert_y;
+	num_grad_vert_z = num_grad_vert_z < 3 ? 3 : num_grad_vert_z;
 	
+	// Populate gradient grid
+	double grads[num_grad_vert_x][num_grad_vert_y][num_grad_vert_z][3];
+	double grad_coords[num_grad_vert_x][num_grad_vert_y][num_grad_vert_z][3];
+	for(int i = 0; i < num_grad_vert_x; i++)
+	for(int j = 0; j < num_grad_vert_y; j++)
+	for(int k = 0; k < num_grad_vert_z; k++)
+	{
+		// Generate random rotation angles
+		double dirn_1 = (double)rand()/(double)RAND_MAX >= 0.50 ? 0.707107 : -0.707107;
+		double dirn_2 = (double)rand()/(double)RAND_MAX >= 0.50 ? 0.707107 : -0.707107;
+		double dirn_3 = (double)rand()/(double)RAND_MAX >= 0.50 ? 0.707107 : -0.707107;
+		int zero_index = (int)round(2.99998*(double)rand()/(double)RAND_MAX - 0.49999); // 0 to 2
+		
+		// Convert euler angles to unit gradient vectors
+		grads[i][j][k][0] = dirn_1;
+		grads[i][j][k][1] = dirn_2;
+		grads[i][j][k][2] = dirn_3;
+		grads[i][j][k][zero_index] = 0.0;
+		
+		// Store the x,y,z location of the gradient grid
+		grad_coords[i][j][k][0] = ((double)i / (double)(num_grad_vert_x - 1)) * coarse_x_len;
+		grad_coords[i][j][k][1] = ((double)j / (double)(num_grad_vert_y - 1)) * coarse_y_len;
+		grad_coords[i][j][k][2] = ((double)k / (double)(num_grad_vert_z - 1)) * coarse_z_len;
+	}
+	
+	// Compute the noise
+	double min_noise = 1e16;
+	double max_noise = -1e16;
+	double noise[num_grad_vert_x*noise_grid_multiplier-1][num_grad_vert_y*noise_grid_multiplier-1][num_grad_vert_z*noise_grid_multiplier-1];
+	double noise_coords[num_grad_vert_x*noise_grid_multiplier-1][num_grad_vert_y*noise_grid_multiplier-1][num_grad_vert_z*noise_grid_multiplier-1][3];
+	for (int i = 0; i < num_grad_vert_x*noise_grid_multiplier-1; i++)
+	for (int j = 0; j < num_grad_vert_y*noise_grid_multiplier-1; j++)
+	for (int k = 0; k < num_grad_vert_z*noise_grid_multiplier-1; k++)
+	{
+		//save the coordinates of the current part of the grid
+		noise_coords[i][j][k][0] = ((double)i / (double)((num_grad_vert_x*noise_grid_multiplier-1) - 1)) * coarse_x_len;
+		noise_coords[i][j][k][1] = ((double)j / (double)((num_grad_vert_y*noise_grid_multiplier-1) - 1)) * coarse_y_len;
+		noise_coords[i][j][k][2] = ((double)k / (double)((num_grad_vert_z*noise_grid_multiplier-1) - 1)) * coarse_z_len;
+
+		// Get the indicies of the 8 vertices of the gradient grid that form a box that contains the current point
+		int grad_i = (int) floor((((double)num_grad_vert_x - 1.0) * noise_coords[i][j][k][0])/coarse_x_len);
+		int grad_j = (int) floor((((double)num_grad_vert_y - 1.0) * noise_coords[i][j][k][1])/coarse_y_len);
+		int grad_k = (int) floor((((double)num_grad_vert_z - 1.0) * noise_coords[i][j][k][2])/coarse_z_len);
+		int grad_min_i = grad_i != (num_grad_vert_x-1) ? grad_i : grad_i - 1;
+		int grad_max_i = grad_i != (num_grad_vert_x-1) ? grad_i+1 : grad_i;
+		int grad_min_j = grad_j != (num_grad_vert_y-1) ? grad_j : grad_j - 1;
+		int grad_max_j = grad_j != (num_grad_vert_y-1) ? grad_j+1 : grad_j;
+		int grad_min_k = grad_k != (num_grad_vert_z-1) ? grad_k : grad_k - 1;
+		int grad_max_k = grad_k != (num_grad_vert_z-1) ? grad_k+1 : grad_k;
+		
+		// Get the 8 offsets
+		double offsets[8][3];
+		for (int dim = 0; dim < 3; dim++)
+		{
+			offsets[0][dim] = noise_coords[i][j][k][dim] - grad_coords[grad_min_i][grad_min_j][grad_min_k][dim];
+			offsets[1][dim] = noise_coords[i][j][k][dim] - grad_coords[grad_min_i][grad_min_j][grad_max_k][dim];
+			offsets[2][dim] = noise_coords[i][j][k][dim] - grad_coords[grad_min_i][grad_max_j][grad_min_k][dim];
+			offsets[3][dim] = noise_coords[i][j][k][dim] - grad_coords[grad_min_i][grad_max_j][grad_max_k][dim];
+			offsets[4][dim] = noise_coords[i][j][k][dim] - grad_coords[grad_max_i][grad_min_j][grad_min_k][dim];
+			offsets[5][dim] = noise_coords[i][j][k][dim] - grad_coords[grad_max_i][grad_min_j][grad_max_k][dim];
+			offsets[6][dim] = noise_coords[i][j][k][dim] - grad_coords[grad_max_i][grad_max_j][grad_min_k][dim];
+			offsets[7][dim] = noise_coords[i][j][k][dim] - grad_coords[grad_max_i][grad_max_j][grad_max_k][dim];
+		}
+		
+		// Calculate and store the noise value
+		double noise_val = 0.0;
+		noise_val += offsets[0][0]*grads[grad_min_i][grad_min_j][grad_min_k][0] + offsets[0][1]*grads[grad_min_i][grad_min_j][grad_min_k][1] + offsets[0][2]*grads[grad_min_i][grad_min_j][grad_min_k][2];
+		noise_val += offsets[1][0]*grads[grad_min_i][grad_min_j][grad_max_k][0] + offsets[1][1]*grads[grad_min_i][grad_min_j][grad_max_k][1] + offsets[1][2]*grads[grad_min_i][grad_min_j][grad_max_k][2];
+		noise_val += offsets[2][0]*grads[grad_min_i][grad_max_j][grad_min_k][0] + offsets[2][1]*grads[grad_min_i][grad_max_j][grad_min_k][1] + offsets[2][2]*grads[grad_min_i][grad_max_j][grad_min_k][2];
+		noise_val += offsets[3][0]*grads[grad_min_i][grad_max_j][grad_max_k][0] + offsets[3][1]*grads[grad_min_i][grad_max_j][grad_max_k][1] + offsets[3][2]*grads[grad_min_i][grad_max_j][grad_max_k][2];
+		noise_val += offsets[4][0]*grads[grad_max_i][grad_min_j][grad_min_k][0] + offsets[4][1]*grads[grad_max_i][grad_min_j][grad_min_k][1] + offsets[4][2]*grads[grad_max_i][grad_min_j][grad_min_k][2];
+		noise_val += offsets[5][0]*grads[grad_max_i][grad_min_j][grad_max_k][0] + offsets[5][1]*grads[grad_max_i][grad_min_j][grad_max_k][1] + offsets[5][2]*grads[grad_max_i][grad_min_j][grad_max_k][2];
+		noise_val += offsets[6][0]*grads[grad_max_i][grad_max_j][grad_min_k][0] + offsets[6][1]*grads[grad_max_i][grad_max_j][grad_min_k][1] + offsets[6][2]*grads[grad_max_i][grad_max_j][grad_min_k][2];
+		noise_val += offsets[7][0]*grads[grad_max_i][grad_max_j][grad_max_k][0] + offsets[7][1]*grads[grad_max_i][grad_max_j][grad_max_k][1] + offsets[7][2]*grads[grad_max_i][grad_max_j][grad_max_k][2];
+		noise[i][j][k] = noise_val;
+		
+		// Save min and max values
+		min_noise = noise_val < min_noise ? noise_val : min_noise;
+		max_noise = noise_val > max_noise ? noise_val : max_noise;
+	}
+	
+	// Assign the computed noise normalized to up to +- max_deviation
+	double deviation = (double)rand()/(double)RAND_MAX*max_deviation;
+	double bias = ((2.0*(double)rand()/(double)RAND_MAX)-1.0)*(max_deviation - deviation);
 	for (int i = 0; i < num_coarse_vert_x; i++)
 	for (int j = 0; j < num_coarse_vert_y; j++)
 	for (int k = 0; k < num_coarse_vert_z; k++)
 	{
-		x = -2.0*min_mag + min_x_bias + (2.0*max_mag + max_x_bias + 2.0*min_mag - min_x_bias) * ((double)i / (num_coarse_vert_x-1));
-		y = -2.0*min_mag + min_y_bias + (2.0*max_mag + max_y_bias + 2.0*min_mag - min_y_bias) * ((double)j / (num_coarse_vert_y-1));
-		z = -2.0*min_mag + min_z_bias + (2.0*max_mag + max_z_bias + 2.0*min_mag - min_z_bias) * ((double)k / (num_coarse_vert_z-1));
-		xyz = x * y * z;
+		//save the coordinates of the current part of the grid
+		double x_coord = coarse_x_mesh[i][j][k];
+		double y_coord = coarse_y_mesh[i][j][k];
+		double z_coord = coarse_z_mesh[i][j][k];
+
+		// Get the indicies of the 8 vertices of the noise grid that form a box that contains the current point
+		int noise_i = (int) floor((((double)(num_grad_vert_x*noise_grid_multiplier-1) - 1.0) * x_coord)/coarse_x_len);
+		int noise_j = (int) floor((((double)(num_grad_vert_y*noise_grid_multiplier-1) - 1.0) * y_coord)/coarse_y_len);
+		int noise_k = (int) floor((((double)(num_grad_vert_z*noise_grid_multiplier-1) - 1.0) * z_coord)/coarse_z_len);
+		int noise_min_i = noise_i != ((num_grad_vert_x*noise_grid_multiplier-1)-1) ? noise_i : noise_i - 1;
+		int noise_max_i = noise_i != ((num_grad_vert_x*noise_grid_multiplier-1)-1) ? noise_i+1 : noise_i;
+		int noise_min_j = noise_j != ((num_grad_vert_y*noise_grid_multiplier-1)-1) ? noise_j : noise_j - 1;
+		int noise_max_j = noise_j != ((num_grad_vert_y*noise_grid_multiplier-1)-1) ? noise_j+1 : noise_j;
+		int noise_min_k = noise_k != ((num_grad_vert_z*noise_grid_multiplier-1)-1) ? noise_k : noise_k - 1;
+		int noise_max_k = noise_k != ((num_grad_vert_z*noise_grid_multiplier-1)-1) ? noise_k+1 : noise_k;
 		
-		perturbation = mag_1 * sin(0.50 * xyz + bias_1) + mag_2 * cos(0.50 * xyz + bias_2) + mag_3 * sin(xyz + bias_3);
-		arr[i][j][k] = arr[i][j][k] + (max_deviation * perturbation) / scale;
+		// Interpolate based on 3D shape function
+		double x_d = (x_coord - noise_coords[noise_min_i][noise_min_j][noise_min_k][0]) / (noise_coords[noise_max_i][noise_min_j][noise_min_k][0] - noise_coords[noise_min_i][noise_min_j][noise_min_k][0]);
+		x_d = 6.0*(x_d*x_d*x_d*x_d*x_d) - 15.0*(x_d*x_d*x_d*x_d) + 10.0*(x_d*x_d*x_d);
+		double y_d = (y_coord - noise_coords[noise_min_i][noise_min_j][noise_min_k][1]) / (noise_coords[noise_min_i][noise_max_j][noise_min_k][1] - noise_coords[noise_min_i][noise_min_j][noise_min_k][1]);
+		y_d = 6.0*(y_d*y_d*y_d*y_d*y_d) - 15.0*(y_d*y_d*y_d*y_d) + 10.0*(y_d*y_d*y_d);
+		double z_d = (z_coord - noise_coords[noise_min_i][noise_min_j][noise_min_k][2]) / (noise_coords[noise_min_i][noise_min_j][noise_max_k][2] - noise_coords[noise_min_i][noise_min_j][noise_min_k][2]);
+		z_d = 6.0*(z_d*z_d*z_d*z_d*z_d) - 15.0*(z_d*z_d*z_d*z_d) + 10.0*(z_d*z_d*z_d);
+		double c00 = noise[noise_min_i][noise_min_j][noise_min_k]*(1.0 - x_d) + noise[noise_max_i][noise_min_j][noise_min_k]*(x_d);
+		double c01 = noise[noise_min_i][noise_min_j][noise_max_k]*(1.0 - x_d) + noise[noise_max_i][noise_min_j][noise_max_k]*(x_d);
+		double c10 = noise[noise_min_i][noise_max_j][noise_min_k]*(1.0 - x_d) + noise[noise_max_i][noise_max_j][noise_min_k]*(x_d);
+		double c11 = noise[noise_min_i][noise_max_j][noise_max_k]*(1.0 - x_d) + noise[noise_max_i][noise_max_j][noise_max_k]*(x_d);
+		double c0 = c00*(1.0 - y_d) + c10*(y_d);
+		double c1 = c01*(1.0 - y_d) + c11*(y_d);
+		double c = c0*(1.0 - z_d) + c1*(z_d);
+		arr[i][j][k] = arr[i][j][k] + deviation*(2.0*c-max_noise-min_noise)/(max_noise-min_noise) + bias;
 	}
+	
 }
 
 /** Determines whether the trigger is on or not

@@ -8,21 +8,64 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 import pandas as pd
+from scipy import integrate
 
 if __name__ == "__main__":
     
-    # Define load path of agent
-    agent_path = "../results/PPO_20" 
+    # Define load paths
+    controlled_path = "../results/PPO_17" 
+    uncontrolled_path = "../results/SIM_3" 
+    random_path = "../results/SIM_1" 
     
-    # Define load path of uncontrolled simulation
-    sim_path = "../results/SIM_1" 
+    # Define the temperature at which adiabatic, uncontrolled front speed would exactly equal target speed
+    req_uncontrolled_temp = 306.15;
+    
+    # Define monomer properties
+    initial_cure = 0.07
+    initial_temp = 296.15
+    Hr = 350000.0
+    Cp = 1600.0
     
     # Load data
-    with open(agent_path+"/output", 'rb') as file:
-        agent = pickle.load(file)
-    with open(sim_path+"/output", 'rb') as file:
-        sim = pickle.load(file)
+    with open(controlled_path+"/output", 'rb') as file:
+        controlled = pickle.load(file)
+    with open(uncontrolled_path+"/output", 'rb') as file:
+        uncontrolled = pickle.load(file)
+    with open(random_path+"/output", 'rb') as file:
+        random = pickle.load(file)
         
+    # Calculate adiabatic energy addition required for uncontrolled speed to match target speed
+    T_max = (Hr * (1.0 - initial_cure))/Cp + initial_temp;
+    uncontrolled_initial_temperature_field = uncontrolled['temperature_field'][0,:,:] * (T_max - initial_temp) + initial_temp - 273.15
+    fig, ax = plt.subplots()
+    c0 = ax.pcolormesh(1000.0*uncontrolled['mesh_x_z0'], 1000.0*uncontrolled['mesh_y_z0'], uncontrolled_initial_temperature_field, shading='gouraud', cmap='jet')
+    fig.colorbar(c0,ax=ax)
+    ax.axis('equal')
+    
+    # Calculate energy usage
+    controlled_energy = integrate.cumtrapz(controlled['power'], x=controlled['time'])
+    controlled_energy = np.insert(controlled_energy, 0, 0.0)
+    uncontrolled_energy = integrate.cumtrapz(uncontrolled['power'], x=uncontrolled['time'])
+    uncontrolled_energy = np.insert(uncontrolled_energy, 0, 0.0)
+    random_energy = integrate.cumtrapz(random['power'], x=random['time'])
+    random_energy = np.insert(random_energy, 0, 0.0)
+    
+    # Plot energy trajectory
+    plt.plot(controlled['time'], controlled_energy,c='k',lw=2.5)
+    plt.plot(uncontrolled['time'], uncontrolled_energy,c='r',lw=2.5)
+    plt.plot(random['time'], random_energy,c='b',lw=2.5)
+    plt.xlim(0.0, np.round(controlled['time'][-1]))
+    plt.gcf().set_size_inches(8.5, 5.5)
+    plt.xticks(fontsize='large')
+    plt.yticks(fontsize='large')
+    plt.title("External Energy Input",fontsize='xx-large')
+    plt.xlabel("Simulation Time [s]",fontsize='large')
+    plt.ylabel("Cumulative Energy Consumed [J]",fontsize='large')
+    plt.legend(('Controlled','Uncontrolled','Random'), bbox_to_anchor=(1.05, 1.0), loc='upper left')
+    plt.tight_layout()
+    plt.savefig("../results/reward.png", dpi = 500)
+    plt.close()
+    
     #     # Load autoencoders and store their training curves
     #     training_curves.append(loaded_data['loss_curve'])
         
