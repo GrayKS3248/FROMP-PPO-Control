@@ -1457,7 +1457,7 @@ vector<double> Finite_Difference_Solver::get_reward()
 	}
 	
 	// Get the input reward
-	input_loc_reward = input_loc_reward_const * exp(-0.5 * pow(((input_location[0] - get_front_mean_x_loc(false))/(0.1647525572449*coarse_x_len)), 2.0));
+	input_loc_reward = input_loc_reward_const * exp(-0.5 * pow(((input_location[0] - get_front_mean_x_loc(false))/(0.329505114491*fine_x_len)), 2.0));
 	input_mag_reward = input_mag_reward_const * (1.0 - input_percent);
 
 	// Get the overage reward

@@ -13,8 +13,8 @@ from scipy import integrate
 if __name__ == "__main__":
     
     # Define load paths
-    controlled_path = "../results/PPO_17" 
-    uncontrolled_path = "../results/SIM_3" 
+    controlled_path = "../results/PPO_18" 
+    uncontrolled_path = "../results/SIM_2" 
     random_path = "../results/SIM_1" 
     
     # Define the temperature at which adiabatic, uncontrolled front speed would exactly equal target speed
@@ -25,6 +25,11 @@ if __name__ == "__main__":
     initial_temp = 296.15
     Hr = 350000.0
     Cp = 1600.0
+    rho = 980.0
+    volume = 0.0000004
+    area = 0.0008 + 0.0001 + 0.000016
+    h = 20.0
+    ambient_temp = 294.65
     
     # Load data
     with open(controlled_path+"/output", 'rb') as file:
@@ -34,13 +39,11 @@ if __name__ == "__main__":
     with open(random_path+"/output", 'rb') as file:
         random = pickle.load(file)
         
-    # Calculate adiabatic energy addition required for uncontrolled speed to match target speed
+    # Calculate energy addition required for uncontrolled speed to match target speed
     T_max = (Hr * (1.0 - initial_cure))/Cp + initial_temp;
-    uncontrolled_initial_temperature_field = uncontrolled['temperature_field'][0,:,:] * (T_max - initial_temp) + initial_temp - 273.15
-    fig, ax = plt.subplots()
-    c0 = ax.pcolormesh(1000.0*uncontrolled['mesh_x_z0'], 1000.0*uncontrolled['mesh_y_z0'], uncontrolled_initial_temperature_field, shading='gouraud', cmap='jet')
-    fig.colorbar(c0,ax=ax)
-    ax.axis('equal')
+    uncontrolled_initial_temperature = np.mean(uncontrolled['temperature_field'][0,:,:] * (T_max - initial_temp) + initial_temp)
+    required_delta_T = req_uncontrolled_temp - uncontrolled_initial_temperature
+    required_energy = Cp*required_delta_T*rho*volume + uncontrolled['time'][-1]*h*area*(req_uncontrolled_temp-ambient_temp)
     
     # Calculate energy usage
     controlled_energy = integrate.cumtrapz(controlled['power'], x=controlled['time'])
@@ -54,6 +57,7 @@ if __name__ == "__main__":
     plt.plot(controlled['time'], controlled_energy,c='k',lw=2.5)
     plt.plot(uncontrolled['time'], uncontrolled_energy,c='r',lw=2.5)
     plt.plot(random['time'], random_energy,c='b',lw=2.5)
+    plt.plot(random['time'], required_energy*np.ones(len(random['time'])),c='m',lw=2.5,ls=":")
     plt.xlim(0.0, np.round(controlled['time'][-1]))
     plt.gcf().set_size_inches(8.5, 5.5)
     plt.xticks(fontsize='large')
@@ -61,7 +65,7 @@ if __name__ == "__main__":
     plt.title("External Energy Input",fontsize='xx-large')
     plt.xlabel("Simulation Time [s]",fontsize='large')
     plt.ylabel("Cumulative Energy Consumed [J]",fontsize='large')
-    plt.legend(('Controlled','Uncontrolled','Random'), bbox_to_anchor=(1.05, 1.0), loc='upper left')
+    plt.legend(('Controlled','Uncontrolled','Random','Required'), bbox_to_anchor=(1.05, 1.0), loc='upper left')
     plt.tight_layout()
     plt.savefig("../results/reward.png", dpi = 500)
     plt.close()
