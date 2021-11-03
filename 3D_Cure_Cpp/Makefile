@@ -12,6 +12,9 @@ all-w: tuner-w solver-w autoencoder-w estimator-w trainer-w
 	
 all-l: tuner-l solver-l autoencoder-l estimator-l trainer-l
 
+test-w:
+	g++ $(CFLAGS-W) src/Config_Handler.h src/Speed_Estimator.h src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/test.cpp -o bin/win.exe $(LDFLAGS-W)
+
 tuner-w:
 	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Tune_Params.cpp -o bin/tuner.exe $(LDFLAGS-W)
 solver-w:

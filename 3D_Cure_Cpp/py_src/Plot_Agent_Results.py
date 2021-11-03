@@ -19,7 +19,7 @@ if __name__ == "__main__":
     ## INPUTS ##
     ## ====================================================================================================================================================================================================== ##
     # Define load paths
-    controlled_path = "../results/PPO_3" 
+    controlled_path = "../results/PPO_5" 
     uncontrolled_path = "../results/SIM_2" 
     random_path = "../results/SIM_1" 
     
@@ -39,6 +39,7 @@ if __name__ == "__main__":
     
     # Options
     NN_vis = True
+    trajectory_vis = True
     energy_vis = True
     actor_vis = True
     critic_vis = True
@@ -204,10 +205,104 @@ if __name__ == "__main__":
             plt.xlim([-1.5, 31.5])
             fig = plt.gcf()
             fig.set_size_inches(10,10)
-            plt.savefig("../results/Actor_NN_"+str(network+1)+".png", dpi=1000)
+            plt.savefig("../results/Actor_NN_"+str(network+1)+".svg", format='svg', dpi=1000)
             plt.close()
         
         
+    ## TRAJECTORY VISUALIZATION ##
+    ## ====================================================================================================================================================================================================== ##    
+    # Plot target trajectory
+    if trajectory_vis:
+        print("Rendering trajectory visualization...")
+        plt.clf()
+        if controlled['control_speed']:
+            # Plot speed trajectory
+            plt.clf()
+            plt.title("Front Speed",fontsize='xx-large')
+            plt.xlabel("Simulation Time [s]",fontsize='large')
+            plt.ylabel("Front Speed [mm/s]",fontsize='large')
+            plt.plot(uncontrolled['time'], 1000.0*uncontrolled['front_velocity'],c='g',lw=2.5,label='Uncontrolled')
+            plt.plot(random['time'], 1000.0*random['front_velocity'],c='b',lw=2.5,label='Random')
+            plt.plot(controlled['time'], 1000.0*controlled['front_velocity'],c='r',lw=2.5,label='Controlled')
+            plt.plot(controlled['time'], 1000.0*controlled['target'],c='k',ls='--',lw=2.5,label='Target')
+            plt.ylim(0.0, 1500.0*np.max(controlled['target']))
+            plt.xlim(0.0, np.round(controlled['time'][-1]))
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper left')
+            plt.tight_layout()
+            plt.savefig("../results/speed.svg", format='svg', dpi = 1000)
+            plt.close()
+            
+            # Plot front temperature trajectory
+            plt.clf()
+            uncontrolled_sorted_mean_front_x_locations = 1000.0*np.array(sorted(uncontrolled['mean_front_x_locations']))
+            uncontrolled_sorted_front_temperature = np.array([x for _, x in sorted(zip(uncontrolled['mean_front_x_locations'], uncontrolled['front_temperature']))])-273.15
+            random_sorted_mean_front_x_locations = 1000.0*np.array(sorted(random['mean_front_x_locations']))
+            random_sorted_front_temperature = np.array([x for _, x in sorted(zip(random['mean_front_x_locations'], random['front_temperature']))])-273.15
+            controlled_sorted_mean_front_x_locations = 1000.0*np.array(sorted(controlled['mean_front_x_locations']))
+            controlled_sorted_front_temperature = np.array([x for _, x in sorted(zip(controlled['mean_front_x_locations'], controlled['front_temperature']))])-273.15
+            plt.title("Front Temperature",fontsize='xx-large')
+            plt.xlabel("Location [mm]",fontsize='large')
+            plt.ylabel("Front Temperature [C]",fontsize='large')
+            plt.plot(uncontrolled_sorted_mean_front_x_locations, uncontrolled_sorted_front_temperature, c='r', lw=2.5, label='Uncontrolled')
+            plt.plot(random_sorted_mean_front_x_locations, random_sorted_front_temperature, c='g', lw=2.5, label='Random')
+            plt.plot(controlled_sorted_mean_front_x_locations, controlled_sorted_front_temperature, c='b', lw=2.5, label='Controlled')
+            plt.ylim(0.0, 1.025*(max(max(controlled['front_temperature']), max(uncontrolled['front_temperature']), max(random['front_temperature']))-273.15))
+            plt.xlim(0.0, 1000.0*controlled['mesh_x_z0'][-1,0])
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large') 
+            plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper left')
+            plt.tight_layout()
+            plt.savefig("../results/temperature.svg", format='svg', dpi = 1000)
+            plt.close()
+            
+        else:
+            # Plot speed trajectory
+            plt.clf()
+            plt.title("Front Speed",fontsize='xx-large')
+            plt.xlabel("Simulation Time [s]",fontsize='large')
+            plt.ylabel("Front Speed [mm/s]",fontsize='large')
+            plt.plot(uncontrolled['time'], 1000.0*uncontrolled['front_velocity'],c='g',lw=2.5,label='Uncontrolled')
+            plt.plot(random['time'], 1000.0*random['front_velocity'],c='b',lw=2.5,label='Random')
+            plt.plot(controlled['time'], 1000.0*controlled['front_velocity'],c='r',lw=2.5,label='Controlled')
+            plt.ylim(0.0, 1500.0*max(max(controlled['front_velocity']), max(uncontrolled['front_velocity']), max(random['front_velocity'])))
+            plt.xlim(0.0, np.round(controlled['time'][-1]))
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper left')
+            plt.tight_layout()
+            plt.savefig("../results/speed.svg", format='svg', dpi = 1000)
+            plt.close()
+            
+            # Plot front temperature trajectory
+            plt.clf()
+            uncontrolled_sorted_mean_front_x_locations = 1000.0*np.array(sorted(uncontrolled['mean_front_x_locations']))
+            uncontrolled_sorted_front_temperature = np.array([x for _, x in sorted(zip(uncontrolled['mean_front_x_locations'], uncontrolled['front_temperature']))])-273.15
+            random_sorted_mean_front_x_locations = 1000.0*np.array(sorted(random['mean_front_x_locations']))
+            random_sorted_front_temperature = np.array([x for _, x in sorted(zip(random['mean_front_x_locations'], random['front_temperature']))])-273.15
+            controlled_sorted_mean_front_x_locations = 1000.0*np.array(sorted(controlled['mean_front_x_locations']))
+            controlled_sorted_front_temperature = np.array([x for _, x in sorted(zip(controlled['mean_front_x_locations'], controlled['front_temperature']))])-273.15
+            plt.title("Front Temperature",fontsize='xx-large')
+            plt.xlabel("Location [mm]",fontsize='large')
+            plt.ylabel("Front Temperature [C]",fontsize='large')
+            plt.plot(uncontrolled_sorted_mean_front_x_locations, uncontrolled_sorted_front_temperature, c='r', lw=2.5, label='Uncontrolled')
+            plt.plot(random_sorted_mean_front_x_locations, random_sorted_front_temperature, c='g', lw=2.5, label='Random')
+            plt.plot(controlled_sorted_mean_front_x_locations, controlled_sorted_front_temperature, c='b', lw=2.5, label='Controlled')
+            plt.plot(controlled_sorted_mean_front_x_locations, controlled['target']-273.15, c='k', ls='--', lw=2.5, label='Target')
+            plt.ylim(0.0, 1.025*(controlled['target']-273.15))
+            plt.xlim(0.0, 1000.0*controlled['mesh_x_z0'][-1,0])
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large') 
+            plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper left')
+            plt.tight_layout()
+            plt.savefig("../results/temperature.svg", format='svg', dpi = 1000)
+            plt.close()
+    
     ## ENERGY CONSUMPTION VISUALIZATION ##
     ## ====================================================================================================================================================================================================== ##    
     # Calculate energy addition required for uncontrolled speed to match target speed
@@ -228,10 +323,10 @@ if __name__ == "__main__":
         random_energy = np.insert(random_energy, 0, 0.0)
         
         # Plot energy trajectory
-        plt.plot(controlled['time'], controlled_energy,c='k',lw=2.5)
-        plt.plot(uncontrolled['time'], uncontrolled_energy,c='r',lw=2.5)
-        plt.plot(random['time'], random_energy,c='b',lw=2.5)
-        plt.plot(random['time'], required_energy*np.ones(len(random['time'])),c='m',lw=2.5,ls=":")
+        plt.plot(uncontrolled['time'], uncontrolled_energy,c='g',lw=2.5,label='Uncontrolled')
+        plt.plot(random['time'], random_energy,c='b',lw=2.5,label='Random')
+        plt.plot(controlled['time'], controlled_energy,c='r',lw=2.5,label='Controlled')
+        plt.plot(random['time'], required_energy*np.ones(len(random['time'])),c='k',lw=2.5,ls="--",label='Required')
         plt.xlim(0.0, np.round(controlled['time'][-1]))
         plt.gcf().set_size_inches(8.5, 5.5)
         plt.xticks(fontsize='large')
@@ -239,9 +334,9 @@ if __name__ == "__main__":
         plt.title("External Energy Input",fontsize='xx-large')
         plt.xlabel("Simulation Time [s]",fontsize='large')
         plt.ylabel("Cumulative Energy Consumed [J]",fontsize='large')
-        plt.legend(('Controlled','Uncontrolled','Random','Required'), bbox_to_anchor=(1.05, 1.0), loc='upper left')
+        plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper left')
         plt.tight_layout()
-        plt.savefig("../results/energy.png", dpi = 1000)
+        plt.savefig("../results/energy.svg", format='svg', dpi = 1000)
         plt.close()
     
     
@@ -268,7 +363,7 @@ if __name__ == "__main__":
         plt.yticks(fontsize='large')
         plt.ylim([0.0,1.0])
         plt.gcf().set_size_inches(8.5, 5.5)
-        plt.savefig("../results/actor_training.png", dpi = 1000)
+        plt.savefig("../results/actor_training.svg", format='svg', dpi = 1000)
         plt.close()
         
         
@@ -296,7 +391,7 @@ if __name__ == "__main__":
         plt.ylim([10.0**((np.log10(np.min(rolling_avg))//0.5)*0.5), 10.0**((np.log10(np.max(rolling_avg))//0.5 + 1.0)*0.5)])
         plt.yscale("log")
         plt.gcf().set_size_inches(8.5, 5.5)
-        plt.savefig("../results/critic_training.png", dpi = 1000)
+        plt.savefig("../results/critic_training.svg", format='svg', dpi = 1000)
         plt.close()
     
     print("Done!")
