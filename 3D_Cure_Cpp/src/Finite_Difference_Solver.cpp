@@ -1,9 +1,4 @@
-#include "Finite_Difference_Solver.h"
-#ifndef M_PI
-#define M_PI   3.14159265358979323846264338327950288
-#endif
-
-using namespace std;
+#include "Finite_Difference_Solver.hpp"
 
 // ================================================================================================= CONSTRUCTOR/DESTRUCTOR ================================================================================================= //
 /**
@@ -384,7 +379,7 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 	{
 		// Input parameters
 		input_const = -1.0 / (0.2171472409514 * radius_of_input * radius_of_input);
-		peak_input_mag = input_total_power / (M_PI * 0.2171472409514 * radius_of_input * radius_of_input);
+		peak_input_mag = input_total_power / (3.14159265358979 * 0.2171472409514 * radius_of_input * radius_of_input);
 		min_input_x_loc = 0.0;
 		max_input_x_loc = coarse_x_len;
 		min_input_y_loc = 0.0;
@@ -1403,17 +1398,16 @@ void Finite_Difference_Solver::reset()
 * Steps the environment forward one time step
 * @param normalized X command (-1.0, 1.0)
 * @param normalized Y command (-1.0, 1.0)
-* @param boolean flag that indicates whether x and y inputs are positions or rates
 * @param magnitude percent command (-1.0, 1.0)
 * @return Whether the sim is done or not
 */
-bool Finite_Difference_Solver::step(double x_cmd, double y_cmd, bool input_rates, double mag_cmd)
+bool Finite_Difference_Solver::step(double x_cmd, double y_cmd, double mag_cmd)
 {
 	// Determine state of trigger
 	step_trigger();
 	
 	// Step the input, cure, front, and temperature
-	step_input(x_cmd, y_cmd, input_rates, mag_cmd);
+	step_input(x_cmd, y_cmd, mag_cmd);
 	step_meshes();
 
 	// Step time
@@ -1497,275 +1491,148 @@ vector<double> Finite_Difference_Solver::get_reward()
 */
 int Finite_Difference_Solver::load_config()
 {
-	// Load from config file
-	ifstream config_file;
-	config_file.open("../config_files/fds.cfg");
-	string config_dump;
-	string bool_dump;
-	string string_dump;
-	if (config_file.is_open())
-	{
-		// ************************************************** SIM OPTIONS ************************************************** //	
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> bool_dump;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		if (bool_dump.compare("true")==0)
-		{
-			input_is_on = true;
-		}
-		else if (bool_dump.compare("false")==0)
-		{
-			input_is_on = false;
-		}
-		else
-		{
-			cout << "\nInput configuration not recognized.";
-			return 1;
-		}
-		config_file >> config_dump >> bool_dump;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		if (bool_dump.compare("true")==0)
-		{
-			using_a_trigger = true;
-		}
-		else if (bool_dump.compare("false")==0)
-		{
-			using_a_trigger = false;
-		}
-		else
-		{
-			cout << "\nTrigger configuration not recognized.";
-			return 1;
-		}
-		config_file >> config_dump >> string_dump;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		if (string_dump.compare("dcpd_gc1")==0)
-		{
-			monomer_code = 1;
-		}
-		else if (string_dump.compare("dcpd_gc2")==0)
-		{
-			monomer_code = 2;
-		}
-		else if (string_dump.compare("cod")==0)
-		{
-			monomer_code = 3;
-		}
-		else
-		{
-			cout << "\nMaterial configuration not recognized.";
-			return 1;
-		}
-		config_file >> config_dump >> string_dump;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		if (string_dump.compare("speed")==0)
-		{
-			control_code = 1;
-		}
-		else if (string_dump.compare("temp")==0)
-		{
-			control_code = 2;
-		}
-		else
-		{
-			cout << "\nControl configuration not recognized.";
-			return 1;
-		}
-		config_file >> config_dump >> string_dump;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		if (string_dump.compare("const")==0)
-		{
-			target_code = 1;
-		}
-		else if (string_dump.compare("rand")==0)
-		{
-			target_code = 2;
-		}
-		else if (string_dump.compare("switch")==0)
-		{
-			target_code = 3;
-		}
-		else
-		{
-			cout << "\nTarget configuration not recognized.";
-			return 1;
-		}
-		
-		
-		// ************************************************** PROBLEM DEFINITION ************************************************** //
-		config_file >> config_dump >> sim_duration;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> monomer_burn_temp;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> mean_target_speed;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> max_target_speed_deviation;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> mean_target_temp;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> max_target_temp_deviation;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-		
-		// ************************************************** INITIAL CONDITIONS ************************************************** //
-		config_file >> config_dump >> initial_temp;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> max_initial_temp_deviation;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> initial_cure;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> max_initial_cure_deviation;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-		
-		// ************************************************** BOUNDARY CONDITIONS ************************************************** //
-		config_file >> config_dump >> mean_htc;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> max_htc_deviation;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> mean_amb_temp;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> max_amb_temp_deviation;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-		
-		// ************************************************** TRIGGER PARAMS ************************************************** //
-		config_file >> config_dump >> trigger_flux;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> trigger_time;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> string_dump;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		if (string_dump.compare("min")==0)
-		{
-			trigger_duration = -1.0;
-		}
-		else
-		{
-			trigger_duration = stof(string_dump, NULL);
-		}
+	Config_Handler fds_cfg = Config_Handler("../config_files", "fds.cfg")
 	
-		
-		// ************************************************** INPUT PARAMS ************************************************** //
-		config_file >> config_dump >> radius_of_input;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> input_total_power;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> max_input_mag_percent_rate;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> max_input_slew_speed;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-		
-		// ************************************************** REWARD PARAMS ************************************************** //
-		config_file >> config_dump >> input_loc_reward_const;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> input_mag_reward_const;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> max_temp_reward_const;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> front_shape_reward_const;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> target_reward_const;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-				
-		// ************************************************** TEMPORAL PARAMS ************************************************** //
-		config_file >> config_dump >> coarse_time_step;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> fine_time_steps_per_coarse_time_step;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-		
-		// ************************************************** COARSE MESH PARAMS ************************************************** //	
-		config_file >> config_dump >> num_coarse_vert_x;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> num_coarse_vert_y;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> num_coarse_vert_z;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> coarse_x_len;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> coarse_y_len;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> coarse_z_len;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-		
-		// ************************************************** FINE MESH PARAMS ************************************************** //
-		config_file >> config_dump >> fine_x_len;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> fine_x_resolution_multiplier;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> fine_y_resolution_multiplier;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> fine_z_resolution_multiplier;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-		
-		// ************************************************** FRONT DETECTION PARAMS ************************************************** //
-		config_file >> config_dump >> front_filter_time_const;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> front_mean_x_loc_history_time_len;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> front_min_cure;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> front_max_cure;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> front_min_cure_rate;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-		
-		// ************************************************** CRITICAL CURE VALUES ************************************************** //
-		config_file >> config_dump >> critical_cure_rate;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> transition_cure_rate;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		
-		
-		// ************************************************** PRECALCULATION PARAMS ************************************************** //
-		config_file >> config_dump >> precalc_start_temp;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> precalc_end_temp;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> precalc_temp_step;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> precalc_start_cure;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> precalc_end_cure;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> precalc_cure_step;
+
+	// ************************************************** SIM OPTIONS ************************************************** //	
+	string string_dump;
+	fds_cfg.get_var("use_input",input_is_on);
+	fds_cfg.get_var("use_input",using_a_trigger);
+	fds_cfg.get_var("material",string_dump);
+	if (string_dump.compare("dcpd_gc1")==0)
+	{
+		monomer_code = 1;
+	}
+	else if (string_dump.compare("dcpd_gc2")==0)
+	{
+		monomer_code = 2;
+	}
+	else if (string_dump.compare("cod")==0)
+	{
+		monomer_code = 3;
 	}
 	else
 	{
-		cout << "Unable to open ../config_files/fds.cfg." << endl;
+		cout << "\nMaterial configuration not recognized.";
 		return 1;
 	}
-	config_file.close();
+	fds_cfg.get_var("control",string_dump);
+	if (string_dump.compare("speed")==0)
+	{
+		control_code = 1;
+	}
+	else if (string_dump.compare("temp")==0)
+	{
+		control_code = 2;
+	}
+	else
+	{
+		cout << "\nControl configuration not recognized.";
+		return 1;
+	}
+	fds_cfg.get_var("target_type",string_dump);
+	if (string_dump.compare("const")==0)
+	{
+		target_code = 1;
+	}
+	else if (string_dump.compare("rand")==0)
+	{
+		target_code = 2;
+	}
+	else if (string_dump.compare("switch")==0)
+	{
+		target_code = 3;
+	}
+	else
+	{
+		cout << "\nTarget configuration not recognized.";
+		return 1;
+	}
+		
+	// ************************************************** PROBLEM DEFINITION ************************************************** //
+	fds_cfg.get_var("sim_duration",sim_duration);
+	fds_cfg.get_var("burn_temp",monomer_burn_temp);
+	fds_cfg.get_var("target_speed",mean_target_speed);
+	fds_cfg.get_var("tar_speed_dev",max_target_speed_deviation);
+	fds_cfg.get_var("target_temp",mean_target_temp);
+	fds_cfg.get_var("tar_temp_dev",max_target_temp_deviation);
+	
+	// ************************************************** INITIAL CONDITIONS ************************************************** //
+	fds_cfg.get_var("initial_temp",initial_temp);
+	fds_cfg.get_var("temp_deviation",max_initial_temp_deviation);
+	fds_cfg.get_var("initial_cure",initial_cure);
+	fds_cfg.get_var("cure_deviation",max_initial_cure_deviation);
+	
+	// ************************************************** BOUNDARY CONDITIONS ************************************************** //
+	fds_cfg.get_var("mean_htc",mean_htc);
+	fds_cfg.get_var("htc_dev",max_htc_deviation);
+	fds_cfg.get_var("mean_amb_temp",mean_amb_temp);
+	fds_cfg.get_var("amb_temp_dev",max_amb_temp_deviation);
+	
+	// ************************************************** TRIGGER PARAMS ************************************************** //
+	fds_cfg.get_var("trigger_flux",trigger_flux);
+	fds_cfg.get_var("trigger_time",trigger_time);
+	fds_cfg.get_var("trigger_len",string_dump);
+	if (string_dump.compare("min")==0)
+	{
+		trigger_duration = -1.0;
+	}
+	else
+	{
+		trigger_duration = stof(string_dump, NULL);
+	}
+	
+		
+	// ************************************************** INPUT PARAMS ************************************************** //
+	fds_cfg.get_var("radius",radius_of_input);
+	fds_cfg.get_var("total_power",input_total_power);
+	fds_cfg.get_var("max_mag_rate",max_input_mag_percent_rate);
+	fds_cfg.get_var("max_slew_speed",max_input_slew_speed);
+	
+	// ************************************************** REWARD PARAMS ************************************************** //
+	fds_cfg.get_var("input_loc",input_loc_reward_const);
+	fds_cfg.get_var("input_mag",input_mag_reward_const);
+	fds_cfg.get_var("max_temp",max_temp_reward_const);
+	fds_cfg.get_var("front_shape",front_shape_reward_const);
+	fds_cfg.get_var("target",target_reward_const);
+			
+	// ************************************************** TEMPORAL PARAMS ************************************************** //
+	fds_cfg.get_var("time_step",coarse_time_step);
+	fds_cfg.get_var("time_mult",fine_time_steps_per_coarse_time_step);
+	
+	// ************************************************** COARSE MESH PARAMS ************************************************** //	
+	fds_cfg.get_var("num_vert_x",num_coarse_vert_x);
+	fds_cfg.get_var("num_vert_y",num_coarse_vert_y);
+	fds_cfg.get_var("num_vert_z",num_coarse_vert_z);
+	fds_cfg.get_var("coarse_x_len",coarse_x_len);
+	fds_cfg.get_var("coarse_y_len",coarse_y_len);
+	fds_cfg.get_var("coarse_z_len",coarse_z_len);
+	
+	// ************************************************** FINE MESH PARAMS ************************************************** //
+	fds_cfg.get_var("fine_x_len",fine_x_len);
+	fds_cfg.get_var("x_step_mult",fine_x_resolution_multiplier);
+	fds_cfg.get_var("y_step_mult",fine_y_resolution_multiplier);
+	fds_cfg.get_var("z_step_mult",fine_z_resolution_multiplier);	
+	
+	// ************************************************** FRONT DETECTION PARAMS ************************************************** //
+	fds_cfg.get_var("time_const",front_filter_time_const);
+	fds_cfg.get_var("time_scale",front_mean_x_loc_history_time_len);
+	fds_cfg.get_var("min_cure",front_min_cure);
+	fds_cfg.get_var("max_cure",front_max_cure);
+	fds_cfg.get_var("min_cure_rate",front_min_cure_rate);
+	
+	// ************************************************** CRITICAL CURE VALUES ************************************************** //
+	fds_cfg.get_var("crit_cure_rate",critical_cure_rate);
+	fds_cfg.get_var("trans_cure_rate",transition_cure_rate);
+	
+	// ************************************************** PRECALCULATION PARAMS ************************************************** //
+	fds_cfg.get_var("start_temp",precalc_start_temp);
+	fds_cfg.get_var("end_temp",precalc_end_temp);
+	fds_cfg.get_var("temp_step",precalc_temp_step);
+	fds_cfg.get_var("start_cure",precalc_start_cure);
+	fds_cfg.get_var("end_cure",precalc_end_cure);
+	fds_cfg.get_var("cure_step",precalc_cure_step);
+	
 	return 0;
 }
 
@@ -1935,10 +1802,9 @@ void Finite_Difference_Solver::step_trigger()
 /** Step the input through time
 * @param normalized X command (-1.0, 1.0)
 * @param normalized Y command (-1.0, 1.0)
-* @param boolean flag that indicates whether x and y inputs are positions or rates
 * @param magnitude percent command (-1.0, 1.0)
 */
-void Finite_Difference_Solver::step_input(double x_cmd, double y_cmd, bool input_rates, double mag_cmd)
+void Finite_Difference_Solver::step_input(double x_cmd, double y_cmd, double mag_cmd)
 {
 	
 	//Clip input commands
@@ -1950,43 +1816,8 @@ void Finite_Difference_Solver::step_input(double x_cmd, double y_cmd, bool input
 	mag_cmd = mag_cmd < -1.0 ? -1.0 : mag_cmd;
 	
 	// Convert x,y input commands to location rates
-	double x_loc_rate = 0.0;
-	double y_loc_rate = 0.0;
-	if (input_rates)
-	{
-		x_loc_rate = x_cmd * max_input_slew_speed;
-		y_loc_rate = y_cmd * max_input_slew_speed;
-	}
-	else
-	{
-		// Convert x position command
-		double x_delta = 0.5*(x_cmd+1.0)*coarse_x_len - input_location[0];
-		if ( x_delta > 0.0 )
-		{
-			x_loc_rate = max_input_slew_speed;
-			x_loc_rate = x_loc_rate > x_delta/coarse_time_step ? x_delta/coarse_time_step : x_loc_rate;
-			
-		}
-		else if ( x_delta < 0.0 )
-		{
-			x_loc_rate = -max_input_slew_speed;
-			x_loc_rate = x_loc_rate < x_delta/coarse_time_step ? x_delta/coarse_time_step : x_loc_rate;
-		}	
-		
-		// Convert y position command
-		double y_delta = 0.5*(y_cmd+1.0)*coarse_y_len - input_location[1];
-		if ( y_delta > 0.0 )
-		{
-			y_loc_rate = max_input_slew_speed;
-			y_loc_rate = y_loc_rate > y_delta/coarse_time_step ? y_delta/coarse_time_step : y_loc_rate;
-		
-		}
-		else if ( y_delta < 0.0 )
-		{
-			y_loc_rate = -max_input_slew_speed;
-			y_loc_rate = y_loc_rate < y_delta/coarse_time_step ? y_delta/coarse_time_step : y_loc_rate;
-		}
-	}
+	double x_loc_rate = x_cmd * max_input_slew_speed;
+	double y_loc_rate = y_cmd * max_input_slew_speed;
 	
 	// Update the input's x location from the location rate
 	input_location[0] = input_location[0] + x_loc_rate * coarse_time_step;
@@ -2843,126 +2674,4 @@ bool Finite_Difference_Solver::step_time()
 	}
 
 	return done;
-}
-
-
-// ================================================================================================= MATRIX MATH FUNCTIONS ================================================================================================= //
-/** Multiplies a vector by a square matrix
-* @param The square matrix
-* @param The vector
-* @return The matrix product of the two parameters
-**/
-vector<double> Finite_Difference_Solver::mat_vec_mul( vector<vector<double>> input_matrix,  vector<double> input_vector )
-{
-	vector<double> product = vector<double>(input_matrix.size(), 0.0);
-	for(unsigned int i = 0; i < input_matrix.size(); i++)
-	{
-		double sum = 0.0;
-		for(unsigned int j = 0; j < input_matrix[0].size(); j++)
-		{
-			sum += input_matrix[i][j] * input_vector[j];
-		}
-		product[i] = sum;
-	}
-	
-	return product;
-}
-
-
-/** Gets the inverse of a square matrix
-* @param The matrix to be inverted
-* @return The inverse of the parameter matrix
-**/
-vector<vector<double>> Finite_Difference_Solver::get_inv( vector<vector<double>> matrix )
-{
-	vector<vector<double>> inv_matrix = vector<vector<double>>( matrix.size(), vector<double>( matrix[0].size(), 0.0 ) );
-	vector<vector<double>> adj_matrix = get_adj( matrix );
-	double inv_det = (1.0 / get_det( matrix ));
-	for(unsigned int i = 0; i < matrix.size(); i++)
-	for(unsigned int j = 0; j < matrix[0].size(); j++)
-	{
-		inv_matrix[i][j] = inv_det * adj_matrix[i][j];
-	}
-	return inv_matrix;
-}
-
-/** Gets the determinant of a square matrix
-* @param The matrix whose determinant is to be calcualted
-* @return The determinant of the parameter matrix
-**/
-double Finite_Difference_Solver::get_det( vector<vector<double>> matrix )
-{
-	double det = 0.0;
-	if ( matrix.size() == 2 && matrix[0].size() == 2 )
-	{
-		det = matrix[0][0]*matrix[1][1] - matrix[0][1]*matrix[1][0];
-	}
-	else
-	{
-		unsigned int i = 0;
-		for( unsigned int j = 0; j < matrix.size(); j++ )
-		{
-			det+= pow( -1.0, ((double)i+1.0)+((double)j+1.0) ) * matrix[i][j] * get_det( get_minor_matrix( matrix, i, j ) );
-		}
-	}
-	
-	return det;
-}
-
-/** Gets the square minor of a square matrix at specified masking coordinates
-* @param The matrix whose minor matrix is to be calculated
-* @param The index of the masked row
-* @param The index of the masked column
-* @return The minor matrix of the parameter matrix
-**/
-vector<vector<double>> Finite_Difference_Solver::get_minor_matrix( vector<vector<double>> matrix, unsigned int i, unsigned int j )
-{
-	vector<vector<double>> minor = vector<vector<double>>( matrix.size()-1, vector<double>( matrix[0].size()-1, 0.0 ) );
-	for(unsigned int p = 0; p < matrix.size()-1; p++)
-	for(unsigned int q = 0; q < matrix[0].size()-1; q++)
-	{
-		unsigned int p_access = p;
-		if(p>=i)
-		{
-			p_access = p + 1;
-		}
-		unsigned int q_access = q;
-		if(q>=j)
-		{
-			q_access = q + 1;
-		}
-		
-		minor[p][q] = matrix[p_access][q_access];
-	}
-	
-	return minor;
-}
-
-/** Gets the adjugate matrix of a square matrix
-* @param The matrix whose adjugate matrix is to be calculated
-* @return The adjugate matrix of the parameter matrix
-**/
-vector<vector<double>> Finite_Difference_Solver::get_adj( vector<vector<double>> matrix )
-{
-	vector<vector<double>> adj_matrix = vector<vector<double>>( matrix.size(), vector<double>( matrix[0].size(), 0.0 ) );
-	for(unsigned int i = 0; i < matrix.size(); i++)
-	for(unsigned int j = 0; j < matrix[0].size(); j++)
-	{
-		adj_matrix[i][j] = get_cofactor( matrix, j, i );
-	}
-	return adj_matrix;
-}
-
-
-/** Gets the cofactor of a square matrix at specified coordinates
-* @param The matrix whose cofactor is to be calculated
-* @param The index of the cofactor row
-* @param The index of the cofactor column
-* @return The cofactor of the parameter matrix
-**/
-double Finite_Difference_Solver::get_cofactor( vector<vector<double>> matrix, unsigned int i, unsigned int j )
-{
-	double minor = get_det( get_minor_matrix( matrix, i, j ) );
-	double cofactor = pow( -1.0, ((double)i+1.0)+((double)j+1.0) ) * minor;
-	return cofactor;
 }

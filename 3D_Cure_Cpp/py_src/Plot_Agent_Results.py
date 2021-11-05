@@ -19,7 +19,7 @@ if __name__ == "__main__":
     ## INPUTS ##
     ## ====================================================================================================================================================================================================== ##
     # Define load paths
-    controlled_path = "../results/PPO_5" 
+    controlled_path = "../results/PPO_7" 
     uncontrolled_path = "../results/SIM_2" 
     random_path = "../results/SIM_1" 
     

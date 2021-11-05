@@ -491,7 +491,6 @@ class Save_Plot_Render:
         self.max_input_mag = []
         self.exp_const = []
         self.control_speed = []
-        self.input_rates = []
         self.configs_string = []
     
     def store_training_curves(self, r_per_episode, value_error):
@@ -540,9 +539,8 @@ class Save_Plot_Render:
         self.max_input_mag = max_input_mag
         self.exp_const = exp_const
     
-    def store_options(self, control_speed, input_rates, configs_string):
+    def store_options(self, control_speed, configs_string):
         self.control_speed = (control_speed == 1)
-        self.input_rates = (input_rates == 1)
         self.configs_string = configs_string
     
     def get_max_temperature_field(self):
@@ -738,7 +736,6 @@ class Save_Plot_Render:
             'max_input_mag' : self.max_input_mag,
             'exp_const' : self.exp_const,
             'control_speed' : self.control_speed,
-            'input_rates' : self.input_rates,
             'configs_string' : self.configs_string,
             'actor': agent.actor,
             'critic': agent.critic,
@@ -833,6 +830,7 @@ class Save_Plot_Render:
             'max_input_mag' : self.max_input_mag,
             'exp_const' : self.exp_const,
             'control_speed' : self.control_speed,
+            'configs_string' : self.configs_string
         }
         
         # Save the stored data
@@ -1045,54 +1043,29 @@ class Save_Plot_Render:
             plt.close()
 
         # x and y stdev curves
-        if self.input_rates:
-            if(len(self.x_stdev)!=0):
-                plt.clf()
-                plt.title("X Rate Stdev, Episode-Wise",fontsize='xx-large')
-                plt.xlabel("Episode",fontsize='large')
-                plt.ylabel("X Rate Stdev [mm/s]",fontsize='large')
-                plt.plot([*range(len(self.x_stdev))],1000.0*np.array(self.x_stdev),lw=2.5,c='r')
-                plt.xticks(fontsize='large')
-                plt.yticks(fontsize='large')
-                plt.gcf().set_size_inches(8.5, 5.5)
-                plt.savefig(self.path + "/x_stdev.png", dpi = 500)
-                plt.close()
-                
-            if(len(self.y_stdev)!=0):
-                plt.clf()
-                plt.title("Y Rate Stdev, Episode-Wise",fontsize='xx-large')
-                plt.xlabel("Episode",fontsize='large')
-                plt.ylabel("Y Rate Stdev [mm/s]",fontsize='large')
-                plt.plot([*range(len(self.y_stdev))],1000.0*np.array(self.y_stdev),lw=2.5,c='r')
-                plt.xticks(fontsize='large')
-                plt.yticks(fontsize='large')
-                plt.gcf().set_size_inches(8.5, 5.5)
-                plt.savefig(self.path + "/y_stdev.png", dpi = 500)
-                plt.close()
-        else:
-            if(len(self.x_stdev)!=0):
-                plt.clf()
-                plt.title("X Position Stdev, Episode-Wise",fontsize='xx-large')
-                plt.xlabel("Episode",fontsize='large')
-                plt.ylabel("X Position Stdev [mm]",fontsize='large')
-                plt.plot([*range(len(self.x_stdev))],1000.0*np.array(self.x_stdev),lw=2.5,c='r')
-                plt.xticks(fontsize='large')
-                plt.yticks(fontsize='large')
-                plt.gcf().set_size_inches(8.5, 5.5)
-                plt.savefig(self.path + "/x_stdev.png", dpi = 500)
-                plt.close()
-                
-            if(len(self.y_stdev)!=0):
-                plt.clf()
-                plt.title("Y Position Stdev, Episode-Wise",fontsize='xx-large')
-                plt.xlabel("Episode",fontsize='large')
-                plt.ylabel("Y Position Stdev [mm]",fontsize='large')
-                plt.plot([*range(len(self.y_stdev))],1000.0*np.array(self.y_stdev),lw=2.5,c='r')
-                plt.xticks(fontsize='large')
-                plt.yticks(fontsize='large')
-                plt.gcf().set_size_inches(8.5, 5.5)
-                plt.savefig(self.path + "/y_stdev.png", dpi = 500)
-                plt.close()
+        if(len(self.x_stdev)!=0):
+            plt.clf()
+            plt.title("X Rate Stdev, Episode-Wise",fontsize='xx-large')
+            plt.xlabel("Episode",fontsize='large')
+            plt.ylabel("X Rate Stdev [mm/s]",fontsize='large')
+            plt.plot([*range(len(self.x_stdev))],1000.0*np.array(self.x_stdev),lw=2.5,c='r')
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.savefig(self.path + "/x_stdev.png", dpi = 500)
+            plt.close()
+            
+        if(len(self.y_stdev)!=0):
+            plt.clf()
+            plt.title("Y Rate Stdev, Episode-Wise",fontsize='xx-large')
+            plt.xlabel("Episode",fontsize='large')
+            plt.ylabel("Y Rate Stdev [mm/s]",fontsize='large')
+            plt.plot([*range(len(self.y_stdev))],1000.0*np.array(self.y_stdev),lw=2.5,c='r')
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.savefig(self.path + "/y_stdev.png", dpi = 500)
+            plt.close()
                 
         # Plot magnitude stdev curve
         if(len(self.mag_stdev)!=0):

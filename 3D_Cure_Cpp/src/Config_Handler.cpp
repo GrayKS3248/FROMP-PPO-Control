@@ -1,46 +1,4 @@
-#pragma once
-#include <map>
-#include <fstream>
-#include <iostream>
-#include <string>
-#include <typeinfo>
-#include <cstring>
-
-using namespace std;
-
-/**
-* Speed estimator class takes observations of front locations and times and converts these to front speed estimates
-**/
-class Config_Handler
-{
-	public:
-		Config_Handler(string path, string file);
-		string get_orig_cfg();
-		string get_stored_cfg();
-		int store_cfg();
-		int get_var(string var_name, int& var_value);
-		int get_var(string var_name, double& var_value);
-		int get_var(string var_name, float& var_value);
-		int get_var(string var_name, long& var_value);
-		int get_var(string var_name, long double& var_value);
-		int get_var(string var_name, unsigned int& var_value);
-		int get_var(string var_name, unsigned long& var_value);
-		int get_var(string var_name, long long& var_value);
-		int get_var(string var_name, unsigned long long& var_value);
-		int get_var(string var_name, bool& var_value);
-		int get_var(string var_name, const char*& var_value);
-		int get_var(string var_name, string& var_value);
-	
-	private:
-		int create_map();
-		int read_from_cfg();
-		int write_to_cfg();
-		map<string, string> cfg_dictionary;
-		string cfg_path = "";
-		string cfg_file = "";
-		string cfg_orig_string = "";
-		string cfg_string = "";
-};
+#include "Config_Handler.hpp"
 
 /**
 * Constructor config handler. Config handler stores all configuration variables for easy access
@@ -58,6 +16,24 @@ Config_Handler::Config_Handler(string path, string file)
 	create_map();
 	cfg_orig_string = cfg_string;
 	cfg_string = "";
+}
+
+/**
+* Returns a string copy of the original cfg file
+* @return String copy of the original cfg file
+*/
+string Config_Handler::get_orig_cfg()
+{
+	return cfg_orig_string;
+}
+
+/**
+* Returns a string copy of the most recently stored cfg file
+* @return String copy of the most recently stored cfg file
+*/
+string Config_Handler::get_stored_cfg()
+{
+	return cfg_string;
 }
 
 /**
@@ -92,6 +68,47 @@ int Config_Handler::store_cfg()
 	// Close the file
 	file_in.close();
 	
+	return 0;
+}
+
+/**
+* Saves copy of original config file to file named file at path
+* @param Path to directory where cfg file copy will be saved
+* @param Name of cfg file copy
+* @param Boolean flag that indicated whether written cfg string will be appended to end of file or whether file will be cleared and only cfg string will be written
+* @return 0 on success, 1 on failure
+*/
+int Config_Handler::save_copy_of_orig_cfg(string save_path, string save_file, bool append)
+{
+	// Open file
+	string path_file = save_path + "/" + save_file;
+	ofstream file;
+	if (append)
+	{
+		file.open(path_file, ios::out | ios::app); 
+		if (file.is_open())
+		{
+			file << "\n======================================================================================\n";
+		}
+	}
+	else
+	{
+		file.open(path_file, ios::out | ios::trunc); 
+	}
+
+	// Write to file
+	if (file.is_open())
+	{
+		file << cfg_orig_string;
+	}
+	else
+	{
+		cout << "Unable to open " << path_file << "\n";
+		return 1;
+	}
+	
+	// Close file
+	file.close();
 	return 0;
 }
 
@@ -154,24 +171,6 @@ int Config_Handler::create_map()
 }
 
 /**
-* Returns a string copy of the original cfg file
-* @return String copy of the original cfg file
-*/
-string Config_Handler::get_orig_cfg()
-{
-	return cfg_orig_string;
-}
-
-/**
-* Returns a string copy of the most recently stored cfg file
-* @return String copy of the most recently stored cfg file
-*/
-string Config_Handler::get_stored_cfg()
-{
-	return cfg_string;
-}
-
-/**
 * Returns the integer value of the string stored at key var_name collected from cfg file
 * @param Key of string value to be converted
 * @param Reference to variable to be assigned string value at key
@@ -182,11 +181,11 @@ int Config_Handler::get_var(string var_name, int& var_value)
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
-		return 1;
+		throw 21;
 	}
 	
 	var_value = stoi(cfg_dictionary[var_name]);
-	return 0;
+	return var_value;
 }
 
 /**
@@ -195,16 +194,16 @@ int Config_Handler::get_var(string var_name, int& var_value)
 * @param Reference to variable to be assigned string value at key
 * @return 0 on success, 1 on failure
 */
-int Config_Handler::get_var(string var_name, double& var_value)
+double Config_Handler::get_var(string var_name, double& var_value)
 {
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
-		return 1;
+		throw 20;
 	}
 	
 	var_value = stod(cfg_dictionary[var_name]);
-	return 0;
+	return var_value;
 }
 
 /**
@@ -213,16 +212,16 @@ int Config_Handler::get_var(string var_name, double& var_value)
 * @param Reference to variable to be assigned string value at key
 * @return 0 on success, 1 on failure
 */
-int Config_Handler::get_var(string var_name, float& var_value)
+float Config_Handler::get_var(string var_name, float& var_value)
 {
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
-		return 1;
+		throw 19;
 	}
 	
 	var_value = stof(cfg_dictionary[var_name]);
-	return 0;
+	return var_value;
 }
 
 /**
@@ -231,16 +230,16 @@ int Config_Handler::get_var(string var_name, float& var_value)
 * @param Reference to variable to be assigned string value at key
 * @return 0 on success, 1 on failure
 */
-int Config_Handler::get_var(string var_name, long& var_value)
+long Config_Handler::get_var(string var_name, long& var_value)
 {
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
-		return 1;
+		throw 18;
 	}
 	
 	var_value = stol(cfg_dictionary[var_name]);
-	return 0;
+	return var_value;
 }
 
 /**
@@ -249,16 +248,16 @@ int Config_Handler::get_var(string var_name, long& var_value)
 * @param Reference to variable to be assigned string value at key
 * @return 0 on success, 1 on failure
 */
-int Config_Handler::get_var(string var_name, long double& var_value)
+long double Config_Handler::get_var(string var_name, long double& var_value)
 {
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
-		return 1;
+		throw 17;
 	}
 	
 	var_value = stold(cfg_dictionary[var_name]);
-	return 0;
+	return var_value;
 }
 
 /**
@@ -267,16 +266,16 @@ int Config_Handler::get_var(string var_name, long double& var_value)
 * @param Reference to variable to be assigned string value at key
 * @return 0 on success, 1 on failure
 */
-int Config_Handler::get_var(string var_name, unsigned int& var_value)
+unsigned int Config_Handler::get_var(string var_name, unsigned int& var_value)
 {
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
-		return 1;
+		throw 16;
 	}
 	
 	var_value = stoul(cfg_dictionary[var_name]);
-	return 0;
+	return var_value;
 }
 
 /**
@@ -285,16 +284,16 @@ int Config_Handler::get_var(string var_name, unsigned int& var_value)
 * @param Reference to variable to be assigned string value at key
 * @return 0 on success, 1 on failure
 */
-int Config_Handler::get_var(string var_name, unsigned long& var_value)
+unsigned long Config_Handler::get_var(string var_name, unsigned long& var_value)
 {
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
-		return 1;
+		throw 15;
 	}
 	
 	var_value = stoul(cfg_dictionary[var_name]);
-	return 0;
+	return var_value;
 }
 
 /**
@@ -303,16 +302,16 @@ int Config_Handler::get_var(string var_name, unsigned long& var_value)
 * @param Reference to variable to be assigned string value at key
 * @return 0 on success, 1 on failure
 */
-int Config_Handler::get_var(string var_name, long long& var_value)
+long long Config_Handler::get_var(string var_name, long long& var_value)
 {
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
-		return 1;
+		throw 14;
 	}
 	
 	var_value = stoll(cfg_dictionary[var_name]);
-	return 0;
+	return var_value;
 }
 
 /**
@@ -321,16 +320,16 @@ int Config_Handler::get_var(string var_name, long long& var_value)
 * @param Reference to variable to be assigned string value at key
 * @return 0 on success, 1 on failure
 */
-int Config_Handler::get_var(string var_name, unsigned long long& var_value)
+unsigned long long Config_Handler::get_var(string var_name, unsigned long long& var_value)
 {
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
-		return 1;
+		throw 13;
 	}
 	
 	var_value = stoull(cfg_dictionary[var_name]);
-	return 0;
+	return var_value;
 }
 
 /**
@@ -339,12 +338,12 @@ int Config_Handler::get_var(string var_name, unsigned long long& var_value)
 * @param Reference to variable to be assigned string value at key
 * @return 0 on success, 1 on failure
 */
-int Config_Handler::get_var(string var_name, bool& var_value)
+bool Config_Handler::get_var(string var_name, bool& var_value)
 {
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
-		return 1;
+		throw 12;
 	}
 	
 	if (cfg_dictionary[var_name].compare("true")==0)
@@ -358,10 +357,10 @@ int Config_Handler::get_var(string var_name, bool& var_value)
 	else
 	{
 		cout << "\nString value not recognized as boolean";
-		return 1;
+		throw 12;
 	}
 	
-	return 0;
+	return var_value;
 }
 
 /**
@@ -370,16 +369,16 @@ int Config_Handler::get_var(string var_name, bool& var_value)
 * @param Reference to variable to be assigned string value at key
 * @return 0 on success, 1 on failure
 */
-int Config_Handler::get_var(string var_name, const char*& var_value)
+const char* Config_Handler::get_var(string var_name, const char*& var_value)
 {
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
-		return 1;
+		throw 11;
 	}
 	
 	var_value = cfg_dictionary[var_name].c_str();
-	return 0;
+	return var_value;
 }
 
 /**
@@ -388,14 +387,14 @@ int Config_Handler::get_var(string var_name, const char*& var_value)
 * @param Reference to variable to be assigned string value at key
 * @return 0 on success, 1 on failure
 */
-int Config_Handler::get_var(string var_name, string& var_value)
+string Config_Handler::get_var(string var_name, string& var_value)
 {
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
-		return 1;
+		throw 10;
 	}
 	
 	var_value = cfg_dictionary[var_name];
-	return 0;
+	return var_value;
 }

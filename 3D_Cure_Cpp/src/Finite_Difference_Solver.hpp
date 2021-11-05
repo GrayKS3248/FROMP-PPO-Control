@@ -1,16 +1,13 @@
 #pragma once
-#include <math.h>
 #include <time.h>
 #include <omp.h>
 #include <algorithm>
-#include <vector>
-#include <iostream>
 #include <chrono>
-#include <fstream>
-#include <string>
 #include <deque>
 #include <sstream>
 #include <iomanip>
+#include "matrix_math.hpp"
+#include "Config_Handler.hpp"
 
 using namespace std;
 
@@ -79,7 +76,7 @@ void print_params();
 void print_progress(bool return_carriage);
 double get_progress();
 void reset();
-bool step(double x_cmd, double y_cmd, bool input_rates, double mag_cmd);
+bool step(double x_cmd, double y_cmd, double mag_cmd);
 vector<double> get_reward();
 
 
@@ -318,7 +315,7 @@ double input_percent;
 int load_config();
 void perturb_mesh(double*** arr, double max_deviation);
 void step_trigger();
-void step_input(double x_cmd, double y_cmd, bool input_rates, double mag_cmd);
+void step_input(double x_cmd, double y_cmd, double mag_cmd);
 int get_ind(int i);
 void copy_coarse_to_fine();
 void slide_fine_mesh_right();
@@ -330,13 +327,4 @@ double get_coarse_laplacian(int i, int j, int k);
 double get_fine_laplacian(int i, int j, int k);
 void step_meshes();
 bool step_time();
-
-//******************************************************************** MATRIX MATH FUNCTIONS ********************************************************************//
-vector<double> mat_vec_mul( vector<vector<double>> input_matrix,  vector<double> input_vector );
-vector<vector<double>> get_inv( vector<vector<double>> matrix );
-double get_det( vector<vector<double>> matrix );
-vector<vector<double>> get_minor_matrix( vector<vector<double>> matrix, unsigned int i, unsigned int j );
-vector<vector<double>> get_adj( vector<vector<double>> matrix );
-double get_cofactor( vector<vector<double>> matrix, unsigned int i, unsigned int j );
-
 };

@@ -1,55 +1,19 @@
-#pragma once
-#include <math.h>
-#include <deque>
-#include <vector>
-#include "Config_Handler.h"
-#include "Finite_Difference_Solver.h"
-
-using namespace std;
-
-/**
-* Speed estimator class takes observations of front locations and times and converts these to front speed estimates
-**/
-class Speed_Estimator
-{
-	public:
-		// public constructor and destructor
-		Speed_Estimator(Finite_Difference_Solver* FDS);
-		
-		// public functions
-		int observe(vector<vector<double>> temperature_image, double time);
-		double estimate();
-		int reset();
-		
-	private:
-		// private variables
-		int sequence_length;
-		double filter_time_const;
-		vector<vector<double>> coarse_x_mesh_z0;
-		double coarse_x_step;
-		deque<double> front_location_history;
-		deque<double> observation_time_history;
-		double x_loc_estimate;
-		double speed_estimate;
-		
-		// private functions
-		double get_avg(deque<double> input);
-		double estimate_front_location(vector<vector<double>> temperature_image);
-};
+#include "Speed_Estimator.hpp"
 
 /**
 * Constructor for speed estimator
 * @param Configuration handler object that contains all loaded and calculated configuration data
 */
-Speed_Estimator::Speed_Estimator(Finite_Difference_Solver* FDS)
+Speed_Estimator::Speed_Estimator(vector<vector<double>> fds_coarse_x_grid_z0)
 {	
 	// Initialize configuration handler class
 	Config_Handler speed_estimator_cfg("../config_files", "speed_estimator.cfg");
 
 	// Set sequence length and filter time constant
 	speed_estimator_cfg.get_var("sequence_length", sequence_length);
+	speed_estimator_cfg.get_var("observation_delta_t", observation_delta_t);
 	speed_estimator_cfg.get_var("filter_time_const", filter_time_const);
-	coarse_x_mesh_z0 = FDS->get_coarse_x_mesh_z0();
+	coarse_x_grid_z0 = fds_coarse_x_grid_z0;
 	
 	// Populate observation histories
 	for( int i = 0; i < sequence_length; i++ )
@@ -61,6 +25,15 @@ Speed_Estimator::Speed_Estimator(Finite_Difference_Solver* FDS)
 	// Set location and speed estimate to 0
 	x_loc_estimate = 0.0;
 	speed_estimate = 0.0;
+}
+
+/**
+* Gets the cfg defined time between front observations
+* @return Time between front observations in seconds
+**/
+double Speed_Estimator::get_observation_delta_t()
+{
+	return observation_delta_t;
 }
 
 /**
@@ -141,7 +114,7 @@ double Speed_Estimator::estimate_front_location(vector<vector<double>> temperatu
 			// Save max derivative x location so long as the derivate is greater than some threshold
 			if ( abs_dt_dx_ij >= max_abs_dt_dx_j || abs_dt_dx_ij > 0.15 )
 			{
-				dt_dx_max_x_loc[j] = coarse_x_mesh_z0[i][j];
+				dt_dx_max_x_loc[j] = coarse_x_grid_z0[i][j];
 				max_abs_dt_dx_j = abs_dt_dx_ij;
 			}
 		}

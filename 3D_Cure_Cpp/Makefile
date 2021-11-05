@@ -8,23 +8,26 @@ CFLAGS-W+=-Wno-unused-result -Wsign-compare -Wformat -Werror=format-security -fw
 LDFLAGS-W+=-L$(PYTHONPATH)
 LDFLAGS-W+=-lpython39
 
+Config_Handler=src/Config_Handler.hpp src/Config_Handler.cpp
+matrix_math=src/matrix_math.hpp src/matrix_math.cpp
+python_interface=src/python_interface.hpp src/python_interface.cpp
+Speed_Estimator=src/Speed_Estimator.hpp src/Speed_Estimator.cpp
+Finite_Difference_Solver=src/Finite_Difference_Solver.hpp src/Finite_Difference_Solver.cpp
+
 all-w: tuner-w solver-w autoencoder-w estimator-w trainer-w
 	
 all-l: tuner-l solver-l autoencoder-l estimator-l trainer-l
 
-test-w:
-	g++ $(CFLAGS-W) src/Config_Handler.h src/Speed_Estimator.h src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/test.cpp -o bin/win.exe $(LDFLAGS-W)
-
 tuner-w:
 	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Tune_Params.cpp -o bin/tuner.exe $(LDFLAGS-W)
 solver-w:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Run_Solver.cpp -o bin/solver.exe $(LDFLAGS-W)
+	g++ $(CFLAGS-W) $(Config_Handler) $(matrix_math) $(python_interface) $(Speed_Estimator) $(Finite_Difference_Solver) src/solver.cpp -o bin/solver.exe $(LDFLAGS-W)
 autoencoder-w:
 	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Get_AE_Data.cpp -o bin/gen_ae_data.exe $(LDFLAGS-W)
 estimator-w:
 	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Get_Estimator_Data.cpp -o bin/gen_est_data.exe $(LDFLAGS-W)
 trainer-w:
-	g++ $(CFLAGS-W) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Train_Agent.cpp -o bin/trainer.exe $(LDFLAGS-W)
+	g++ $(CFLAGS-W)  $(Config_Handler) $(matrix_math) $(python_interface) $(Speed_Estimator) $(Finite_Difference_Solver) src/trainer.cpp -o bin/trainer.exe $(LDFLAGS-W)
 
 tuner-l:
 	g++ $(CFLAGS-L) src/Finite_Difference_Solver.h src/Finite_Difference_Solver.cpp src/Tune_Params.cpp -o bin/tuner.so $(LDFLAGS-L)
