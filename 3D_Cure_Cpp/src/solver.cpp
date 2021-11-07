@@ -7,7 +7,7 @@
 /**
 * Runs a set of trajectories using the PPO policy, updates the PPO agent, and collects relevant training data
 * @param The finite element solver object used to propogate time
-* @param Configuration handler object that contains all loaded and calculated configuration data
+* @param Configuration handler object that contains all loaded configuration data
 * @param The class used to estimate front speed based on front location estimations
 * @param The ppo agent be used to generate actions
 * @param The save render and plotting class of the ppo agent being trained
@@ -15,13 +15,13 @@
  *@param String containing cfg data
 * @return 0 on success, 1 on failure
 */
-int run(Finite_Difference_Solver* FDS, Config_Handler* run_solver_cfg, Speed_Estimator* estimator, PyObject* agent, PyObject* save_render_plot, auto &start_time, string configs_string)
+int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimator* estimator, PyObject* agent, PyObject* save_render_plot, auto &start_time, string configs_string)
 {	
 	// Get values from config file
 	int num_input_actions;
-	run_solver_cfg->get_var("num_input_actions",num_input_actions);
+	solver_cfg->get_var("num_input_actions",num_input_actions);
 	double frame_rate;
-	run_solver_cfg->get_var("frame_rate",frame_rate);
+	solver_cfg->get_var("frame_rate",frame_rate);
 	
 	// Frame rate calculations
 	int steps_per_agent_cycle = (int) round((FDS->get_sim_duration() / (double)num_input_actions) / FDS->get_coarse_time_step());
@@ -101,7 +101,7 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* run_solver_cfg, Speed_Est
 			reward.push_back(FDS->get_reward());
 			
 			// Store simulation front data
-			front_velocity.push_back(FDS->get_front_vel());
+			front_velocity.push_back(FDS->get_front_vel(false));
 			front_temperature.push_back(FDS->get_front_temp(false));
 			front_shape_param.push_back(FDS->get_front_shape_param());
 			front_curve.push_back(FDS->get_front_curve());
@@ -218,11 +218,11 @@ int main()
 {	
 	// Load run solver and fds cfg files
 	Config_Handler fds_cfg = Config_Handler("../config_files", "fds.cfg");
-	Config_Handler* run_solver_cfg = new Config_Handler("../config_files", "solver.cfg");
+	Config_Handler* solver_cfg = new Config_Handler("../config_files", "solver.cfg");
 	string configs_string = "";
 	configs_string = configs_string + fds_cfg.get_orig_cfg();
 	configs_string = configs_string + "\n\n======================================================================================\n\n";
-	configs_string = configs_string + run_solver_cfg->get_orig_cfg();
+	configs_string = configs_string + solver_cfg->get_orig_cfg();
 	
 	// Init py environment
 	Py_Initialize();
@@ -247,7 +247,7 @@ int main()
     
     	// Initialize agent if it is used
 	string input_load_path;
-	run_solver_cfg->get_var("input_load_path", input_load_path);
+	solver_cfg->get_var("input_load_path", input_load_path);
 	PyObject* agent = NULL;
 	if( input_load_path.compare("none")!=0 )
 	{
@@ -275,15 +275,15 @@ int main()
 	// Print parameters to stdout
 	string dummy_str;
 	cout << "\nAgent Hyperparameters(\n";
-	cout << "  (Input Load Path): " << run_solver_cfg->get_var("input_load_path", dummy_str) << "\n";
-	cout << "  (Steps per Trajectory): " << run_solver_cfg->get_var("num_input_actions", dummy_str) << "\n";
+	cout << "  (Input Load Path): " << solver_cfg->get_var("input_load_path", dummy_str) << "\n";
+	cout << "  (Steps per Trajectory): " << solver_cfg->get_var("num_input_actions", dummy_str) << "\n";
 	cout << ")\n";
 	FDS->print_params();
 
 	// Train agent
 	cout << "\nSimulating...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(FDS, run_solver_cfg, estimator, agent, save_render_plot, start_time, configs_string) == 1)
+	if (run(FDS, solver_cfg, estimator, agent, save_render_plot, start_time, configs_string) == 1)
 	{ 
 		Py_FinalizeEx();
 		cin.get();

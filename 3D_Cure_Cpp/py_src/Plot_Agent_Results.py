@@ -19,7 +19,7 @@ if __name__ == "__main__":
     ## INPUTS ##
     ## ====================================================================================================================================================================================================== ##
     # Define load paths
-    controlled_path = "../results/PPO_7" 
+    controlled_path = "../results/PPO_10" 
     uncontrolled_path = "../results/SIM_2" 
     random_path = "../results/SIM_1" 
     
@@ -246,9 +246,9 @@ if __name__ == "__main__":
             plt.title("Front Temperature",fontsize='xx-large')
             plt.xlabel("Location [mm]",fontsize='large')
             plt.ylabel("Front Temperature [C]",fontsize='large')
-            plt.plot(uncontrolled_sorted_mean_front_x_locations, uncontrolled_sorted_front_temperature, c='r', lw=2.5, label='Uncontrolled')
-            plt.plot(random_sorted_mean_front_x_locations, random_sorted_front_temperature, c='g', lw=2.5, label='Random')
-            plt.plot(controlled_sorted_mean_front_x_locations, controlled_sorted_front_temperature, c='b', lw=2.5, label='Controlled')
+            plt.plot(uncontrolled_sorted_mean_front_x_locations, uncontrolled_sorted_front_temperature, c='g', lw=2.5, label='Uncontrolled')
+            plt.plot(random_sorted_mean_front_x_locations, random_sorted_front_temperature, c='b', lw=2.5, label='Random')
+            plt.plot(controlled_sorted_mean_front_x_locations, controlled_sorted_front_temperature, c='r', lw=2.5, label='Controlled')
             plt.ylim(0.0, 1.025*(max(max(controlled['front_temperature']), max(uncontrolled['front_temperature']), max(random['front_temperature']))-273.15))
             plt.xlim(0.0, 1000.0*controlled['mesh_x_z0'][-1,0])
             plt.gcf().set_size_inches(8.5, 5.5)
@@ -289,9 +289,9 @@ if __name__ == "__main__":
             plt.title("Front Temperature",fontsize='xx-large')
             plt.xlabel("Location [mm]",fontsize='large')
             plt.ylabel("Front Temperature [C]",fontsize='large')
-            plt.plot(uncontrolled_sorted_mean_front_x_locations, uncontrolled_sorted_front_temperature, c='r', lw=2.5, label='Uncontrolled')
-            plt.plot(random_sorted_mean_front_x_locations, random_sorted_front_temperature, c='g', lw=2.5, label='Random')
-            plt.plot(controlled_sorted_mean_front_x_locations, controlled_sorted_front_temperature, c='b', lw=2.5, label='Controlled')
+            plt.plot(uncontrolled_sorted_mean_front_x_locations, uncontrolled_sorted_front_temperature, c='g', lw=2.5, label='Uncontrolled')
+            plt.plot(random_sorted_mean_front_x_locations, random_sorted_front_temperature, c='b', lw=2.5, label='Random')
+            plt.plot(controlled_sorted_mean_front_x_locations, controlled_sorted_front_temperature, c='r', lw=2.5, label='Controlled')
             plt.plot(controlled_sorted_mean_front_x_locations, controlled['target']-273.15, c='k', ls='--', lw=2.5, label='Target')
             plt.ylim(0.0, 1.025*(controlled['target']-273.15))
             plt.xlim(0.0, 1000.0*controlled['mesh_x_z0'][-1,0])

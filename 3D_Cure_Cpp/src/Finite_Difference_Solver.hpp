@@ -66,7 +66,7 @@ vector<vector<double>> get_fine_cure_z0();
 vector<vector<double>> get_front_curve();
 vector<double> get_front_fit(unsigned int order);
 double get_front_mean_x_loc(bool normalize);
-double get_front_vel();
+double get_front_vel(bool normalize);
 double get_front_temp(bool normalize);
 double get_front_shape_param();
 

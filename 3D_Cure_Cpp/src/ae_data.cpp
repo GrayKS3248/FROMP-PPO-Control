@@ -1,128 +1,5 @@
-#include "Finite_Difference_Solver.h"
-
-using namespace std;
-
-
-//******************************************************************** CONFIGURATION FUNCTIONS ********************************************************************//
-/**
-* Loads parameters from .cfg file
-* @return 0 on success, 1 on failure
-*/
-int load_config(int& total_trajectories, int& samples_per_trajectory, int& samples_per_batch, int& actions_per_trajectory, string& path)
-{
-	// Load from config file
-	ifstream config_file;
-	config_file.open("../config_files/get_ae_data.cfg");
-	string config_dump;
-	if (config_file.is_open())
-	{
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> total_trajectories;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> samples_per_trajectory;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> samples_per_batch;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> actions_per_trajectory;
-		config_file.ignore(numeric_limits<streamsize>::max(), '\n');
-		config_file >> config_dump >> path;
-	}
-	else
-	{
-		cout << "Unable to open ../config_files/get_ae_data.cfg." << endl;
-		return 1;
-	}
-	config_file.close();
-	return 0;
-}
-
-/**
-* Saves copy of original fds and get_ae_data config to save path
-* @param Path to which settings file will be saved
-* @return 0 on success, 1 on failure
-*/
-int save_config(string path)
-{
-	// Reset original string
-	string configs_string = "";
-	
-	// Read lines from fds config file
-	ifstream file_in;
-	file_in.open("../config_files/fds.cfg", ofstream::in);
-	string read_line;
-	if (file_in.is_open())
-	{
-		// Copy lines to original string
-		while( getline(file_in, read_line) )
-		{
-			configs_string = configs_string + read_line + "\n";
-		}
-		configs_string.pop_back();
-	}
-	else
-	{
-		cout << "Unable to open ../config_files/fds.cfg." << endl;
-		return 1;
-	}
-	
-	// Close the file
-	file_in.close();
-	
-	// Pad between config files
-	configs_string = configs_string + "\n\n======================================================================================\n\n";
-	
-	// Read lines from train_agent config file
-	file_in.open("../config_files/get_ae_data.cfg", ofstream::in);
-	if (file_in.is_open())
-	{
-		// Copy lines to original string
-		while( getline(file_in, read_line) )
-		{
-			configs_string = configs_string + read_line + "\n";
-		}
-		configs_string.pop_back();
-	}
-	else
-	{
-		cout << "Unable to open ../config_files/get_ae_data.cfg." << endl;
-		return 1;
-	}
-	
-	// Close the file
-	file_in.close();
-	
-	// Write to settings file
-	ofstream write_file;
-	string write_file_name = path+"/__settings__.dat";
-	write_file.open(write_file_name, ofstream::trunc);
-	if(!write_file.is_open())
-	{
-		cout << "\nFailed to open settings.dat\n";
-		return 1;
-	}
-	write_file << configs_string;
-	write_file.close();
-		
-	return 0;
-}
-
-
-//******************************************************************** USER INTERFACE FUNCTIONS ********************************************************************//
-/**
-* Prints the finite element solver and simulation parameters to std out
-* @param total number of trajectories taken
-* @param number of autoencoder frames saved per trajecotry
-* @param number of actions taken by random controller during one trajectory
-*/
-void print_params(int total_trajectories, int samples_per_trajectory, int actions_per_trajectory)
-{
-	// Hyperparameters
-	cout << "\nSimulation Parameters(\n";
-	cout << "  (Number of Trajectories): " << total_trajectories << "\n";
-	cout << "  (Samples per Trajectory): " << samples_per_trajectory << "\n";
-	cout << "  (Actions per Trajectory): " << actions_per_trajectory << "\n";
-	cout << ")\n";
-}
+#include "Config_Handler.hpp"
+#include "Finite_Difference_Solver.hpp"
 
 /**
 * Prints to stdout a readout of the current RL agent training process
@@ -190,16 +67,25 @@ vector<int> get_frame_indices(int tot_num_sim_steps, int samples_per_trajectory)
 /**
 * Runs a set of trajectories using a random policy and simultaneously trains and autoencoder to create a reduced state representation
 * @param The finite element solver object used to propogate time
-* @param The total number of trajectories to be executed
-* @param The number of simulation steps taken per single cycle of control application
-* @param Number of trajectories to be simulated
-* @param Number of training data sampled during on trajecotry
-* @param Number of frames per training epoch
-* @param Path to save training data to
+* @param Configuration handler object that contains all loaded configuration data
 * @return 0 on success, 1 on failure
 */
-int run(Finite_Difference_Solver* FDS, int total_trajectories, int steps_per_control_cycle, int tot_num_sim_steps, int samples_per_trajectory, int samples_per_batch, string path)
+int run(Finite_Difference_Solver* FDS, Config_Handler* ae_data_cfg)
 {
+	int total_trajectories;
+	ae_data_cfg->get_var("total_trajectories",total_trajectories);
+	int samples_per_trajectory;
+	ae_data_cfg->get_var("samples_per_trajectory",samples_per_trajectory);
+	int samples_per_batch;
+	ae_data_cfg->get_var("samples_per_batch",samples_per_batch);
+	int actions_per_trajectory;
+	ae_data_cfg->get_var("actions_per_trajectory",actions_per_trajectory);
+	string path;
+	ae_data_cfg->get_var("path",path);
+	
+	double control_execution_period = (FDS->get_sim_duration() / ((double)actions_per_trajectory));
+	int steps_per_control_cycle = (int) round(control_execution_period / FDS->get_coarse_time_step());
+	
 	for (int curr_epoch = 0; curr_epoch < (int)floor(((double)total_trajectories*(double)samples_per_trajectory)/(double)samples_per_batch); curr_epoch++)
 	{
 		// Open string buffer to name data files
@@ -228,6 +114,54 @@ int run(Finite_Difference_Solver* FDS, int total_trajectories, int steps_per_con
 			return 1;
 		}
 		
+		// Open file to save front temp to
+		stream.str(string());
+		stream << path << "/ftemp_data_" << curr_epoch << ".csv";
+		string ftemp_load_name = stream.str();
+		ofstream ftemp_file;
+		ftemp_file.open (ftemp_load_name, ofstream::trunc);
+		if(!ftemp_file.is_open())
+		{
+			cout << "\nFailed to open ftemp file\n";
+			return 1;
+		}
+		
+		// Open file to save front location to
+		stream.str(string());
+		stream << path << "/floc_data_" << curr_epoch << ".csv";
+		string floc_load_name = stream.str();
+		ofstream floc_file;
+		floc_file.open (floc_load_name, ofstream::trunc);
+		if(!floc_file.is_open())
+		{
+			cout << "\nFailed to open floc file\n";
+			return 1;
+		}
+		
+		// Open file to save front speed to
+		stream.str(string());
+		stream << path << "/fspeed_data_" << curr_epoch << ".csv";
+		string fspeed_load_name = stream.str();
+		ofstream fspeed_file;
+		fspeed_file.open (fspeed_load_name, ofstream::trunc);
+		if(!fspeed_file.is_open())
+		{
+			cout << "\nFailed to open fspeed file\n";
+			return 1;
+		}
+		
+		// Open file to save front shape to
+		stream.str(string());
+		stream << path << "/fshape_data_" << curr_epoch << ".csv";
+		string fshape_load_name = stream.str();
+		ofstream fshape_file;
+		fshape_file.open (fshape_load_name, ofstream::trunc);
+		if(!fshape_file.is_open())
+		{
+			cout << "\nFailed to open fshape file\n";
+			return 1;
+		}
+		
 		// Run a set of episodes
 		for (int curr_traj = 0; curr_traj < (int)floor((double)samples_per_batch/(double)samples_per_trajectory); curr_traj++)
 		{
@@ -238,7 +172,7 @@ int run(Finite_Difference_Solver* FDS, int total_trajectories, int steps_per_con
 			int trajectory_index = 0;
 			
 			// Select random set of frames to be used to update autoencoder
-			vector<int> frame_indices = get_frame_indices(tot_num_sim_steps, samples_per_trajectory);
+			vector<int> frame_indices = get_frame_indices(FDS->get_num_sim_steps(), samples_per_trajectory);
 			int frame_count = 0;
 			int frame_index = frame_indices[frame_count];
 
@@ -248,6 +182,10 @@ int run(Finite_Difference_Solver* FDS, int total_trajectories, int steps_per_con
 			// Save data structure
 			vector<vector<vector<double>>> temp_frames;
 			vector<vector<vector<double>>> cure_frames;
+			vector<double> ftemp_frames;
+			vector<double> floc_frames;
+			vector<double> fspeed_frames;
+			vector<double> fshape_frames;
 
 			// Reset environment
 			FDS->reset();
@@ -269,12 +207,12 @@ int run(Finite_Difference_Solver* FDS, int total_trajectories, int steps_per_con
 					action_3 = (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
 
 					// Step the environment
-					done = FDS->step(action_1, action_2, true, action_3);
+					done = FDS->step(action_1, action_2, action_3);
 				}
 				else
 				{
 					// Step the environment
-					done = FDS->step(action_1, action_2, true, action_3);
+					done = FDS->step(action_1, action_2, action_3);
 				}
 				
 				// Save data to files
@@ -282,6 +220,10 @@ int run(Finite_Difference_Solver* FDS, int total_trajectories, int steps_per_con
 				{
 					temp_frames.push_back(FDS->get_coarse_temp_z0(true));
 					cure_frames.push_back(FDS->get_coarse_cure_z0());
+					ftemp_frames.push_back(FDS->get_front_temp(true));
+					floc_frames.push_back(FDS->get_front_mean_x_loc(true));
+					fspeed_frames.push_back(FDS->get_front_vel(true));
+					fshape_frames.push_back(FDS->get_front_shape_param());
 					
 					// Update which frame is to be saved next
 					frame_count++;
@@ -299,6 +241,11 @@ int run(Finite_Difference_Solver* FDS, int total_trajectories, int steps_per_con
 			// Save current trajectory's frames
 			for (int i = 0; i < samples_per_trajectory; i++)
 			{
+				ftemp_file << ftemp_frames[i] << "\n";
+				floc_file << floc_frames[i] << "\n";
+				fspeed_file << fspeed_frames[i] << "\n";
+				fshape_file << fshape_frames[i] << "\n";
+					
 				for (int j = 0; j < FDS->get_num_coarse_vert_x(); j++)
 				{
 					for(int k = 0; k < FDS->get_num_coarse_vert_y(); k++)
@@ -323,32 +270,37 @@ int run(Finite_Difference_Solver* FDS, int total_trajectories, int steps_per_con
 
 		if (temp_file.is_open()) { temp_file.close(); }
 		if (cure_file.is_open()) { cure_file.close(); }
+		if (ftemp_file.is_open()) { ftemp_file.close(); }
+		if (floc_file.is_open()) { floc_file.close(); }
+		if (fspeed_file.is_open()) { fspeed_file.close(); }
+		if (fshape_file.is_open()) { fshape_file.close(); }
 		
 	}
 	return 0;
 }
 
+
 int main()
-{	
-	// Training data parameters
-	int total_trajectories;
-	int samples_per_trajectory;
-	int samples_per_batch;
-	int actions_per_trajectory;
+{		
+	// Load run solver and fds cfg files
+	Config_Handler fds_cfg = Config_Handler("../config_files", "fds.cfg");
+	Config_Handler* ae_data_cfg = new Config_Handler("../config_files", "ae_data.cfg");
+	string configs_string = "";
+	configs_string = configs_string + fds_cfg.get_orig_cfg();
+	configs_string = configs_string + "\n\n======================================================================================\n\n";
+	configs_string = configs_string + ae_data_cfg->get_orig_cfg();
 	string path;
-	if (load_config(total_trajectories, samples_per_trajectory, samples_per_batch, actions_per_trajectory, path) == 1) 
-	{ 
-		cin.get();
-		return 1; 
+	ae_data_cfg->get_var("path",path);
+	ofstream file;
+	file.open(path+"/settings.dat", ofstream::trunc);
+	if(!file.is_open())
+	{
+		cout << "\nFailed to open settings.dat file\n";
+		return 1;
 	}
-
-	// Save settings
-	if (save_config(path) == 1) 
-	{ 
-		cin.get();
-		return 1; 
-	}
-
+	file << configs_string;
+	file.close();
+		
 	// Initialize FDS
 	Finite_Difference_Solver* FDS;
 	try
@@ -361,31 +313,31 @@ int main()
 		cin.get();
 		return 1;
 	}
-
-	// Calculated parameters
-	double control_execution_period = (FDS->get_sim_duration() / ((double)actions_per_trajectory));
-	int steps_per_control_cycle = (int) round(control_execution_period / FDS->get_coarse_time_step());
-	int tot_num_sim_steps = FDS->get_num_sim_steps();
 	
-	// Print simulation parameters
-	print_params(total_trajectories, samples_per_trajectory, actions_per_trajectory);
+	// Initialize cfg stuff
+	string dummy_str;
+	cout << "Get Data Parameters(\n";
+	cout << "  (Total Trajectories): " << ae_data_cfg->get_var("total_trajectories", dummy_str) << "\n";
+	cout << "  (Samples per Trajectory): " << ae_data_cfg->get_var("samples_per_trajectory", dummy_str) << "\n";
+	cout << "  (Samples per Batch): " << ae_data_cfg->get_var("samples_per_batch", dummy_str) << "\n";
+	cout << "  (Actions per Trajectory): " << ae_data_cfg->get_var("actions_per_trajectory", dummy_str) << "\n";
+	cout << ")\n";
 	FDS->print_params();
 
-	// Train autoencoder
-	cout << "\nCollecting training data...\n";
+	// Train agent
+	cout << "\nSimulating...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(FDS, total_trajectories, steps_per_control_cycle, tot_num_sim_steps, samples_per_trajectory, samples_per_batch, path) == 1) 
+	if (run(FDS, ae_data_cfg) == 1)
 	{ 
 		cin.get();
 		return 1; 
 	}
-
+	
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
-	printf("\nCollection took: %.1f seconds.\n", duration);
-
+	printf("\nSimulation took: %.1f seconds.\n\nDone!", duration);
+	
 	// Finish
-	cout << "Done!";
 	cin.get();
 	return 0;
 }

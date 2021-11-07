@@ -34,10 +34,10 @@ if __name__ == "__main__":
     
     # Training data parameters
     num_epochs = 5
-    num_batches = 1008
+    num_batches = 1000
     samples_per_batch = 100
     total_snapshots = 100
-    training_data_path = '../training_data/DCPD_GC2/Autoencoder'
+    training_data_path = '../training_data/DCPD_GC2/Autoencoder_2'
     
     # Image parameters
     x_dim = 256
@@ -47,16 +47,20 @@ if __name__ == "__main__":
     
     # Hyperparameters
     load_path = ""
-    num_targets = 2
+    num_targets = 1
     noise_stdev = 0.025
-    alpha_zero = 1.0e-3;
-    alpha_last = 1.0e-4;
+    occ_prob = 0.50
+    occ_max = 3
+    occ_min_area = 0.01
+    occ_max_area = 0.25
+    alpha_zero = 1.0e-3
+    alpha_last = 1.0e-5
     
     # Calculated parameters
     alpha_decay = (alpha_last/alpha_zero) ** (1.0/(num_batches*num_epochs))
     
     # Initialize the estimator
-    autoencoder = Autoencoder(alpha_zero, alpha_decay, load_path=load_path, dim_1=x_dim, dim_2=y_dim, norm_min=norm_min, norm_max=norm_max, num_targets=num_targets, num_latent=2, noise_stdev=noise_stdev, verbose=True)
+    autoencoder = Autoencoder(alpha_zero, alpha_decay, load_path=load_path, dim_1=x_dim, dim_2=y_dim, norm_min=norm_min, norm_max=norm_max, num_targets=num_targets, num_latent=2, noise_stdev=noise_stdev, occ_prob=occ_prob, occ_max=occ_max, occ_min_area=occ_min_area, occ_max_area=occ_max_area, verbose=True)
     
     # Run the epochs
     optimization_count = 0

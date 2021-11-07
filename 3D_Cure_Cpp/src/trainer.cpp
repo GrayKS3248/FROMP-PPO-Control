@@ -90,7 +90,7 @@ void print_training_info(int curr_trajectory, int total_trajectories, double pre
 /**
 * Runs a set of trajectories using the PPO policy, updates the PPO agent, and collects relevant training data
 * @param The finite element solver object used to propogate time
-* @param Configuration handler object that contains all loaded and calculated configuration data
+* @param Configuration handler object that contains all loaded configuration data
 * @param The class used to estimate front speed based on front location estimations
 * @param The ppo agent being trained
 * @param The save render and plotting class of the ppo agent being trained
@@ -339,7 +339,7 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* train_agent_cfg, Speed_Es
 			reward.push_back(FDS->get_reward());
 			
 			// Store simulation front data
-			front_velocity.push_back(FDS->get_front_vel());
+			front_velocity.push_back(FDS->get_front_vel(false));
 			front_temperature.push_back(FDS->get_front_temp(false));
 			front_shape_param.push_back(FDS->get_front_shape_param());
 			front_curve.push_back(FDS->get_front_curve());

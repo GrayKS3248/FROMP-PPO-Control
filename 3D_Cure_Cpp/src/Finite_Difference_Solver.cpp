@@ -1054,11 +1054,19 @@ double Finite_Difference_Solver::get_front_mean_x_loc(bool normalize)
 
 /**
 * Gets the current front velocity
+* @param Boolean flag that indicates whether data should be sudo normalized
 * @return The current mean front velocity
 */
-double Finite_Difference_Solver::get_front_vel()
+double Finite_Difference_Solver::get_front_vel(bool normalize)
 {
-	return front_vel;
+	if (normalize)
+	{
+		return front_vel * 1000.0;
+	}
+	else
+	{
+		return front_vel;
+	}
 }
 
 /**
@@ -1491,7 +1499,7 @@ vector<double> Finite_Difference_Solver::get_reward()
 */
 int Finite_Difference_Solver::load_config()
 {
-	Config_Handler fds_cfg = Config_Handler("../config_files", "fds.cfg")
+	Config_Handler fds_cfg = Config_Handler("../config_files", "fds.cfg");
 	
 
 	// ************************************************** SIM OPTIONS ************************************************** //	
