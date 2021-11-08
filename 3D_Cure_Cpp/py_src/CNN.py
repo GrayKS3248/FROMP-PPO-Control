@@ -82,9 +82,9 @@ class Model(nn.Module):
         
         #Initialize the latent variable reconstruction layers
         if self.num_latent >= 1:
-            self.fc2 = nn.Linear(self.latent_size, self.latent_size//2)
-            self.fc3 = nn.Linear(self.latent_size//2, self.latent_size//4)
-            self.fc4 = nn.Linear(self.latent_size//4, self.num_latent)
+            self.fc2 = nn.Linear(self.latent_size, self.latent_size)
+            self.fc3 = nn.Linear(self.latent_size, self.latent_size)
+            self.fc4 = nn.Linear(self.latent_size, self.num_latent)
         
         #Initialize the decoding linear layers
         self.t_fc1 = nn.Linear(self.bottleneck, self.latent_size)
@@ -98,6 +98,10 @@ class Model(nn.Module):
         self.NN_Up = torch.nn.Upsample(scale_factor=2, mode='nearest')
         
     def forward(self, x):
+        
+        # Get batch size
+        batch_size = x.shape[0]
+        
         #Feed-forward through encoder
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
@@ -112,10 +116,11 @@ class Model(nn.Module):
             latent = F.relu(self.fc3(latent))
             latent = self.fc4(latent)
         x = F.relu(self.fc1(x))
+        code_sparsity = torch.mean((1.0 / (1.0 - 0.4999999)) * (torch.sigmoid(x) - 0.4999999), dim=0)
         
         #Feed-forward through decoder
         x = F.relu(self.t_fc1(x))
-        x = x.view((1, self.f_5, np.long(self.size_after_op8), np.long(self.size_after_op8))) 
+        x = x.view((batch_size, self.f_5, np.long(self.size_after_op8), np.long(self.size_after_op8))) 
         x = self.NN_Up(F.relu(self.t_conv1(x)))
         x = self.NN_Up(F.relu(self.t_conv2(x)))
         x = self.NN_Up(F.relu(self.t_conv3(x)))
@@ -124,9 +129,9 @@ class Model(nn.Module):
         
         #Return x
         if self.num_latent >= 1:
-            return x, latent
+            return x, code_sparsity, latent
         else:
-            return x
+            return x, code_sparsity
     
     def encode(self, x):
         #Feed-forward through encoder
