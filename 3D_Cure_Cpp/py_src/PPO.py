@@ -576,7 +576,10 @@ class Save_Plot_Render:
             interpolated_temperature_field[curr_frame][fine_mesh_start_index:(fine_mesh_end_index+1),:] = self.fine_temperature_field[curr_frame]
             
             # Compare the fine temperature mesh to the fine resolution corase temperature mesh
-            max_temperature_field[curr_frame,:,:] = np.max(interpolated_temperature_field[0:curr_frame+1], axis=0)
+            if curr_frame == 0:
+                max_temperature_field[curr_frame,:,:] = interpolated_temperature_field[curr_frame]
+            else:
+                max_temperature_field[curr_frame,:,:] = np.maximum(interpolated_temperature_field[curr_frame], max_temperature_field[curr_frame-1])
             
         # Return the maximum temperature field and mesh used to plot it
         return global_fine_mesh_x, global_fine_mesh_y, max_temperature_field, interpolated_temperature_field
@@ -1113,19 +1116,35 @@ class Save_Plot_Render:
             fine_mesh_y, fine_mesh_x = np.meshgrid(y_linspace, x_linspace)
             
             # Plot max normalized temperature
-            c0 = ax0.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.max_temperature_field[curr_step], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
-            cbar0 = fig.colorbar(c0, ax=ax0)
-            cbar0.set_label("Max ϴ [-]",labelpad=20,fontsize='large')
-            cbar0.ax.tick_params(labelsize=12)
-            ax0.set_xlabel('X Position [mm]',fontsize='large')
-            ax0.set_ylabel('Y Position [mm]',fontsize='large')
-            ax0.tick_params(axis='x',labelsize=12)
-            ax0.tick_params(axis='y',labelsize=12)
-            ax0.set_aspect('equal', adjustable='box')
-            ax0.set_title('Front Temp = '+'{:.2f}'.format(self.front_temperature[curr_step]-273.15)+' C | '+
-                          'Front Speed = '+'{:.2f}'.format(self.front_velocity[curr_step]*1000.0)+' mm/s | '+
-                          'Front Shape = '+'{:.2f}'.format(self.front_shape_param[curr_step])+'\n',fontsize='large', fontname = 'monospace')
-               
+            if False:
+                c0 = ax0.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.max_temperature_field[curr_step], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
+                cbar0 = fig.colorbar(c0, ax=ax0)
+                cbar0.set_label("Max ϴ [-]",labelpad=20,fontsize='large')
+                cbar0.ax.tick_params(labelsize=12)
+                ax0.set_xlabel('X Position [mm]',fontsize='large')
+                ax0.set_ylabel('Y Position [mm]',fontsize='large')
+                ax0.tick_params(axis='x',labelsize=12)
+                ax0.tick_params(axis='y',labelsize=12)
+                ax0.set_aspect('equal', adjustable='box')
+                ax0.set_title('Front Temp = '+'{:.2f}'.format(self.front_temperature[curr_step]-273.15)+' C | '+
+                              'Front Speed = '+'{:.2f}'.format(self.front_velocity[curr_step]*1000.0)+' mm/s | '+
+                              'Front Shape = '+'{:.2f}'.format(self.front_shape_param[curr_step])+'\n',fontsize='large', fontname = 'monospace')
+           
+            # Plot normalized temperature
+            else:
+                c0 = ax0.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.interpolated_temperature_field[curr_step], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
+                cbar0 = fig.colorbar(c0, ax=ax0)
+                cbar0.set_label("ϴ [-]",labelpad=20,fontsize='large')
+                cbar0.ax.tick_params(labelsize=12)
+                ax0.set_xlabel('X Position [mm]',fontsize='large')
+                ax0.set_ylabel('Y Position [mm]',fontsize='large')
+                ax0.tick_params(axis='x',labelsize=12)
+                ax0.tick_params(axis='y',labelsize=12)
+                ax0.set_aspect('equal', adjustable='box')
+                ax0.set_title('Front Temp = '+'{:.2f}'.format(self.front_temperature[curr_step]-273.15)+' C | '+
+                              'Front Speed = '+'{:.2f}'.format(self.front_velocity[curr_step]*1000.0)+' mm/s | '+
+                              'Front Shape = '+'{:.2f}'.format(self.front_shape_param[curr_step])+'\n',fontsize='large', fontname = 'monospace')
+            
             # Plot cure
             c1 = ax1.pcolormesh(1000.0*self.mesh_x_z0, 1000.0*self.mesh_y_z0, self.cure_field[curr_step,:,:], shading='gouraud', cmap='YlOrBr', vmin=0.0, vmax=1.0)
             ax1.pcolormesh(1000.0*fine_mesh_x, 1000.0*fine_mesh_y, self.fine_cure_field[curr_step,:,:], shading='gouraud', cmap='YlOrBr', vmin=0.0, vmax=1.0)
