@@ -1505,7 +1505,7 @@ int Finite_Difference_Solver::load_config()
 	// ************************************************** SIM OPTIONS ************************************************** //	
 	string string_dump;
 	fds_cfg.get_var("use_input",input_is_on);
-	fds_cfg.get_var("use_input",using_a_trigger);
+	fds_cfg.get_var("use_trigger",using_a_trigger);
 	fds_cfg.get_var("material",string_dump);
 	if (string_dump.compare("dcpd_gc1")==0)
 	{
@@ -2041,8 +2041,8 @@ void Finite_Difference_Solver::update_lr_bc_temps()
 	for(int k = 0; k < num_fine_vert_z; k++)
 	{
 		// Determine location in coarse mesh
-		int curr_coarse_y_index = (int)floor((double)j / (double)fine_y_resolution_multiplier);
-		int curr_coarse_z_index = (int)floor((double)k / (double)fine_z_resolution_multiplier);
+		int curr_coarse_y_index = (int)ceil((double)j / (double)fine_y_resolution_multiplier);
+		int curr_coarse_z_index = (int)ceil((double)k / (double)fine_z_resolution_multiplier);
 		
 		// Left BC if fine mesh is on left edge of domain
 		if(coarse_x_index_at_fine_mesh_start == 0)

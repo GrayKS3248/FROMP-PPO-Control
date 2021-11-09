@@ -53,8 +53,8 @@ if __name__ == "__main__":
     load_path = ""
     targets = ['temp']
     latent_targets = ['ftemp','fshape','fspeed']
-    sparsity_parameter = 0.50
-    sparsity_const = 1e-3
+    sparsity_parameter = 0.5
+    sparsity_const = 0.0
     image_const = 1.0
     latent_const = 0.1
     noise_prob = 0.50
