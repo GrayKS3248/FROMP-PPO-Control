@@ -13,8 +13,8 @@ template <typename T>
 PyObject* get_2D_list(T arr);
 template <typename T>
 PyObject* get_3D_list(T arr);
-vector<double> get_vector(PyObject* list);
-
+vector<double> get_1D_vector(PyObject* list);
+vector<vector<double>> get_2D_vector(PyObject* list);
 
 //******************************************************************** PYTHON API INITIALIZATION FUNCTIONS ********************************************************************//
 PyObject* init_agent(int num_addtional_inputs, int num_outputs);

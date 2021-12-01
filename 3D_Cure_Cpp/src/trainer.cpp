@@ -159,7 +159,25 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* train_agent_cfg, Speed_Es
 			// Add observation to speed estimator
 			if (observe_speed)
 			{
-				estimator->observe(FDS->get_coarse_temp_z0(true), FDS->get_curr_sim_time());
+				// Get image and convert to canonical form
+				PyObject* py_state_image = get_2D_list<vector<vector<double>>>(FDS->get_coarse_temp_z0(true));
+				PyObject* py_canonical_state_image = PyObject_CallMethod(agent, "forward", "O", py_state_image);
+				if (py_canonical_state_image == NULL)
+				{
+					fprintf(stderr, "\nFailed to call PPO forward function.\n");
+					PyErr_Print();
+					Py_DECREF(py_state_image);
+	
+					return 1;
+				}
+				vector<vector<double>> canonical_state_image = get_2D_vector(py_canonical_state_image);
+				
+				// Add canonical image and observation time to estimator buffer
+				estimator->observe(canonical_state_image, FDS->get_curr_sim_time());
+				
+				// Cleanup
+				Py_DECREF(py_state_image);
+				Py_DECREF(py_canonical_state_image);
 			}
 			
 			// Run the agent
@@ -229,7 +247,7 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* train_agent_cfg, Speed_Es
 				}
 				
 				// Collect critic loss data
-				vector<double> curr_critic_loss_and_lr = get_vector(py_critic_loss_and_lr);
+				vector<double> curr_critic_loss_and_lr = get_1D_vector(py_critic_loss_and_lr);
 				if (curr_critic_loss_and_lr.size() > 0)
 				{
 					actor_lr.push_back(curr_critic_loss_and_lr[0]);

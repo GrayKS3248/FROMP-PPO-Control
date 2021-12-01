@@ -78,9 +78,27 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 		}
 		
 		// Add observation to speed estimator
-		if (observe_speed)
-		{
-			estimator->observe(FDS->get_coarse_temp_z0(true), FDS->get_curr_sim_time());
+		if (observe_speed && agent != NULL)
+		{	
+			// Get image and convert to canonical form
+			PyObject* py_state_image = get_2D_list<vector<vector<double>>>(FDS->get_coarse_temp_z0(true));
+			PyObject* py_canonical_state_image = PyObject_CallMethod(agent, "forward", "O", py_state_image);
+			if (py_canonical_state_image == NULL)
+			{
+				fprintf(stderr, "\nFailed to call PPO forward function.\n");
+				PyErr_Print();
+				Py_DECREF(py_state_image);
+
+				return 1;
+			}
+			vector<vector<double>> canonical_state_image = get_2D_vector(py_canonical_state_image);
+			
+			// Add canonical image and observation time to estimator buffer
+			estimator->observe(canonical_state_image, FDS->get_curr_sim_time());
+			
+			// Cleanup
+			Py_DECREF(py_state_image);
+			Py_DECREF(py_canonical_state_image);
 		}
 		
 		// Update the logs

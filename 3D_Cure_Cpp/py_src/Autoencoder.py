@@ -350,8 +350,9 @@ class Autoencoder:
                 latent_vars = latent_vars.to('cpu').squeeze().numpy()
                 norm_sq_output_image = norm_sq_output_image.to('cpu').squeeze().numpy()
             else:
-                norm_sq_output_image, code_sparsity = self.model.forward(norm_sq_input_image).to('cpu').squeeze().numpy()
+                norm_sq_output_image, code_sparsity = self.model.forward(norm_sq_input_image)
                 code_sparsity = code_sparsity.to('cpu').squeeze().numpy().mean()
+                norm_sq_output_image = norm_sq_output_image.to('cpu').squeeze().numpy()
             
             # Return to original distribution and dimensions
             output_images = []
@@ -528,11 +529,29 @@ class Autoencoder:
             sparsity_loss = ((coding_sparsity_target*(coding_sparsity_target/code_sparsity).log()) + ((1.0-coding_sparsity_target)*((1.0-coding_sparsity_target)/(1.0-code_sparsity)).log())).sum()
             image_loss = self.criterion_BCE(formatted_output_batch, formatted_target_batch)
             latent_loss = self.criterion_MSE(formatted_output_latent_batch, formatted_latent_batch)
-            loss = self.sparsity_const*sparsity_loss + self.image_const*image_loss + self.latent_const*latent_loss
+            if np.isinf(sparsity_loss.item()) or np.isnan(sparsity_loss.item()):
+                loss = self.image_const*image_loss + self.latent_const*latent_loss
+            else:
+                loss = self.sparsity_const*sparsity_loss + self.image_const*image_loss + self.latent_const*latent_loss
         else:
-            sparsity_loss = self.criterion_KL(code_sparsity.log(), coding_sparsity_target)
+            sparsity_loss = ((coding_sparsity_target*(coding_sparsity_target/code_sparsity).log()) + ((1.0-coding_sparsity_target)*((1.0-coding_sparsity_target)/(1.0-code_sparsity)).log())).sum()
             image_loss = self.criterion_BCE(formatted_output_batch, formatted_target_batch)
-            loss = self.sparsity_const*sparsity_loss + self.image_const*image_loss
+            if np.isinf(sparsity_loss.item()) or np.isnan(sparsity_loss.item()):
+                loss = self.image_const*image_loss
+            else:
+                loss = self.sparsity_const*sparsity_loss + self.image_const*image_loss
+            
+        if np.isnan(loss.item()):
+            if self.num_latent >= 1:
+                print(str(sparsity_loss))
+                print(str(image_loss))
+                print(str(latent_loss))
+                print(str(loss))
+            else:
+                print(str(sparsity_loss))
+                print(str(image_loss))
+                print(str(loss))
+            wait = input("Press Enter to continue.")
             
         # Store lr and loss data
         self.lr_curve.append(self.lr_scheduler.get_last_lr()[0])
@@ -684,12 +703,31 @@ class Autoencoder:
             plt.savefig(save_file, dpi = 500)
             plt.close()
         
+        # Trim data
+        inds = [*range(len(self.loss_curve))]
+        if len(inds) > 10000:
+            spacing = round(len(self.loss_curve) / 10000)
+            tunc_loss_curve = self.loss_curve[0:-1:spacing]
+            trunc_lr_curve = self.lr_curve[0:-1:spacing]
+            trunc_sparsity_curve = self.sparsity_curve[0:-1:spacing]
+            trunc_inds = inds[0:-1:spacing]
+            if trunc_inds[-1] != inds[-1]:
+                tunc_loss_curve.append(self.loss_curve[-1])
+                trunc_lr_curve.append(self.lr_curve[-1])
+                trunc_sparsity_curve.append(self.sparsity_curve[-1])
+                trunc_inds.append(inds[-1])
+        else:
+            tunc_loss_curve = self.loss_curve
+            trunc_lr_curve = self.lr_curve
+            trunc_sparsity_curve = self.sparsity_curve
+            trunc_inds = inds
+        
         # Draw training curve
         plt.clf()
         plt.title("Loss Curve",fontsize='xx-large')
         plt.xlabel("Batch",fontsize='large')
         plt.ylabel("MSE",fontsize='large')
-        plt.plot([*range(len(self.loss_curve))],self.loss_curve,lw=2.5,c='r')
+        plt.plot(trunc_inds,tunc_loss_curve,lw=2.5,c='r')
         plt.yscale("log")
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
@@ -703,7 +741,7 @@ class Autoencoder:
         plt.title("Learning Rate",fontsize='xx-large')
         plt.xlabel("Batch",fontsize='large')
         plt.ylabel("Learning Rate",fontsize='large')
-        plt.plot([*range(len(self.lr_curve))],self.lr_curve,lw=2.5,c='r')
+        plt.plot(trunc_inds,trunc_lr_curve,lw=2.5,c='r')
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
         plt.gcf().set_size_inches(8.5, 5.5)
@@ -716,7 +754,7 @@ class Autoencoder:
         plt.title("Coding Sparsity",fontsize='xx-large')
         plt.xlabel("Batch",fontsize='large')
         plt.ylabel("Probability of Coding Neuron Activation",fontsize='large')
-        plt.plot([*range(len(self.sparsity_curve))],self.sparsity_curve,lw=2.5,c='r')
+        plt.plot(trunc_inds,trunc_sparsity_curve,lw=2.5,c='r')
         plt.axhline(y=self.sparsity_parameter,lw=2.5,c='k',ls="--")
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')

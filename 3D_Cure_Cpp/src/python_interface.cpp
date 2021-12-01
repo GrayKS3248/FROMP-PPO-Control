@@ -77,7 +77,7 @@ PyObject* get_3D_list(T arr)
 * @param The list used to create the vector
 * @return 1D vector<double> copy of the PyList
 */
-vector<double> get_vector(PyObject* list)
+vector<double> get_1D_vector(PyObject* list)
 {
 	if (PyList_Size(list) > 0)
 	{
@@ -89,6 +89,28 @@ vector<double> get_vector(PyObject* list)
 		return out;
 	}
 	return vector<double>();
+}
+
+/**
+* Converts PyList to a 2D vector<vector<double>>
+* @param The list used to create the vector
+* @return 2D vector<vector<double>> copy of the PyList
+*/
+vector<vector<double>> get_2D_vector(PyObject* list)
+{
+	if ((PyList_Size(list) > 0) && (PyList_Size(PyList_GetItem(list, 0)) > 0))
+	{
+		vector<vector<double>> out = vector<vector<double>>(PyList_Size(list), vector<double>(PyList_Size(PyList_GetItem(list, 0)), 0.0));
+		
+		for (unsigned int i = 0; i < PyList_Size(list); i++)
+		for (unsigned int j = 0; j < PyList_Size(PyList_GetItem(list, i)); j++)
+		{
+			out[i][j] = PyFloat_AsDouble(PyList_GetItem(PyList_GetItem(list, i), j));
+			
+		}
+		return out;
+	}
+	return vector<vector<double>>(1, vector<double>(1, 0.0));
 }
 
 
