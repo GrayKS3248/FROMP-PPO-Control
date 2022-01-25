@@ -682,22 +682,25 @@ class Autoencoder:
         print("Plotting autoencoder training curve...")
         
         # Get the moving average and stdev of the learning curve
-        window = len(self.loss_curve) // 50
+        window = len(self.loss_curve) // 600
         if window > 1:
-            rolling_std = np.array(pd.Series(self.loss_curve).rolling(window).std())
             rolling_avg = np.array(pd.Series(self.loss_curve).rolling(window).mean())
-            rolling_std = rolling_std[~np.isnan(rolling_std)]
             rolling_avg = rolling_avg[~np.isnan(rolling_avg)]
+            rolling_avg_min = np.floor(min(rolling_avg)*10.0)/10.0
+            rolling_avg_max = np.ceil(max(rolling_avg)*10.0)/10.0
+            ticks = np.arange(rolling_avg_min, rolling_avg_max+0.1, 0.1)
+            lables = ["{:.0e}".format(item) for item in ticks]
             
             # Draw training curve with rolling values
             plt.clf()
-            plt.title("Loss Curve, Window = " + str(window),fontsize='xx-large')
+            plt.title("Rolling Average Loss, Window = " + str(window) + " Batches",fontsize='xx-large')
             plt.xlabel("Batch",fontsize='large')
-            plt.ylabel("MSE",fontsize='large')
-            plt.plot(np.array([*range(len(rolling_avg))])+(len(self.loss_curve)-len(rolling_avg)+1),rolling_avg,lw=2.5,c='r')
-            plt.fill_between(np.array([*range(len(rolling_avg))])+(len(self.loss_curve)-len(rolling_avg)+1),rolling_avg+rolling_std,rolling_avg-rolling_std,color='r',alpha=0.2,lw=0.0)
+            plt.ylabel("BCE Loss",fontsize='large')
+            plt.ylim([rolling_avg_min,rolling_avg_max])
+            plt.yscale("log")
+            plt.plot(np.array([*range(len(rolling_avg))])+window,rolling_avg,lw=2.5,c='r')
             plt.xticks(fontsize='large')
-            plt.yticks(fontsize='large')
+            plt.yticks(ticks=ticks, labels=lables, fontsize='large')
             plt.gcf().set_size_inches(8.5, 5.5)
             save_file = self.path + "/rolling_loss.png"
             plt.savefig(save_file, dpi = 500)

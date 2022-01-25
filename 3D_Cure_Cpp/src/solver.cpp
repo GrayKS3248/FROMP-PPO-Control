@@ -156,12 +156,12 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 				
 				// Gather input data
 				PyObject* py_inputs = get_1D_list<vector<double>>(FDS->get_input_state(true));
-			
+				
 				// Get agent action based on temperature state data
-				PyObject* py_action = PyObject_CallMethod(agent, "get_greedy_action", "(O,O,O)", py_state_image, py_additional_ppo_inputs, py_inputs);
-				if (py_action == NULL)
+				PyObject* py_action_and_stdev = PyObject_CallMethod(agent, "get_action", "(O,O,O)", py_state_image, py_additional_ppo_inputs, py_inputs);
+				if (py_action_and_stdev == NULL)
 				{
-					fprintf(stderr, "\nFailed to call get greedy action function.\n");
+					fprintf(stderr, "\nFailed to call get action function.\n");
 					PyErr_Print();
 					Py_DECREF(py_state_image);
 					Py_DECREF(py_additional_ppo_inputs);
@@ -170,15 +170,18 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 				}
 				
 				// Get the agent commanded action
-				action_1 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 0));
-				action_2 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 1));
-				action_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action, 2));
+				action_1 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 0));
+				action_2 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 1));
+				action_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 2));
 
+				// Step the environment
+				done = FDS->step(action_1, action_2, action_3);
+				
 				// Release the python memory
 				Py_DECREF(py_state_image);
 				Py_DECREF(py_additional_ppo_inputs);
 				Py_DECREF(py_inputs);
-				Py_DECREF(py_action);
+				Py_DECREF(py_action_and_stdev);
 			}
 			
 			// Do a random action

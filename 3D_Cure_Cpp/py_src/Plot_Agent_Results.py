@@ -19,9 +19,9 @@ if __name__ == "__main__":
     ## INPUTS ##
     ## ====================================================================================================================================================================================================== ##
     # Define load paths
-    controlled_path = "../results/PPO_10" 
-    uncontrolled_path = "../results/SIM_2" 
-    random_path = "../results/SIM_1" 
+    controlled_path = "../results/PPO_17" 
+    uncontrolled_path = "../results/SIM_1" 
+    random_path = "../results/SIM_2" 
     
     # Define the temperature at which adiabatic, uncontrolled front speed would exactly equal target speed
     req_uncontrolled_temp = 306.15;
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     ambient_temp = 293.65
     
     # Options
-    NN_vis = True
+    NN_vis = False
     trajectory_vis = True
     energy_vis = True
     actor_vis = True
