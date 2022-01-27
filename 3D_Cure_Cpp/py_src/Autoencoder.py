@@ -702,7 +702,7 @@ class Autoencoder:
             plt.xticks(fontsize='large')
             plt.yticks(ticks=ticks, labels=lables, fontsize='large')
             plt.gcf().set_size_inches(8.5, 5.5)
-            save_file = self.path + "/rolling_loss.png"
+            save_file = self.path + "/rolling_loss.svg"
             plt.savefig(save_file, dpi = 500)
             plt.close()
         
@@ -735,7 +735,7 @@ class Autoencoder:
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
         plt.gcf().set_size_inches(8.5, 5.5)
-        save_file = self.path + "/loss.png"
+        save_file = self.path + "/loss.svg"
         plt.savefig(save_file, dpi = 500)
         plt.close()
         
@@ -748,7 +748,7 @@ class Autoencoder:
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
         plt.gcf().set_size_inches(8.5, 5.5)
-        save_file = self.path + "/lr.png"
+        save_file = self.path + "/lr.svg"
         plt.savefig(save_file, dpi = 500)
         plt.close()
         
@@ -762,7 +762,7 @@ class Autoencoder:
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
         plt.gcf().set_size_inches(8.5, 5.5)
-        save_file = self.path + "/sparsity.png"
+        save_file = self.path + "/sparsity.svg"
         plt.savefig(save_file, dpi = 500)
         plt.close()
     

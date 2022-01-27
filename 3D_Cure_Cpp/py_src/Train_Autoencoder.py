@@ -48,7 +48,7 @@ if __name__ == "__main__":
     norm_max = 1.0
     
     # Hyperparameters
-    load_path = "../results/AE_4"
+    load_path = ""
     targets = ['temp']
     latent_targets = ['ftemp', 'fspeed']
     sparsity_parameter = 0.20
