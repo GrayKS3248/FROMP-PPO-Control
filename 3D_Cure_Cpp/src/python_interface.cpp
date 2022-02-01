@@ -628,12 +628,13 @@ int store_options(PyObject* save_render_plot, bool control_speed, string configs
 * @param pointer to the save_render_plot class in the PPO module
 * @param Specific heat of monomer [J/Kg-K]
 * @param Density of monomer [Kg/m^3]
+* @param Adiabatic temperature of reaction of monomer given initial conditions [K]
 * @return 0 on success, 1 on failure
 */
-int store_monomer_properties(PyObject* save_render_plot, double specific_heat, double density)
+int store_monomer_properties(PyObject* save_render_plot, double specific_heat, double density, double adiabatic_rxn_temp)
 {
 	// Call function
-	PyObject* result = PyObject_CallMethod(save_render_plot, "store_monomer_properties", "(d,d)", specific_heat, density);
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_monomer_properties", "(d,d,d)", specific_heat, density,adiabatic_rxn_temp);
 	if (result==NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_monomer_properties function:\n");
