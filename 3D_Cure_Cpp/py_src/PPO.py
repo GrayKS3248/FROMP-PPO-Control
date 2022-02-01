@@ -1069,6 +1069,123 @@ class Save_Plot_Render:
             plt.savefig(self.path + "/max_cum_temp.png", dpi = 500)
             plt.close()
             
+        # Plot cure profiles
+        ## ====================================================================================================================================================================================================== ##    
+        # Set up profile plot
+        plt.clf()
+        plt.gcf().set_size_inches(8.5, 5.5)
+        plt.xlabel("X Location [mm]",fontsize='large')
+        plt.ylabel("α [-]",fontsize='large')    
+        plt.ylim(-0.1, 1.1)
+        plt.xticks(fontsize='large')
+        plt.yticks(fontsize='large')
+        
+        # Get the temperature and cure profiles at selected times after ignition
+        steps = []
+        if self.time[-1] > 4.0:
+            steps.append(np.argmin(np.abs(self.time - 4.0)))
+        if self.time[-1] > 8.0:
+            steps.append(np.argmin(np.abs(self.time - 8.0)))
+        if self.time[-1] > 12.0:
+            steps.append(np.argmin(np.abs(self.time - 12.0)))
+        if self.time[-1] > 16.0:
+            steps.append(np.argmin(np.abs(self.time - 16.0)))
+            
+        # Plot profiles
+        beg_plot = 1e6
+        end_plot = -1e6
+        colors = ['k', 'r', 'b', 'g']
+        labels = ['t = 4 s', 't = 8 s', 't = 12 s', 't = 16 s']
+        for ind in range(len(steps)):
+            curr_step = steps[ind]
+            coarse_cure_profile_cen = self.cure_field[curr_step][:,len(self.cure_field[curr_step][0])//2]
+            coarse_cure_profile_edge = self.cure_field[curr_step][:,1]
+            coarse_end_ind = np.argmin(np.abs(self.mesh_x_z0[:,0] - self.fine_mesh_loc[curr_step][0]))+1
+            coarse_start_ind = np.argmin(np.abs(self.mesh_x_z0[:,0] - self.fine_mesh_loc[curr_step][1]))
+            coarse_x1_coords = self.mesh_x_z0[0:coarse_end_ind,0]
+            coarse_cure1_profile_cen = coarse_cure_profile_cen[0:coarse_end_ind]
+            coarse_cure1_profile_edge = coarse_cure_profile_edge[0:coarse_end_ind]
+            plt.plot(1000.0*coarse_x1_coords, coarse_cure1_profile_cen, c=colors[ind], lw=2.5)
+            plt.plot(1000.0*coarse_x1_coords, coarse_cure1_profile_edge, c=colors[ind], lw=2.0, ls=":")
+            coarse_x2_coords = self.mesh_x_z0[coarse_start_ind:-1,0]
+            coarse_cure2_profile_cen = coarse_cure_profile_cen[coarse_start_ind:-1]
+            coarse_cure2_profile_edge = coarse_cure_profile_edge[coarse_start_ind:-1]
+            plt.plot(1000.0*coarse_x2_coords, coarse_cure2_profile_cen, c=colors[ind], lw=2.5)
+            plt.plot(1000.0*coarse_x2_coords, coarse_cure2_profile_edge, c=colors[ind], lw=2.0, ls=":")
+            fine_cure_profile_cen = self.fine_cure_field[curr_step][:,len(self.fine_cure_field[curr_step][0])//2]
+            fine_cure_profile_edge = self.fine_cure_field[curr_step][:,1]
+            fine_x_coords = np.linspace(self.fine_mesh_loc[curr_step][0], self.fine_mesh_loc[curr_step][1], len(fine_cure_profile_cen))
+            plt.plot(1000.0*fine_x_coords, fine_cure_profile_cen, c=colors[ind], lw=2.5, label=labels[ind]+" center")
+            plt.plot(1000.0*fine_x_coords, fine_cure_profile_edge, c=colors[ind], lw=2.0, ls=":", label=labels[ind]+" edge")
+            beg_plot = min(beg_plot, max((self.mean_front_x_locations[curr_step] - 0.40*(self.fine_mesh_loc[curr_step][1]-self.fine_mesh_loc[curr_step][0])), 0.0))
+            end_plot = max(end_plot, min((self.mean_front_x_locations[curr_step] + 0.40*(self.fine_mesh_loc[curr_step][1]-self.fine_mesh_loc[curr_step][0])), self.mesh_x_z0[-1,0]))
+
+        # Save and close figure
+        plt.xlim(1000.0*beg_plot, 1000.0*end_plot)
+        plt.title("Cure Profiles",fontsize='xx-large')
+        plt.legend(bbox_to_anchor=(1.04, 1.0), loc='upper left',fontsize='large')
+        plt.tight_layout()
+        plt.savefig(self.path+'/cure_profile.svg', dpi=500)
+        plt.close()
+        
+        # Plot temperature profiles
+        ## ====================================================================================================================================================================================================== ##    
+        # Set up profile plot
+        plt.clf()
+        plt.gcf().set_size_inches(8.5, 5.5)
+        plt.ylabel("ϴ [-]",fontsize='large')
+        plt.ylim(-0.1, 1.1)
+        plt.xticks(fontsize='large')
+        plt.yticks(fontsize='large')
+        
+        # Get the temperature and cure profiles at selected times after ignition
+        steps = []
+        if self.time[-1] > 4.0:
+            steps.append(np.argmin(np.abs(self.time - 4.0)))
+        if self.time[-1] > 8.0:
+            steps.append(np.argmin(np.abs(self.time - 8.0)))
+        if self.time[-1] > 12.0:
+            steps.append(np.argmin(np.abs(self.time - 12.0)))
+        if self.time[-1] > 16.0:
+            steps.append(np.argmin(np.abs(self.time - 16.0)))
+            
+        # Plot profiles
+        beg_plot = 1e6
+        end_plot = -1e6
+        colors = ['k', 'r', 'b', 'g']
+        labels = ['t = 4 s', 't = 8 s', 't = 12 s', 't = 16 s']
+        for ind in range(len(steps)):
+            curr_step = steps[ind]
+            coarse_temp_profile_cen = self.temperature_field[curr_step][:,len(self.temperature_field[curr_step][0])//2]
+            coarse_temp_profile_edge = self.temperature_field[curr_step][:,1]
+            coarse_end_ind = np.argmin(np.abs(self.mesh_x_z0[:,0] - self.fine_mesh_loc[curr_step][0]))+1
+            coarse_start_ind = np.argmin(np.abs(self.mesh_x_z0[:,0] - self.fine_mesh_loc[curr_step][1]))
+            coarse_x1_coords = self.mesh_x_z0[0:coarse_end_ind,0]
+            coarse_temp1_profile_cen = coarse_temp_profile_cen[0:coarse_end_ind]
+            coarse_temp1_profile_edge = coarse_temp_profile_edge[0:coarse_end_ind]
+            plt.plot(1000.0*coarse_x1_coords, coarse_temp1_profile_cen, c=colors[ind], lw=2.5)  
+            plt.plot(1000.0*coarse_x1_coords, coarse_temp1_profile_edge, c=colors[ind], lw=2.0, ls=":")  
+            coarse_x2_coords = self.mesh_x_z0[coarse_start_ind:-1,0]
+            coarse_temp2_profile_cen = coarse_temp_profile_cen[coarse_start_ind:-1]
+            coarse_temp2_profile_edge = coarse_temp_profile_edge[coarse_start_ind:-1]
+            plt.plot(1000.0*coarse_x2_coords, coarse_temp2_profile_cen, c=colors[ind], lw=2.5)  
+            plt.plot(1000.0*coarse_x2_coords, coarse_temp2_profile_edge, c=colors[ind], lw=2.0, ls=":") 
+            fine_temp_profile_cen = self.fine_temperature_field[curr_step][:,len(self.fine_temperature_field[curr_step][0])//2]
+            fine_temp_profile_edge = self.fine_temperature_field[curr_step][:,1]
+            fine_x_coords = np.linspace(self.fine_mesh_loc[curr_step][0], self.fine_mesh_loc[curr_step][1], len(fine_temp_profile_cen))
+            plt.plot(1000.0*fine_x_coords, fine_temp_profile_cen, c=colors[ind], lw=2.5, label=labels[ind]+" center")  
+            plt.plot(1000.0*fine_x_coords, fine_temp_profile_edge, c=colors[ind], lw=2.0, ls=":", label=labels[ind]+" edge")  
+            beg_plot = min(beg_plot, max((self.mean_front_x_locations[curr_step] - 0.40*(self.fine_mesh_loc[curr_step][1]-self.fine_mesh_loc[curr_step][0])), 0.0))
+            end_plot = max(end_plot, min((self.mean_front_x_locations[curr_step] + 0.40*(self.fine_mesh_loc[curr_step][1]-self.fine_mesh_loc[curr_step][0])), self.mesh_x_z0[-1,0]))
+
+        # Save and close figure
+        plt.xlim(1000.0*beg_plot, 1000.0*end_plot)
+        plt.title("Temperature Profiles",fontsize='xx-large')
+        plt.legend(bbox_to_anchor=(1.04, 1.0), loc='upper left',fontsize='large')
+        plt.tight_layout()
+        plt.savefig(self.path+'/temp_profile.svg', dpi=500)
+        plt.close()
+        
         #Plot actor learning curve
         ## ====================================================================================================================================================================================================== ##    
         if(len(self.r_per_episode)!=0):
