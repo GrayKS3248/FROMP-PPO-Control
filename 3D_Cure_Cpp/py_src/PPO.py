@@ -884,7 +884,7 @@ class Save_Plot_Render:
             plt.xlim(0.0, np.round(self.time[-1]))
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
-            plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper right',fontsize='large')
+            plt.legend(bbox_to_anchor=(1.04, 1.0), loc='upper left',fontsize='large')
             plt.tight_layout()
             plt.savefig(self.path + "/trajectory.svg", dpi = 500)
             plt.close()
@@ -973,7 +973,7 @@ class Save_Plot_Render:
             plt.xlim(0.0, 1000.0*self.mesh_x_z0[-1,0])
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
-            plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper right',fontsize='large')
+            plt.legend(bbox_to_anchor=(1.04, 1.0), loc='upper left',fontsize='large')
             plt.tight_layout()
             plt.savefig(self.path + "/trajectory.svg", dpi = 500)
             plt.close()
@@ -999,7 +999,7 @@ class Save_Plot_Render:
         plt.xlim(0.0, np.round(self.time[-1]))
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
-        plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper right',fontsize='large')
+        plt.legend(bbox_to_anchor=(1.04, 1.0), loc='upper left',fontsize='large')
         plt.tight_layout()
         plt.savefig(self.path + "/reward.svg", dpi = 500)
         plt.close()
@@ -1013,7 +1013,7 @@ class Save_Plot_Render:
             C2 = 0.0067238
             C3 = 0.53699
             target_temp = ((np.sqrt(C2*C2 - 4.0*C1*(C3-1000.0*self.target[-1])) - C2) / (2.0 * C1)) + 273.15
-            required_energy = self.specific_heat*self.density*self.volume*(target_temp - self.mean_initial_temp) + self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time[-1]
+            required_energy = self.specific_heat*self.density*self.volume*(target_temp - self.mean_initial_temp) + self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time
             ideal_energy_saving = self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time[-1]
 
             # Plot energy trajectory
@@ -1030,14 +1030,14 @@ class Save_Plot_Render:
             ax2 = ax1.twinx()
             ax2.set_ylabel("Cumulative Energy Consumed [J]",fontsize='large',color='r')
             ax2.plot(self.time, energy,c='r',lw=2.5)
-            ax2.axhline(y=required_energy,c='k',lw=1.0,ls='--',label='Bulk Heating')
-            ax2.axhline(y=required_energy-ideal_energy_saving,c='k',lw=1.0,ls=':',label='Local Heating')
+            ax2.plot(self.time, required_energy,c='k',lw=2.5,ls='--',label='Bulk Heating')
+            ax2.axhline(y=required_energy[-1]-ideal_energy_saving,c='k',lw=2.5,ls=':',label='Local Heating')
             ax2.set_xlim(0.0, np.round(self.time[-1]))
             ax2.tick_params(axis='x', labelsize=12)
             ax2.tick_params(axis='y', labelsize=12, labelcolor='r')
             title_str = "External Energy Input"
             fig.suptitle(title_str,fontsize='xx-large')
-            plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper right',fontsize='large')
+            plt.legend(bbox_to_anchor=(1.09, 1.0), loc='upper left',fontsize='large')
             plt.tight_layout()
             plt.savefig(self.path + "/energy.svg", dpi = 500)
             plt.close()
