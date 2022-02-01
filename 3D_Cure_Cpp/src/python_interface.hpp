@@ -32,7 +32,7 @@ int store_target_and_time(PyObject* save_render_plot, vector<double> target, vec
 int store_top_mesh(PyObject* save_render_plot, vector<vector<double>> mesh_x_z0, vector<vector<double>> mesh_y_z0);
 int store_input_params(PyObject* save_render_plot, double max_input_mag, double exp_const);
 int store_options(PyObject* save_render_plot, bool control_speed, string configs_string);
-int store_monomer_properties(PyObject* save_render_plot, double specific_heat, double density);
+int store_monomer_properties(PyObject* save_render_plot, double specific_heat, double density, double adiabatic_rxn_temp);
 int store_domain_properties(PyObject* save_render_plot, double volume, double surface_area);
 int store_boundary_conditions(PyObject* save_render_plot, double heat_transfer_coeff, double ambient_temp);
 

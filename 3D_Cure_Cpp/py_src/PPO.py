@@ -513,6 +513,7 @@ class Save_Plot_Render:
         self.surface_area = []
         self.heat_transfer_coeff = []
         self.ambient_temp = []
+        self.adiabatic_rxn_temp = []
     
     def store_training_curves(self, r_per_episode, value_error):
         self.r_per_episode = np.array(r_per_episode)
@@ -564,9 +565,10 @@ class Save_Plot_Render:
         self.control_speed = (control_speed == 1)
         self.configs_string = configs_string
         
-    def store_monomer_properties(self, specific_heat, density):
+    def store_monomer_properties(self, specific_heat, density, adiabatic_rxn_temp):
         self.specific_heat = specific_heat
         self.density = density
+        self.adiabatic_rxn_temp = adiabatic_rxn_temp
         
     def store_domain_properties(self, volume, surface_area):
         self.volume = volume
@@ -721,7 +723,7 @@ class Save_Plot_Render:
         self.global_fine_mesh_x, self.global_fine_mesh_y, self.cum_max_temp_field, self.interpolated_temp_field = self.post_process_temperature_field()
         
         # Determine mean initial conditions
-        self.mean_initial_temp = np.mean(self.interpolated_temp_field[0])
+        self.mean_initial_temp = self.adiabatic_rxn_temp*np.mean(self.interpolated_temp_field[0])
         
         # Calculate steady state stuff
         self.steady_masks, self.steady_speed, self.steady_temp = self.get_steady_state()
@@ -782,6 +784,13 @@ class Save_Plot_Render:
             'exp_const' : self.exp_const,
             'control_speed' : self.control_speed,
             'configs_string' : self.configs_string,
+            'specific_heat' : self.specific_heat,
+            'density' : self.density,
+            'adiabatic_rxn_temp' : self.adiabatic_rxn_temp,
+            'volume' : self.volume,
+            'surface_area' : self.surface_area,
+            'heat_transfer_coeff' : self.heat_transfer_coeff,
+            'ambient_temp' : self.ambient_temp,
             'actor': agent.actor,
             'critic': agent.critic,
             'encoder' : agent.encoder,
@@ -829,7 +838,14 @@ class Save_Plot_Render:
             'max_input_mag' : self.max_input_mag,
             'exp_const' : self.exp_const,
             'control_speed' : self.control_speed,
-            'configs_string' : self.configs_string
+            'configs_string' : self.configs_string,
+            'specific_heat' : self.specific_heat,
+            'density' : self.density,
+            'adiabatic_rxn_temp' : self.adiabatic_rxn_temp,
+            'volume' : self.volume,
+            'surface_area' : self.surface_area,
+            'heat_transfer_coeff' : self.heat_transfer_coeff,
+            'ambient_temp' : self.ambient_temp,
         }
         
         # Save the stored data
@@ -991,7 +1007,7 @@ class Save_Plot_Render:
             C1 = 0.00070591
             C2 = 0.0067238
             C3 = 0.53699
-            target_temp = ((np.sqrt(C2*C2 - 4.0*C1*(C3-1000.0*self.target)) - C2) / (2.0 * C1)) + 273.15
+            target_temp = ((np.sqrt(C2*C2 - 4.0*C1*(C3-1000.0*self.target[-1])) - C2) / (2.0 * C1)) + 273.15
             required_energy = self.specific_heat*self.density*self.volume*(target_temp - self.mean_initial_temp) + self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time[-1]
             ideal_energy_saving = self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time[-1]
             
@@ -1009,8 +1025,8 @@ class Save_Plot_Render:
             ax2 = ax1.twinx()
             ax2.set_ylabel("Cumulative Energy Consumed [J]",fontsize='large',color='r')
             ax2.plot(self.time, energy,c='r',lw=2.5)
-            ax2.axhline(required_energy,c='k',lw=1.0,ls='--',label='Bulk Heating Energy')
-            ax2.axhline(required_energy-ideal_energy_saving,c='k',lw=1.0,ls=':',label='Ideal Local Heating Energy')
+            ax2.axhline(y=required_energy,c='k',lw=1.0,ls='--',label='Bulk Heating Energy')
+            ax2.axhline(y=required_energy-ideal_energy_saving,c='k',lw=1.0,ls=':',label='Ideal Local Heating Energy')
             ax2.set_xlim(0.0, np.round(self.time[-1]))
             ax2.tick_params(axis='x', labelsize=12)
             ax2.tick_params(axis='y', labelsize=12, labelcolor='r')
