@@ -1088,18 +1088,18 @@ class Save_Plot_Render:
         steps = []
         if self.time[-1] > 4.0:
             steps.append(np.argmin(np.abs(self.time - 4.0)))
-        if self.time[-1] > 8.0:
-            steps.append(np.argmin(np.abs(self.time - 8.0)))
         if self.time[-1] > 12.0:
             steps.append(np.argmin(np.abs(self.time - 12.0)))
-        if self.time[-1] > 16.0:
-            steps.append(np.argmin(np.abs(self.time - 16.0)))
+        if self.time[-1] > 20.0:
+            steps.append(np.argmin(np.abs(self.time - 20.0)))
+        if self.time[-1] > 28.0:
+            steps.append(np.argmin(np.abs(self.time - 28.0)))
             
         # Plot profiles
         beg_plot = 1e6
         end_plot = -1e6
         colors = ['k', 'r', 'b', 'g']
-        labels = ['t = 4 s', 't = 8 s', 't = 12 s', 't = 16 s']
+        labels = ['t = 4 s', 't = 12 s', 't = 20 s', 't = 28 s']
         for ind in range(len(steps)):
             curr_step = steps[ind]
             coarse_cure_profile_cen = self.cure_field[curr_step][:,len(self.cure_field[curr_step][0])//2]
@@ -1146,18 +1146,18 @@ class Save_Plot_Render:
         steps = []
         if self.time[-1] > 4.0:
             steps.append(np.argmin(np.abs(self.time - 4.0)))
-        if self.time[-1] > 8.0:
-            steps.append(np.argmin(np.abs(self.time - 8.0)))
         if self.time[-1] > 12.0:
             steps.append(np.argmin(np.abs(self.time - 12.0)))
-        if self.time[-1] > 16.0:
-            steps.append(np.argmin(np.abs(self.time - 16.0)))
+        if self.time[-1] > 20.0:
+            steps.append(np.argmin(np.abs(self.time - 20.0)))
+        if self.time[-1] > 28.0:
+            steps.append(np.argmin(np.abs(self.time - 28.0)))
             
         # Plot profiles
         beg_plot = 1e6
         end_plot = -1e6
         colors = ['k', 'r', 'b', 'g']
-        labels = ['t = 4 s', 't = 8 s', 't = 12 s', 't = 16 s']
+        labels = ['t = 4 s', 't = 12 s', 't = 20 s', 't = 28 s']
         for ind in range(len(steps)):
             curr_step = steps[ind]
             coarse_temp_profile_cen = self.temperature_field[curr_step][:,len(self.temperature_field[curr_step][0])//2]
