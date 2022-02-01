@@ -1015,10 +1015,11 @@ class Save_Plot_Render:
             target_temp = ((np.sqrt(C2*C2 - 4.0*C1*(C3-1000.0*self.target[-1])) - C2) / (2.0 * C1)) + 273.15
             required_energy = self.specific_heat*self.density*self.volume*(target_temp - self.mean_initial_temp) + self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time
             ideal_energy_saving = self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time[-1]
-
-            # Plot energy trajectory
             energy = integrate.cumtrapz(self.power, x=self.time)
             energy = np.insert(energy, 0, 0.0)
+            
+            # Plot energy trajectory
+            plt.clf()
             fig, ax1 = plt.subplots()
             fig.set_size_inches(8.5,5.5)
             ax1.set_xlabel("Simulation Time [s]",fontsize='large')
@@ -1042,6 +1043,28 @@ class Save_Plot_Render:
             plt.savefig(self.path + "/energy.svg", dpi = 500)
             plt.close()
 
+            # Plot cumulative max normalized temperature
+            ## ====================================================================================================================================================================================================== ##    
+            # Calculate colorbar range
+            min_temp = np.mean(self.cum_max_temp_field[-1]) - np.mean(self.cum_max_temp_field[-1]) % 0.05
+            max_temp = round(np.max(self.cum_max_temp_field[-1]) + 0.05 - (np.max(self.cum_max_temp_field[-1]) % 0.05),2)
+            max_temp = min(min_temp + 2*(np.std(self.cum_max_temp_field[-1]) - np.std(self.cum_max_temp_field[-1]) % 0.05), max_temp)
+            
+            # Plot cumulative maximum temperature
+            plt.clf()
+            plt.gcf().set_size_inches(8.5, 5.5)
+            c0 = plt.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.cum_max_temp_field[-1], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
+            cbar0 = plt.colorbar(c0)
+            cbar0.set_label("Max ϴ [-]",labelpad=20,fontsize='large')
+            cbar0.ax.tick_params(labelsize=12)
+            plt.xlabel('X Position [mm]',fontsize='large')
+            plt.ylabel('Y Position [mm]',fontsize='large')
+            plt.xticks(fontsize='large')
+            plt.yticks(fontsize='large')
+            plt.title("Maximum Cumulative Temperature",fontsize='xx-large')
+            plt.savefig(self.path + "/max_cum_temp.svg", dpi = 500)
+            plt.close()
+            
         #Plot actor learning curve
         ## ====================================================================================================================================================================================================== ##    
         if(len(self.r_per_episode)!=0):
@@ -1173,36 +1196,20 @@ class Save_Plot_Render:
             x_linspace = np.linspace(self.fine_mesh_loc[curr_step][0], self.fine_mesh_loc[curr_step][1], len(self.fine_cure_field[curr_step]))
             y_linspace = np.linspace(self.mesh_y_z0[0][0], self.mesh_y_z0[0][len(self.mesh_y_z0[0])-1], len(self.fine_cure_field[curr_step][0]))
             fine_mesh_y, fine_mesh_x = np.meshgrid(y_linspace, x_linspace)
-            
-            # Plot max normalized temperature
-            if False:
-                c0 = ax0.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.cum_max_temp_field[curr_step], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
-                cbar0 = fig.colorbar(c0, ax=ax0)
-                cbar0.set_label("Max ϴ [-]",labelpad=20,fontsize='large')
-                cbar0.ax.tick_params(labelsize=12)
-                ax0.set_xlabel('X Position [mm]',fontsize='large')
-                ax0.set_ylabel('Y Position [mm]',fontsize='large')
-                ax0.tick_params(axis='x',labelsize=12)
-                ax0.tick_params(axis='y',labelsize=12)
-                ax0.set_aspect('equal', adjustable='box')
-                ax0.set_title('Front Temp = '+'{:.2f}'.format(self.front_temperature[curr_step]-273.15)+' C | '+
-                              'Front Speed = '+'{:.2f}'.format(self.front_velocity[curr_step]*1000.0)+' mm/s | '+
-                              'Front Shape = '+'{:.2f}'.format(self.front_shape_param[curr_step])+'\n',fontsize='large', fontname = 'monospace')
            
             # Plot normalized temperature
-            else:
-                c0 = ax0.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.interpolated_temp_field[curr_step], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
-                cbar0 = fig.colorbar(c0, ax=ax0)
-                cbar0.set_label("ϴ [-]",labelpad=20,fontsize='large')
-                cbar0.ax.tick_params(labelsize=12)
-                ax0.set_xlabel('X Position [mm]',fontsize='large')
-                ax0.set_ylabel('Y Position [mm]',fontsize='large')
-                ax0.tick_params(axis='x',labelsize=12)
-                ax0.tick_params(axis='y',labelsize=12)
-                ax0.set_aspect('equal', adjustable='box')
-                ax0.set_title('Front Temp = '+'{:.2f}'.format(self.front_temperature[curr_step]-273.15)+' C | '+
-                              'Front Speed = '+'{:.2f}'.format(self.front_velocity[curr_step]*1000.0)+' mm/s | '+
-                              'Front Shape = '+'{:.2f}'.format(self.front_shape_param[curr_step])+'\n',fontsize='large', fontname = 'monospace')
+            c0 = ax0.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.interpolated_temp_field[curr_step], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
+            cbar0 = fig.colorbar(c0, ax=ax0)
+            cbar0.set_label("ϴ [-]",labelpad=20,fontsize='large')
+            cbar0.ax.tick_params(labelsize=12)
+            ax0.set_xlabel('X Position [mm]',fontsize='large')
+            ax0.set_ylabel('Y Position [mm]',fontsize='large')
+            ax0.tick_params(axis='x',labelsize=12)
+            ax0.tick_params(axis='y',labelsize=12)
+            ax0.set_aspect('equal', adjustable='box')
+            ax0.set_title('Front Temp = '+'{:.2f}'.format(self.front_temperature[curr_step]-273.15)+' C | '+
+                          'Front Speed = '+'{:.2f}'.format(self.front_velocity[curr_step]*1000.0)+' mm/s | '+
+                          'Front Shape = '+'{:.2f}'.format(self.front_shape_param[curr_step])+'\n',fontsize='large', fontname = 'monospace')
             
             # Plot cure
             c1 = ax1.pcolormesh(1000.0*self.mesh_x_z0, 1000.0*self.mesh_y_z0, self.cure_field[curr_step,:,:], shading='gouraud', cmap='YlOrBr', vmin=0.0, vmax=1.0)
