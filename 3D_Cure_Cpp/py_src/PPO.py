@@ -863,6 +863,7 @@ class Save_Plot_Render:
             
             # Plot speed trajectory
             plt.clf()
+            plt.gcf().set_size_inches(8.5, 5.5)
             if with_agent==1:
                 plt.title("Front Velocity",fontsize='xx-large')
             else:
@@ -883,8 +884,7 @@ class Save_Plot_Render:
             plt.xlim(0.0, np.round(self.time[-1]))
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
-            plt.gcf().set_size_inches(8.5, 5.5)
-            plt.legend(bbox_to_anchor=(1.25, 1.0), loc='upper right',fontsize='large')
+            plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper right',fontsize='large')
             plt.tight_layout()
             plt.savefig(self.path + "/trajectory.svg", dpi = 500)
             plt.close()
@@ -893,6 +893,7 @@ class Save_Plot_Render:
             sorted_mean_front_x_locations = 1000.0*np.array(sorted(self.mean_front_x_locations))
             sorted_front_temperature = np.array([x for _, x in sorted(zip(self.mean_front_x_locations, self.front_temperature))])-273.15
             plt.clf()
+            plt.gcf().set_size_inches(8.5, 5.5)
             if with_agent==1:
                 plt.title("Front Temperature",fontsize='xx-large')
             else:
@@ -914,7 +915,6 @@ class Save_Plot_Render:
             plt.xlim(0.0, 1000.0*self.mesh_x_z0[-1,0])
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
-            plt.gcf().set_size_inches(8.5, 5.5)
             plt.savefig(self.path + "/temp.svg", dpi = 500)
             plt.close()
             
@@ -923,6 +923,7 @@ class Save_Plot_Render:
         else:
             # Plot speed trajectory
             plt.clf()
+            plt.gcf().set_size_inches(8.5, 5.5)
             if with_agent==1:
                 plt.title("Front Velocity",fontsize='xx-large')
             else:
@@ -943,7 +944,6 @@ class Save_Plot_Render:
             plt.xlim(0.0, np.round(self.time[-1]))
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
-            plt.gcf().set_size_inches(8.5, 5.5)
             plt.savefig(self.path + "/speed.svg", dpi = 500)
             plt.close()
             
@@ -951,6 +951,7 @@ class Save_Plot_Render:
             sorted_mean_front_x_locations = 1000.0*np.array(sorted(self.mean_front_x_locations))
             sorted_front_temperature = np.array([x for _, x in sorted(zip(self.mean_front_x_locations, self.front_temperature))])-273.15
             plt.clf()
+            plt.gcf().set_size_inches(8.5, 5.5)
             if with_agent==1:
                 plt.title("Front Temperature",fontsize='xx-large')
             else:
@@ -972,8 +973,7 @@ class Save_Plot_Render:
             plt.xlim(0.0, 1000.0*self.mesh_x_z0[-1,0])
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
-            plt.gcf().set_size_inches(8.5, 5.5)
-            plt.legend(bbox_to_anchor=(1.25, 1.0), loc='upper right',fontsize='large')
+            plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper right',fontsize='large')
             plt.tight_layout()
             plt.savefig(self.path + "/trajectory.svg", dpi = 500)
             plt.close()
@@ -981,6 +981,7 @@ class Save_Plot_Render:
         # Plot reward trajectory
         ## ====================================================================================================================================================================================================== ##    
         plt.clf()
+        plt.gcf().set_size_inches(8.5, 5.5)
         plt.title("Reward During Trajectory",fontsize='xx-large')
         plt.xlabel("Simulation Time [s]",fontsize='large')
         plt.ylabel("Reward [-]",fontsize='large')
@@ -998,8 +999,7 @@ class Save_Plot_Render:
         plt.xlim(0.0, np.round(self.time[-1]))
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
-        plt.gcf().set_size_inches(8.5, 5.5)
-        plt.legend(bbox_to_anchor=(1.25, 1.0), loc='upper right',fontsize='large')
+        plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper right',fontsize='large')
         plt.tight_layout()
         plt.savefig(self.path + "/reward.svg", dpi = 500)
         plt.close()
@@ -1036,8 +1036,8 @@ class Save_Plot_Render:
             ax2.tick_params(axis='x', labelsize=12)
             ax2.tick_params(axis='y', labelsize=12, labelcolor='r')
             title_str = "External Energy Input"
-            plt.legend(bbox_to_anchor=(1.35, 1.0), loc='upper right',fontsize='large')
             fig.suptitle(title_str,fontsize='xx-large')
+            plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper right',fontsize='large')
             plt.tight_layout()
             plt.savefig(self.path + "/energy.svg", dpi = 500)
             plt.close()
