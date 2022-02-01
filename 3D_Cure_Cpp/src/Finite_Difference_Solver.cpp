@@ -887,6 +887,15 @@ double Finite_Difference_Solver::get_density()
 
 // ************************************************** BOUNDARY CONDITION GETTERS ************************************************** //
 /**
+* Gets the current mean initial temperature before perturbation
+* @return Initial temperature in [K]
+*/
+double Finite_Difference_Solver::get_initial_temp()
+{
+	return initial_temp;
+}
+
+/**
 * Gets the current heat transfer coefficient of the simulation (not the mean)
 * @return Heat transfer coefficient in [W/m^2-K]
 */

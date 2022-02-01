@@ -58,6 +58,7 @@ double get_specific_heat();
 double get_density();
 
 // Boundary condition getters
+double get_initial_temp();
 double get_heat_transfer_coefficient();
 double get_ambient_temperature();
 
