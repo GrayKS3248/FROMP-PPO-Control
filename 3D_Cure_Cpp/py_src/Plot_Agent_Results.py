@@ -19,9 +19,9 @@ if __name__ == "__main__":
     ## INPUTS ##
     ## ====================================================================================================================================================================================================== ##
     # Define load paths
-    controlled_path = "../results/PPO_17" 
-    uncontrolled_path = "../results/SIM_1" 
-    random_path = "../results/SIM_2" 
+    controlled_path = "../results/PPO_4" 
+    uncontrolled_path = "../results/SIM_2" 
+    random_path = "../results/SIM_1" 
     
     # Define the temperature at which adiabatic, uncontrolled front speed would exactly equal target speed
     req_uncontrolled_temp = 306.15;
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     ambient_temp = 293.65
     
     # Options
-    NN_vis = False
+    NN_vis = True
     trajectory_vis = True
     energy_vis = True
     actor_vis = True
@@ -346,7 +346,7 @@ if __name__ == "__main__":
     if actor_vis:
         print("Rendering actor training data...")
         plt.clf()
-        window = len(controlled['r_per_episode']) // 500
+        window = len(controlled['r_per_episode']) // 50
         if window > 1:
             rolling_std = np.array(pd.Series(controlled['r_per_episode']).rolling(window).std())
             rolling_avg = np.array(pd.Series(controlled['r_per_episode']).rolling(window).mean())

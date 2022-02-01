@@ -28,6 +28,8 @@ int get_num_coarse_vert_z();
 double get_coarse_x_len();
 double get_coarse_y_len();
 double get_coarse_z_len();
+double get_volume();
+double get_surface_area();
 vector<vector<double>> get_coarse_x_mesh_z0();
 vector<vector<double>> get_coarse_y_mesh_z0();
 vector<double> get_fine_mesh_loc();
@@ -52,6 +54,12 @@ double get_curr_target();
 // Monomer getters
 double get_monomer_burn_temp();
 double get_adiabatic_temp_of_rxn();
+double get_specific_heat();
+double get_density();
+
+// Boundary condition getters
+double get_heat_transfer_coefficient();
+double get_ambient_temperature();
 
 // Sim option getter
 bool get_control_mode();

@@ -223,6 +223,9 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 	if(store_top_mesh(save_render_plot, FDS->get_coarse_x_mesh_z0(), FDS->get_coarse_y_mesh_z0()) == 1) {return 1;}
 	if(store_input_params(save_render_plot, FDS->get_peak_input_mag(), FDS->get_input_const()) == 1) {return 1;}
 	if(store_options(save_render_plot, FDS->get_control_mode(), configs_string) == 1) {return 1;}
+	if(store_monomer_properties(save_render_plot, FDS->get_specific_heat(), FDS->get_density()) == 1) {return 1;}
+	if(store_domain_properties(save_render_plot, FDS->get_volume(), FDS->get_surface_area()) == 1) {return 1;}
+	if(store_boundary_conditions(save_render_plot, FDS->get_heat_transfer_coefficient(), FDS->get_ambient_temperature()) == 1) {return 1;}
 
 	// Stop clock and print duration
 	duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
