@@ -868,7 +868,7 @@ class Save_Plot_Render:
                 plt.title("Front Velocity",fontsize='xx-large')
             else:
                 if len(self.steady_masks) == 0.0:
-                    plt.title("Front Velocity (No Steady)",fontsize='xx-large')
+                    plt.title("Front Velocity",fontsize='xx-large')
                 else:
                     plt.title("Front Velocity (Steady = " + '{:.3f}'.format(1000.0*self.steady_speed) + " mm/s)",fontsize='xx-large')
                 for i in range(len(self.steady_masks)):
@@ -880,6 +880,8 @@ class Save_Plot_Render:
             plt.ylabel("Front Velocity [mm/s]",fontsize='large')
             plt.plot(self.time, 1000.0*self.front_velocity,c='r',lw=2.5,label='Actual')
             plt.plot(self.time, 1000.0*self.target,c='k',ls='--',lw=2.5,label='Target')
+            plt.plot(self.time, 1050.0*self.target,c='k',ls=':',lw=2.0,label='Target ± 5%')
+            plt.plot(self.time, 950.0*self.target,c='k',ls=':',lw=2.0)
             plt.ylim(0.0, 1500.0*np.max(self.target))
             plt.xlim(0.0, np.round(self.time[-1]))
             plt.xticks(fontsize='large')
@@ -898,7 +900,7 @@ class Save_Plot_Render:
                 plt.title("Front Temperature",fontsize='xx-large')
             else:
                 if len(self.steady_masks) == 0.0:
-                    plt.title("Front Temperature (No Steady)",fontsize='xx-large')
+                    plt.title("Front Temperature",fontsize='xx-large')
                 else:
                     plt.title("Front Temperature (Steady = " + '{:.1f}'.format(self.steady_temp-273.15) + " C)",fontsize='xx-large')
                     plt.legend(loc='upper right',fontsize='large')
@@ -928,7 +930,7 @@ class Save_Plot_Render:
                 plt.title("Front Velocity",fontsize='xx-large')
             else:
                 if len(self.steady_masks) == 0.0:
-                    plt.title("Front Velocity (No Steady)",fontsize='xx-large')
+                    plt.title("Front Velocity",fontsize='xx-large')
                 else:
                     plt.title("Front Velocity (Steady = " + '{:.3f}'.format(1000.0*self.steady_speed) + " mm/s)",fontsize='xx-large')
                     plt.legend(loc='upper right',fontsize='large')
@@ -956,7 +958,7 @@ class Save_Plot_Render:
                 plt.title("Front Temperature",fontsize='xx-large')
             else:
                 if len(self.steady_masks) == 0.0:
-                    plt.title("Front Temperature (No Steady)",fontsize='xx-large')
+                    plt.title("Front Temperature",fontsize='xx-large')
                 else:
                     plt.title("Front Temperature (Steady = " + '{:.1f}'.format(self.steady_temp-273.15) + " C)",fontsize='xx-large')
                 plt.xlabel("Location [mm]",fontsize='large')
@@ -969,6 +971,8 @@ class Save_Plot_Render:
                         plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.5*(np.max(self.target)-273.15), color='b', alpha=0.1, lw=0.0)
             plt.plot(sorted_mean_front_x_locations, sorted_front_temperature,c='r',lw=2.5,label='Actual')
             plt.plot(sorted_mean_front_x_locations, self.target-273.15,c='k',ls='--',lw=2.5,label='Target')
+            plt.plot(sorted_mean_front_x_locations, 1.05*(self.target-273.15),c='k',ls=':',lw=2.0,label='Target ± 5%')
+            plt.plot(sorted_mean_front_x_locations, 0.95*(self.target-273.15),c='k',ls=':',lw=2.0)
             plt.ylim(0.0, 1.5*(np.max(self.target)-273.15))
             plt.xlim(0.0, 1000.0*self.mesh_x_z0[-1,0])
             plt.xticks(fontsize='large')
