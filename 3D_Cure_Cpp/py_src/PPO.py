@@ -1052,17 +1052,21 @@ class Save_Plot_Render:
             
             # Plot cumulative maximum temperature
             plt.clf()
-            plt.gcf().set_size_inches(8.5, 5.5)
+            plt.gcf().set_size_inches(8.5, 2.5)
             c0 = plt.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.cum_max_temp_field[-1], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
             cbar0 = plt.colorbar(c0)
             cbar0.set_label("Max ϴ [-]",labelpad=20,fontsize='large')
             cbar0.ax.tick_params(labelsize=12)
             plt.xlabel('X Position [mm]',fontsize='large')
             plt.ylabel('Y Position [mm]',fontsize='large')
-            plt.xticks(fontsize='large')
-            plt.yticks(fontsize='large')
+            plt.xticks([],fontsize='large')
+            plt.yticks([],fontsize='large')
+            ax = plt.gca()
+            ax.set_axis_off()
             plt.title("Maximum Cumulative Temperature",fontsize='xx-large')
-            plt.savefig(self.path + "/max_cum_temp.svg", dpi = 500)
+            plt.axis('equal')
+            plt.tight_layout()
+            plt.savefig(self.path + "/max_cum_temp.png", dpi = 500)
             plt.close()
             
         #Plot actor learning curve
