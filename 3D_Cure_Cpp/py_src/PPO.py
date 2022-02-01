@@ -514,6 +514,7 @@ class Save_Plot_Render:
         self.heat_transfer_coeff = []
         self.ambient_temp = []
         self.adiabatic_rxn_temp = []
+        self.initial_temperature = []
     
     def store_training_curves(self, r_per_episode, value_error):
         self.r_per_episode = np.array(r_per_episode)
@@ -574,9 +575,10 @@ class Save_Plot_Render:
         self.volume = volume
         self.surface_area = surface_area
         
-    def store_boundary_conditions(self, heat_transfer_coeff, ambient_temp):
+    def store_boundary_conditions(self, heat_transfer_coeff, ambient_temp, initial_temperature):
         self.heat_transfer_coeff = heat_transfer_coeff
         self.ambient_temp = ambient_temp
+        self.initial_temperature = initial_temperature
         
     
     def post_process_temperature_field(self):
@@ -723,7 +725,7 @@ class Save_Plot_Render:
         self.global_fine_mesh_x, self.global_fine_mesh_y, self.cum_max_temp_field, self.interpolated_temp_field = self.post_process_temperature_field()
         
         # Determine mean initial conditions
-        self.mean_initial_temp = self.adiabatic_rxn_temp*np.mean(self.interpolated_temp_field[0])
+        self.mean_initial_temp = np.mean(self.interpolated_temp_field[0]) * (self.adiabatic_rxn_temp - self.initial_temperature) + self.initial_temperature
         
         # Calculate steady state stuff
         self.steady_masks, self.steady_speed, self.steady_temp = self.get_steady_state()
@@ -1010,6 +1012,8 @@ class Save_Plot_Render:
             target_temp = ((np.sqrt(C2*C2 - 4.0*C1*(C3-1000.0*self.target[-1])) - C2) / (2.0 * C1)) + 273.15
             required_energy = self.specific_heat*self.density*self.volume*(target_temp - self.mean_initial_temp) + self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time[-1]
             ideal_energy_saving = self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time[-1]
+            
+            print(self.mean_initial_temp)
             
             # Plot energy trajectory
             energy = integrate.cumtrapz(self.power, x=self.time)

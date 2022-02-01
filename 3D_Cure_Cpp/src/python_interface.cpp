@@ -675,12 +675,13 @@ int store_domain_properties(PyObject* save_render_plot, double volume, double su
 * @param pointer to the save_render_plot class in the PPO module
 * @param Thin film coefficient of simulation domain [W/m^2-K]
 * @param Ambient temperature [K]
+* @param Initial temperature of simulation [K]
 * @return 0 on success, 1 on failure
 */
-int store_boundary_conditions(PyObject* save_render_plot, double heat_transfer_coeff, double ambient_temp)
+int store_boundary_conditions(PyObject* save_render_plot, double heat_transfer_coeff, double ambient_temp, double initial_temperature)
 {
 	// Call function
-	PyObject* result = PyObject_CallMethod(save_render_plot, "store_boundary_conditions", "(d,d)", heat_transfer_coeff, ambient_temp);
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_boundary_conditions", "(d,d,d)", heat_transfer_coeff, ambient_temp, initial_temperature);
 	if (result==NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_boundary_conditions function:\n");

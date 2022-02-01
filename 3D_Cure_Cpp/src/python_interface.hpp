@@ -34,7 +34,7 @@ int store_input_params(PyObject* save_render_plot, double max_input_mag, double 
 int store_options(PyObject* save_render_plot, bool control_speed, string configs_string);
 int store_monomer_properties(PyObject* save_render_plot, double specific_heat, double density, double adiabatic_rxn_temp);
 int store_domain_properties(PyObject* save_render_plot, double volume, double surface_area);
-int store_boundary_conditions(PyObject* save_render_plot, double heat_transfer_coeff, double ambient_temp);
+int store_boundary_conditions(PyObject* save_render_plot, double heat_transfer_coeff, double ambient_temp, double initial_temperature);
 
 
 //******************************************************************** PYTHON API SAVE, PLOT, RENDER FUNCTIONS ********************************************************************//
