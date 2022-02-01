@@ -1012,9 +1012,7 @@ class Save_Plot_Render:
             target_temp = ((np.sqrt(C2*C2 - 4.0*C1*(C3-1000.0*self.target[-1])) - C2) / (2.0 * C1)) + 273.15
             required_energy = self.specific_heat*self.density*self.volume*(target_temp - self.mean_initial_temp) + self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time[-1]
             ideal_energy_saving = self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time[-1]
-            
-            print(self.mean_initial_temp)
-            
+
             # Plot energy trajectory
             energy = integrate.cumtrapz(self.power, x=self.time)
             energy = np.insert(energy, 0, 0.0)
