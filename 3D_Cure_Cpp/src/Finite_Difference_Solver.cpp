@@ -638,6 +638,24 @@ double Finite_Difference_Solver::get_coarse_z_len()
 }
 
 /**
+* Gets the volume of the simulation domain
+* @return Mesh volume in [m^3]
+*/
+double get_volume()
+{
+	return coarse_x_len*coarse_y_len*coarse_z_len;
+}
+
+/**
+* Gets the wetted surface area of the simulation domain
+* @return Mesh surface volume in [m^2]
+*/
+double get_surface_area()
+{
+	return 2.0*coarse_x_len*coarse_y_len + 2.0*coarse_x_len*coarse_z_len + 2.0*coarse_y_len*coarse_z_len;
+}
+
+/**
 * Gets the top layer of the x mesh
 * @return The top layer of the x mesh as a 2D vector in x,y
 */
@@ -833,6 +851,57 @@ double Finite_Difference_Solver::get_monomer_burn_temp()
 double Finite_Difference_Solver::get_adiabatic_temp_of_rxn()
 {
 	return adiabatic_temp_of_rxn;
+}
+
+/**
+* Gets the specific heat of the monomer being used in [J/Kg-K]
+* @return specific heat
+*/
+double get_specific_heat()
+{
+	return specific_heat;
+}
+
+/**
+* Gets the density of the monomer being used in [Kg/m^3]
+* @return density of the monomer
+*/
+double get_density()
+{
+	double density = 0.0;
+	if (monomer_code==1)
+	{
+		density = DCPD_GC1_density;
+	}
+	else if (monomer_code==2)
+	{
+		density = DCPD_GC2_density;
+	}
+	else if (monomer_code==3)
+	{
+		density = COD_density;
+	}
+	return density;
+}
+
+
+// ************************************************** BOUNDARY CONDITION GETTERS ************************************************** //
+/**
+* Gets the current heat transfer coefficient of the simulation (not the mean)
+* @return Heat transfer coefficient in [W/m^2-K]
+*/
+double get_heat_transfer_coefficient()
+{
+	return 	htc;
+}
+
+/**
+* Gets the current ambient temperature of the simulation (not the mean)
+* @return Ambient temperature in [K]
+*/
+double get_ambient_temperature()
+{
+	return 	amb_temp;
 }
 
 

@@ -623,6 +623,75 @@ int store_options(PyObject* save_render_plot, bool control_speed, string configs
 	return 0;
 }
 
+/**
+* Stores select monomer physical properties to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param Specific heat of monomer [J/Kg-K]
+* @param Density of monomer [Kg/m^3]
+* @return 0 on success, 1 on failure
+*/
+int store_monomer_properties(PyObject* save_render_plot, double specific_heat, double density)
+{
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_monomer_properties", "(d,d)", specific_heat, density);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_monomer_properties function:\n");
+		PyErr_Print();
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	return 0;
+}
+
+/**
+* Stores select simulation domain properties to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param volume of domain [m^3]
+* @param wetted surface area of domain [m^2]
+* @return 0 on success, 1 on failure
+*/
+int store_domain_properties(PyObject* save_render_plot, double volume, double surface_area)
+{
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_domain_properties", "(d,d)", volume, surface_area);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_domain_properties function:\n");
+		PyErr_Print();
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	return 0;	
+}
+
+/**
+* Stores boundary conditions to the save_render_plot class
+* @param pointer to the save_render_plot class in the PPO module
+* @param Thin film coefficient of simulation domain [W/m^2-K]
+* @param Ambient temperature [K]
+* @return 0 on success, 1 on failure
+*/
+int store_boundary_conditions(PyObject* save_render_plot, double heat_transfer_coeff, double ambient_temp)
+{
+	// Call function
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_boundary_conditions", "(d,d)", heat_transfer_coeff, ambient_temp);
+	if (result==NULL)
+	{
+		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_boundary_conditions function:\n");
+		PyErr_Print();
+		return 1;
+	}
+	
+	// Free memory
+	Py_DECREF(result);
+	return 0;
+}
+
 
 //******************************************************************** PYTHON API SAVE, PLOT, RENDER FUNCTIONS ********************************************************************//
 /**
@@ -644,7 +713,7 @@ int save_agent_results(PyObject* save_render_plot, PyObject* agent)
 	}
 	
 	// Plot
-	if(PyObject_CallMethodObjArgs(save_render_plot, PyUnicode_DecodeFSDefault("plot"), NULL) == NULL)
+	if(PyObject_CallMethod(save_render_plot, "plot", "i", 1) == NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's plot function:\n");
 		PyErr_Print();
@@ -686,7 +755,7 @@ int save_results(PyObject* save_render_plot)
 	}
 	
 	// Plot
-	if(PyObject_CallMethodObjArgs(save_render_plot, PyUnicode_DecodeFSDefault("plot"), NULL) == NULL)
+	if(PyObject_CallMethod(save_render_plot, "plot", "i", 0) == NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's plot function:\n");
 		PyErr_Print();

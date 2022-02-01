@@ -507,6 +507,12 @@ class Save_Plot_Render:
         self.exp_const = []
         self.control_speed = []
         self.configs_string = []
+        self.specific_heat = []
+        self.density = []
+        self.volume = []
+        self.surface_area = []
+        self.heat_transfer_coeff = []
+        self.ambient_temp = []
     
     def store_training_curves(self, r_per_episode, value_error):
         self.r_per_episode = np.array(r_per_episode)
@@ -557,8 +563,21 @@ class Save_Plot_Render:
     def store_options(self, control_speed, configs_string):
         self.control_speed = (control_speed == 1)
         self.configs_string = configs_string
+        
+    def store_monomer_properties(self, specific_heat, density):
+        self.specific_heat = specific_heat
+        self.density = density
+        
+    def store_domain_properties(self, volume, surface_area):
+        self.volume = volume
+        self.surface_area = surface_area
+        
+    def store_boundary_conditions(self, heat_transfer_coeff, ambient_temp):
+        self.heat_transfer_coeff = heat_transfer_coeff
+        self.ambient_temp = ambient_temp
+        
     
-    def get_max_temperature_field(self):
+    def post_process_temperature_field(self):
         
         # Calculate variables relating to upsampling coarse temperature image
         fine_mesh_x_length = np.mean(self.fine_mesh_loc[:,1]-self.fine_mesh_loc[:,0])
@@ -573,31 +592,31 @@ class Save_Plot_Render:
         global_fine_mesh_y, global_fine_mesh_x = np.meshgrid(global_fine_y_linspace, global_fine_x_linspace)
         
         # Initialize interpolated temperature fields
-        interpolated_temperature_field = np.zeros( (len(self.time), len(global_fine_x_linspace), len(global_fine_y_linspace)) )
-        max_temperature_field = np.zeros( (len(self.time), len(global_fine_x_linspace), len(global_fine_y_linspace)) )
+        interpolated_temp_field = np.zeros( (len(self.time), len(global_fine_x_linspace), len(global_fine_y_linspace)) )
+        cum_max_temp_field = np.zeros( (len(self.time), len(global_fine_x_linspace), len(global_fine_y_linspace)) )
         
         # Determine the maximum temperature at fine resolution at each frame
         for curr_frame in range(len(self.time)):
             
             # At each frame, interpolate the coarse temperautre field to the fine field resolution
             f = interpolate.interp2d(self.mesh_x_z0[:,0], self.mesh_y_z0[0,:], np.transpose(self.temperature_field[curr_frame]))
-            interpolated_temperature_field[curr_frame] = np.transpose(f(global_fine_x_linspace, global_fine_y_linspace))
+            interpolated_temp_field[curr_frame] = np.transpose(f(global_fine_x_linspace, global_fine_y_linspace))
             
             # Paint over the interpolated temperature field with the fine temperature field
             fine_mesh_start_loc = self.fine_mesh_loc[curr_frame][0]
             fine_mesh_end_loc = self.fine_mesh_loc[curr_frame][1]
             fine_mesh_start_index = np.argmin(abs(global_fine_x_linspace-fine_mesh_start_loc))
             fine_mesh_end_index = np.argmin(abs(global_fine_x_linspace-fine_mesh_end_loc))
-            interpolated_temperature_field[curr_frame][fine_mesh_start_index:(fine_mesh_end_index+1),:] = self.fine_temperature_field[curr_frame]
+            interpolated_temp_field[curr_frame][fine_mesh_start_index:(fine_mesh_end_index+1),:] = self.fine_temperature_field[curr_frame]
             
             # Compare the fine temperature mesh to the fine resolution corase temperature mesh
             if curr_frame == 0:
-                max_temperature_field[curr_frame,:,:] = interpolated_temperature_field[curr_frame]
+                cum_max_temp_field[curr_frame,:,:] = interpolated_temp_field[curr_frame]
             else:
-                max_temperature_field[curr_frame,:,:] = np.maximum(interpolated_temperature_field[curr_frame], max_temperature_field[curr_frame-1])
+                cum_max_temp_field[curr_frame,:,:] = np.maximum(interpolated_temp_field[curr_frame], cum_max_temp_field[curr_frame-1])
             
         # Return the maximum temperature field and mesh used to plot it
-        return global_fine_mesh_x, global_fine_mesh_y, max_temperature_field, interpolated_temperature_field
+        return global_fine_mesh_x, global_fine_mesh_y, cum_max_temp_field, interpolated_temp_field
        
     def get_steady_state(self):
         # Determine the average front speed in steady state propogation (region wherein front velocity is +- 0.05mm/s of the non zero mean front velocity
@@ -653,16 +672,16 @@ class Save_Plot_Render:
         
         return bool_masks, average_steady_speed, average_steady_temp
     
-    def save(self, agent):
-        print("\n\nSaving agent results...")
+    def general_save_ops(self, folder_title):
+        print("\n\nSaving results...")
         
         # Find save paths
         done = False
         curr_folder = 1
         while not done:
-            path = "../results/PPO_"+str(curr_folder)
-            video_1_path = "../results/PPO_"+str(curr_folder)+"/video_1/"
-            video_2_path = "../results/PPO_"+str(curr_folder)+"/video_2/"
+            path = "../results/"+folder_title+str(curr_folder)
+            video_1_path = "../results/"+folder_title+str(curr_folder)+"/video_1/"
+            video_2_path = "../results/"+folder_title+str(curr_folder)+"/video_2/"
             if not os.path.isdir(path):
                 os.mkdir(path)
                 os.mkdir(video_1_path)
@@ -699,10 +718,18 @@ class Save_Plot_Render:
                 self.mean_front_y_locations[curr_frame] = 0.0
         
         # Calculate the max temperature field
-        self.global_fine_mesh_x, self.global_fine_mesh_y, self.max_temperature_field, self.interpolated_temperature_field = self.get_max_temperature_field()
+        self.global_fine_mesh_x, self.global_fine_mesh_y, self.cum_max_temp_field, self.interpolated_temp_field = self.post_process_temperature_field()
+        
+        # Determine mean initial conditions
+        self.mean_initial_temp = np.mean(self.interpolated_temp_field[0])
         
         # Calculate steady state stuff
         self.steady_masks, self.steady_speed, self.steady_temp = self.get_steady_state()
+    
+    def save(self, agent):
+        
+        # General save operations
+        self.general_save_ops("PPO_")
         
         # Concatenate previous training results
         if len(agent.prev_r_per_episode) != 0:
@@ -737,8 +764,8 @@ class Save_Plot_Render:
             'fine_mesh_loc': self.fine_mesh_loc,
             'global_fine_mesh_x': self.global_fine_mesh_x, 
             'global_fine_mesh_y': self.global_fine_mesh_y,
-            'max_temperature_field': self.max_temperature_field,
-            'interpolated_temperature_field' : self.interpolated_temperature_field,
+            'cum_max_temp_field': self.cum_max_temp_field,
+            'interpolated_temp_field' : self.interpolated_temp_field,
             'front_curve': self.front_curve,
             'front_fit' : self.front_fit,
             'mean_front_x_locations': self.mean_front_x_locations,
@@ -765,55 +792,9 @@ class Save_Plot_Render:
             pickle.dump(data, file)
             
     def save_without_agent(self):
-        print("\n\nSaving simulation results...")
         
-        # Find save paths
-        done = False
-        curr_folder = 1
-        while not done:
-            path = "../results/SIM_"+str(curr_folder)
-            video_1_path = "../results/SIM_"+str(curr_folder)+"/video_1/"
-            video_2_path = "../results/SIM_"+str(curr_folder)+"/video_2/"
-            if not os.path.isdir(path):
-                os.mkdir(path)
-                os.mkdir(video_1_path)
-                os.mkdir(video_2_path)
-                done = True
-            else:
-                curr_folder = curr_folder + 1
-                
-        # Store save paths
-        self.path = path
-        self.video_1_path = video_1_path
-        self.video_2_path = video_2_path
-        
-        # Save configs string to data file
-        file = open(self.path+"/settings.dat", "w")
-        file.write(self.configs_string)
-        file.close()
-        
-        # Determine mean front locations
-        self.mean_front_x_locations = np.zeros(len(self.front_curve))
-        self.mean_front_y_locations = np.zeros(len(self.front_curve))
-        for curr_frame in range(len(self.front_curve)):
-            curr_mean_x = self.front_curve[curr_frame][0]
-            curr_mean_x = curr_mean_x[curr_mean_x > 0.0]
-            if len(curr_mean_x) != 0: 
-                self.mean_front_x_locations[curr_frame] = np.mean(curr_mean_x)
-            else:
-                self.mean_front_x_locations[curr_frame] = 0.0
-            curr_mean_y = self.front_curve[curr_frame][1]
-            curr_mean_y = curr_mean_y[curr_mean_y > 0.0]
-            if len(curr_mean_y) != 0: 
-                self.mean_front_y_locations[curr_frame] = np.mean(curr_mean_y)
-            else:
-                self.mean_front_y_locations[curr_frame] = 0.0
-        
-        # Calculate the max temperature field
-        self.global_fine_mesh_x, self.global_fine_mesh_y, self.max_temperature_field, self.interpolated_temperature_field = self.get_max_temperature_field()
-        
-        # Calculate steady state stuff
-        self.steady_masks, self.steady_speed, self.steady_temp = self.get_steady_state()
+        # General save operations
+        self.general_save_ops("SIM_")
         
         # Compile all stored data to dictionary
         data = {
@@ -831,8 +812,8 @@ class Save_Plot_Render:
             'fine_mesh_loc': self.fine_mesh_loc,
             'global_fine_mesh_x': self.global_fine_mesh_x, 
             'global_fine_mesh_y': self.global_fine_mesh_y,
-            'max_temperature_field': self.max_temperature_field,
-            'interpolated_temperature_field' : self.interpolated_temperature_field,
+            'cum_max_temp_field': self.cum_max_temp_field,
+            'interpolated_temp_field' : self.interpolated_temp_field,
             'front_curve': self.front_curve,
             'front_fit' : self.front_fit,
             'mean_front_x_locations': self.mean_front_x_locations,
@@ -855,24 +836,29 @@ class Save_Plot_Render:
         with open(self.path + "/output", 'wb') as file:
             pickle.dump(data, file)
     
-    def plot(self):
-        print("Plotting simulation results...")
+    def plot(self, with_agent):
+        print("Plotting results...")
             
-        # Plot the trajectory
+        # Plot the trajectory given the front speed is being controlled
+        ## ====================================================================================================================================================================================================== ##    
         if self.control_speed:
+            
             # Plot speed trajectory
             plt.clf()
-            if len(self.steady_masks) == 0.0:
-                plt.title("Front Velocity (No Steady)",fontsize='xx-large')
+            if with_agent==1:
+                plt.title("Front Velocity",fontsize='xx-large')
             else:
-                plt.title("Front Velocity (Steady = " + '{:.3f}'.format(1000.0*self.steady_speed) + " mm/s)",fontsize='xx-large')
+                if len(self.steady_masks) == 0.0:
+                    plt.title("Front Velocity (No Steady)",fontsize='xx-large')
+                else:
+                    plt.title("Front Velocity (Steady = " + '{:.3f}'.format(1000.0*self.steady_speed) + " mm/s)",fontsize='xx-large')
+                for i in range(len(self.steady_masks)):
+                    if i == 0:
+                        plt.fill_between(self.time[self.steady_masks[i]], 0.0, 1500.0*np.max(self.target), color='b', alpha=0.1, lw=0.0, label='Steady')
+                    else:
+                        plt.fill_between(self.time[self.steady_masks[i]], 0.0, 1500.0*np.max(self.target), color='b', alpha=0.1, lw=0.0)
             plt.xlabel("Simulation Time [s]",fontsize='large')
             plt.ylabel("Front Velocity [mm/s]",fontsize='large')
-            for i in range(len(self.steady_masks)):
-                if i == 0:
-                    plt.fill_between(self.time[self.steady_masks[i]], 0.0, 1500.0*np.max(self.target), color='b', alpha=0.1, lw=0.0, label='Steady')
-                else:
-                    plt.fill_between(self.time[self.steady_masks[i]], 0.0, 1500.0*np.max(self.target), color='b', alpha=0.1, lw=0.0)
             plt.plot(self.time, 1000.0*self.front_velocity,c='r',lw=2.5,label='Actual')
             plt.plot(self.time, 1000.0*self.target,c='k',ls='--',lw=2.5,label='Target')
             plt.legend(loc='upper right',fontsize='large')
@@ -881,77 +867,86 @@ class Save_Plot_Render:
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
             plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig(self.path + "/trajectory.png", dpi = 500)
+            plt.savefig(self.path + "/trajectory.svg", dpi = 500)
             plt.close()
             
             # Plot front temperature trajectory
             sorted_mean_front_x_locations = 1000.0*np.array(sorted(self.mean_front_x_locations))
             sorted_front_temperature = np.array([x for _, x in sorted(zip(self.mean_front_x_locations, self.front_temperature))])-273.15
             plt.clf()
-            if len(self.steady_masks) == 0.0:
-                plt.title("Front Temperature (No Steady)",fontsize='xx-large')
+            if with_agent==1:
+                plt.title("Front Temperature",fontsize='xx-large')
             else:
-                plt.title("Front Temperature (Steady = " + '{:.1f}'.format(self.steady_temp-273.15) + " C)",fontsize='xx-large')
+                if len(self.steady_masks) == 0.0:
+                    plt.title("Front Temperature (No Steady)",fontsize='xx-large')
+                else:
+                    plt.title("Front Temperature (Steady = " + '{:.1f}'.format(self.steady_temp-273.15) + " C)",fontsize='xx-large')
+                    plt.legend(loc='upper right',fontsize='large')
+                for i in range(len(self.steady_masks)):
+                    sorted_bool_mask = np.array([x for _, x in sorted(zip(self.mean_front_x_locations, self.steady_masks[i]))])
+                    if i == 0:
+                        plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.025*max(self.front_temperature-273.15), color='b', alpha=0.1, lw=0.0, label='Steady')
+                    else:
+                        plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.025*max(self.front_temperature-273.15), color='b', alpha=0.1, lw=0.0)
             plt.xlabel("Location [mm]",fontsize='large')
             plt.ylabel("Front Temperature [C]",fontsize='large')
-            for i in range(len(self.steady_masks)):
-                sorted_bool_mask = np.array([x for _, x in sorted(zip(self.mean_front_x_locations, self.steady_masks[i]))])
-                if i == 0:
-                    plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.025*max(self.front_temperature-273.15), color='b', alpha=0.1, lw=0.0, label='Steady')
-                else:
-                    plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.025*max(self.front_temperature-273.15), color='b', alpha=0.1, lw=0.0)
             plt.plot(sorted_mean_front_x_locations, sorted_front_temperature, c='r', lw=2.5)
-            if len(self.steady_masks) != 0.0:
-                plt.legend(loc='upper right',fontsize='large')
             plt.ylim(0.0, 1.025*max(self.front_temperature-273.15))
             plt.xlim(0.0, 1000.0*self.mesh_x_z0[-1,0])
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
             plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig(self.path + "/temp.png", dpi = 500)
+            plt.savefig(self.path + "/temp.svg", dpi = 500)
             plt.close()
             
+        # Plot the trajectory given the front speed is being controlled
+        ## ====================================================================================================================================================================================================== ##    
         else:
             # Plot speed trajectory
             plt.clf()
-            if len(self.steady_masks) == 0.0:
-                plt.title("Front Velocity (No Steady)",fontsize='xx-large')
+            if with_agent==1:
+                plt.title("Front Velocity",fontsize='xx-large')
             else:
-                plt.title("Front Velocity (Steady = " + '{:.3f}'.format(1000.0*self.steady_speed) + " mm/s)",fontsize='xx-large')
+                if len(self.steady_masks) == 0.0:
+                    plt.title("Front Velocity (No Steady)",fontsize='xx-large')
+                else:
+                    plt.title("Front Velocity (Steady = " + '{:.3f}'.format(1000.0*self.steady_speed) + " mm/s)",fontsize='xx-large')
+                    plt.legend(loc='upper right',fontsize='large')
+                for i in range(len(self.steady_masks)):
+                    if i == 0:
+                        plt.fill_between(self.time[self.steady_masks[i]], 0.0, 1.025*max(1000.0*self.front_velocity), color='b', alpha=0.1, lw=0.0, label='Steady')
+                    else:
+                        plt.fill_between(self.time[self.steady_masks[i]], 0.0, 1.025*max(1000.0*self.front_velocity), color='b', alpha=0.1, lw=0.0)
+            plt.plot(self.time, 1000.0*self.front_velocity,c='r',lw=2.5)  
             plt.xlabel("Simulation Time [s]",fontsize='large')
             plt.ylabel("Front Velocity [mm/s]",fontsize='large')
-            for i in range(len(self.steady_masks)):
-                if i == 0:
-                    plt.fill_between(self.time[self.steady_masks[i]], 0.0, 1.025*max(1000.0*self.front_velocity), color='b', alpha=0.1, lw=0.0, label='Steady')
-                else:
-                    plt.fill_between(self.time[self.steady_masks[i]], 0.0, 1.025*max(1000.0*self.front_velocity), color='b', alpha=0.1, lw=0.0)
-            plt.plot(self.time, 1000.0*self.front_velocity,c='r',lw=2.5)
-            if len(self.steady_masks) != 0.0:
-                plt.legend(loc='upper right',fontsize='large')
             plt.ylim(0.0, 1.025*max(1000.0*self.front_velocity))
             plt.xlim(0.0, np.round(self.time[-1]))
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
             plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig(self.path + "/speed.png", dpi = 500)
+            plt.savefig(self.path + "/speed.svg", dpi = 500)
             plt.close()
             
             # Plot front temperature trajectory
             sorted_mean_front_x_locations = 1000.0*np.array(sorted(self.mean_front_x_locations))
             sorted_front_temperature = np.array([x for _, x in sorted(zip(self.mean_front_x_locations, self.front_temperature))])-273.15
             plt.clf()
-            if len(self.steady_masks) == 0.0:
-                plt.title("Front Temperature (No Steady)",fontsize='xx-large')
+            if with_agent==1:
+                plt.title("Front Temperature",fontsize='xx-large')
             else:
-                plt.title("Front Temperature (Steady = " + '{:.1f}'.format(self.steady_temp-273.15) + " C)",fontsize='xx-large')
-            plt.xlabel("Location [mm]",fontsize='large')
-            plt.ylabel("Front Temperature [C]",fontsize='large')
-            for i in range(len(self.steady_masks)):
-                sorted_bool_mask = np.array([x for _, x in sorted(zip(self.mean_front_x_locations, self.steady_masks[i]))])
-                if i == 0:
-                    plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.5*(np.max(self.target)-273.15), color='b', alpha=0.1, lw=0.0, label='Steady')
+                if len(self.steady_masks) == 0.0:
+                    plt.title("Front Temperature (No Steady)",fontsize='xx-large')
                 else:
-                    plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.5*(np.max(self.target)-273.15), color='b', alpha=0.1, lw=0.0)
+                    plt.title("Front Temperature (Steady = " + '{:.1f}'.format(self.steady_temp-273.15) + " C)",fontsize='xx-large')
+                plt.xlabel("Location [mm]",fontsize='large')
+                plt.ylabel("Front Temperature [C]",fontsize='large')
+                for i in range(len(self.steady_masks)):
+                    sorted_bool_mask = np.array([x for _, x in sorted(zip(self.mean_front_x_locations, self.steady_masks[i]))])
+                    if i == 0:
+                        plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.5*(np.max(self.target)-273.15), color='b', alpha=0.1, lw=0.0, label='Steady')
+                    else:
+                        plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.5*(np.max(self.target)-273.15), color='b', alpha=0.1, lw=0.0)
             plt.plot(sorted_mean_front_x_locations, sorted_front_temperature,c='r',lw=2.5,label='Actual')
             plt.plot(sorted_mean_front_x_locations, self.target-273.15,c='k',ls='--',lw=2.5,label='Target')
             plt.legend(loc='upper right',fontsize='large')
@@ -960,51 +955,73 @@ class Save_Plot_Render:
             plt.xticks(fontsize='large')
             plt.yticks(fontsize='large')
             plt.gcf().set_size_inches(8.5, 5.5)
-            plt.savefig(self.path + "/trajectory.png", dpi = 500)
+            plt.savefig(self.path + "/trajectory.svg", dpi = 500)
             plt.close()
             
         # Plot reward trajectory
+        ## ====================================================================================================================================================================================================== ##    
         plt.clf()
         plt.title("Reward During Trajectory",fontsize='xx-large')
         plt.xlabel("Simulation Time [s]",fontsize='large')
         plt.ylabel("Reward [-]",fontsize='large')
-        plt.plot(self.time, self.reward[:,0],c='k',lw=2.5)
-        plt.plot(self.time, self.reward[:,1],c='r',lw=1.0)
-        plt.plot(self.time, self.reward[:,2],c='b',lw=1.0)
-        plt.plot(self.time, self.reward[:,3],c='g',lw=1.0)
-        plt.plot(self.time, self.reward[:,4],c='m',lw=1.0)
-        plt.plot(self.time, self.reward[:,5],c='c',lw=1.0)
-        plt.legend(('Total','Input Loc','Input Mag','Max Temp','Shape','Target'),loc='upper right',fontsize='large')
+        plt.plot(self.time, self.reward[:,0],c='k',lw=2.5, label='Total')
+        if np.sum(np.abs(self.reward[:,1])) >= 1e-6:
+            plt.plot(self.time, self.reward[:,1],c='r',lw=1.0, label='Input Loc')
+        if np.sum(np.abs(self.reward[:,2])) >= 1e-6:
+            plt.plot(self.time, self.reward[:,2],c='b',lw=1.0, label='Input Mag')
+        if np.sum(np.abs(self.reward[:,3])) >= 1e-6:
+            plt.plot(self.time, self.reward[:,3],c='g',lw=1.0, label='Max Temp')
+        if np.sum(np.abs(self.reward[:,4])) >= 1e-6:
+            plt.plot(self.time, self.reward[:,4],c='m',lw=1.0, label='Shape')
+        if np.sum(np.abs(self.reward[:,5])) >= 1e-6:
+            plt.plot(self.time, self.reward[:,5],c='c',lw=1.0, label='Target')
+        plt.legend(loc='upper right',fontsize='large')
         plt.xlim(0.0, np.round(self.time[-1]))
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
         plt.gcf().set_size_inches(8.5, 5.5)
-        plt.savefig(self.path + "/reward.png", dpi = 500)
+        plt.savefig(self.path + "/reward.svg", dpi = 500)
         plt.close()
 
         # Plot energy trajectory
-        energy = integrate.cumtrapz(self.power, x=self.time)
-        energy = np.insert(energy, 0, 0.0)
-        fig, ax1 = plt.subplots()
-        fig.set_size_inches(8.5,5.5)
-        ax1.set_xlabel("Simulation Time [s]",fontsize='large')
-        ax1.set_ylabel("Power [W]",fontsize='large',color='b')
-        ax1.plot(self.time, self.power,c='b',lw=2.5)
-        ax1.set_xlim(0.0, np.round(self.time[-1]))
-        ax1.tick_params(axis='x', labelsize=12)
-        ax1.tick_params(axis='y', labelsize=12, labelcolor='b')
-        ax2 = ax1.twinx()
-        ax2.set_ylabel("Cumulative Energy Consumed [J]",fontsize='large',color='r')
-        ax2.plot(self.time, energy,c='r',lw=2.5)
-        ax2.set_xlim(0.0, np.round(self.time[-1]))
-        ax2.tick_params(axis='x', labelsize=12)
-        ax2.tick_params(axis='y', labelsize=12, labelcolor='r')
-        title_str = "External Energy Input"
-        fig.suptitle(title_str,fontsize='xx-large')
-        plt.savefig(self.path + "/energy.png", dpi = 500)
-        plt.close()
+        ## ====================================================================================================================================================================================================== ##    
+        if self.control_speed:
+            
+            #Calculate energy required and ideal energy savings
+            C1 = 0.00070591
+            C2 = 0.0067238
+            C3 = 0.53699
+            target_temp = ((np.sqrt(C2*C2 - 4.0*C1*(C3-1000.0*self.target)) - C2) / (2.0 * C1)) + 273.15
+            required_energy = self.specific_heat*self.density*self.volume*(target_temp - self.mean_initial_temp) + self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time[-1]
+            ideal_energy_saving = self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time[-1]
+            
+            # Plot energy trajectory
+            energy = integrate.cumtrapz(self.power, x=self.time)
+            energy = np.insert(energy, 0, 0.0)
+            fig, ax1 = plt.subplots()
+            fig.set_size_inches(8.5,5.5)
+            ax1.set_xlabel("Simulation Time [s]",fontsize='large')
+            ax1.set_ylabel("Power [W]",fontsize='large',color='b')
+            ax1.plot(self.time, self.power,c='b',lw=2.5)
+            ax1.set_xlim(0.0, np.round(self.time[-1]))
+            ax1.tick_params(axis='x', labelsize=12)
+            ax1.tick_params(axis='y', labelsize=12, labelcolor='b')
+            ax2 = ax1.twinx()
+            ax2.set_ylabel("Cumulative Energy Consumed [J]",fontsize='large',color='r')
+            ax2.plot(self.time, energy,c='r',lw=2.5)
+            ax2.axhline(required_energy,c='k',lw=1.0,ls='--',label='Bulk Heating Energy')
+            ax2.axhline(required_energy-ideal_energy_saving,c='k',lw=1.0,ls=':',label='Ideal Local Heating Energy')
+            ax2.set_xlim(0.0, np.round(self.time[-1]))
+            ax2.tick_params(axis='x', labelsize=12)
+            ax2.tick_params(axis='y', labelsize=12, labelcolor='r')
+            title_str = "External Energy Input"
+            plt.legend(loc='upper right',fontsize='large')
+            fig.suptitle(title_str,fontsize='xx-large')
+            plt.savefig(self.path + "/energy.svg", dpi = 500)
+            plt.close()
 
         #Plot actor learning curve
+        ## ====================================================================================================================================================================================================== ##    
         if(len(self.r_per_episode)!=0):
             plt.clf()
             plt.title("Actor Learning Curve, Episode-Wise",fontsize='xx-large')
@@ -1018,6 +1035,7 @@ class Save_Plot_Render:
             plt.close()
 
         # Plot value learning curve
+        ## ====================================================================================================================================================================================================== ##    
         if(len(self.value_error)!=0):
             plt.clf()
             title_str = "Critic Learning Curve"
@@ -1033,6 +1051,7 @@ class Save_Plot_Render:
             plt.close()
             
         # Plot actor learning rate curve
+        ## ====================================================================================================================================================================================================== ##    
         if(len(self.actor_lr)!=0):
             plt.clf()
             title_str = "Actor Learning Rate"
@@ -1047,6 +1066,7 @@ class Save_Plot_Render:
             plt.close()
             
         # Plot critic learning rate curve
+        ## ====================================================================================================================================================================================================== ##    
         if(len(self.actor_lr)!=0):
             plt.clf()
             title_str = "Critic Learning Rate"
@@ -1061,6 +1081,7 @@ class Save_Plot_Render:
             plt.close()
 
         # x and y stdev curves
+        ## ====================================================================================================================================================================================================== ##    
         if(len(self.x_stdev)!=0):
             plt.clf()
             plt.title("X Rate Stdev, Episode-Wise",fontsize='xx-large')
@@ -1086,6 +1107,7 @@ class Save_Plot_Render:
             plt.close()
                 
         # Plot magnitude stdev curve
+        ## ====================================================================================================================================================================================================== ##    
         if(len(self.mag_stdev)!=0):
             plt.clf()
             plt.title("Magnitude Stdev, Episode-Wise",fontsize='xx-large')
@@ -1105,9 +1127,9 @@ class Save_Plot_Render:
         fit_y_coords = np.linspace(0.0, self.mesh_y_z0[0][-1], 100)
         
         # Determine temperature ranges to use for plotting
-        min_temp = np.mean(self.max_temperature_field[-1]) - np.mean(self.max_temperature_field[-1]) % 0.05
-        max_temp = round(np.max(self.max_temperature_field[-1]) + 0.05 - (np.max(self.max_temperature_field[-1]) % 0.05),2)
-        max_temp = min(min_temp + 2*(np.std(self.max_temperature_field[-1]) - np.std(self.max_temperature_field[-1]) % 0.05), max_temp)
+        min_temp = np.mean(self.cum_max_temp_field[-1]) - np.mean(self.cum_max_temp_field[-1]) % 0.05
+        max_temp = round(np.max(self.cum_max_temp_field[-1]) + 0.05 - (np.max(self.cum_max_temp_field[-1]) % 0.05),2)
+        max_temp = min(min_temp + 2*(np.std(self.cum_max_temp_field[-1]) - np.std(self.cum_max_temp_field[-1]) % 0.05), max_temp)
         
         for curr_step in range(len(self.time)):
         
@@ -1132,7 +1154,7 @@ class Save_Plot_Render:
             
             # Plot max normalized temperature
             if False:
-                c0 = ax0.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.max_temperature_field[curr_step], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
+                c0 = ax0.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.cum_max_temp_field[curr_step], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
                 cbar0 = fig.colorbar(c0, ax=ax0)
                 cbar0.set_label("Max ϴ [-]",labelpad=20,fontsize='large')
                 cbar0.ax.tick_params(labelsize=12)
@@ -1147,7 +1169,7 @@ class Save_Plot_Render:
            
             # Plot normalized temperature
             else:
-                c0 = ax0.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.interpolated_temperature_field[curr_step], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
+                c0 = ax0.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.interpolated_temp_field[curr_step], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
                 cbar0 = fig.colorbar(c0, ax=ax0)
                 cbar0.set_label("ϴ [-]",labelpad=20,fontsize='large')
                 cbar0.ax.tick_params(labelsize=12)
