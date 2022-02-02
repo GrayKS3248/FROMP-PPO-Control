@@ -23,7 +23,7 @@ tuner-w:
 solver-w:
 	g++ $(CFLAGS-W) $(Config_Handler) $(matrix_math) $(python_interface) $(Speed_Estimator) $(Finite_Difference_Solver) src/solver.cpp -o bin/solver.exe $(LDFLAGS-W)
 ae_data-w:
-	g++ $(CFLAGS-W) $(Config_Handler) $(matrix_math) $(Finite_Difference_Solver) src/ae_data.cpp -o bin/ae_data.exe $(LDFLAGS-W)
+	g++ $(CFLAGS-W) $(Config_Handler) $(matrix_math) $(python_interface) $(Speed_Estimator) $(Finite_Difference_Solver) src/ae_data.cpp -o bin/ae_data.exe $(LDFLAGS-W)
 trainer-w:
 	g++ $(CFLAGS-W) $(Config_Handler) $(matrix_math) $(python_interface) $(Speed_Estimator) $(Finite_Difference_Solver) src/trainer.cpp -o bin/trainer.exe $(LDFLAGS-W)
 
@@ -32,7 +32,7 @@ tuner-l:
 solver-l:
 	g++ $(CFLAGS-L) $(Config_Handler) $(matrix_math) $(python_interface) $(Speed_Estimator) $(Finite_Difference_Solver) src/solver.cpp -o bin/solver.so $(LDFLAGS-L)
 ae_data-l:
-	g++ $(CFLAGS-L) $(Config_Handler) $(matrix_math) $(Finite_Difference_Solver) src/ae_data.cpp -o bin/ae_data.so $(LDFLAGS-L)
+	g++ $(CFLAGS-L) $(Config_Handler) $(matrix_math) $(python_interface) $(Speed_Estimator) $(Finite_Difference_Solver) src/ae_data.cpp -o bin/ae_data.so $(LDFLAGS-L)
 trainer-l:
 	g++ $(CFLAGS-L) $(Config_Handler) $(matrix_math) $(python_interface) $(Speed_Estimator) $(Finite_Difference_Solver) src/trainer.cpp -o bin/trainer.so $(LDFLAGS-L)
 	

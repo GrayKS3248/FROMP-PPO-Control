@@ -1,4 +1,7 @@
+#define PY_SSIZE_T_CLEAN
 #include "Config_Handler.hpp"
+#include "python_interface.hpp"
+#include "Speed_Estimator.hpp"
 #include "Finite_Difference_Solver.hpp"
 
 /**
@@ -68,9 +71,11 @@ vector<int> get_frame_indices(int tot_num_sim_steps, int samples_per_trajectory)
 * Runs a set of trajectories using a random policy and simultaneously trains and autoencoder to create a reduced state representation
 * @param The finite element solver object used to propogate time
 * @param Configuration handler object that contains all loaded configuration data
+* @param speed estimator used by agent if any
+* @param agent if any 
 * @return 0 on success, 1 on failure
 */
-int run(Finite_Difference_Solver* FDS, Config_Handler* ae_data_cfg)
+int run(Finite_Difference_Solver* FDS, Config_Handler* ae_data_cfg, Speed_Estimator* estimator, PyObject* agent)
 {
 	int total_trajectories;
 	ae_data_cfg->get_var("total_trajectories",total_trajectories);
@@ -78,13 +83,16 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* ae_data_cfg)
 	ae_data_cfg->get_var("samples_per_trajectory",samples_per_trajectory);
 	int samples_per_batch;
 	ae_data_cfg->get_var("samples_per_batch",samples_per_batch);
-	int actions_per_trajectory;
-	ae_data_cfg->get_var("actions_per_trajectory",actions_per_trajectory);
+	int num_input_actions;
+	ae_data_cfg->get_var("num_input_actions",num_input_actions);
 	string path;
-	ae_data_cfg->get_var("path",path);
+	ae_data_cfg->get_var("save_path",path);
 	
-	double control_execution_period = (FDS->get_sim_duration() / ((double)actions_per_trajectory));
-	int steps_per_control_cycle = (int) round(control_execution_period / FDS->get_coarse_time_step());
+	// Frame rate calcualtions
+	int steps_per_agent_cycle = (int) round((FDS->get_sim_duration() / (double)num_input_actions) / FDS->get_coarse_time_step());
+	steps_per_agent_cycle = steps_per_agent_cycle <= 0 ? 1 : steps_per_agent_cycle;	
+	int steps_per_speed_estimator_frame = (int) round(estimator->get_observation_delta_t() / FDS->get_coarse_time_step());
+	steps_per_speed_estimator_frame = steps_per_speed_estimator_frame <= 0 ? 1 : steps_per_speed_estimator_frame;	
 	
 	for (int curr_epoch = 0; curr_epoch < (int)floor(((double)total_trajectories*(double)samples_per_trajectory)/(double)samples_per_batch); curr_epoch++)
 	{
@@ -168,8 +176,7 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* ae_data_cfg)
 			// Declare simulation variables
 			bool done = false;
 			double action_1=0.0, action_2=0.0, action_3=0.0;
-			bool apply_control, save_frame;
-			int trajectory_index = 0;
+			int step_in_trajectory = 0;
 			
 			// Select random set of frames to be used to update autoencoder
 			vector<int> frame_indices = get_frame_indices(FDS->get_num_sim_steps(), samples_per_trajectory);
@@ -189,30 +196,38 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* ae_data_cfg)
 
 			// Reset environment
 			FDS->reset();
+			estimator->reset();
 			
 			// Simulation for loop
 			while (!done)
 			{
 				// Determine what to run this simulation step
-				apply_control = (trajectory_index % steps_per_control_cycle == 0) || (trajectory_index==0);
-				save_frame = trajectory_index == frame_index;
+				bool run_agent = (step_in_trajectory % steps_per_agent_cycle == 0) || (step_in_trajectory==0);
+				bool observe_speed = (step_in_trajectory % steps_per_speed_estimator_frame == 0) || (step_in_trajectory==0);
+				bool save_frame = step_in_trajectory == frame_index;
+				
+				// Add observation to speed estimator
+				if (observe_speed && agent != NULL)
+				{	
+					// Get image and convert to canonical form
+					PyObject* py_state_image = get_2D_list<vector<vector<double>>>(FDS->get_coarse_temp_z0(true));
+					PyObject* py_canonical_state_image = PyObject_CallMethod(agent, "forward", "O", py_state_image);
+					if (py_canonical_state_image == NULL)
+					{
+						fprintf(stderr, "\nFailed to call PPO forward function.\n");
+						PyErr_Print();
+						Py_DECREF(py_state_image);
 
-				// Run the random controller
-				if (apply_control)
-				{
-
-					// Get a random action
-					action_1 = (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
-					action_2 = (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
-					action_3 = (2.0 * ((double)rand()/(double)RAND_MAX - 0.5));
-
-					// Step the environment
-					done = FDS->step(action_1, action_2, action_3);
-				}
-				else
-				{
-					// Step the environment
-					done = FDS->step(action_1, action_2, action_3);
+						return 1;
+					}
+					vector<vector<double>> canonical_state_image = get_2D_vector(py_canonical_state_image);
+					
+					// Add canonical image and observation time to estimator buffer
+					estimator->observe(canonical_state_image, FDS->get_curr_sim_time());
+					
+					// Cleanup
+					Py_DECREF(py_state_image);
+					Py_DECREF(py_canonical_state_image);
 				}
 				
 				// Save data to files
@@ -233,8 +248,77 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* ae_data_cfg)
 					}
 				}
 
+				// Run the agent
+				if (run_agent)
+				{
+					// Get loaded agent actions
+					if(agent != NULL)
+					{
+						// Gather temperature state data
+						PyObject* py_state_image = get_2D_list<vector<vector<double>>>(FDS->get_coarse_temp_z0(true));
+						
+						// Get speed from speed estimator and calculate error
+						double front_speed = estimator->estimate();
+						double front_speed_error = front_speed / FDS->get_curr_target();
+						
+						// Combine all additional inputs to PPO agent
+						vector<double> additional_ppo_inputs(1, 0.0);
+						additional_ppo_inputs[0] = front_speed_error;
+						PyObject* py_additional_ppo_inputs = get_1D_list<vector<double>>(additional_ppo_inputs);
+						
+						// Gather input data
+						PyObject* py_inputs = get_1D_list<vector<double>>(FDS->get_input_state(true));
+						
+						// Get agent action based on temperature state data
+						PyObject* py_action_and_stdev = PyObject_CallMethod(agent, "get_action", "(O,O,O)", py_state_image, py_additional_ppo_inputs, py_inputs);
+						if (py_action_and_stdev == NULL)
+						{
+							fprintf(stderr, "\nFailed to call get action function.\n");
+							PyErr_Print();
+							Py_DECREF(py_state_image);
+							Py_DECREF(py_additional_ppo_inputs);
+							Py_DECREF(py_inputs);
+							return 1;
+						}
+						
+						// Get the agent commanded action
+						action_1 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 0));
+						action_2 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 1));
+						action_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 2));
+
+						// Step the environment
+						done = FDS->step(action_1, action_2, action_3);
+						
+						// Release the python memory
+						Py_DECREF(py_state_image);
+						Py_DECREF(py_additional_ppo_inputs);
+						Py_DECREF(py_inputs);
+						Py_DECREF(py_action_and_stdev);
+					}
+					
+					// Do a random action
+					else
+					{
+						// Generate random actions from -1.0 to 1.0
+						action_1 = 2.0*((double)rand()/(double)RAND_MAX - 0.5);
+						action_2 = 2.0*((double)rand()/(double)RAND_MAX - 0.5);
+						action_3 = 2.0*((double)rand()/(double)RAND_MAX - 0.5);
+					}
+					
+					// Step the environment
+					done = FDS->step(action_1, action_2, action_3);
+					
+				}
+				
+				// Step the environment 
+				if (!run_agent)
+				{
+					// Step the environment based on the previously commanded action
+					done = FDS->step(action_1, action_2, action_3);
+				}
+
 				// Update the current state and the step in episode
-				trajectory_index++;
+				step_in_trajectory++;
 
 			}
 			
@@ -289,17 +373,11 @@ int main()
 	configs_string = configs_string + fds_cfg.get_orig_cfg();
 	configs_string = configs_string + "\n\n======================================================================================\n\n";
 	configs_string = configs_string + ae_data_cfg->get_orig_cfg();
-	string path;
-	ae_data_cfg->get_var("path",path);
-	ofstream file;
-	file.open(path+"/settings.dat", ofstream::trunc);
-	if(!file.is_open())
-	{
-		cout << "\nFailed to open settings.dat file\n";
-		return 1;
-	}
-	file << configs_string;
-	file.close();
+		
+	// Init py environment
+	Py_Initialize();
+	PyRun_SimpleString("import  sys");
+	PyRun_SimpleString("sys.path.append('../py_src/')");
 		
 	// Initialize FDS
 	Finite_Difference_Solver* FDS;
@@ -314,20 +392,43 @@ int main()
 		return 1;
 	}
 	
+	// Initialize front speed estimator
+	Speed_Estimator* estimator = new Speed_Estimator(FDS->get_coarse_x_mesh_z0());
+    
+    	// Initialize agent if it is used
+	string load_path;
+	ae_data_cfg->get_var("load_path", load_path);
+	PyObject* agent = NULL;
+	if( load_path.compare("none")!=0 )
+	{
+		Config_Handler speed_estimator_cfg = Config_Handler("../config_files", "speed_estimator.cfg");
+		configs_string = configs_string + "\n\n======================================================================================\n\n";
+		configs_string = configs_string + speed_estimator_cfg.get_orig_cfg();
+		agent = init_agent(1, 3, load_path);
+		if (agent == NULL)
+		{ 
+			Py_FinalizeEx();
+			cin.get();
+			return 1; 
+		}
+	}
+	
 	// Initialize cfg stuff
 	string dummy_str;
 	cout << "Get Data Parameters(\n";
 	cout << "  (Total Trajectories): " << ae_data_cfg->get_var("total_trajectories", dummy_str) << "\n";
 	cout << "  (Samples per Trajectory): " << ae_data_cfg->get_var("samples_per_trajectory", dummy_str) << "\n";
 	cout << "  (Samples per Batch): " << ae_data_cfg->get_var("samples_per_batch", dummy_str) << "\n";
-	cout << "  (Actions per Trajectory): " << ae_data_cfg->get_var("actions_per_trajectory", dummy_str) << "\n";
+	cout << "  (Actions per Trajectory): " << ae_data_cfg->get_var("num_input_actions", dummy_str) << "\n";
+	cout << "  (Load path): " << ae_data_cfg->get_var("load_path", dummy_str) << "\n";
+	cout << "  (Save path): " << ae_data_cfg->get_var("save_path", dummy_str) << "\n";
 	cout << ")\n";
 	FDS->print_params();
 
-	// Train agent
+	// Generate data
 	cout << "\nSimulating...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(FDS, ae_data_cfg) == 1)
+	if (run(FDS, ae_data_cfg, estimator, agent) == 1)
 	{ 
 		cin.get();
 		return 1; 
@@ -336,6 +437,19 @@ int main()
 	// Stop clock and print duration
 	double duration = (double)(chrono::duration_cast<chrono::microseconds>( chrono::high_resolution_clock::now() - start_time ).count())*10e-7;
 	printf("\nSimulation took: %.1f seconds.\n\nDone!", duration);
+	
+	// Save the settings
+	string save_path;
+	ae_data_cfg->get_var("save_path",save_path);
+	ofstream file;
+	file.open(save_path+"/settings.dat", ofstream::trunc);
+	if(!file.is_open())
+	{
+		cout << "\nFailed to open settings.dat file\n";
+		return 1;
+	}
+	file << configs_string;
+	file.close();
 	
 	// Finish
 	cin.get();

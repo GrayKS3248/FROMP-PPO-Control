@@ -17,7 +17,7 @@ vector<double> get_1D_vector(PyObject* list);
 vector<vector<double>> get_2D_vector(PyObject* list);
 
 //******************************************************************** PYTHON API INITIALIZATION FUNCTIONS ********************************************************************//
-PyObject* init_agent(int num_addtional_inputs, int num_outputs);
+PyObject* init_agent(int num_addtional_inputs, int num_outputs, string load_path);
 PyObject* init_save_render_plot();
 
 

@@ -278,7 +278,7 @@ int main()
 		Config_Handler speed_estimator_cfg = Config_Handler("../config_files", "speed_estimator.cfg");
 		configs_string = configs_string + "\n\n======================================================================================\n\n";
 		configs_string = configs_string + speed_estimator_cfg.get_orig_cfg();
-		agent = init_agent(1, 3);
+		agent = init_agent(1, 3, input_load_path);
 		if (agent == NULL)
 		{ 
 			Py_FinalizeEx();

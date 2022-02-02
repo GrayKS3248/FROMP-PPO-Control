@@ -62,6 +62,7 @@ int Config_Handler::store_cfg()
 	else
 	{
 		cout << "Unable to open " << path_file << "\n";
+		cin.get();
 		return 1;
 	}
 	
@@ -104,6 +105,7 @@ int Config_Handler::save_copy_of_orig_cfg(string save_path, string save_file, bo
 	else
 	{
 		cout << "Unable to open " << path_file << "\n";
+		cin.get();
 		return 1;
 	}
 	
@@ -157,6 +159,7 @@ int Config_Handler::create_map()
 	else
 	{
 		cout << "Unable to open " << path_file << "\n";
+		cin.get();
 		return 1;
 	}
 	
@@ -181,6 +184,7 @@ int Config_Handler::get_var(string var_name, int& var_value)
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
+		cin.get();
 		throw 21;
 	}
 	
@@ -199,6 +203,7 @@ double Config_Handler::get_var(string var_name, double& var_value)
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
+		cin.get();
 		throw 20;
 	}
 	
@@ -217,6 +222,7 @@ float Config_Handler::get_var(string var_name, float& var_value)
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
+		cin.get();
 		throw 19;
 	}
 	
@@ -235,6 +241,7 @@ long Config_Handler::get_var(string var_name, long& var_value)
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
+		cin.get();
 		throw 18;
 	}
 	
@@ -253,6 +260,7 @@ long double Config_Handler::get_var(string var_name, long double& var_value)
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
+		cin.get();
 		throw 17;
 	}
 	
@@ -271,6 +279,7 @@ unsigned int Config_Handler::get_var(string var_name, unsigned int& var_value)
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
+		cin.get();
 		throw 16;
 	}
 	
@@ -289,6 +298,7 @@ unsigned long Config_Handler::get_var(string var_name, unsigned long& var_value)
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
+		cin.get();
 		throw 15;
 	}
 	
@@ -307,6 +317,7 @@ long long Config_Handler::get_var(string var_name, long long& var_value)
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
+		cin.get();
 		throw 14;
 	}
 	
@@ -325,6 +336,7 @@ unsigned long long Config_Handler::get_var(string var_name, unsigned long long& 
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
+		cin.get();
 		throw 13;
 	}
 	
@@ -343,6 +355,7 @@ bool Config_Handler::get_var(string var_name, bool& var_value)
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
+		cin.get();
 		throw 12;
 	}
 	
@@ -357,6 +370,7 @@ bool Config_Handler::get_var(string var_name, bool& var_value)
 	else
 	{
 		cout << "\nString value not recognized as boolean";
+		cin.get();
 		throw 12;
 	}
 	
@@ -374,6 +388,7 @@ const char* Config_Handler::get_var(string var_name, const char*& var_value)
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
+		cin.get();
 		throw 11;
 	}
 	
@@ -392,6 +407,7 @@ string Config_Handler::get_var(string var_name, string& var_value)
 	if (cfg_dictionary[var_name].compare(string())==0)
 	{
 		cout << "Key: " << var_name << " not found.\n";
+		cin.get();
 		throw 10;
 	}
 	

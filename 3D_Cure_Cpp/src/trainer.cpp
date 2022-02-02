@@ -511,7 +511,9 @@ int main()
 	Speed_Estimator* estimator = new Speed_Estimator(FDS->get_coarse_x_mesh_z0());
     
 	// Init agent
-	PyObject* agent = init_agent(1, 3);
+	string network_load_path;
+	train_agent_cfg->get_var("network_load_path", network_load_path);
+	PyObject* agent = init_agent(1, 3, network_load_path);
 	if (agent == NULL)
 	{ 
 		Py_FinalizeEx();

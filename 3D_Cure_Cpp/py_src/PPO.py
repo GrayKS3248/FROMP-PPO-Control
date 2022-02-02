@@ -216,9 +216,9 @@ class Agent:
     def forward(self, input_image):
         
         if self.encoder.num_latent >= 1:
-            output_images, code_sparsity, latent_vars = self.encoder.forward(input_image)
+            output_images, _, _ = self.encoder.forward(input_image)
         else:
-            output_images, code_sparsity = self.encoder.forward(input_image)
+            output_images, _ = self.encoder.forward(input_image)
             
         output_image = output_images[0,:,:]  
         return output_image.tolist()
@@ -871,11 +871,6 @@ class Save_Plot_Render:
                     plt.title("Front Velocity",fontsize='xx-large')
                 else:
                     plt.title("Front Velocity (Steady = " + '{:.3f}'.format(1000.0*self.steady_speed) + " mm/s)",fontsize='xx-large')
-                for i in range(len(self.steady_masks)):
-                    if i == 0:
-                        plt.fill_between(self.time[self.steady_masks[i]], 0.0, 1500.0*np.max(self.target), color='b', alpha=0.1, lw=0.0, label='Steady')
-                    else:
-                        plt.fill_between(self.time[self.steady_masks[i]], 0.0, 1500.0*np.max(self.target), color='b', alpha=0.1, lw=0.0)
             plt.xlabel("Simulation Time [s]",fontsize='large')
             plt.ylabel("Front Velocity [mm/s]",fontsize='large')
             plt.plot(self.time, 1000.0*self.front_velocity,c='r',lw=2.5,label='Actual')
@@ -904,12 +899,6 @@ class Save_Plot_Render:
                 else:
                     plt.title("Front Temperature (Steady = " + '{:.1f}'.format(self.steady_temp-273.15) + " C)",fontsize='xx-large')
                     plt.legend(loc='upper right',fontsize='large')
-                for i in range(len(self.steady_masks)):
-                    sorted_bool_mask = np.array([x for _, x in sorted(zip(self.mean_front_x_locations, self.steady_masks[i]))])
-                    if i == 0:
-                        plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.025*max(self.front_temperature-273.15), color='b', alpha=0.1, lw=0.0, label='Steady')
-                    else:
-                        plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.025*max(self.front_temperature-273.15), color='b', alpha=0.1, lw=0.0)
             plt.xlabel("Location [mm]",fontsize='large')
             plt.ylabel("Front Temperature [C]",fontsize='large')
             plt.plot(sorted_mean_front_x_locations, sorted_front_temperature, c='r', lw=2.5)
@@ -934,11 +923,6 @@ class Save_Plot_Render:
                 else:
                     plt.title("Front Velocity (Steady = " + '{:.3f}'.format(1000.0*self.steady_speed) + " mm/s)",fontsize='xx-large')
                     plt.legend(loc='upper right',fontsize='large')
-                for i in range(len(self.steady_masks)):
-                    if i == 0:
-                        plt.fill_between(self.time[self.steady_masks[i]], 0.0, 1.025*max(1000.0*self.front_velocity), color='b', alpha=0.1, lw=0.0, label='Steady')
-                    else:
-                        plt.fill_between(self.time[self.steady_masks[i]], 0.0, 1.025*max(1000.0*self.front_velocity), color='b', alpha=0.1, lw=0.0)
             plt.plot(self.time, 1000.0*self.front_velocity,c='r',lw=2.5)  
             plt.xlabel("Simulation Time [s]",fontsize='large')
             plt.ylabel("Front Velocity [mm/s]",fontsize='large')
@@ -963,12 +947,6 @@ class Save_Plot_Render:
                     plt.title("Front Temperature (Steady = " + '{:.1f}'.format(self.steady_temp-273.15) + " C)",fontsize='xx-large')
                 plt.xlabel("Location [mm]",fontsize='large')
                 plt.ylabel("Front Temperature [C]",fontsize='large')
-                for i in range(len(self.steady_masks)):
-                    sorted_bool_mask = np.array([x for _, x in sorted(zip(self.mean_front_x_locations, self.steady_masks[i]))])
-                    if i == 0:
-                        plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.5*(np.max(self.target)-273.15), color='b', alpha=0.1, lw=0.0, label='Steady')
-                    else:
-                        plt.fill_between(sorted_mean_front_x_locations[sorted_bool_mask], 0.0, 1.5*(np.max(self.target)-273.15), color='b', alpha=0.1, lw=0.0)
             plt.plot(sorted_mean_front_x_locations, sorted_front_temperature,c='r',lw=2.5,label='Actual')
             plt.plot(sorted_mean_front_x_locations, self.target-273.15,c='k',ls='--',lw=2.5,label='Target')
             plt.plot(sorted_mean_front_x_locations, 1.05*(self.target-273.15),c='k',ls=':',lw=2.0,label='Target ± 5%')
