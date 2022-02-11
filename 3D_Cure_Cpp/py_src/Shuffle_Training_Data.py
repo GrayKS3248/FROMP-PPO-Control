@@ -15,16 +15,16 @@ if __name__ == "__main__":
     # Data parameters
     num_batches = 2500
     samples_per_batch = 40
-    training_data_path = '../training_data/DCPD_GC2/Autoencoder'
+    training_data_path = '../training_data/DCPD_GC2/Quenched_AE_controlled_inputs'
     x_dim = 256
     y_dim = 32
     
     # Path manip
-    if not os.path.isdir(training_data_path+"_Shuffled"):
-        os.mkdir(training_data_path+"_Shuffled")
+    if not os.path.isdir(training_data_path+"_shuffled"):
+        os.mkdir(training_data_path+"_shuffled")
     else:
-        shutil.rmtree(training_data_path+"_Shuffled")
-        os.mkdir(training_data_path+"_Shuffled")
+        shutil.rmtree(training_data_path+"_shuffled")
+        os.mkdir(training_data_path+"_shuffled")
     
     # Generate random batch and sample order to mix batches
     access_order = np.zeros((num_batches, samples_per_batch))

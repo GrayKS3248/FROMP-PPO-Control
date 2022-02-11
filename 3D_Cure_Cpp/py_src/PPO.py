@@ -480,7 +480,8 @@ class Save_Plot_Render:
         self.input_location_x = []
         self.input_location_y = []
         self.input_percent = []
-        self.power = []
+        self.trigger_power = []
+        self.source_power = []
         self.temperature_field = []
         self.cure_field = []
         self.fine_temperature_field = []
@@ -529,11 +530,12 @@ class Save_Plot_Render:
         self.y_stdev = np.array(y_stdev)
         self.mag_stdev = np.array(mag_stdev)
     
-    def store_input_history(self, input_location_x, input_location_y, input_percent, power):
+    def store_input_history(self, input_location_x, input_location_y, input_percent, trigger_power, source_power):
         self.input_location_x = np.array(input_location_x)
         self.input_location_y = np.array(input_location_y)
         self.input_percent = np.array(input_percent)
-        self.power = np.array(power)
+        self.trigger_power = np.array(trigger_power)
+        self.source_power = np.array(source_power)
     
     def store_field_history(self, temperature_field, cure_field, fine_temperature_field, fine_cure_field, fine_mesh_loc):
         self.temperature_field = np.array(temperature_field)
@@ -757,7 +759,8 @@ class Save_Plot_Render:
             'input_location_x': self.input_location_x,
             'input_location_y': self.input_location_y,
             'input_percent': self.input_percent,
-            'power': self.power,
+            'trigger_power': self.trigger_power,
+            'source_power': self.source_power,
             'temperature_field': self.temperature_field,
             'cure_field': self.cure_field,
             'fine_temperature_field': self.fine_temperature_field,
@@ -812,7 +815,8 @@ class Save_Plot_Render:
             'input_location_x': self.input_location_x,
             'input_location_y': self.input_location_y,
             'input_percent': self.input_percent,
-            'power': self.power,
+            'trigger_power': self.trigger_power,
+            'source_power': self.source_power,
             'temperature_field': self.temperature_field,
             'cure_field': self.cure_field,
             'fine_temperature_field': self.fine_temperature_field,
@@ -994,11 +998,14 @@ class Save_Plot_Render:
             C1 = 0.00070591
             C2 = 0.0067238
             C3 = 0.53699
-            target_temp = ((np.sqrt(C2*C2 - 4.0*C1*(C3-1000.0*self.target[-1])) - C2) / (2.0 * C1)) + 273.15
-            required_energy = self.specific_heat*self.density*self.volume*(target_temp - self.mean_initial_temp) + self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time
-            ideal_energy_saving = self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time[-1]
-            energy = integrate.cumtrapz(self.power, x=self.time)
+            power = self.trigger_power + self.source_power
+            energy = integrate.cumtrapz(power, x=self.time)
             energy = np.insert(energy, 0, 0.0)
+            trigger_energy = integrate.cumtrapz(self.trigger_power, x=self.time)
+            trigger_energy = np.insert(trigger_energy, 0, 0.0)
+            target_temp = ((np.sqrt(C2*C2 - 4.0*C1*(C3-1000.0*self.target[-1])) - C2) / (2.0 * C1)) + 273.15
+            required_energy = self.specific_heat*self.density*self.volume*(target_temp - self.mean_initial_temp) + self.heat_transfer_coeff*self.surface_area*(target_temp - self.ambient_temp)*self.time + trigger_energy
+            ideal_energy = self.specific_heat*self.density*self.volume*(target_temp - self.mean_initial_temp) + trigger_energy
             
             # Plot energy trajectory
             plt.clf()
@@ -1006,7 +1013,7 @@ class Save_Plot_Render:
             fig.set_size_inches(8.5,5.5)
             ax1.set_xlabel("Simulation Time [s]",fontsize='large')
             ax1.set_ylabel("Power [W]",fontsize='large',color='b')
-            ax1.plot(self.time, self.power,c='b',lw=2.5)
+            ax1.plot(self.time, power,c='b',lw=2.5)
             ax1.set_xlim(0.0, np.round(self.time[-1]))
             ax1.tick_params(axis='x', labelsize=12)
             ax1.tick_params(axis='y', labelsize=12, labelcolor='b')
@@ -1014,7 +1021,7 @@ class Save_Plot_Render:
             ax2.set_ylabel("Cumulative Energy Consumed [J]",fontsize='large',color='r')
             ax2.plot(self.time, energy,c='r',lw=2.5)
             ax2.plot(self.time, required_energy,c='k',lw=2.5,ls='--',label='Bulk Heating')
-            ax2.axhline(y=required_energy[-1]-ideal_energy_saving,c='k',lw=2.5,ls=':',label='Local Heating')
+            ax2.plot(self.time, ideal_energy,c='k',lw=2.5,ls=':',label='Local Heating')
             ax2.set_xlim(0.0, np.round(self.time[-1]))
             ax2.tick_params(axis='x', labelsize=12)
             ax2.tick_params(axis='y', labelsize=12, labelcolor='r')
@@ -1037,7 +1044,7 @@ class Save_Plot_Render:
             plt.gcf().set_size_inches(8.5, 2.5)
             c0 = plt.pcolormesh(1000.0*self.global_fine_mesh_x, 1000.0*self.global_fine_mesh_y, self.cum_max_temp_field[-1], shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
             cbar0 = plt.colorbar(c0)
-            cbar0.set_label("Max ϴ [-]",labelpad=20,fontsize='large')
+            cbar0.set_label("ϴ [-]",labelpad=20,fontsize='large')
             cbar0.ax.tick_params(labelsize=12)
             plt.xlabel('X Position [mm]',fontsize='large')
             plt.ylabel('Y Position [mm]',fontsize='large')
@@ -1056,7 +1063,7 @@ class Save_Plot_Render:
         # Set up profile plot
         plt.clf()
         plt.gcf().set_size_inches(8.5, 5.5)
-        plt.xlabel("X Location [mm]",fontsize='large')
+        plt.xlabel("X Position [mm]",fontsize='large')
         plt.ylabel("α [-]",fontsize='large')    
         plt.ylim(-0.1, 1.1)
         plt.xticks(fontsize='large')
@@ -1115,6 +1122,7 @@ class Save_Plot_Render:
         # Set up profile plot
         plt.clf()
         plt.gcf().set_size_inches(8.5, 5.5)
+        plt.xlabel("X Position [mm]",fontsize='large')
         plt.ylabel("ϴ [-]",fontsize='large')
         plt.ylim(-0.1, 1.1)
         plt.xticks(fontsize='large')
@@ -1166,6 +1174,51 @@ class Save_Plot_Render:
         plt.legend(bbox_to_anchor=(1.04, 1.0), loc='upper left',fontsize='large')
         plt.tight_layout()
         plt.savefig(self.path+'/temp_profile.svg', dpi=500)
+        plt.close()
+        
+        # Plot shape parameter
+        ## ====================================================================================================================================================================================================== ##    
+        # Determine front locations based on front curve data
+        front_width = []
+        front_skewness = []
+        for i in range(len(self.time)):
+            front_x_location = self.front_curve[i][0]
+            front_x_location = front_x_location[front_x_location >= 0.0]
+            front_x_location = 1000.0*front_x_location
+            front_instances = len(front_x_location)
+            if front_instances > 3:
+                front_width.append(np.max(front_x_location) - np.min(front_x_location))
+                if not np.std(front_x_location) == 0.0:
+                    front_skewness.append(abs((np.mean(front_x_location)-np.median(front_x_location))/np.std(front_x_location)))
+                else:
+                    front_skewness.append(0.0)
+            else:
+                front_width.append(0.0)
+                front_skewness.append(0.0)
+        front_width = np.array(front_width)
+        front_skewness = np.array(front_skewness)
+        
+        # Set up front plot
+        plt.cla()
+        plt.clf()
+        fig, ax1 = plt.subplots()
+        fig.set_size_inches(8.5,5.5)
+        
+        # Plot skewness
+        ax1.set_xlabel("Time [s]",fontsize='large')
+        ax1.set_ylabel("Nonparametric Skew [-]",fontsize='large',color='r')
+        ax1.plot(self.time[self.front_shape_param!=1.0],front_skewness[self.front_shape_param!=1.0],lw=2.5,c='r')
+        ax1.tick_params(axis='x', labelsize=12)
+        ax1.tick_params(axis='y', labelsize=12, labelcolor='r')
+        
+        # Plot front width
+        ax2 = ax1.twinx()
+        ax2.set_ylabel("$\dfrac{W_f}{W}$" + " [-]",fontsize='large',color='b')
+        ax2.plot(self.time[self.front_shape_param!=1.0],front_width[self.front_shape_param!=1.0] / (1000.0*self.mesh_y_z0[-1][-1]),lw=2.5,c='b')
+        ax2.tick_params(axis='x', labelsize=12)
+        ax2.tick_params(axis='y', labelsize=12, labelcolor='b')                
+        fig.suptitle("Front Shape",fontsize='xx-large')
+        plt.savefig(self.path + "/front_shape.png", dpi = 500)
         plt.close()
         
         #Plot actor learning curve

@@ -19,9 +19,9 @@ if __name__ == "__main__":
     ## INPUTS ##
     ## ====================================================================================================================================================================================================== ##
     # Define load paths
-    controlled_path = "../results/PPO_5" 
-    uncontrolled_path = "../results/Uncontrolled" 
-    random_path = "../results/Untrained" 
+    controlled_path = "../results/Uncertain_PPO_11" 
+    uncontrolled_path = "../results/Uncertain_Uncontrolled_Sim" 
+    random_path = "../results/Uncertain_Untrained_Sim" 
     
     # Define the temperature at which adiabatic, uncontrolled front speed would exactly equal target speed
     req_uncontrolled_temp = 306.15;

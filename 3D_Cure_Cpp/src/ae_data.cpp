@@ -185,7 +185,7 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* ae_data_cfg, Speed_Estima
 
 			// User readout
 			print_training_info(curr_traj+curr_epoch*(int)floor((double)samples_per_batch/(double)samples_per_trajectory), total_trajectories);
-
+			
 			// Save data structure
 			vector<vector<vector<double>>> temp_frames;
 			vector<vector<vector<double>>> cure_frames;
@@ -205,6 +205,7 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* ae_data_cfg, Speed_Estima
 				bool run_agent = (step_in_trajectory % steps_per_agent_cycle == 0) || (step_in_trajectory==0);
 				bool observe_speed = (step_in_trajectory % steps_per_speed_estimator_frame == 0) || (step_in_trajectory==0);
 				bool save_frame = step_in_trajectory == frame_index;
+				step_in_trajectory++;
 				
 				// Add observation to speed estimator
 				if (observe_speed && agent != NULL)
@@ -239,6 +240,7 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* ae_data_cfg, Speed_Estima
 					floc_frames.push_back(FDS->get_front_mean_x_loc(true));
 					fspeed_frames.push_back(FDS->get_front_vel(true));
 					fshape_frames.push_back(FDS->get_front_shape_param());
+					
 					
 					// Update which frame is to be saved next
 					frame_count++;
@@ -285,9 +287,6 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* ae_data_cfg, Speed_Estima
 						action_1 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 0));
 						action_2 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 1));
 						action_3 = PyFloat_AsDouble(PyTuple_GetItem(py_action_and_stdev, 2));
-
-						// Step the environment
-						done = FDS->step(action_1, action_2, action_3);
 						
 						// Release the python memory
 						Py_DECREF(py_state_image);
@@ -305,20 +304,10 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* ae_data_cfg, Speed_Estima
 						action_3 = 2.0*((double)rand()/(double)RAND_MAX - 0.5);
 					}
 					
-					// Step the environment
-					done = FDS->step(action_1, action_2, action_3);
-					
 				}
 				
 				// Step the environment 
-				if (!run_agent)
-				{
-					// Step the environment based on the previously commanded action
-					done = FDS->step(action_1, action_2, action_3);
-				}
-
-				// Update the current state and the step in episode
-				step_in_trajectory++;
+				done = FDS->step(action_1, action_2, action_3);
 
 			}
 			

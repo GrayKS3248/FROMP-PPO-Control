@@ -25,7 +25,7 @@ PyObject* init_save_render_plot();
 int store_training_curves(PyObject* save_render_plot, vector<double> r_per_episode, vector<double> value_error);
 int store_lr_curves(PyObject* save_render_plot, vector<double> actor_lr, vector<double> critic_lr);
 int store_stdev_history(PyObject* save_render_plot, vector<double> x_stdev, vector<double> y_stdev, vector<double> mag_stdev);
-int store_input_history(PyObject* save_render_plot, vector<double> input_location_x, vector<double> input_location_y, vector<double> input_percent, vector<double> power);
+int store_input_history(PyObject* save_render_plot, vector<double> input_location_x, vector<double> input_location_y, vector<double> input_percent, vector<double> trigger_power, vector<double> source_power);
 int store_field_history(PyObject* save_render_plot, vector<vector<vector<double>>> temperature_field, vector<vector<vector<double>>> cure_field, vector<vector<vector<double>>> fine_temperature_field, vector<vector<vector<double>>> fine_cure_field, vector<vector<double>> fine_mesh_loc);
 int store_front_history(PyObject* save_render_plot, vector<vector<vector<double>>> front_curve, vector<vector<double>> front_fit, vector<double> front_velocity, vector<double> front_temperature, vector<double> front_shape_param);
 int store_target_and_time(PyObject* save_render_plot, vector<double> target, vector<double> time, vector<vector<double>> reward);

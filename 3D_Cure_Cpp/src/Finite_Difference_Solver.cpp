@@ -799,28 +799,39 @@ double Finite_Difference_Solver::get_max_input_slew_speed()
 }
 
 /**
-* Gets the total heat power being input to the system (input + trigger)
-* @return Total heat power input in watts
+* Gets the total heat power being used by the thermal trigger
+* @return Total heat power of trigger (watts)
 */
-double Finite_Difference_Solver::get_power()
+double Finite_Difference_Solver::get_trigger_power()
 {
-	double total_power = 0.0;
+	double power = 0.0;
 	
 	// Trigger power
 	if (trigger_is_on)
 	{
 		// Flux times area
-		total_power += trigger_flux * coarse_y_len * coarse_z_len;
+		power += trigger_flux * coarse_y_len * coarse_z_len;
 	}
+	
+	return power;
+}
+
+/**
+* Gets the total heat power being used by the heat source
+* @return Total heat power of source (watts)
+*/
+double Finite_Difference_Solver::get_source_power()
+{
+	double power = 0.0;
 	
 	// Input power
 	if (input_is_on)
 	{
 		// Flux times area
-		total_power += input_percent * input_total_power;
+		power += input_percent * input_total_power;
 	}
 	
-	return total_power;
+	return power;
 }
 
 // ************************************************** TARGET GETTERS ************************************************** //
@@ -1545,7 +1556,8 @@ vector<double> Finite_Difference_Solver::get_reward()
 	max_temp_reward = max_temp_reward_const * (1.0 - norm_over);
 
 	// Get the front shape reward
-	front_shape_reward = front_shape_reward_const * pow((1.0 - front_shape_param), 6.64385618978);
+	double clipped_front_shape_param = front_shape_param > 1.0 ? 1.0 : front_shape_param;
+	front_shape_reward = front_shape_reward_const * pow((1.0 - clipped_front_shape_param), 6.64385618978);
 
 	// Get the total reward
 	if (control_code==1)
@@ -2697,7 +2709,6 @@ void Finite_Difference_Solver::step_meshes()
 		{
 			front_shape_param = sqrt((front_shape_param/(double)num_front_instances) - (front_mean_x_loc/(double)num_front_instances)*(front_mean_x_loc/(double)num_front_instances)) / (0.10 * coarse_y_len);
 		}
-		front_shape_param = front_shape_param > 1.0 ? 1.0 : front_shape_param;
 		front_mean_x_loc = front_mean_x_loc / (double)num_front_instances;
 
 		// Calculate the average mean x location and sim time from front location history

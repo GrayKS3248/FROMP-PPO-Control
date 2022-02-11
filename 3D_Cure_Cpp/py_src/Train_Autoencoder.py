@@ -34,12 +34,12 @@ def get_print_string(curr_epochs, num_epochs, batch_num, batch_count, num_batche
 if __name__ == "__main__":
     
     # Training data parameters
-    num_epochs = 1
+    num_epochs = 5
     num_files = 2500
     samples_per_file = 40
-    samples_per_batch = 1
+    samples_per_batch = 5
     total_snapshots = 100
-    training_data_path = '../training_data/DCPD_GC2/Autoencoder_Shuffled'
+    training_data_path = '../training_data/DCPD_GC2/Quenched_AE_controlled_inputs_shuffled'
     
     # Image parameters
     x_dim = 256
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     norm_max = 1.0
     
     # Hyperparameters
-    load_path = ""
+    load_path = "../results/Quench_Uncontrolled_AE"
     targets = ['temp']
     latent_targets = ['ftemp', 'fspeed']
     sparsity_parameter = 0.20
@@ -61,8 +61,8 @@ if __name__ == "__main__":
     occ_max = 3
     occ_min_area = 0.01
     occ_max_area = 0.25
-    alpha_zero = 1.0e-4
-    alpha_last = 1.0e-4
+    alpha_zero = 5.0e-5
+    alpha_last = 5.0e-5
     
     # Calculated parameters
     batch_per_file = int(samples_per_file / samples_per_batch)

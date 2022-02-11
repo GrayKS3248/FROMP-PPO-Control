@@ -37,7 +37,8 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 	vector<double> input_location_x;
 	vector<double> input_location_y;
 	vector<double> input_percent;
-	vector<double> power;
+	vector<double> trigger_power;
+	vector<double> source_power;
 	vector<double> time;
 	vector<double> target;
 	vector<vector<double>> reward;
@@ -111,7 +112,8 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 			input_percent.push_back(input_state[0]);
 			input_location_x.push_back(input_state[1]);
 			input_location_y.push_back(input_state[2]);
-			power.push_back(FDS->get_power());
+			trigger_power.push_back(FDS->get_trigger_power());
+			source_power.push_back(FDS->get_source_power());
 			
 			// Store simualtion target and time data
 			time.push_back(FDS->get_curr_sim_time());
@@ -216,7 +218,7 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 	
 	// Send all relevant data to save render and plot module
 	start_time = chrono::high_resolution_clock::now();
-	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent, power) == 1) {return 1;}
+	if(store_input_history(save_render_plot, input_location_x, input_location_y, input_percent, trigger_power, source_power) == 1) {return 1;}
 	if(store_field_history(save_render_plot, temperature_field, cure_field, fine_temperature_field, fine_cure_field, fine_mesh_loc) == 1) {return 1;}
 	if(store_front_history(save_render_plot, front_curve, front_fit, front_velocity, front_temperature, front_shape_param) == 1) {return 1;}
 	if(store_target_and_time(save_render_plot, target, time, reward) == 1) {return 1;}

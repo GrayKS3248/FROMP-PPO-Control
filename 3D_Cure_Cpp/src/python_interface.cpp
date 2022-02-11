@@ -389,19 +389,21 @@ int store_stdev_history(PyObject* save_render_plot, vector<double> x_stdev, vect
 * @param vector containing input x location history
 * @param vector containing input y location history
 * @param vector containing input magnitude percent history
-* @param vector containing total power history
+* @param vector containing trigger power history
+* @param vector containing source power history
 * @return 0 on success, 1 on failure
 */
-int store_input_history(PyObject* save_render_plot, vector<double> input_location_x, vector<double> input_location_y, vector<double> input_percent, vector<double> power)
+int store_input_history(PyObject* save_render_plot, vector<double> input_location_x, vector<double> input_location_y, vector<double> input_percent, vector<double> trigger_power, vector<double> source_power)
 {
 	// Convert inputs
 	PyObject* py_input_location_x = get_1D_list<vector<double>>(input_location_x);
 	PyObject* py_input_location_y = get_1D_list<vector<double>>(input_location_y);
 	PyObject* py_input_percent = get_1D_list<vector<double>>(input_percent);
-	PyObject* py_power = get_1D_list<vector<double>>(power);
+	PyObject* py_trigger_power = get_1D_list<vector<double>>(trigger_power);
+	PyObject* py_source_power = get_1D_list<vector<double>>(source_power);
 	
 	// Call function
-	PyObject* result = PyObject_CallMethod(save_render_plot, "store_input_history", "(O,O,O,O)", py_input_location_x, py_input_location_y, py_input_percent, py_power);
+	PyObject* result = PyObject_CallMethod(save_render_plot, "store_input_history", "(O,O,O,O,O)", py_input_location_x, py_input_location_y, py_input_percent, py_trigger_power, py_source_power);
 	if (result==NULL)
 	{
 		fprintf(stderr, "\nFailed to call Save_Plot_Render's store_input_history function:\n");
@@ -409,6 +411,8 @@ int store_input_history(PyObject* save_render_plot, vector<double> input_locatio
 		Py_DECREF(py_input_location_x);
 		Py_DECREF(py_input_location_y);
 		Py_DECREF(py_input_percent);
+		Py_DECREF(py_trigger_power);
+		Py_DECREF(py_source_power);
 		return 1;
 	}
 	
@@ -417,6 +421,8 @@ int store_input_history(PyObject* save_render_plot, vector<double> input_locatio
 	Py_DECREF(py_input_location_x);
 	Py_DECREF(py_input_location_y);
 	Py_DECREF(py_input_percent);
+	Py_DECREF(py_trigger_power);
+	Py_DECREF(py_source_power);
 	return 0;
 }
 
