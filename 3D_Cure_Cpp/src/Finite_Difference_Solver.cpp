@@ -264,7 +264,7 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 	
 	// ************************************************** FRONT PARAMETERS ************************************************** //
 	// Set front detection parameters
-	max_front_instances = 10 * num_fine_vert_y;
+	max_front_instances = 20 * num_fine_vert_y;
 	front_filter_alpha = 1.0 - exp(-coarse_time_step/front_filter_time_const);
 	front_mean_x_loc_history_len = front_mean_x_loc_history_time_len / coarse_time_step;
 

@@ -38,5 +38,5 @@ int store_boundary_conditions(PyObject* save_render_plot, double heat_transfer_c
 
 
 //******************************************************************** PYTHON API SAVE, PLOT, RENDER FUNCTIONS ********************************************************************//
-int save_agent_results(PyObject* save_render_plot, PyObject* agent);
-int save_results(PyObject* save_render_plot);
+int save_agent_results(PyObject* save_render_plot, PyObject* agent, bool render);
+int save_results(PyObject* save_render_plot, bool render);

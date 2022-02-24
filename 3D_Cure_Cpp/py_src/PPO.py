@@ -491,6 +491,7 @@ class Save_Plot_Render:
         self.global_fine_mesh_y = []
         self.max_temperature_field = []
         self.interpolated_temperature_field = []
+        self.interpolated_cure_field = []
         self.max_theta_field = []
         self.front_curve = []
         self.front_fit = []
@@ -599,6 +600,7 @@ class Save_Plot_Render:
         
         # Initialize interpolated temperature fields
         interpolated_temp_field = np.zeros( (len(self.time), len(global_fine_x_linspace), len(global_fine_y_linspace)) )
+        interpolated_cure_field = np.zeros( (len(self.time), len(global_fine_x_linspace), len(global_fine_y_linspace)) )
         cum_max_temp_field = np.zeros( (len(self.time), len(global_fine_x_linspace), len(global_fine_y_linspace)) )
         
         # Determine the maximum temperature at fine resolution at each frame
@@ -607,6 +609,8 @@ class Save_Plot_Render:
             # At each frame, interpolate the coarse temperautre field to the fine field resolution
             f = interpolate.interp2d(self.mesh_x_z0[:,0], self.mesh_y_z0[0,:], np.transpose(self.temperature_field[curr_frame]))
             interpolated_temp_field[curr_frame] = np.transpose(f(global_fine_x_linspace, global_fine_y_linspace))
+            f = interpolate.interp2d(self.mesh_x_z0[:,0], self.mesh_y_z0[0,:], np.transpose(self.cure_field[curr_frame]))
+            interpolated_cure_field[curr_frame] = np.transpose(f(global_fine_x_linspace, global_fine_y_linspace))
             
             # Paint over the interpolated temperature field with the fine temperature field
             fine_mesh_start_loc = self.fine_mesh_loc[curr_frame][0]
@@ -614,6 +618,7 @@ class Save_Plot_Render:
             fine_mesh_start_index = np.argmin(abs(global_fine_x_linspace-fine_mesh_start_loc))
             fine_mesh_end_index = np.argmin(abs(global_fine_x_linspace-fine_mesh_end_loc))
             interpolated_temp_field[curr_frame][fine_mesh_start_index:(fine_mesh_end_index+1),:] = self.fine_temperature_field[curr_frame]
+            interpolated_cure_field[curr_frame][fine_mesh_start_index:(fine_mesh_end_index+1),:] = self.fine_cure_field[curr_frame]
             
             # Compare the fine temperature mesh to the fine resolution corase temperature mesh
             if curr_frame == 0:
@@ -622,7 +627,7 @@ class Save_Plot_Render:
                 cum_max_temp_field[curr_frame,:,:] = np.maximum(interpolated_temp_field[curr_frame], cum_max_temp_field[curr_frame-1])
             
         # Return the maximum temperature field and mesh used to plot it
-        return global_fine_mesh_x, global_fine_mesh_y, cum_max_temp_field, interpolated_temp_field
+        return global_fine_mesh_x, global_fine_mesh_y, cum_max_temp_field, interpolated_temp_field, interpolated_cure_field
        
     def get_steady_state(self):
         # Determine the average front speed in steady state propogation (region wherein front velocity is +- 0.05mm/s of the non zero mean front velocity
@@ -724,7 +729,7 @@ class Save_Plot_Render:
                 self.mean_front_y_locations[curr_frame] = 0.0
         
         # Calculate the max temperature field
-        self.global_fine_mesh_x, self.global_fine_mesh_y, self.cum_max_temp_field, self.interpolated_temp_field = self.post_process_temperature_field()
+        self.global_fine_mesh_x, self.global_fine_mesh_y, self.cum_max_temp_field, self.interpolated_temp_field, self.interpolated_cure_field = self.post_process_temperature_field()
         
         # Determine mean initial conditions
         self.mean_initial_temp = np.mean(self.interpolated_temp_field[0]) * (self.adiabatic_rxn_temp - self.initial_temperature) + self.initial_temperature
@@ -773,6 +778,7 @@ class Save_Plot_Render:
             'global_fine_mesh_y': self.global_fine_mesh_y,
             'cum_max_temp_field': self.cum_max_temp_field,
             'interpolated_temp_field' : self.interpolated_temp_field,
+            'interpolated_cure_field' : self.interpolated_cure_field, 
             'front_curve': self.front_curve,
             'front_fit' : self.front_fit,
             'mean_front_x_locations': self.mean_front_x_locations,
@@ -796,6 +802,7 @@ class Save_Plot_Render:
             'surface_area' : self.surface_area,
             'heat_transfer_coeff' : self.heat_transfer_coeff,
             'ambient_temp' : self.ambient_temp,
+            'initial_temperature' : self.initial_temperature,
             'actor': agent.actor,
             'critic': agent.critic,
             'encoder' : agent.encoder,
@@ -829,6 +836,7 @@ class Save_Plot_Render:
             'global_fine_mesh_y': self.global_fine_mesh_y,
             'cum_max_temp_field': self.cum_max_temp_field,
             'interpolated_temp_field' : self.interpolated_temp_field,
+            'interpolated_cure_field' : self.interpolated_cure_field,
             'front_curve': self.front_curve,
             'front_fit' : self.front_fit,
             'mean_front_x_locations': self.mean_front_x_locations,
@@ -852,6 +860,7 @@ class Save_Plot_Render:
             'surface_area' : self.surface_area,
             'heat_transfer_coeff' : self.heat_transfer_coeff,
             'ambient_temp' : self.ambient_temp,
+            'initial_temperature' : self.initial_temperature,
         }
         
         # Save the stored data

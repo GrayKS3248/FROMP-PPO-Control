@@ -704,9 +704,10 @@ int store_boundary_conditions(PyObject* save_render_plot, double heat_transfer_c
 * Calls the save, plot, and render functions of the save_render_plot class in the PPO module, decrefs agent and save_render_plot
 * @param pointer to the save_render_plot class in the PPO module
 * @param Python pointer pointing at the trained agent
+* @param Boolean flag that indicates whether to render the saved trajectory
 * @return 0 on success, 1 on failure
 */
-int save_agent_results(PyObject* save_render_plot, PyObject* agent)
+int save_agent_results(PyObject* save_render_plot, PyObject* agent, bool render)
 {
 	// Save
 	if(PyObject_CallMethod(save_render_plot, "save", "O", agent) == NULL)
@@ -729,13 +730,16 @@ int save_agent_results(PyObject* save_render_plot, PyObject* agent)
 	}
 	
 	// Render
-	if(PyObject_CallMethodObjArgs(save_render_plot, PyUnicode_DecodeFSDefault("render"), NULL) == NULL)
+	if (render)
 	{
-		fprintf(stderr, "\nFailed to call Save_Plot_Render's render function:\n");
-		PyErr_Print();
-		if (agent != NULL) { Py_DECREF(agent); }
-		if (save_render_plot != NULL) { Py_DECREF(save_render_plot); }
-		return 1;
+		if(PyObject_CallMethodObjArgs(save_render_plot, PyUnicode_DecodeFSDefault("render"), NULL) == NULL)
+		{
+			fprintf(stderr, "\nFailed to call Save_Plot_Render's render function:\n");
+			PyErr_Print();
+			if (agent != NULL) { Py_DECREF(agent); }
+			if (save_render_plot != NULL) { Py_DECREF(save_render_plot); }
+			return 1;
+		}	
 	}
 	
 	// Free memory
@@ -747,9 +751,10 @@ int save_agent_results(PyObject* save_render_plot, PyObject* agent)
 /**
 * Calls the save, plot, and render functions of the save_render_plot class in the PPO module
 * @param pointer to the save_render_plot class in the PPO module
+* @param Boolean flag that indicates whether to render the saved trajectory
 * @return 0 on success, 1 on failure
 */
-int save_results(PyObject* save_render_plot)
+int save_results(PyObject* save_render_plot, bool render)
 {
 	// Save
 	if(PyObject_CallMethodObjArgs(save_render_plot, PyUnicode_DecodeFSDefault("save_without_agent"), NULL) == NULL)
@@ -770,12 +775,15 @@ int save_results(PyObject* save_render_plot)
 	}
 	
 	// Render
-	if(PyObject_CallMethodObjArgs(save_render_plot, PyUnicode_DecodeFSDefault("render"), NULL) == NULL)
+	if (render)
 	{
-		fprintf(stderr, "\nFailed to call Save_Plot_Render's render function:\n");
-		PyErr_Print();
-		if (save_render_plot != NULL) { Py_DECREF(save_render_plot); }
-		return 1;
+		if(PyObject_CallMethodObjArgs(save_render_plot, PyUnicode_DecodeFSDefault("render"), NULL) == NULL)
+		{
+			fprintf(stderr, "\nFailed to call Save_Plot_Render's render function:\n");
+			PyErr_Print();
+			if (save_render_plot != NULL) { Py_DECREF(save_render_plot); }
+			return 1;
+		}
 	}
 	
 	// Free memory

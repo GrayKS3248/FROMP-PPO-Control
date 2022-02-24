@@ -188,7 +188,8 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* train_agent_cfg, Speed_Es
 				
 				// Get speed from speed estimator and calculate error
 				double front_speed = estimator->estimate();
-				double front_speed_error = front_speed / FDS->get_curr_target();
+				//double front_speed_error = front_speed / FDS->get_curr_target();
+				double front_speed_error = 10.0*(front_speed - FDS->get_curr_target()) / FDS->get_curr_target();
 				
 				// Combine all additional inputs to PPO agent
 				vector<double> additional_ppo_inputs(1, 0.0);
@@ -402,7 +403,8 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* train_agent_cfg, Speed_Es
 			
 			// Get speed from speed estimator and calculate error
 			double front_speed = estimator->estimate();
-			double front_speed_error = front_speed / FDS->get_curr_target();
+			//double front_speed_error = front_speed / FDS->get_curr_target();
+			double front_speed_error = 10.0*(front_speed - FDS->get_curr_target()) / FDS->get_curr_target();
 			
 			// Combine all additional inputs to PPO agent
 			vector<double> additional_ppo_inputs(1, 0.0);
@@ -474,7 +476,9 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* train_agent_cfg, Speed_Es
 
 	// Save, plot, and render
 	start_time = chrono::high_resolution_clock::now();
-	return save_agent_results(save_render_plot, agent);
+	bool render;
+	train_agent_cfg->get_var("render", render);
+	return save_agent_results(save_render_plot, agent, render);
 }
 
 
