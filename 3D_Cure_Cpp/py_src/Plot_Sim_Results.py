@@ -18,8 +18,8 @@ if __name__ == "__main__":
     ## INPUTS ##
     ## ====================================================================================================================================================================================================== ##
     # Define load paths
-    path = "../results/Quench/Quench_PPO_13" 
-    save_path = "../results/Quench"
+    path = "../results/PPO_7" 
+    save_path = "../results"
     
     # Options
     NN_vis = False
@@ -199,13 +199,17 @@ if __name__ == "__main__":
             rolling_avg = np.array(pd.Series(dat['r_per_episode']).rolling(window).mean())
             rolling_std = rolling_std[~np.isnan(rolling_std)]
             rolling_avg = rolling_avg[~np.isnan(rolling_avg)]
+            plt.fill_between(np.arange(len(rolling_avg)), rolling_avg+rolling_std, rolling_avg-rolling_std, color='r', alpha=0.25, lw=0.0)
+            plt.plot(np.arange(len(rolling_avg)), rolling_avg, lw=2.0, color='r')
+        
+        else:
+            plt.plot(np.arange(len(dat['r_per_episode'])), dat['r_per_episode'], lw=2.0, color='r')
             
         # Plot actor training curve
         plt.title('Rolling Actor Learning Curve, Window='+str(window),fontsize='xx-large')
         plt.xlabel("Trajectory",fontsize='large', labelpad=15)
         plt.ylabel("Mean Reward per Trajectory Step",fontsize='large', labelpad=15)
-        plt.fill_between(np.arange(len(rolling_avg)), rolling_avg+rolling_std, rolling_avg-rolling_std, color='r', alpha=0.25, lw=0.0)
-        plt.plot(np.arange(len(rolling_avg)), rolling_avg, lw=2.0, color='r')
+
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
         plt.ylim([0.0,1.0])
@@ -227,16 +231,21 @@ if __name__ == "__main__":
             rolling_avg = np.array(pd.Series(dat['value_error']).rolling(window).mean())
             rolling_std = rolling_std[~np.isnan(rolling_std)]
             rolling_avg = rolling_avg[~np.isnan(rolling_avg)]
+            plt.fill_between(np.arange(len(rolling_avg)), rolling_avg+rolling_std, rolling_avg-rolling_std, color='r', alpha=0.25, lw=0.0)
+            plt.plot(np.arange(len(rolling_avg)), rolling_avg, lw=2.0, color='r')
+            plt.ylim([10.0**((np.log10(np.min(rolling_avg))//0.5)*0.5), 10.0**((np.log10(np.max(rolling_avg))//0.5 + 1.0)*0.5)]) 
+        
+        else:
+            plt.plot(np.arange(len(dat['value_error'])), dat['value_error'], lw=2.0, color='r')
+            plt.ylim([10.0**((np.log10(np.min(dat['value_error']))//0.5)*0.5), 10.0**((np.log10(np.max(dat['value_error']))//0.5 + 1.0)*0.5)])
             
         # Plot actor training curve
         plt.title('Rolling Critic Learning Curve, Window='+str(window),fontsize='xx-large')
         plt.xlabel("Optimization Step",fontsize='large', labelpad=15)
         plt.ylabel("Value Function Estimation MSE",fontsize='large', labelpad=15)
-        plt.fill_between(np.arange(len(rolling_avg)), rolling_avg+rolling_std, rolling_avg-rolling_std, color='r', alpha=0.25, lw=0.0)
-        plt.plot(np.arange(len(rolling_avg)), rolling_avg, lw=2.0, color='r')
+        
         plt.xticks(fontsize='large')
         plt.yticks(fontsize='large')
-        plt.ylim([10.0**((np.log10(np.min(rolling_avg))//0.5)*0.5), 10.0**((np.log10(np.max(rolling_avg))//0.5 + 1.0)*0.5)])
         plt.yscale("log")
         plt.gcf().set_size_inches(8.5, 5.5)
         plt.tight_layout()

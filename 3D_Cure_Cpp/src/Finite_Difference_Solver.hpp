@@ -140,6 +140,7 @@ double laplacian_consts[5][7] = { { 137.0/180.0, -49.0/60.0, -17.0/12.0,  47.0/1
 bool input_is_on;
 bool using_a_trigger;
 int monomer_code;
+bool reaction;
 int control_code;
 int target_code;
 

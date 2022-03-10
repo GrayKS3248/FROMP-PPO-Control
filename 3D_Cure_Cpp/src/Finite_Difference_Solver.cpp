@@ -15,7 +15,6 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 		throw 1;
 	}
 	
-	
 	// ************************************************** MONOMER PARAMS ************************************************** //
 	// Monomer physical parameters
 	if (monomer_code==1)
@@ -307,17 +306,24 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 	double curr_precalc_temp = precalc_start_temp;
 	for(int i = 0; i < precalc_exp_arr_len; i++)
 	{
-		if (monomer_code==1)
+		if (!reaction)
 		{
-			precalc_exp_arr[i] = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * curr_precalc_temp));
+			precalc_exp_arr[i] = 0.0;
 		}
-		else if (monomer_code==2)
+		else
 		{
-			precalc_exp_arr[i] = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * curr_precalc_temp));
-		}
-		else if (monomer_code==3)
-		{
-			precalc_exp_arr[i] = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * curr_precalc_temp));
+			if (monomer_code==1)
+			{
+				precalc_exp_arr[i] = DCPD_GC1_pre_exponential * exp(-DCPD_GC1_activiation_energy / (gas_const * curr_precalc_temp));
+			}
+			else if (monomer_code==2)
+			{
+				precalc_exp_arr[i] = DCPD_GC2_pre_exponential * exp(-DCPD_GC2_activiation_energy / (gas_const * curr_precalc_temp));
+			}
+			else if (monomer_code==3)
+			{
+				precalc_exp_arr[i] = COD_pre_exponential * exp(-COD_activiation_energy / (gas_const * curr_precalc_temp));
+			}	
 		}
 		curr_precalc_temp += precalc_temp_step;
 	}
@@ -1288,6 +1294,14 @@ void Finite_Difference_Solver::print_params()
 		cout << "  (Monomer): COD\n";
 		cout << "  (Catalyst): GC2\n";
 	}
+	if (reaction)
+	{
+		cout << "  (Reaction): True\n";	
+	}
+	else
+	{
+		cout << "  (Reaction): False\n";	
+	}
 	cout << "  (Initial Temperature): " << initial_temp-273.15 << " C +- " << max_initial_temp_deviation << " C\n";
 	cout << "  (Initial Cure): " << initial_cure << " +- " << max_initial_cure_deviation << "\n";
 	cout << ")\n";
@@ -1614,6 +1628,7 @@ int Finite_Difference_Solver::load_config()
 		cout << "\nMaterial configuration not recognized.";
 		return 1;
 	}
+	fds_cfg.get_var("reaction",reaction);
 	fds_cfg.get_var("control",string_dump);
 	if (string_dump.compare("speed")==0)
 	{

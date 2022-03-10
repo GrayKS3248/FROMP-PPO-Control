@@ -813,7 +813,6 @@ class Save_Plot_Render:
             pickle.dump(data, file)
             
     def save_without_agent(self):
-        
         # General save operations
         self.general_save_ops("SIM_")
         
