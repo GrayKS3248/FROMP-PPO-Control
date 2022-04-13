@@ -13,20 +13,12 @@ if __name__ == "__main__":
     
     # Define load paths
     paths = [
-        'results/AE_16_MSE', 
-        'results/AE_32_MSE', 
-        'results/AE_64_MSE', 
-        'results/AE_96_MSE', 
-        'results/AE_128_MSE', 
+        '../results/Uncertain/Uncertain_Controlled_AE', 
         ]
     
     # Define labels associated with each loaded autoencoder
     labels = [
-        '16',
-        '32', 
-        '64', 
-        '96', 
-        '128', 
+        '16'
         ]
     
     # Ensure proper number of paths and labels

@@ -11,6 +11,7 @@ import pandas as pd
 import matplotlib.cm as cm
 import re
 from string import digits
+from os.path import exists
 
 if __name__ == "__main__":
     
@@ -18,15 +19,82 @@ if __name__ == "__main__":
     ## INPUTS ##
     ## ====================================================================================================================================================================================================== ##
     # Define load paths
-    path = "../results/PPO_7" 
-    save_path = "../results"
+    path = "../results/Quench/Quench_PPO_13" 
+    performance_path = "../results/Quench"
+    perf_1_file = "Quench_Semi-Controlled_Sim"
+    perf_2_file = "Quench_Controlled_Sim"
+    perf_combined_path = "../results/Quench"
+    save_path = "../results/Quench"
     
     # Options
-    NN_vis = False
+    NN_vis = True
     actor_vis = True
     critic_vis = True
+        
+
+    ## LOAD PERFORAMNCE 1 SIMULATION DATA ##
+    ## ====================================================================================================================================================================================================== ##
+    # Load all previous simulations, store their trajectory, front shape, and energy consumption
+    if perf_combined_path == "":
+        print("Loading simulation 1 data...")
+        
+        perf_1_speed = []
+        perf_1_target = []
+        
+        temp_path = performance_path + "/" + perf_1_file + "_"
+        sim_num = 1
+        while exists(temp_path+str(sim_num)):
+            curr_path = temp_path+str(sim_num)
+            print(curr_path+"/output")
+            with open(curr_path+"/output", 'rb') as file:
+                dat = pickle.load(file)
+                
+                # Simulation data
+                perf_1_target.append(dat['target'])
+                perf_1_speed.append(dat['front_velocity'])
+                
+                # Iterate
+                sim_num = sim_num + 1
+                
+                
+    ## LOAD PERFORAMNCE 2 SIMULATION DATA ##
+    ## ====================================================================================================================================================================================================== ##
+    # Load all previous simulations, store their trajectory, front shape, and energy consumption
+    if perf_combined_path == "":
+        print("Loading simulation 2 data...")
+        
+        perf_2_target = []
+        perf_2_speed = []
+        
+        temp_path = performance_path + "/" + perf_2_file + "_"
+        sim_num = 1
+        while exists(temp_path+str(sim_num)):
+            curr_path = temp_path+str(sim_num)
+            print(curr_path+"/output")
+            with open(curr_path+"/output", 'rb') as file:
+                dat = pickle.load(file)
+                
+                # Simulation data
+                perf_2_target.append(dat['target'])
+                perf_2_speed.append(dat['front_velocity'])
+                
+                # Iterate
+                sim_num = sim_num + 1
+       
+            
+    ## LOAD PRE-COMBINED DATA ##
+    ## ====================================================================================================================================================================================================== ##
+    # Load previously generated combined data
+    print("Loading performance data...")
     
-    
+    if perf_combined_path != "":
+        with open(perf_combined_path+"/perf_combined_data", 'rb') as file:
+            data = pickle.load(file)
+            
+        for entry in data:
+            globals()[entry] = data[entry]
+        
+        
     ## LOADING ##
     ## ====================================================================================================================================================================================================== ##
     # Load data
@@ -189,10 +257,34 @@ if __name__ == "__main__":
     
     ## ACTOR LEARNING CURVE ##
     ## ====================================================================================================================================================================================================== ##    
+    # Calculate and plot relative performance data
+    target_1 = np.mean(perf_1_target)
+    target_2 = np.mean(perf_2_target)
+    perf_1_speed_err = np.array(perf_1_speed)[:,int(np.ceil(0.33*len(np.array(perf_1_speed)[0,:]))):int(np.floor(0.66*len(np.array(perf_1_speed)[0,:])))]
+    perf_1_speed_err = 100.0 * abs((target_1 - perf_1_speed_err) / target_1)
+    perf_1_speed_err = perf_1_speed_err.flatten()
+    perf_2_speed_err = np.array(perf_2_speed)[:,int(np.ceil(0.33*len(np.array(perf_2_speed)[0,:]))):int(np.floor(0.66*len(np.array(perf_2_speed)[0,:])))]
+    perf_2_speed_err = 100.0 * abs((target_2 - perf_2_speed_err) / target_2)
+    perf_2_speed_err = perf_2_speed_err.flatten()
+    
+    plt.clf()
+    plt.gcf().set_size_inches(2.5,3.0)
+    plt.ylim([-1, 12])
+    plt.boxplot([perf_1_speed_err, perf_2_speed_err], showfliers=False, widths=(0.5,0.5))
+    plt.ylabel('Front Speed Error [%]', fontsize=16)
+    plt.xticks([1,2], labels=["Before\nReset", "After\nReset"], fontsize=16)
+    plt.yticks([0, 4, 8, 12], fontsize=16)
+    plt.tight_layout()
+    plt.savefig(save_path+"/actor_performance.svg", dpi = 500)
+    plt.close()
+    
     # Get the moving average and stdev of the learning curve
     if actor_vis:
         print("Rendering actor training data...")
         plt.clf()
+        plt.gcf().set_size_inches(8.5,5.5)
+        plt.xlabel("Trajectory",fontsize=16)
+        plt.ylabel("Mean Reward per Trajectory Step",fontsize=16)
         window = ((len(dat['r_per_episode']) // 100) // 50) * 50
         if window > 1:
             rolling_std = np.array(pd.Series(dat['r_per_episode']).rolling(window).std())
@@ -206,16 +298,13 @@ if __name__ == "__main__":
             plt.plot(np.arange(len(dat['r_per_episode'])), dat['r_per_episode'], lw=2.0, color='r')
             
         # Plot actor training curve
-        plt.title('Rolling Actor Learning Curve, Window='+str(window),fontsize='xx-large')
-        plt.xlabel("Trajectory",fontsize='large', labelpad=15)
-        plt.ylabel("Mean Reward per Trajectory Step",fontsize='large', labelpad=15)
-
-        plt.xticks(fontsize='large')
-        plt.yticks(fontsize='large')
-        plt.ylim([0.0,1.0])
-        plt.gcf().set_size_inches(8.5, 5.5)
+        plt.ylim(0.0,.9)
+        plt.xlim(-1000,42500)
+        plt.xticks([0, 5000, 10000, 15000, 20000, 25000, 30000, 35000], fontsize=16)
+        plt.yticks(fontsize=16)
+        plt.title("(a) Control policy learning curve",fontsize=20, y=-0.25)
         plt.tight_layout()
-        plt.savefig(save_path+"/actor_training.svg", format='svg', dpi = 1000)
+        plt.savefig(save_path+"/actor_training.svg", dpi = 500)
         plt.close()
         
         
@@ -225,6 +314,9 @@ if __name__ == "__main__":
     if critic_vis:
         print("Rendering critic training data...")
         plt.clf()
+        plt.gcf().set_size_inches(8.5,5.5)
+        plt.xlabel("Optimization Step",fontsize=16)
+        plt.ylabel("Value Function Estimation MSE",fontsize=16)
         window = ((len(dat['r_per_episode']) // 100) // 50) * 50
         if window > 1:
             rolling_std = np.array(pd.Series(dat['value_error']).rolling(window).std())
@@ -233,23 +325,32 @@ if __name__ == "__main__":
             rolling_avg = rolling_avg[~np.isnan(rolling_avg)]
             plt.fill_between(np.arange(len(rolling_avg)), rolling_avg+rolling_std, rolling_avg-rolling_std, color='r', alpha=0.25, lw=0.0)
             plt.plot(np.arange(len(rolling_avg)), rolling_avg, lw=2.0, color='r')
-            plt.ylim([10.0**((np.log10(np.min(rolling_avg))//0.5)*0.5), 10.0**((np.log10(np.max(rolling_avg))//0.5 + 1.0)*0.5)]) 
+            plt.ylim(10.0**((np.log10(np.min(rolling_avg))//0.5)*0.5), 10.0**((np.log10(np.max(rolling_avg))//0.5 + 1.0)*0.5)) 
         
         else:
             plt.plot(np.arange(len(dat['value_error'])), dat['value_error'], lw=2.0, color='r')
-            plt.ylim([10.0**((np.log10(np.min(dat['value_error']))//0.5)*0.5), 10.0**((np.log10(np.max(dat['value_error']))//0.5 + 1.0)*0.5)])
+            plt.ylim(10.0**((np.log10(np.min(dat['value_error']))//0.5)*0.5), 10.0**((np.log10(np.max(dat['value_error']))//0.5 + 1.0)*0.5))
             
         # Plot actor training curve
-        plt.title('Rolling Critic Learning Curve, Window='+str(window),fontsize='xx-large')
-        plt.xlabel("Optimization Step",fontsize='large', labelpad=15)
-        plt.ylabel("Value Function Estimation MSE",fontsize='large', labelpad=15)
-        
-        plt.xticks(fontsize='large')
-        plt.yticks(fontsize='large')
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
+        plt.title("Critic learning curve",fontsize=20, y=-0.25)
         plt.yscale("log")
-        plt.gcf().set_size_inches(8.5, 5.5)
         plt.tight_layout()
-        plt.savefig(save_path+"/critic_training.svg", format='svg', dpi = 1000)
+        plt.savefig(save_path+"/critic_training.svg", dpi = 500)
         plt.close()
+        
+        
+    ## SAVE DATA USED TO GENERATE PERFORMANCE GRAPHS ##
+    ## ====================================================================================================================================================================================================== ##
+    print("Saving...")
+    data = {
+        'perf_1_target' : perf_1_target,
+        'perf_2_target' : perf_2_target,
+        'perf_1_speed' : perf_1_speed,
+        'perf_2_speed' : perf_2_speed
+    }
+    with open(save_path + "/perf_combined_data", 'wb') as file:
+            pickle.dump(data, file)
     
     print("Done!")

@@ -62,7 +62,7 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 	FDS->reset();
 	estimator->reset();
 		
-	// Run one last trajectory and save the results
+	// Run trajectory and save the results
 	while (!done)
 	{
 		// Determine what to run this simulation step
@@ -149,8 +149,8 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 				
 				// Get speed from speed estimator and calculate error
 				double front_speed = estimator->estimate();
-				//double front_speed_error = front_speed / FDS->get_curr_target();
-				double front_speed_error = 10.0*(front_speed - FDS->get_curr_target()) / FDS->get_curr_target();
+				double front_speed_error = front_speed / FDS->get_curr_target();
+				//double front_speed_error = 10.0*(front_speed - FDS->get_curr_target()) / FDS->get_curr_target();
 				
 				// Combine all additional inputs to PPO agent
 				vector<double> additional_ppo_inputs(1, 0.0);
