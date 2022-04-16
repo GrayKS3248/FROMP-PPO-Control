@@ -901,6 +901,28 @@ double Finite_Difference_Solver::get_density()
 	return density;
 }
 
+/**
+* Gets the thermal conductivity of the monomer being used in [W/m-K]
+* @return thermal conductivity of the monomer
+*/
+double Finite_Difference_Solver::get_thermal_conductivity()
+{
+	double thermal_conductivity = 0.0;
+	if (monomer_code==1)
+	{
+		thermal_conductivity = DCPD_GC1_thermal_conductivity;
+	}
+	else if (monomer_code==2)
+	{
+		thermal_conductivity = DCPD_GC2_thermal_conductivity;
+	}
+	else if (monomer_code==3)
+	{
+		thermal_conductivity = COD_thermal_conductivity;
+	}
+	return thermal_conductivity;
+}
+
 
 // ************************************************** BOUNDARY CONDITION GETTERS ************************************************** //
 /**
@@ -1913,9 +1935,9 @@ void Finite_Difference_Solver::step_trigger()
 }
 
 /** Step the input through time
-* @param normalized X command (-1.0, 1.0)
-* @param normalized Y command (-1.0, 1.0)
-* @param magnitude percent command (-1.0, 1.0)
+* @param normalized X command (-1.0, 1.0) (speed in x dirn)
+* @param normalized Y command (-1.0, 1.0) (speed in y dirn)
+* @param magnitude percent command (-1.0, 1.0) (magnitude rate)
 */
 void Finite_Difference_Solver::step_input(double x_cmd, double y_cmd, double mag_cmd)
 {

@@ -227,6 +227,100 @@ PyObject* init_agent(int num_addtional_inputs, int num_outputs, string load_path
 }
 
 /**
+* Initializes LQR controller to enforce target temperature field
+* @param Thermal conductivity of the material in [Watts / Meter * Kelvin]
+* @param Density of the material in [Kilograms / Meter ^ 3]
+* @param Specific heat capacity of the material in [Joules / Kilogram * Kelvin]
+**/
+PyObject* init_temp_controller(double thermal_conductivity, double density, double specific_heat)
+{
+	
+	// Create configuration file handler to gather domain data
+	Config_Handler fds_cfg = Config_Handler("../config_files", "fds.cfg");
+	double width;
+	fds_cfg.get_var("coarse_y_len",width);
+	double length;
+	fds_cfg.get_var("fine_x_len",length);
+	double thickness;
+	fds_cfg.get_var("coarse_x_len",thickness);
+	
+	// Create configuration file handler to controller data
+	Config_Handler controller_cfg = Config_Handler("../config_files", "temp_controller.cfg");
+	long state_size;
+	controller_cfg.get_var("state_size",state_size);
+	double movement_const;
+	controller_cfg.get_var("movement_const",movement_const);
+	double sigma;
+	controller_cfg.get_var("sigma",sigma);
+	
+	// Define module name
+	PyObject* name = PyUnicode_DecodeFSDefault("Controller");
+
+	// Initialize module
+	PyObject* module = PyImport_Import(name);
+	if (module == NULL)
+	{
+		fprintf(stderr, "\nFailed to find Controller module.\n");
+		PyErr_Print();
+		Py_DECREF(name);
+		return NULL;
+	}
+	Py_DECREF(name);
+
+	// Load dictionary of module methods and variables
+	PyObject* dict = PyModule_GetDict(module);
+	if (dict == NULL)
+	{
+		fprintf(stderr, "\nFailed to load Controller module dictionary.\n");
+		PyErr_Print();
+		Py_DECREF(module);
+		return NULL;
+	}
+	Py_DECREF(module);
+
+	// Get the initialization function from the module dictionary
+	PyObject* init = PyDict_GetItemString(dict, "Controller");
+	if (init == NULL || !PyCallable_Check(init))
+	{
+		fprintf(stderr, "\nFailed to find Controller __init__ function.\n");
+		PyErr_Print();
+		Py_DECREF(dict);
+		if (init != NULL) { Py_DECREF(init); }
+		return NULL;
+	}
+	Py_DECREF(dict);
+
+	// Build the initialization arguments
+
+	PyObject* init_args = PyTuple_New(9);
+	PyTuple_SetItem(init_args, 0, PyFloat_FromDouble(thermal_conductivity));
+	PyTuple_SetItem(init_args, 1, PyFloat_FromDouble(density));
+	PyTuple_SetItem(init_args, 2, PyFloat_FromDouble(specific_heat));
+	PyTuple_SetItem(init_args, 3, PyFloat_FromDouble(width));
+	PyTuple_SetItem(init_args, 4, PyFloat_FromDouble(length));
+	PyTuple_SetItem(init_args, 5, PyFloat_FromDouble(thickness));
+	PyTuple_SetItem(init_args, 6, PyLong_FromLong(state_size));
+	PyTuple_SetItem(init_args, 7, PyFloat_FromDouble(movement_const));
+	PyTuple_SetItem(init_args, 8, PyFloat_FromDouble(sigma));
+
+	// Initialize ppo object
+	PyObject* object = PyObject_CallObject(init, init_args);
+	if (object == NULL)
+	{
+		fprintf(stderr, "\nFailed to call Controller __init__ function.\n");
+		PyErr_Print();
+		Py_DECREF(init);
+		Py_DECREF(init_args);
+		return NULL;
+	}
+	Py_DECREF(init);
+	Py_DECREF(init_args);
+
+	// return the class
+	return object;
+}
+
+/**
 * Initializes the save_render_plot class of the PPO module
 * @return pyobject pointer to loaded class on success, NULL on failure
 */

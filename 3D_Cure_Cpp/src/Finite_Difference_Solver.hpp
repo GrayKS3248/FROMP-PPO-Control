@@ -57,6 +57,7 @@ double get_monomer_burn_temp();
 double get_adiabatic_temp_of_rxn();
 double get_specific_heat();
 double get_density();
+double get_thermal_conductivity();
 
 // Boundary condition getters
 double get_initial_temp();
