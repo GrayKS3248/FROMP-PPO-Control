@@ -70,6 +70,7 @@ bool get_control_mode();
 // Temperature and cure getters
 vector<vector<double>> get_coarse_temp_z0(bool normalize);
 vector<vector<double>> get_fine_temp_z0(bool normalize);
+vector<vector<double>> get_coarse_temp_around_front_z0(bool normalize);
 vector<vector<double>> get_coarse_cure_z0();
 vector<vector<double>> get_fine_cure_z0();
 

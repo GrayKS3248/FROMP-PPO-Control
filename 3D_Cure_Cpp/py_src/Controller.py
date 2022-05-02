@@ -16,13 +16,14 @@ class Controller:
     # @param Thermal conductivity of the material in [Watts / Meter * Kelvin]
     # @param Density of the material in [Kilograms / Meter ^ 3]
     # @param Specific heat capacity of the material in [Joules / Kilogram * Kelvin]
+    # @param Material's heat transfer coefficient in [Watts / Meter^2 * Kelvin]
     # @param The transverse size of the temperature grid in [Meter]
     # @param The longitudinal size of the temperature grid in [Meter]
     # @param Thickness of the material in [Meter]
     # @param Total number of nodes in the temperature grid
     # @param Relative importance of minimizing input movement compared to minimizing local input vs global optimal input
     # @param Stdev of gaussian kernal used to weight Q matrix towards edges
-    def __init__(self, thermal_conductivity, density, specific_heat, width, length, thickness, state_size, movement_const, sigma):
+    def __init__(self, thermal_conductivity, density, specific_heat, htc, tamb, width, length, thickness, state_size, movement_const, sigma):
         
         # Calculate number of transverse and longitudinal nodes
         temporary = np.sqrt(width*width + 2.0*length*(2.0*state_size-1)*width + length*length)
@@ -45,61 +46,159 @@ class Controller:
         self.grid_y = np.array([[]])
         
         # Calculate step sizes of the controller field
-        step_size_y = width / (self.num_vert_y - 1)
-        step_size_x = length / (self.num_vert_x - 1)
-        
-        # Define laplacial stencil to be used
-        laplacian_stencils = np.array([[35/12, -26/3, 19/2, -14/3, 11/12],
-                          [11/12, -5/3, 1/2, 1/3, -1/12],
-                          [-1/12, 4/3, -5/2, 4/3, -1/12],
-                          [-1/12, 1/3, 1/2, -5/3, 11/12],
-                          [11/12, -14/3, 19/2, -26/3, 35/12]])
-        
-        # Calculate the laplacian stencil indicies
-        left_ind = (len(laplacian_stencils[0])//2 - len(laplacian_stencils[0]) + 1)
-        right_ind = (len(laplacian_stencils[0]) - len(laplacian_stencils[0])//2 - 1)
-        stencil_inds = []
-        for row in range(len(laplacian_stencils)):
-            stencil_inds.append(np.arange(left_ind+(right_ind-row), right_ind+1+(right_ind-row)))
-        stencil_inds = np.array(stencil_inds)
+        delta_y = width / (self.num_vert_y - 1)
+        delta_x = length / (self.num_vert_x - 1)
+        delta_z = thickness
         
         # Generate the laplcian matrix
         self.laplacian_matrix = np.zeros((self.num_vert_y*self.num_vert_x,self.num_vert_y*self.num_vert_x))
+        self.laplacian_vector = np.zeros((self.num_vert_y*self.num_vert_x,1))
         
         # Populate the laplacian matrix
-        for j in np.arange(self.num_vert_x):
+        for i in np.arange(self.num_vert_y*self.num_vert_x):
             
-            # Determine which stencil to used based on j distance from boundary
-            j_boundary_code = 2
-            while any((j+stencil_inds[j_boundary_code])>self.num_vert_x-1) or any((j+stencil_inds[j_boundary_code])<0):
-                if any((j+stencil_inds[j_boundary_code])>self.num_vert_x-1):
-                    j_boundary_code = j_boundary_code + 1
-                elif any((j+stencil_inds[j_boundary_code])<0):
-                    j_boundary_code = j_boundary_code - 1
-                    
-            for i in np.arange(self.num_vert_y):
+            # Get coordinate of current point on which laplacian is being calculated
+            y_coord = i % self.num_vert_y
+            x_coord = i // self.num_vert_y
+            
+            # Get the stencil indices
+            ind_00 = i
+            ind_0m = i - self.num_vert_y
+            ind_0p = i + self.num_vert_y
+            ind_m0 = i - 1
+            ind_p0 = i + 1
+            
+            # Top edge
+            if y_coord==0 and x_coord!=0 and x_coord!=self.num_vert_x-1:
+                # Second derivative in the y direction
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_y*delta_y))*(1.0-(htc*delta_y)/thermal_conductivity)
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_p0] = self.laplacian_matrix[i][ind_p0] + (1.0/(delta_y*delta_y))
+                self.laplacian_vector[i] = self.laplacian_vector[i] + (tamb*htc)/(thermal_conductivity*delta_y)
                 
-                # Determine which stencil to used based on j distance from boundary
-                i_boundary_code = 2
-                while any((i+stencil_inds[i_boundary_code])>self.num_vert_y-1) or any((i+stencil_inds[i_boundary_code])<0):
-                    if any((i+stencil_inds[i_boundary_code])>self.num_vert_y-1):
-                        i_boundary_code = i_boundary_code + 1
-                    elif any((i+stencil_inds[i_boundary_code])<0):
-                        i_boundary_code = i_boundary_code - 1
+                # Second derivative in the x direction
+                self.laplacian_matrix[i][ind_0m] = self.laplacian_matrix[i][ind_0m] + (1.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_0p] = self.laplacian_matrix[i][ind_0p] + (1.0/(delta_x*delta_x))
+                
+            # Bottom edge
+            elif y_coord==self.num_vert_y-1 and x_coord!=0 and x_coord!=self.num_vert_x-1:
+                # Second derivative in the y direction
+                self.laplacian_matrix[i][ind_m0] = self.laplacian_matrix[i][ind_m0] + (1.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_y*delta_y))*(1.0-(htc*delta_y)/thermal_conductivity)
+                self.laplacian_vector[i] = self.laplacian_vector[i] + (tamb*htc)/(thermal_conductivity*delta_y)
+                
+                # Second derivative in the x direction
+                self.laplacian_matrix[i][ind_0m] = self.laplacian_matrix[i][ind_0m] + (1.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_0p] = self.laplacian_matrix[i][ind_0p] + (1.0/(delta_x*delta_x))
+                
+            # Left edge
+            elif x_coord==0 and y_coord!=0 and y_coord!=self.num_vert_y-1:
+                # Second derivative in the y direction
+                self.laplacian_matrix[i][ind_m0] = self.laplacian_matrix[i][ind_m0] + (1.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_p0] = self.laplacian_matrix[i][ind_p0] + (1.0/(delta_y*delta_y))
+                
+                # Second derivative in the x direction
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_x*delta_x))*(1.0-(htc*delta_x)/thermal_conductivity)
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_0p] = self.laplacian_matrix[i][ind_0p] + (1.0/(delta_x*delta_x))
+                self.laplacian_vector[i] = self.laplacian_vector[i] + (tamb*htc)/(thermal_conductivity*delta_x)
+                
+            # Right edge
+            elif x_coord==self.num_vert_x-1 and y_coord!=0 and y_coord!=self.num_vert_y-1:
+                # Second derivative in the y direction
+                self.laplacian_matrix[i][ind_m0] = self.laplacian_matrix[i][ind_m0] + (1.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_p0] = self.laplacian_matrix[i][ind_p0] + (1.0/(delta_y*delta_y))
+                
+                # Second derivative in the x direction
+                self.laplacian_matrix[i][ind_0m] = self.laplacian_matrix[i][ind_0m] + (1.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_x*delta_x))*(1.0-(htc*delta_x)/thermal_conductivity)
+                self.laplacian_vector[i] = self.laplacian_vector[i] + (tamb*htc)/(thermal_conductivity*delta_x)
+                
+            # Top left corner
+            elif y_coord==0 and x_coord==0:
+                # Second derivative in the y direction
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_y*delta_y))*(1.0-(htc*delta_y)/thermal_conductivity)
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_p0] = self.laplacian_matrix[i][ind_p0] + (1.0/(delta_y*delta_y))
+                self.laplacian_vector[i] = self.laplacian_vector[i] + (tamb*htc)/(thermal_conductivity*delta_y)
+                
+                # Second derivative in the x direction
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_x*delta_x))*(1.0-(htc*delta_x)/thermal_conductivity)
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_0p] = self.laplacian_matrix[i][ind_0p] + (1.0/(delta_x*delta_x))
+                self.laplacian_vector[i] = self.laplacian_vector[i] + (tamb*htc)/(thermal_conductivity*delta_x)
+                
+            # Top right corner
+            elif y_coord==0 and x_coord==self.num_vert_x-1:
+                # Second derivative in the y direction
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_y*delta_y))*(1.0-(htc*delta_y)/thermal_conductivity)
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_p0] = self.laplacian_matrix[i][ind_p0] + (1.0/(delta_y*delta_y))
+                self.laplacian_vector[i] = self.laplacian_vector[i] + (tamb*htc)/(thermal_conductivity*delta_y)
+                
+                # Second derivative in the x direction
+                self.laplacian_matrix[i][ind_0m] = self.laplacian_matrix[i][ind_0m] + (1.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_x*delta_x))*(1.0-(htc*delta_x)/thermal_conductivity)
+                self.laplacian_vector[i] = self.laplacian_vector[i] + (tamb*htc)/(thermal_conductivity*delta_x)
+                
+            # Bottom left corner
+            elif y_coord==self.num_vert_y-1 and x_coord==0:
+                # Second derivative in the y direction
+                self.laplacian_matrix[i][ind_m0] = self.laplacian_matrix[i][ind_m0] + (1.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_y*delta_y))*(1.0-(htc*delta_y)/thermal_conductivity)
+                self.laplacian_vector[i] = self.laplacian_vector[i] + (tamb*htc)/(thermal_conductivity*delta_y)
+                
+                # Second derivative in the x direction
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_x*delta_x))*(1.0-(htc*delta_x)/thermal_conductivity)
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_0p] = self.laplacian_matrix[i][ind_0p] + (1.0/(delta_x*delta_x))
+                self.laplacian_vector[i] = self.laplacian_vector[i] + (tamb*htc)/(thermal_conductivity*delta_x)
+                
+            # Bottom right corner
+            elif y_coord==self.num_vert_y-1 and x_coord==self.num_vert_x-1:
+                # Second derivative in the y direction
+                self.laplacian_matrix[i][ind_m0] = self.laplacian_matrix[i][ind_m0] + (1.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_y*delta_y))*(1.0-(htc*delta_y)/thermal_conductivity)
+                self.laplacian_vector[i] = self.laplacian_vector[i] + (tamb*htc)/(thermal_conductivity*delta_y)
+                
+                # Second derivative in the x direction
+                self.laplacian_matrix[i][ind_0m] = self.laplacian_matrix[i][ind_0m] + (1.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_x*delta_x))*(1.0-(htc*delta_x)/thermal_conductivity)
+                self.laplacian_vector[i] = self.laplacian_vector[i] + (tamb*htc)/(thermal_conductivity*delta_x)
+            
+            # Bulk material
+            else:
+                # Second derivative in the y direction
+                self.laplacian_matrix[i][ind_m0] = self.laplacian_matrix[i][ind_m0] + (1.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_y*delta_y))
+                self.laplacian_matrix[i][ind_p0] = self.laplacian_matrix[i][ind_p0] + (1.0/(delta_y*delta_y))
+                
+                # Second derivative in the x direction
+                self.laplacian_matrix[i][ind_0m] = self.laplacian_matrix[i][ind_0m] + (1.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_x*delta_x))
+                self.laplacian_matrix[i][ind_0p] = self.laplacian_matrix[i][ind_0p] + (1.0/(delta_x*delta_x))
+                
+            # Second derivative in the z direction
+            self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_z*delta_z))*(1.0-(htc*delta_z)/thermal_conductivity)
+            self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (-2.0/(delta_z*delta_z))
+            self.laplacian_matrix[i][ind_00] = self.laplacian_matrix[i][ind_00] + (1.0/(delta_z*delta_z))*(1.0-(htc*delta_z)/thermal_conductivity)
+            self.laplacian_vector[i] = self.laplacian_vector[i] + (2.0*tamb*htc)/(thermal_conductivity*delta_z)
                     
-                # Y direction second derivative
-                for p in stencil_inds[i_boundary_code]:
-                    self.laplacian_matrix[i+self.num_vert_y*j][(i+p) + self.num_vert_y*j] = self.laplacian_matrix[i+self.num_vert_y*j][(i+p) + self.num_vert_y*j] + laplacian_stencils[i_boundary_code][np.argmin(abs(stencil_inds[i_boundary_code] - p))]/(step_size_y*step_size_y)
-                    
-                # X direction second derivative
-                for p in stencil_inds[j_boundary_code]:
-                    self.laplacian_matrix[i+self.num_vert_y*j][i + self.num_vert_y*(j+p)] = self.laplacian_matrix[i+self.num_vert_y*j][i + self.num_vert_y*(j+p)] + laplacian_stencils[j_boundary_code][np.argmin(abs(stencil_inds[j_boundary_code] - p))]/(step_size_x*step_size_x)
-                    
-        # Generate state space system
+        # Generate state space system for temperature controller
         A = (thermal_conductivity/(density*specific_heat)) * self.laplacian_matrix
-        B = (2.0 / (density*specific_heat*thickness)) * np.eye(len(A))
+        B = (1.0 / (density*specific_heat*delta_z)) * np.eye(len(A))
         
-        # Solve LQR control problem
+        # Solve LQR control problem for temperature controller
         Q = np.zeros((max(self.num_vert_y,self.num_vert_x), max(self.num_vert_y,self.num_vert_x)))
         Q[0:int(round(max(self.num_vert_y,self.num_vert_x)*0.1)),:]=1
         Q[-int(round(max(self.num_vert_y,self.num_vert_x)*0.1)):,:]=1
@@ -112,10 +211,48 @@ class Controller:
         Q[Q<0.25]=0.25
         Q=Q/np.mean(Q)
         Q=Q.flatten(order='F')
-        Q = 8e4*np.diag(Q)
-        R = 1e-4*np.eye(len(A))
-        self.K,_,_ = control.lqr(A,B,Q,R)
+        Q = 1e8*np.diag(Q)
+        R = np.eye(len(A))
+        self.K_temperature,_,_ = control.lqr(A,B,Q,R)
         
+        # Construct the 3rd order finite difference derivative matrix
+        fd_derivative = np.diag((1.0/12.0)*np.ones(self.num_vert_y-2),k=-2)+np.diag((-1.0/12.0)*np.ones(self.num_vert_y-2),k=2)+np.diag((-2.0/3.0)*np.ones(self.num_vert_y-1),k=-1)+np.diag((2.0/3.0)*np.ones(self.num_vert_y-1),k=1)
+        fd_derivative[0,:]=0.0
+        fd_derivative[0,0]=-1
+        fd_derivative[0,1]=1
+        fd_derivative[1,:]=0.0
+        fd_derivative[1,0]=-0.5
+        fd_derivative[1,2]=0.5
+        fd_derivative[self.num_vert_y-2,:]=0.0
+        fd_derivative[self.num_vert_y-2,self.num_vert_y-3]=-0.5
+        fd_derivative[self.num_vert_y-2,self.num_vert_y-1]=0.5
+        fd_derivative[self.num_vert_y-1,:]=0.0
+        fd_derivative[self.num_vert_y-1,self.num_vert_y-2]=-1
+        fd_derivative[self.num_vert_y-1,self.num_vert_y-1]=1
+        
+        # Generate state space system for shape controller
+        A = np.zeros((self.num_vert_y,self.num_vert_y))
+        B = np.eye(self.num_vert_y) - (1.0/self.num_vert_y)*np.ones((self.num_vert_y,self.num_vert_y))
+        
+        # Solve LQR control problem for shape controller
+        Q = 1e5*np.eye(self.num_vert_y)
+        R = 5e6*np.matmul(np.transpose(fd_derivative), fd_derivative) + np.eye(self.num_vert_y)
+        self.K_shape,_,_ = control.lqr(A,B,Q,R)
+    
+    
+    # Gets a target temperature given a degree of cure and target front speed
+    # @param The degree of cure
+    # @param The target front speed [Meters/Second]
+    # @return The target temperature [Kelvin]
+    def get_tag_temp(self, alpha, v_tag):
+        
+        a = 0.000808146-0.00295865*alpha
+        b = 0.0202144-0.1646*alpha+0.463609*alpha*alpha
+        c = (0.813723-5.12462*alpha+9.54447*alpha*alpha) - 1.0e3*(v_tag)
+        t_tag = 273.15 + (-b + np.sqrt(b*b - 4.0*a*c)) / (2.0*a)
+        return t_tag
+    
+    
     # Calculates optimal input 
     # @param 2D array-like object. Temperature grid in [Kelvin]
     # @param 2D array-like object. Target temperature in [Kelvin]
@@ -140,6 +277,7 @@ class Controller:
         
         # Return the optimal input
         return optimal_input
+    
     
     # Calculates optimal local input given input parameters 
     # @param 2D array-like object. Temperature grid in [Kelvin]
@@ -197,8 +335,8 @@ class Controller:
         ## GET THE OPTIMAL GLOBAL INPUT ##
         ## ===================================================================================================================== ##
         opt_global_input = self.get_input(temperature, target)
-        #opt_global_input[opt_global_input<0.0]=0.0
-        #opt_global_input[opt_global_input>self.max_input]=self.max_input
+        opt_global_input[opt_global_input<0.0]=0.0
+        opt_global_input[opt_global_input>self.max_input]=self.max_input
         
         ## GET THE OPTIMAL LOCAL INPUT MAGNITUDE ##
         ## ===================================================================================================================== ##

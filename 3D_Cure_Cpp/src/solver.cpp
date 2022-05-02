@@ -7,7 +7,6 @@
 /**
 * Runs a set of trajectories using a control policy
 * @param The finite element solver object used to propogate time
-* @param Configuration handler object that contains all loaded configuration data
 * @param The class used to estimate front speed based on front location estimations
 * @param The controller used to generate actions
 * @param String containing controller type information
@@ -16,35 +15,52 @@
  *@param String containing cfg data
 * @return 0 on success, 1 on failure
 */
-int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimator* estimator, PyObject* controller, string controller_type, PyObject* save_render_plot, auto &start_time, string configs_string)
+int run(Finite_Difference_Solver* FDS, Speed_Estimator* estimator, PyObject* controller, string controller_type, PyObject* save_render_plot, auto &start_time, string configs_string)
 {	
 	// Initialize a configuration handler for the fds cfg
 	Config_Handler fds_cfg = Config_Handler("../config_files", "fds.cfg");
+	Config_Handler temp_controller_cfg = Config_Handler("../config_files", "temp_controller.cfg");
+	Config_Handler solver_cfg = Config_Handler("../config_files", "solver.cfg");
 
 	// Get values from config file
 	int num_input_actions;
-	solver_cfg->get_var("num_input_actions",num_input_actions);
+	solver_cfg.get_var("num_input_actions",num_input_actions);
 	double frame_rate;
-	solver_cfg->get_var("frame_rate",frame_rate);
+	solver_cfg.get_var("frame_rate",frame_rate);
+	
+	// Get values from temperature controller cfg file if LQR control is used
+	double K_P = 0.0;
+	double K_I = 0.0;
+	double K_D = 0.0;
+	double radius = 0.0;
+	double power = 0.0;
+	double length = 0.0;
+	double width = 0.0;
+	double max_slew_speed = 0.0;
+	if ( controller_type.compare("LQR")==0 )
+	{
+		temp_controller_cfg.get_var("K_P", K_P);
+		temp_controller_cfg.get_var("K_I", K_I);
+		temp_controller_cfg.get_var("K_D", K_D);
+		fds_cfg.get_var("radius", radius);
+		fds_cfg.get_var("total_power", power);	
+		fds_cfg.get_var("fine_x_len", length);
+		fds_cfg.get_var("coarse_y_len", width);
+		fds_cfg.get_var("max_slew_speed", max_slew_speed);
+	}
 	
 	// Frame rate calculations
 	int steps_per_controller_input=1;
+	double controller_period = 0.0;
 	if ( controller_type.compare("PPO")==0 )
 	{
-		steps_per_controller_input = (int) round((FDS->get_sim_duration() / (double)num_input_actions) / FDS->get_coarse_time_step());	
+		controller_period = (FDS->get_sim_duration() / (double)num_input_actions);
+		steps_per_controller_input = (int) round( controller_period / FDS->get_coarse_time_step());	
 	}
 	else if ( controller_type.compare("LQR")==0 )
 	{
-		string length_str;
-		string width_str;
-		string speed_str;
-		fds_cfg.get_var("fine_x_len", length_str);
-		fds_cfg.get_var("coarse_y_len", width_str);
-		fds_cfg.get_var("max_slew_speed", speed_str);
-		double length = stod(length_str);
-		double width = stod(width_str);
-		double speed = stod(speed_str);
-		steps_per_controller_input = (int) round((max(length, width)/(3.0*speed)) / FDS->get_coarse_time_step());	
+		controller_period = max(length, width)/(3.0*max_slew_speed);
+		steps_per_controller_input = (int) round(controller_period / FDS->get_coarse_time_step());	
 	}
 	steps_per_controller_input = steps_per_controller_input <= 0 ? 1 : steps_per_controller_input;
 	int steps_per_speed_estimator_frame = (int) round(estimator->get_observation_delta_t() / FDS->get_coarse_time_step());
@@ -82,7 +98,12 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 	// Reset
 	FDS->reset();
 	estimator->reset();
-		
+	double initial_target_temp = 305.80;
+	double target_temp = initial_target_temp;
+	double speed_err_pro = 0.0;
+	double speed_err_int = 0.0;
+	double speed_err_der = 0.0;
+	
 	// Run trajectory and save the results
 	while (!done)
 	{
@@ -213,11 +234,25 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 			// Get controller inputs from LQR controller
 			else if( (controller!=NULL) && (controller_type.compare("LQR")==0) )
 			{
-				// Get the input parameters
-				string radius_str;
-				string power_str;
-				fds_cfg.get_var("radius", radius_str);
-				fds_cfg.get_var("total_power", power_str);
+				// Update the speed error integral
+				if ( abs(estimator->estimate() - FDS->get_curr_target())/FDS->get_curr_target() <= 0.50 )
+				{
+					if ( abs(estimator->estimate() - FDS->get_curr_target())/FDS->get_curr_target() > 0.20 )
+					{
+						double clipped_err = 0.20*FDS->get_curr_target()*((estimator->estimate()-FDS->get_curr_target())/(abs(estimator->estimate()-FDS->get_curr_target())));
+						speed_err_der = (clipped_err - speed_err_pro) / controller_period;
+						speed_err_pro = clipped_err;
+						speed_err_int += speed_err_pro * controller_period;
+					}
+					else
+					{
+						speed_err_der = ((estimator->estimate() - FDS->get_curr_target()) - speed_err_pro) / controller_period;
+						speed_err_pro = (estimator->estimate() - FDS->get_curr_target());
+						speed_err_int += speed_err_pro * controller_period;	
+					}
+					
+					target_temp = initial_target_temp + speed_err_pro*K_P + speed_err_int*K_I + speed_err_der*K_D;
+				}
 				
 				// Get the current location of the input in fine grid coordinates
 				vector<double> fine_mesh_loc = FDS->get_fine_mesh_loc();
@@ -225,21 +260,21 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 				double input_x_loc_in_fine_coords = input_state[1] - fine_mesh_loc[0];
 				double input_y_loc_in_fine_coords = input_state[2];
 				
-				// Take an image of the fine temperature field
-				vector<vector<double>> fine_temperature_field = FDS->get_fine_temp_z0(false);
-				vector<vector<double>> temperature_image(fine_temperature_field[0].size(), vector<double>(fine_temperature_field.size(), 0.0));
-				vector<vector<double>> target_image(fine_temperature_field[0].size(), vector<double>(fine_temperature_field.size(), 0.0));
-				for (unsigned int i = 0; i < fine_temperature_field[0].size(); i++)
-				for (unsigned int j = 0; j < fine_temperature_field.size(); j++)
+				// Take an image of the temperature field around the front
+				vector<vector<double>> temperature_field = FDS->get_coarse_temp_around_front_z0(false);
+				vector<vector<double>> temperature_image(temperature_field[0].size(), vector<double>(temperature_field.size(), 0.0));
+				vector<vector<double>> target_image(temperature_field[0].size(), vector<double>(temperature_field.size(), 0.0));
+				for (unsigned int i = 0; i < temperature_field[0].size(); i++)
+				for (unsigned int j = 0; j < temperature_field.size(); j++)
 				{
-					temperature_image[i][j] = fine_temperature_field[j][i];
-					target_image[i][j] = fine_temperature_field[j][i] > 305.80 ? fine_temperature_field[j][i] : 305.80;
+					temperature_image[i][j] = temperature_field[j][i];
+					target_image[i][j] = temperature_field[j][i] > target_temp ? temperature_field[j][i] : target_temp;
 				}
 				PyObject* py_temperature_image = get_2D_list<vector<vector<double>>>(temperature_image);
 				PyObject* py_target_image = get_2D_list<vector<vector<double>>>(target_image);
 				
 				// Get the optimal magnitude and locations 
-				PyObject* py_mag_and_loc = PyObject_CallMethod(controller, "get_local_input", "(O,O,d,d,d,d,i)", py_temperature_image, py_target_image, stod(radius_str), stod(power_str), input_x_loc_in_fine_coords, input_y_loc_in_fine_coords, 1);
+				PyObject* py_mag_and_loc = PyObject_CallMethod(controller, "get_local_input", "(O,O,d,d,d,d,i)", py_temperature_image, py_target_image, radius, power, input_x_loc_in_fine_coords, input_y_loc_in_fine_coords, 1);
 				double mag_cmd = PyFloat_AsDouble(PyTuple_GetItem(py_mag_and_loc, 0));
 				double x_loc_cmd = PyFloat_AsDouble(PyTuple_GetItem(py_mag_and_loc, 1));
 				double y_loc_cmd = PyFloat_AsDouble(PyTuple_GetItem(py_mag_and_loc, 2));
@@ -334,7 +369,7 @@ int run(Finite_Difference_Solver* FDS, Config_Handler* solver_cfg, Speed_Estimat
 	// Save, plot, and render
 	start_time = chrono::high_resolution_clock::now();
 	bool render;
-	solver_cfg->get_var("render", render);
+	solver_cfg.get_var("render", render);
 	return save_results(save_render_plot, render);
 	
 }
@@ -344,11 +379,11 @@ int main()
 {	
 	// Load run solver and fds cfg files
 	Config_Handler fds_cfg = Config_Handler("../config_files", "fds.cfg");
-	Config_Handler* solver_cfg = new Config_Handler("../config_files", "solver.cfg");
+	Config_Handler solver_cfg = Config_Handler("../config_files", "solver.cfg");
 	string configs_string = "";
 	configs_string = configs_string + fds_cfg.get_orig_cfg();
 	configs_string = configs_string + "\n\n======================================================================================\n\n";
-	configs_string = configs_string + solver_cfg->get_orig_cfg();
+	configs_string = configs_string + solver_cfg.get_orig_cfg();
 	
 	// Init py environment
 	Py_Initialize();
@@ -373,12 +408,14 @@ int main()
     
     	// Initialize controller if it is used
 	string controller_type;
-	solver_cfg->get_var("controller_type", controller_type);
+	solver_cfg.get_var("controller_type", controller_type);
+	bool use_input;
+	fds_cfg.get_var("use_input", use_input);
 	PyObject* controller = NULL;
-	if( controller_type.compare("PPO")==0 )
+	if( controller_type.compare("PPO")==0 && use_input)
 	{
 		string input_load_path;
-		solver_cfg->get_var("input_load_path", input_load_path);
+		solver_cfg.get_var("input_load_path", input_load_path);
 		if( input_load_path.compare("none")!=0 )
 		{
 			Config_Handler speed_estimator_cfg = Config_Handler("../config_files", "speed_estimator.cfg");
@@ -393,30 +430,19 @@ int main()
 			}
 		}
 	}
-	else if ( controller_type.compare("LQR")==0 )
+	else if ( controller_type.compare("LQR")==0 && use_input)
 	{
-		string input_load_path;
-		solver_cfg->get_var("input_load_path", input_load_path);
-		if( input_load_path.compare("none")!=0 )
-		{
-			Config_Handler temp_controller = Config_Handler("../config_files", "temp_controller.cfg");
-			configs_string = configs_string + "\n\n======================================================================================\n\n";
-			configs_string = configs_string + temp_controller.get_orig_cfg();
-			controller = init_temp_controller(FDS->get_thermal_conductivity(), FDS->get_density(), FDS->get_specific_heat());
-			if (controller == NULL)
-			{ 
-				Py_FinalizeEx();
-				cin.get();
-				return 1; 
-			}
+		Config_Handler temp_controller_cfg = Config_Handler("../config_files", "temp_controller.cfg");
+		configs_string = configs_string + "\n\n======================================================================================\n\n";
+		configs_string = configs_string + temp_controller_cfg.get_orig_cfg();
+		controller = init_temp_controller(FDS->get_thermal_conductivity(), FDS->get_density(), FDS->get_specific_heat());
+		if (controller == NULL)
+		{ 
+			Py_FinalizeEx();
+			cin.get();
+			return 1; 
 		}
-	}	
-	else
-	{
-		Py_FinalizeEx();
-		cin.get();
-		return 1; 
-	}	
+	}		
 
     	// Init save_render_plot
 	PyObject* save_render_plot = init_save_render_plot();
@@ -432,8 +458,8 @@ int main()
 	{
 		string dummy_str;
 		cout << "\nAgent Hyperparameters(\n";
-		cout << "  (Input Load Path): " << solver_cfg->get_var("input_load_path", dummy_str) << "\n";
-		cout << "  (Steps per Trajectory): " << solver_cfg->get_var("num_input_actions", dummy_str) << "\n";
+		cout << "  (Input Load Path): " << solver_cfg.get_var("input_load_path", dummy_str) << "\n";
+		cout << "  (Steps per Trajectory): " << solver_cfg.get_var("num_input_actions", dummy_str) << "\n";
 		cout << ")\n";
 	}
 	FDS->print_params();
@@ -441,7 +467,7 @@ int main()
 	// Simulate
 	cout << "\nSimulating...\n";
 	auto start_time = chrono::high_resolution_clock::now();
-	if (run(FDS, solver_cfg, estimator, controller, controller_type, save_render_plot, start_time, configs_string) == 1)
+	if (run(FDS, estimator, controller, controller_type, save_render_plot, start_time, configs_string) == 1)
 	{ 
 		Py_FinalizeEx();
 		cin.get();

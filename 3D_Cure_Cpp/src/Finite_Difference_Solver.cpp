@@ -180,8 +180,10 @@ Finite_Difference_Solver::Finite_Difference_Solver()
 	else if (target_code==3)
 	{
 		int switch_location = (int) floor((0.20 * (double)rand()/(double)RAND_MAX + 0.40) * (double)(get_num_sim_steps() - 1));
-		double target_deviation_1 = 2.0 * max_target_deviation * ((double)rand()/(double)RAND_MAX - 0.5);
-		double target_deviation_2 = 2.0 * max_target_deviation * ((double)rand()/(double)RAND_MAX - 0.5);
+		double target_deviation_1 = max_target_deviation * 0.5*((double)rand()/(double)RAND_MAX - 0.5);
+		double rand_dir = ((double)rand()/(double)RAND_MAX - 0.5);
+		rand_dir = rand_dir / abs(rand_dir);
+		double target_deviation_2 = max_target_deviation * 0.25*((double)rand()/(double)RAND_MAX + 3.0) * rand_dir;
 		for (int i = 0; i < get_num_sim_steps(); i++)
 		{
 			if(i < switch_location)
@@ -1011,6 +1013,30 @@ vector<vector<double>> Finite_Difference_Solver::get_fine_temp_z0(bool normalize
 				ret_val[i][j] = fine_temp_mesh[get_ind(i)][j][0];
 			}
 		}
+	}
+	return ret_val;
+}
+
+
+/**
+* Gets the top layer of the coarse temperture grid directly over the fine grid
+* @param Boolean flag that indicates whether the returned temperature values should be normalized on the range [initial temperature, adiabatic temperature of reaction]
+* @return The top layer of the coarse temperture grid directly over the fine grid
+*/
+vector<vector<double>> Finite_Difference_Solver::get_coarse_temp_around_front_z0(bool normalize)
+{
+	vector<vector<double>> ret_val = vector<vector<double>>(coarse_x_verts_per_fine_x_len, vector<double>(coarse_y_verts_per_fine_y_len, 0.0));
+	for(int i = 0; i < coarse_x_verts_per_fine_x_len; i++)
+	for(int j = 0; j < coarse_y_verts_per_fine_y_len; j++)
+	{
+			if (normalize)
+			{
+				ret_val[i][j] = (coarse_temp_mesh[coarse_x_index_at_fine_mesh_start+i][j][0] - initial_temp) / (adiabatic_temp_of_rxn  - initial_temp);
+			}
+			else
+			{
+				ret_val[i][j] = coarse_temp_mesh[coarse_x_index_at_fine_mesh_start+i][j][0];
+			}
 	}
 	return ret_val;
 }

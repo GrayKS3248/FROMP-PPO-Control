@@ -26,58 +26,58 @@ if __name__ == "__main__":
     
     # Domain size
     width = 0.008        ## Y-dimension size [Meters]
-    length = 0.00575     ## X-dimension size [Meters]
+    length = 0.008     ## X-dimension size [Meters]
     thickness = 0.001    ## Z-dimension size [Meters]
     sim_num_vert_y = 33  ## Number of simiulation vertices in domain [-]
-    sim_num_vert_x = 24  ## Number of simiulation vertices in domain [-]
-    sim_num_vert_z = 5   ## Number of simiulation vertices in domain [-]
+    sim_num_vert_x = 33  ## Number of simiulation vertices in domain [-]
+    sim_num_vert_z = 4   ## Number of simiulation vertices in domain [-]
     
     # Controller params
-    state_size = 800      ## Number temperature points in controller's state [-]
+    state_size = 50      ## Number temperature points in controller's state [-]
     movement_const = 0.0  ## [Relative importance of minimizing input movement compared to minimizing local input vs global optimal input]
-    sigma = 1.0           ## Stdev of gaussian kernal used to weight Q matrix towards edges [-]
+    sigma = 5000.0        ## Stdev of gaussian kernal used to weight Q matrix towards edges [-]
     target_temp = 305.80  ## [Kelvin]
     use_image = True      ## Determines if the target temperature uses an image or is flat
-    con_dt = 0.16         ## Controller location update period [Seconds]  
+    con_dt = 0.08         ## Controller location update period [Seconds]  
     
     # Simulation params
-    total_time = 60.0        ## [Seconds]
-    final_input_time = 60.0  ## Time at which the input is turned off [Seconds]
+    total_time = 10.0        ## [Seconds]
+    final_input_time = 10.0  ## Time at which the input is turned off [Seconds]
     dt = 0.01                ## Time step size [Seconds]
     fr = 30              ## Frame rate [Frames / Second]
-    scroll = True            ## Determine if the simulation domain scrolls into new material or remains stationary
+    scroll = False            ## Determine if the simulation domain scrolls into new material or remains stationary
     scroll_speed = 0.0015    ## Speed at which domain scrolls [Meters / Second]
     
     # Initial temperature params
     initial_temp = 297.15         ## [Kelvin]
-    initial_temp_deviation = 2.0  ## initial_temp_field = initial_temp +- initial_temp_deviation [Kelvin]
+    initial_temp_deviation = 0.0  ## initial_temp_field = initial_temp +- initial_temp_deviation [Kelvin]
     feature_size = 0.50           ## Simplex noise feature size in percent of major dimension [Decimal Percent]
     seed = 1000                   ## Simplex noise seed
     
     # Input params
-    local = False          ## Determines if input is local or global
-    radius = 0.003        ## [Meters]
+    local = True          ## Determines if input is local or global
+    radius = 0.005        ## [Meters]
     power = 0.5           ## [Watts]
-    speed = 0.025         ## [Meters / Second]
+    speed = 0.035         ## [Meters / Second]
     
     
     ## PRE-SIMULATION CALCULATIONS ##
     ## ===================================================================================================================== ##
     # Calculate the target temperature field
     if use_image:
-        image = np.flip(imageio.imread('Half_Grad.jpg')[:,:,0],axis=0)
+        image = np.flip(imageio.imread('../target_masks/Gradient.jpg')[:,:,0],axis=0)
         image = inp.zoom(image, (sim_num_vert_y/len(image), sim_num_vert_x/len(image[0])))/255.0
         target_temp_1 = (target_temp - initial_temp) * image + initial_temp
         
-        image = np.flip(imageio.imread('Half_Grad.jpg')[:,:,0],axis=0)
+        image = np.flip(imageio.imread('../target_masks/Gradient.jpg')[:,:,0],axis=0)
         image = inp.zoom(image, (sim_num_vert_y/len(image), sim_num_vert_x/len(image[0])))/255.0
         target_temp_2 = (target_temp - initial_temp) * image + initial_temp
         
-        image = np.flip(imageio.imread('Half_Grad.jpg')[:,:,0],axis=0)
+        image = np.flip(imageio.imread('../target_masks/Gradient.jpg')[:,:,0],axis=0)
         image = inp.zoom(image, (sim_num_vert_y/len(image), sim_num_vert_x/len(image[0])))/255.0
         target_temp_3 = (target_temp - initial_temp) * image + initial_temp
         
-        image = np.flip(imageio.imread('Half_Grad.jpg')[:,:,0],axis=0)
+        image = np.flip(imageio.imread('../target_masks/Gradient.jpg')[:,:,0],axis=0)
         image = inp.zoom(image, (sim_num_vert_y/len(image), sim_num_vert_x/len(image[0])))/255.0
         target_temp_4 = (target_temp - initial_temp) * image + initial_temp
     else:
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     
     ## GET LAPLACIAN FUNCTION ##
     ## ===================================================================================================================== ##
-    # The 9 point laplacian kernal based on nonuniform grid size
+    # The 7 point laplacian kernal based on nonuniform grid size
     l_kernal = np.zeros((3,3,3))
     l_kernal[1,1,1] = -2.0 * (1.0/(sim_step_size_y*sim_step_size_y) + 1.0/(sim_step_size_x*sim_step_size_x) + 1.0/(sim_step_size_z*sim_step_size_z))
     l_kernal[0,1,1] = 1.0/(sim_step_size_y*sim_step_size_y)
@@ -146,12 +146,15 @@ if __name__ == "__main__":
         # Append the virtual boundary temperatures to the original temperature field
         padded_temp = np.zeros((y_vert+2, x_vert+2, z_vert+2))
         padded_temp[1:y_vert+1,1:x_vert+1,1:z_vert+1] = temp
-        padded_temp[1:y_vert+1,0,1:z_vert+1] = -4.0*((step_x*htc/kappa)*(temp[:,0,:]-amb) + (5.0/6.0)*temp[:,0,:] + (-3.0/2.0)*temp[:,1,:] + (1.0/2.0)*temp[:,2,:] + (-1.0/12.0)*temp[:,3,:])
-        padded_temp[1:y_vert+1,x_vert+1,1:z_vert+1] = -4.0*((step_x*htc/kappa)*(temp[:,x_vert-1,:]-amb) + (5.0/6.0)*temp[:,x_vert-1,:] + (-3.0/2.0)*temp[:,x_vert-2,:] + (1.0/2.0)*temp[:,x_vert-3,:] + (-1.0/12.0)*temp[:,x_vert-4,:])
-        padded_temp[0,1:x_vert+1,1:z_vert+1] = -4.0*((step_y*htc/kappa)*(temp[0,:,:]-amb) + (5.0/6.0)*temp[0,:,:] + (-3.0/2.0)*temp[1,:,:] + (1.0/2.0)*temp[2,:,:] + (-1.0/12.0)*temp[3,:,:])
-        padded_temp[y_vert+1,1:x_vert+1,1:z_vert+1] = -4.0*((step_y*htc/kappa)*(temp[y_vert-1,:,:]-amb) + (5.0/6.0)*temp[y_vert-1,:,:] + (-3.0/2.0)*temp[y_vert-2,:,:] + (1.0/2.0)*temp[y_vert-3,:,:] + (-1.0/12.0)*temp[y_vert-4,:,:])
-        padded_temp[1:y_vert+1,1:x_vert+1,0] = temp[:,:,0] - (step_z/kappa)*(htc*(temp[:,:,0]-amb)-heat)
-        padded_temp[1:y_vert+1,1:x_vert+1,z_vert+1] = temp[:,:,z_vert-1] - (step_z*htc/kappa)*(temp[:,:,z_vert-1]-amb)
+        
+        padded_temp[0,1:x_vert+1,1:z_vert+1] = temp[0,:,:]*(1.0-(htc*step_y/kappa)) + amb*(htc*step_y/kappa)
+        padded_temp[y_vert+1,1:x_vert+1,1:z_vert+1] = temp[y_vert-1,:,:]*(1.0-(htc*step_y/kappa)) + amb*(htc*step_y/kappa)
+        
+        padded_temp[1:y_vert+1,0,1:z_vert+1] = temp[:,0,:]*(1.0-(htc*step_x/kappa)) + amb*(htc*step_x/kappa)
+        padded_temp[1:y_vert+1,x_vert+1,1:z_vert+1] = temp[:,x_vert-1,:]*(1.0-(htc*step_x/kappa)) + amb*(htc*step_x/kappa)
+
+        padded_temp[1:y_vert+1,1:x_vert+1,0] = temp[:,:,0]*(1.0-(htc*step_z/kappa)) + amb*(htc*step_z/kappa) + heat*(step_z/kappa)
+        padded_temp[1:y_vert+1,1:x_vert+1,z_vert+1] = temp[:,:,z_vert-1]*(1.0-(htc*step_z/kappa)) + amb*(htc*step_z/kappa)
         
         # Get the 9 point stencil laplacian
         laplacian = signal.convolve(padded_temp, l_kernal, mode='valid')
@@ -161,7 +164,8 @@ if __name__ == "__main__":
     ## RUN THE SIMULATION ##
     ## ===================================================================================================================== ##
     # Initialize controller
-    controller = Controller.Controller(thermal_conductivity,density,specific_heat,width,length,thickness,state_size,movement_const,sigma)
+    controller = Controller.Controller(thermal_conductivity,density,specific_heat,heat_transfer_coeff,ambient_temp,width,length,thickness,state_size,movement_const,sigma)
+    K = controller.get_planner()
     
     # Initialize the time and an iterator
     t = 0.0

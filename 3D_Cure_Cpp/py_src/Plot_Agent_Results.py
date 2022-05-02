@@ -17,10 +17,10 @@ if __name__ == "__main__":
     ## INPUTS ##
     ## ====================================================================================================================================================================================================== ##
     # Define load and save paths
-    combined_path = "../results/Quench"
-    controlled_path = "../results/Quench/Quench_Controlled_Sim_20"
-    uncontrolled_path = "../results/Quench/Quench_Uncontrolled_Sim_20"
-    save_path = "../results/Quench"
+    combined_path = ""
+    controlled_path = "../results/SIM_20"
+    uncontrolled_path = "../results/Uncertain/Uncertain_Controlled_Sim_20"
+    save_path = "../results"
     
     
     ## LOAD PRE-COMBINED DATA ##
@@ -375,10 +375,10 @@ if __name__ == "__main__":
     plt.ylabel("Front Speed [mm/s]",fontsize=16)
     plt.fill_between(controlled_time, 1050.0*controlled_target,950.0*controlled_target,color='g',alpha=0.2,lw=0.0,label='Target')
     plt.fill_between(controlled_time, 1000.0*controlled_front_speed+500.0*std_controlled_front_speed,1000.0*controlled_front_speed-500.0*std_controlled_front_speed,color='r',alpha=0.2,lw=0.0)
-    plt.plot(controlled_time, 1000.0*controlled_front_speed,c='r',lw=1.75,label='Controlled')
+    plt.plot(controlled_time, 1000.0*controlled_front_speed,c='r',lw=1.75,label='LQR')
     plt.fill_between(uncontrolled_time, 1000.0*uncontrolled_front_speed+500.0*std_uncontrolled_front_speed,1000.0*uncontrolled_front_speed-500.0*std_uncontrolled_front_speed,color='b',alpha=0.2,lw=0.0)
-    plt.plot(uncontrolled_time, 1000.0*uncontrolled_front_speed,c='b',lw=1.75,label='Uncontrolled')
-    plt.ylim(0.0, 1.5)
+    plt.plot(uncontrolled_time, 1000.0*uncontrolled_front_speed,c='b',lw=1.75,label='PPO')
+    plt.ylim(1.2, 1.7)
     plt.xlim(0.0, np.round(controlled_time[-1]))
     plt.xticks(fontsize=16)
     plt.yticks(fontsize=16)
@@ -394,14 +394,14 @@ if __name__ == "__main__":
     plt.xlabel("Location [mm]",fontsize=16)
     plt.ylabel("Front Temperature [C]",fontsize=16)
     plt.fill_between(controlled_sorted_mean_front_x_locations, controlled_sorted_front_temperature+0.5*std_controlled_sorted_front_temperature-273.15, controlled_sorted_front_temperature-0.5*std_controlled_sorted_front_temperature-273.15, color='r',alpha=0.2,lw=0.0)
-    plt.plot(controlled_sorted_mean_front_x_locations, controlled_sorted_front_temperature-273.15, c='r', lw=1.75, label='Controlled')
+    plt.plot(controlled_sorted_mean_front_x_locations, controlled_sorted_front_temperature-273.15, c='r', lw=1.75, label='LQR')
     plt.fill_between(uncontrolled_sorted_mean_front_x_locations, uncontrolled_sorted_front_temperature+0.5*std_uncontrolled_sorted_front_temperature-273.15, uncontrolled_sorted_front_temperature-0.5*std_uncontrolled_sorted_front_temperature-273.15, color='b',alpha=0.2,lw=0.0)
-    plt.plot(uncontrolled_sorted_mean_front_x_locations, uncontrolled_sorted_front_temperature-273.15, c='b', lw=1.75, label='Uncontrolled')
+    plt.plot(uncontrolled_sorted_mean_front_x_locations, uncontrolled_sorted_front_temperature-273.15, c='b', lw=1.75, label='PPO')
     T1 = (uncontrolled_sorted_front_temperature-0.5*std_uncontrolled_sorted_front_temperature-273.15)
     T2 = (uncontrolled_sorted_front_temperature+0.5*std_uncontrolled_sorted_front_temperature-273.15)
     T3 = (controlled_sorted_front_temperature-0.5*std_controlled_sorted_front_temperature-273.15)
     T4 = (controlled_sorted_front_temperature+0.5*std_controlled_sorted_front_temperature-273.15)
-    plt.ylim(np.floor(min(np.min(T1[int(len(T1)*0.25):]), np.min(T3[int(len(T3)*0.25):]))/10.0)*10.0, np.ceil(max(np.max(T2), np.max(T4))/10.0)*10)
+    plt.ylim(210,230)
     plt.xlim(0.0, max(2.5*np.ceil(uncontrolled_sorted_mean_front_x_locations[-1]/2.5), 2.5*np.ceil(controlled_sorted_mean_front_x_locations[-1]/2.5)))
     plt.xticks(fontsize=16)
     plt.yticks(fontsize=16)
@@ -457,9 +457,9 @@ if __name__ == "__main__":
     plt.xlabel("Time [s]",fontsize=16)
     plt.ylabel("Normalized Front Width [-]",fontsize=16)
     plt.fill_between(controlled_time, (controlled_front_width+0.5*std_controlled_front_width)/(1000.0*controlled_mesh_width), (controlled_front_width-0.5*std_controlled_front_width)/(1000.0*controlled_mesh_width), color='r',alpha=0.2,lw=0.0)
-    plt.plot(controlled_time,controlled_front_width / (1000.0*controlled_mesh_width),lw=1.75,c='r',label="Controlled")
+    plt.plot(controlled_time,controlled_front_width / (1000.0*controlled_mesh_width),lw=1.75,c='r',label="LQR")
     plt.fill_between(uncontrolled_time, (uncontrolled_front_width+0.5*std_uncontrolled_front_width)/(1000.0*uncontrolled_mesh_width), (uncontrolled_front_width-0.5*std_uncontrolled_front_width)/(1000.0*uncontrolled_mesh_width), color='b',alpha=0.2,lw=0.0)
-    plt.plot(uncontrolled_time,uncontrolled_front_width / (1000.0*uncontrolled_mesh_width),lw=1.75,c='b',label="Uncontrolled")
+    plt.plot(uncontrolled_time,uncontrolled_front_width / (1000.0*uncontrolled_mesh_width),lw=1.75,c='b',label="PPO")
     plt.ylim(0.0, 0.10*np.ceil(max(np.max((uncontrolled_front_width+0.5*std_uncontrolled_front_width)/(1000.0*uncontrolled_mesh_width)), np.max((controlled_front_width+0.5*std_controlled_front_width)/(1000.0*controlled_mesh_width)))/0.10))
     plt.xlim(0.0, np.round(controlled_time[-1]))
     plt.xticks(fontsize=16)
@@ -507,8 +507,8 @@ if __name__ == "__main__":
     plt.xlabel("Time [s]",fontsize=16)
     plt.ylabel("Cumulative Energy Use [J]",fontsize=16)
     plt.fill_between(controlled_time, controlled_energy+0.5*std_controlled_energy, controlled_energy-0.5*std_controlled_energy, color='r',alpha=0.2,lw=0.0)
-    plt.plot(controlled_time, controlled_energy, lw=1.75,c='r',label="Controlled")
-    plt.plot(uncontrolled_time, uncontrolled_energy, lw=1.75,c='b',label="Uncontrolled")
+    plt.plot(controlled_time, controlled_energy, lw=1.75,c='r',label="LQR")
+    plt.plot(uncontrolled_time, uncontrolled_energy, lw=1.75,c='b',label="PPO")
     plt.plot(controlled_time, controlled_bulk_energy, lw=1.75,c='k',label="Bulk Heating")
     plt.ylim(np.floor(min(np.min(controlled_energy), np.min(uncontrolled_energy), np.min(controlled_bulk_energy))), np.ceil(max(np.max(controlled_energy), np.max(uncontrolled_energy), np.max(controlled_bulk_energy))))
     plt.xlim(0.0, np.round(controlled_time[-1]))
@@ -538,12 +538,12 @@ if __name__ == "__main__":
     for i in range(len(controlled_temp_profile)):
         plt.fill_between(1000.0*controlled_profile_coords, controlled_temp_profile[i]+0.5*std_controlled_temp_profile[i], controlled_temp_profile[i]-0.5*std_controlled_temp_profile[i], color='r',alpha=0.2,lw=0.0)
         if i == 0:
-            plt.plot(1000.0*controlled_profile_coords, controlled_temp_profile[i],c='r',lw=1.75,label="Controlled")
+            plt.plot(1000.0*controlled_profile_coords, controlled_temp_profile[i],c='r',lw=1.75,label="LQR")
         else:
             plt.plot(1000.0*controlled_profile_coords, controlled_temp_profile[i],c='r',lw=1.75)
         plt.fill_between(1000.0*uncontrolled_profile_coords, uncontrolled_temp_profile[i]+0.5*std_uncontrolled_temp_profile[i], uncontrolled_temp_profile[i]-0.5*std_uncontrolled_temp_profile[i], color='b',alpha=0.2,lw=0.0)
         if i == 0:
-            plt.plot(1000.0*uncontrolled_profile_coords, uncontrolled_temp_profile[i],c='b',lw=1.75,label="Uncontrolled")
+            plt.plot(1000.0*uncontrolled_profile_coords, uncontrolled_temp_profile[i],c='b',lw=1.75,label="PPO")
         else:
             plt.plot(1000.0*uncontrolled_profile_coords, uncontrolled_temp_profile[i],c='b',lw=1.75)
     plt.xlim(0.0, 1000.0*max_x_value)
@@ -564,12 +564,12 @@ if __name__ == "__main__":
     for i in range(len(controlled_cure_profile)):
         plt.fill_between(1000.0*controlled_profile_coords, controlled_cure_profile[i]+0.5*std_controlled_cure_profile[i], controlled_cure_profile[i]-0.5*std_controlled_cure_profile[i], color='r',alpha=0.2,lw=0.0)
         if i == 0:
-            plt.plot(1000.0*controlled_profile_coords, controlled_cure_profile[i],c='r',lw=1.75,label="Controlled")
+            plt.plot(1000.0*controlled_profile_coords, controlled_cure_profile[i],c='r',lw=1.75,label="LQR")
         else:
             plt.plot(1000.0*controlled_profile_coords, controlled_cure_profile[i],c='r',lw=1.75)
         plt.fill_between(1000.0*uncontrolled_profile_coords, uncontrolled_cure_profile[i]+0.5*std_uncontrolled_cure_profile[i], uncontrolled_cure_profile[i]-0.5*std_uncontrolled_cure_profile[i], color='b',alpha=0.2,lw=0.0)
         if i == 0:
-            plt.plot(1000.0*uncontrolled_profile_coords, uncontrolled_cure_profile[i],c='b',lw=1.75,label="Uncontrolled")
+            plt.plot(1000.0*uncontrolled_profile_coords, uncontrolled_cure_profile[i],c='b',lw=1.75,label="PPO")
         else:
             plt.plot(1000.0*uncontrolled_profile_coords, uncontrolled_cure_profile[i],c='b',lw=1.75)
     plt.xlim(0.0, 1000.0*max_x_value)
@@ -593,6 +593,9 @@ if __name__ == "__main__":
     max_temp_2 = min(min_temp + 2*(np.std(uncontrolled_max_cum_temp) - np.std(uncontrolled_max_cum_temp) % 0.05), max_temp_2)
     max_temp = max(max_temp_1, max_temp_2)
     
+    min_temp = 0.8
+    max_temp = 1.0
+    
     plt.clf()
     fig = plt.figure()
     gs = fig.add_gridspec(nrows=2, ncols=21, left=0.025, right=0.925, bottom=0.1, top=0.95, hspace=0.2, wspace=0.5)
@@ -608,7 +611,7 @@ if __name__ == "__main__":
     ax0.pcolormesh(1000.0*controlled_global_fine_mesh_x, 1000.0*controlled_global_fine_mesh_y, controlled_max_cum_temp, shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
     ax0.set_axis_off()
     ax0.set_aspect('equal', adjustable='box')
-    ax0.set_title('Mean controlled',fontsize=16)
+    ax0.set_title('Mean LQR',fontsize=16)
     
     c1 = ax1.pcolormesh(1000.0*uncontrolled_global_fine_mesh_x, 1000.0*uncontrolled_global_fine_mesh_y, uncontrolled_max_cum_temp, shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
     cbar1 = fig.colorbar(c1, cax=cax1, ticks=[min_temp, max_temp], format=lambda x, _: f"{x:.1f}")
@@ -616,7 +619,7 @@ if __name__ == "__main__":
     cbar1.ax.tick_params(labelsize=16)
     ax1.set_axis_off()
     ax1.set_aspect('equal', adjustable='box')
-    ax1.set_title('Mean uncontrolled',fontsize=16)
+    ax1.set_title('Mean PPO',fontsize=16)
     
     min_temp = min(np.mean(std_controlled_max_cum_temp) - np.mean(std_controlled_max_cum_temp) % 0.05, np.mean(std_uncontrolled_max_cum_temp) - np.mean(std_uncontrolled_max_cum_temp) % 0.05)
     max_temp_1 = round(np.max(std_controlled_max_cum_temp) + 0.05 - (np.max(std_controlled_max_cum_temp) % 0.05),2)
@@ -625,10 +628,13 @@ if __name__ == "__main__":
     max_temp_2 = min(min_temp + 2*(np.std(std_uncontrolled_max_cum_temp) - np.std(std_uncontrolled_max_cum_temp) % 0.05), max_temp_2)
     max_temp = max(max_temp_1, max_temp_2)
     
+    min_temp = 0.0
+    max_temp = 0.05
+    
     ax2.pcolormesh(1000.0*controlled_global_fine_mesh_x, 1000.0*controlled_global_fine_mesh_y, std_controlled_max_cum_temp, shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
     ax2.set_axis_off()
     ax2.set_aspect('equal', adjustable='box')
-    ax2.set_title('Standard deviation controlled',fontsize=16)
+    ax2.set_title('Standard deviation LQR',fontsize=16)
     
     c3 = ax3.pcolormesh(1000.0*uncontrolled_global_fine_mesh_x, 1000.0*uncontrolled_global_fine_mesh_y, std_uncontrolled_max_cum_temp, shading='gouraud', cmap='jet', vmin=min_temp, vmax=max_temp)
     cbar3 = fig.colorbar(c3, cax=cax3, ticks=[min_temp, max_temp], format=lambda x, _: f"{x:.1f}")
@@ -636,7 +642,7 @@ if __name__ == "__main__":
     cbar3.ax.tick_params(labelsize=16)
     ax3.set_axis_off()
     ax3.set_aspect('equal', adjustable='box')
-    ax3.set_title('Standard deviation uncontrolled',fontsize=16)
+    ax3.set_title('Standard deviation PPO',fontsize=16)
     
     fig.suptitle("(e) Mean maximum cumulative temperature over " + str(num_controlled) + " simulations",fontsize=20, y=0.05)
     plt.savefig(save_path + "/max_cum_temp.png", dpi = 500)

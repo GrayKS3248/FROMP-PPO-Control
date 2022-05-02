@@ -243,6 +243,10 @@ PyObject* init_temp_controller(double thermal_conductivity, double density, doub
 	fds_cfg.get_var("fine_x_len",length);
 	double thickness;
 	fds_cfg.get_var("coarse_x_len",thickness);
+	double mean_htc;
+	fds_cfg.get_var("mean_htc",mean_htc);
+	double mean_amb_temp;
+	fds_cfg.get_var("mean_amb_temp",mean_amb_temp);
 	
 	// Create configuration file handler to controller data
 	Config_Handler controller_cfg = Config_Handler("../config_files", "temp_controller.cfg");
@@ -292,16 +296,18 @@ PyObject* init_temp_controller(double thermal_conductivity, double density, doub
 
 	// Build the initialization arguments
 
-	PyObject* init_args = PyTuple_New(9);
+	PyObject* init_args = PyTuple_New(11);
 	PyTuple_SetItem(init_args, 0, PyFloat_FromDouble(thermal_conductivity));
 	PyTuple_SetItem(init_args, 1, PyFloat_FromDouble(density));
 	PyTuple_SetItem(init_args, 2, PyFloat_FromDouble(specific_heat));
-	PyTuple_SetItem(init_args, 3, PyFloat_FromDouble(width));
-	PyTuple_SetItem(init_args, 4, PyFloat_FromDouble(length));
-	PyTuple_SetItem(init_args, 5, PyFloat_FromDouble(thickness));
-	PyTuple_SetItem(init_args, 6, PyLong_FromLong(state_size));
-	PyTuple_SetItem(init_args, 7, PyFloat_FromDouble(movement_const));
-	PyTuple_SetItem(init_args, 8, PyFloat_FromDouble(sigma));
+	PyTuple_SetItem(init_args, 3, PyFloat_FromDouble(mean_htc));
+	PyTuple_SetItem(init_args, 4, PyFloat_FromDouble(mean_amb_temp));
+	PyTuple_SetItem(init_args, 5, PyFloat_FromDouble(width));
+	PyTuple_SetItem(init_args, 6, PyFloat_FromDouble(length));
+	PyTuple_SetItem(init_args, 7, PyFloat_FromDouble(thickness));
+	PyTuple_SetItem(init_args, 8, PyLong_FromLong(state_size));
+	PyTuple_SetItem(init_args, 9, PyFloat_FromDouble(movement_const));
+	PyTuple_SetItem(init_args, 10, PyFloat_FromDouble(sigma));
 
 	// Initialize ppo object
 	PyObject* object = PyObject_CallObject(init, init_args);
