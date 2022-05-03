@@ -391,6 +391,15 @@ if __name__ == "__main__":
     x_len = (num_x-1)*dx
     z_len = (num_z-1)*dz
     
+    
+    
+    laplacian_dat = []
+    laplacian_rows = []
+    laplacian_cols = []
+    for row in range(num_y*num_x*num_z):
+        pass
+    
+    
     print("Ensure fine grid perfectly divides coarse grid...")
     fine_y_len = (np.rint(fine_y_len/dy+1.)-1.)*dy
     fine_x_len = (np.rint(fine_x_len/dx+1.)-1.)*dx
