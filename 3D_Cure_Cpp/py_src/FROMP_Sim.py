@@ -206,6 +206,127 @@ def build_laplacian_mat(num_y,num_x,num_z,dy,dx,dz,order=[1,1,1]):
 
 
 #__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__#
+def build_arrhenius(mean_T0,mean_a0,mean_hr,dev_T0=0.,dev_a0=0.,dev_hr=0.,num=1000000,amb_T=298.15,cp=1600.,A=8.55e15,E=110750.):
+    """
+    Evaluates the Arrhenius equation over a discrete, linear temperature space.
+
+    Parameters
+    ----------
+    mean_T0 : float
+        The mean of the initial temperature field in Kelvin.
+    mean_a0 : float
+        The mean of the initial degree of cure field. Between 0.0 and 1.0.
+    mean_hr : float
+        The mean of the enthalpy of reaction field in Joules / Kilogram.
+    dev_T0 : float, optional
+        The maximum absolute deviation from the mean of the initial temperature field in Kelvin. The default is 0..
+    dev_a0 : float, optional
+        The maximum absolute deviation from the mean of the initial degree of cure field. The default is 0..
+    dev_hr : float, optional
+        The maximum absolute deviation from the mean of the enthalpy of reaction field in Joules / Kilogram. The default is 0..
+    num : int, optional
+        The number of discrete temperature points in the temperature space. The default is 1E6.
+    amb_T : float, optional
+        The ambient temperature in Kelvin. The default is 298.15.
+    cp : float, optional
+        The specific heat capacity of the material in Joules / Kilogram-Kelvin. The default is 1600..
+    A : float, optional
+        The pre-exponential term of the Arrhenius equation in 1/second. The default is 8.55e15.
+    E : float, optional
+        The activation energy of the reaction in Joules / mol. The default is 110750..
+
+    Returns
+    -------
+    T_start : float
+        The minimum temperature value in Kelvin at which the Arrhenius equation is evaluated.
+    T_step : float
+        The discrete step size in Kelvin of the discrete, linear temperature space over which the Arrhenius equation is evaluated.
+    arrhenius : array_like, shape (num,)
+        The evaluation of the Arrhenius equation over the discrete, linear temperature space.
+
+    """
+    
+    # Build linear temperature space
+    T_start = 0.90*min(mean_T0-dev_T0,amb_T)
+    T_end = 1.5*(((mean_hr+dev_hr)*(1.0-(mean_a0-dev_a0)))/cp+(mean_T0+dev_T0))
+    T_space, T_step = np.linspace(T_start, T_end, num, retstep=True)
+    
+    # Calculate and return Arrhenius equation over linear temperature space
+    R = 8.314462618  ## Universal gas constant in Joules / Kilogram-mol
+    arrhenius = A*np.exp(-E/(R*T_space))
+    
+    # Return the temperature space parameters and the arrhenius evaluation
+    return T_start, T_step, arrhenius
+    
+    
+#__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__#    
+def build_kinetics(mean_a0,dev_a0=0.,num=1000000,m=0.77,n=1.72,C=14.48,ac=0.41):
+    """
+    Evaluates the Diffusion Extended Prout-Tompkins model over a discrete, linear degree of cure space.
+
+    Parameters
+    ----------
+    mean_a0 : float
+        The mean of the initial degree of cure field. Between 0.0 and 1.0.
+    dev_a0 : float, optional
+        The maximum absolute deviation from the mean of the initial degree of cure field. The default is 0..
+    num : int, optional
+        The number of discrete degree of cure points in the degree of cure space. The default is 1E6.
+    m : float, optional
+        DESCRIPTION. The default is 0.77.
+    n : float, optional
+        DESCRIPTION. The default is 1.72.
+    C : float, optional
+        DESCRIPTION. The default is 14.48.
+    ac : float, optional
+        DESCRIPTION. The default is 0.41.
+
+    Returns
+    -------
+    a_start : float
+        The minimum degree of cure value at which the Diffusion Extended Prout-Tompkins model is evaluated.
+    a_step : float
+        The discrete step size of the discrete, linear degree of cure space over which the Diffusion Extended Prout-Tompkins model is evaluated.
+    kinetics : array_like, shape (num,)
+        The evaluation of the Diffusion Extended Prout-Tompkins model over the discrete, linear degree of cure space.
+    d_kinetics : array_like, shape (num,)
+        The evaluation of the first derivative of the Diffusion Extended Prout-Tompkins model
+        with respect to degree of cure over the discrete, linear degree of cure space.
+    d2_kinetics : array_like, shape (num,)
+        The evaluation of the second derivative of the Diffusion Extended Prout-Tompkins model
+        with respect to degree of cure over the discrete, linear degree of cure space.
+
+    """
+    
+    # Build linear degree of cure space
+    a_start = 0.99*(mean_a0-dev_a0)
+    a_space, a_step = np.linspace(a_start,0.999999999,num,retstep=True)
+    
+    # Calculate and cure kinetics over linear degree of cure space
+    kinetics = (abs(a_space)/a_space)*(((abs(a_space)**m)*((1.0-abs(a_space))**n))/(1.0+np.exp(C*(abs(a_space)-ac))))
+    
+    # Calculate and first derivative of cure kinetics with respect to degree of cure evaluated over linear degree of cure space
+    d_kinetics = (abs(a_space)/a_space)*((m*abs(a_space)**(m-1.)*(1.-abs(a_space))**n)/(1.+np.exp(C*(abs(a_space)-ac))) + 
+                      (-n*abs(a_space)**m*(1.-abs(a_space))**(n-1.))/(1.+np.exp(C*(abs(a_space)-ac))) + 
+                      (-C*abs(a_space)**m*(1.-abs(a_space))**n*np.exp(C*(abs(a_space)-ac)))/((1.0+np.exp(C*(abs(a_space)-ac)))**2))
+    
+    # Calculate and second derivative of cure kinetics with respect to degree of cure evaluated over linear degree of cure space
+    d2_kinetics =  (abs(a_space)/a_space)*((m*(m-1.)*abs(a_space)**(m-2.)*(1.-abs(a_space))**(n)) / (1.+np.exp(C*(abs(a_space)-ac))) + 
+                        (-m*n*abs(a_space)**(m-1.)*(1.-abs(a_space))**(n-1.)) / (1.+np.exp(C*(abs(a_space)-ac))) + 
+                        (-m*C*abs(a_space)**(m-1.)*(1-abs(a_space))**(n)*np.exp(C*(abs(a_space)-ac))) / (1.+np.exp(C*(abs(a_space)-ac)))**2. + 
+                        (-m*n*abs(a_space)**(m-1.)*(1.-abs(a_space))**(n-1.)) / (1.+np.exp(C*(abs(a_space)-ac))) + 
+                        (n*(n-1.)*abs(a_space)**(m)*(1.-abs(a_space))**(n-2.)) / (1.+np.exp(C*(abs(a_space)-ac))) + 
+                        (n*C*abs(a_space)**(m)*(1-abs(a_space))**(n-1.)*np.exp(C*(abs(a_space)-ac))) / (1.+np.exp(C*(abs(a_space)-ac)))**2. + 
+                        (-m*C*abs(a_space)**(m-1.)*(1.-abs(a_space))**(n)*np.exp(C*(abs(a_space)-ac))) / (1.+np.exp(C*(abs(a_space)-ac)))**2. + 
+                        (n*C*abs(a_space)**(m)*(1.-abs(a_space))**(n-1.)*np.exp(C*(abs(a_space)-ac))) / (1.+np.exp(C*(abs(a_space)-ac)))**2. + 
+                        (-C*C*abs(a_space)**(m)*(1.-abs(a_space))**(n)*np.exp(C*(abs(a_space)-ac))) / (1.+np.exp(C*(abs(a_space)-ac)))**2. + 
+                        (2.*C*C*abs(a_space)**(m)*(1.-abs(a_space))**(n)*np.exp(2.*C*(abs(a_space)-ac))) / (1.+np.exp(C*(abs(a_space)-ac)))**3.)
+    
+    # Return the degree of cure space parameters and the kinetics evaluations
+    return a_start, a_step, kinetics, d_kinetics, d2_kinetics
+
+
+#__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__#
 def get_boundaries(field,dy,dx,dz,k=0.152,c=20.0,bc=298.15,qy=[[0.0],[0.0]],qx=[[0.0],[0.0]],qz=[[0.0],[0.0]],order=[1,1,1],no_pad=''):
     """
     Adds Neumann boundary conditions to a given field.
@@ -331,8 +452,16 @@ def get_err(an,*args):
     ----------
     an : array_like, shape (n,)
         Current guess of the next cure at every point.
-    gn : array_like, shape (n,)
-        The cure kinetics of each guessed cure.
+    kinetics : array_like, shape (m,)
+        An array of the cure kinetics evaluated over a discrete, linear degree of cure space.
+    d_kinetics : array_like, shape (m,)
+        An array of the first derivative of the cure kinetics with respect to the cure evaluated over a discrete, linear degree of cure space.
+    d2_kinetics : array_like, shape (m,)
+        An array of the second derivative of the cure kinetics with respect to the cure evaluated over a discrete, linear degree of cure space.
+    a_start : float
+        The minimum degree of cure value at which the cure kinetics are evaluated.
+    a_step : float
+        The step size of the discrete, linear degree of cure space over which the cure kinetics are evaluated.
     a1 : array_like, shape (n,)
         The current cure at every point.
     f1 : array_like, shape (n,)
@@ -345,7 +474,7 @@ def get_err(an,*args):
     Raises
     ------
     TypeError
-        If required arguments are missing: 'gn', 'a1', 'f1', 'g1', or 'dt'
+        If required arguments are missing: 'kinetics', 'd_kinetics', 'd2_kinetics', 'a_start', 'a_step', 'a1', 'f1', 'g1', or 'dt'.
 
     Returns
     -------
@@ -355,27 +484,45 @@ def get_err(an,*args):
     """
 
     try:
-        gn = args[0]
+        args[0]
     except:
-        raise TypeError("Missing 5 required positional arguments: 'gn', 'a1', 'f1', 'g1', and 'dt'")
+        raise TypeError("Missing 7 required positional arguments: 'kinetics', 'd_kinetics', 'd2_kinetics', 'a_start', 'a_step', 'a1', 'f1', 'g1', and 'dt'")
     try:
-        a1 = args[1]
+        args[1]
+    except:
+        raise TypeError("Missing 6 required positional arguments: 'd_kinetics', 'd2_kinetics', 'a_start', 'a_step', 'a1', 'f1', 'g1', and 'dt'")
+    try:
+        args[2]
+    except:
+        raise TypeError("Missing 5 required positional arguments: 'd2_kinetics', 'a_start', 'a_step', 'a1', 'f1', 'g1', and 'dt'")
+    try:
+        a_start = args[3]
+    except:
+        raise TypeError("Missing 4 required positional arguments: 'a_start', 'a_step', 'a1', 'f1', 'g1', and 'dt'")
+    try:
+        a_step = args[4]
+    except:
+        raise TypeError("Missing 4 required positional arguments: 'a_step', 'a1', 'f1', 'g1', and 'dt'")
+    try:
+        a1 = args[5]
     except:
         raise TypeError("Missing 4 required positional arguments: 'a1', 'f1', 'g1', and 'dt'")
     try:
-        f1 = args[2]
+        f1 = args[6]
     except:
         raise TypeError("Missing 3 required positional arguments: 'f1', 'g1', and 'dt'")
     try:
-        g1 = args[3]
+        g1 = args[7]
     except:
         raise TypeError("Missing 2 required positional arguments: 'g1' and 'dt'")
     try:
-        dt = args[4]
+        dt = args[8]
     except:
         raise TypeError("Missing 1 required positional argument: 'dt'")
     
     # Calculate square implicit error
+    ind = min(np.rint((an-a_start)/(a_step)).astype(int)[0], len(args[0])-1)
+    gn = args[0][ind]
     err = ((a1 + 0.5*dt*f1*(g1 + gn)) - an)*((a1 + 0.5*dt*f1*(g1 + gn)) - an)
     return err
 
@@ -389,10 +536,16 @@ def get_jac(an,*args):
     ----------
     an : array_like, shape (n,)
         Current guess of the next cure at every point.
-    gn : array_like, shape (n,)
-        The cure kinetics of each guessed cure.
-    dgn_dan : array_like, shape (n,)
-        The derivative of the cure kinetics with respect to cure evaluated at the current guess of the next cure at every point.
+    kinetics : array_like, shape (m,)
+        An array of the cure kinetics evaluated over a discrete, linear degree of cure space.
+    d_kinetics : array_like, shape (m,)
+        An array of the first derivative of the cure kinetics with respect to the cure evaluated over a discrete, linear degree of cure space.
+    d2_kinetics : array_like, shape (m,)
+        An array of the second derivative of the cure kinetics with respect to the cure evaluated over a discrete, linear degree of cure space.
+    a_start : float
+        The minimum degree of cure value at which the cure kinetics are evaluated.
+    a_step : float
+        The step size of the discrete, linear degree of cure space over which the cure kinetics are evaluated.
     a1 : array_like, shape (n,)
         The current cure at every point.
     f1 : array_like, shape (n,)
@@ -401,11 +554,11 @@ def get_jac(an,*args):
         The current cure kinetics at every point.
     dt : float
         The discrete time step in seconds.
-        
+
     Raises
     ------
     TypeError
-        If required arguments are missing: 'gn', 'dgn_dan', 'a1', 'f1', 'g1', or 'dt'
+        If required arguments are missing: 'kinetics', 'd_kinetics', 'd2_kinetics', 'a_start', 'a_step', 'a1', 'f1', 'g1', or 'dt'.
 
     Returns
     -------
@@ -415,31 +568,46 @@ def get_jac(an,*args):
     """
 
     try:
-        gn = args[0]
+        args[0]
     except:
-        raise TypeError("Missing 6 required positional arguments: 'gn', 'dgn_dan', 'a1', 'f1', 'g1', and 'dt'")
+        raise TypeError("Missing 7 required positional arguments: 'kinetics', 'd_kinetics', 'd2_kinetics', 'a_start', 'a_step', 'a1', 'f1', 'g1', and 'dt'")
     try:
-        dgn_dan = args[1]
+        args[1]
     except:
-        raise TypeError("Missing 5 required positional arguments: 'dgn_dan', 'a1', 'f1', 'g1', and 'dt'")
+        raise TypeError("Missing 6 required positional arguments: 'd_kinetics', 'd2_kinetics', 'a_start', 'a_step', 'a1', 'f1', 'g1', and 'dt'")
     try:
-        a1 = args[2]
+        args[2]
+    except:
+        raise TypeError("Missing 5 required positional arguments: 'd2_kinetics', 'a_start', 'a_step', 'a1', 'f1', 'g1', and 'dt'")
+    try:
+        a_start = args[3]
+    except:
+        raise TypeError("Missing 4 required positional arguments: 'a_start', 'a_step', 'a1', 'f1', 'g1', and 'dt'")
+    try:
+        a_step = args[4]
+    except:
+        raise TypeError("Missing 4 required positional arguments: 'a_step', 'a1', 'f1', 'g1', and 'dt'")
+    try:
+        a1 = args[5]
     except:
         raise TypeError("Missing 4 required positional arguments: 'a1', 'f1', 'g1', and 'dt'")
     try:
-        f1 = args[3]
+        f1 = args[6]
     except:
         raise TypeError("Missing 3 required positional arguments: 'f1', 'g1', and 'dt'")
     try:
-        g1 = args[4]
+        g1 = args[7]
     except:
         raise TypeError("Missing 2 required positional arguments: 'g1' and 'dt'")
     try:
-        dt = args[5]
+        dt = args[8]
     except:
         raise TypeError("Missing 1 required positional argument: 'dt'")
     
-    # Calculate gradient vector
+    # Calculate first derivative of square implicit error
+    ind = min(np.rint((an-a_start)/(a_step)).astype(int)[0], len(args[0])-1)
+    gn = args[0][ind]
+    dgn_dan = args[1][ind]
     jac = 2. * (a1+0.5*dt*f1*(g1+gn)-an) * (0.5*dt*f1*dgn_dan-1.)
     return jac
 
@@ -453,12 +621,16 @@ def get_hess(an,*args):
     ----------
     an : array_like, shape (n,)
         Current guess of the next cure at every point.
-    gn : array_like, shape (n,)
-        The cure kinetics of each guessed cure.
-    dgn_dan : array_like, shape (n,)
-        The derivative of the cure kinetics with respect to cure evaluated at the current guess of the next cure at every point.
-    d2gn_dan2 : array_like, shape (n,)
-        The second derivative of the cure kinetics with respect to cure evaluated at the current guess of the next cure at every point.
+    kinetics : array_like, shape (m,)
+        An array of the cure kinetics evaluated over a discrete, linear degree of cure space.
+    d_kinetics : array_like, shape (m,)
+        An array of the first derivative of the cure kinetics with respect to the cure evaluated over a discrete, linear degree of cure space.
+    d2_kinetics : array_like, shape (m,)
+        An array of the second derivative of the cure kinetics with respect to the cure evaluated over a discrete, linear degree of cure space.
+    a_start : float
+        The minimum degree of cure value at which the cure kinetics are evaluated.
+    a_step : float
+        The step size of the discrete, linear degree of cure space over which the cure kinetics are evaluated.
     a1 : array_like, shape (n,)
         The current cure at every point.
     f1 : array_like, shape (n,)
@@ -471,7 +643,7 @@ def get_hess(an,*args):
     Raises
     ------
     TypeError
-        If required arguments are missing: 'gn', 'dgn_dan', 'd2gn_dan2', 'a1', 'f1', 'g1', or 'dt'.
+        If required arguments are missing: 'kinetics', 'd_kinetics', 'd2_kinetics', 'a_start', 'a_step', 'a1', 'f1', 'g1', or 'dt'.
 
     Returns
     -------
@@ -480,36 +652,49 @@ def get_hess(an,*args):
 
     """
     try:
-        gn = args[0]
+        args[0]
     except:
-        raise TypeError("Missing 7 required positional arguments: 'gn', 'dgn_dan', 'd2gn_dan2', 'a1', 'f1', 'g1', and 'dt'")
+        raise TypeError("Missing 7 required positional arguments: 'kinetics', 'd_kinetics', 'd2_kinetics', 'a_start', 'a_step', 'a1', 'f1', 'g1', and 'dt'")
     try:
-        dgn_dan = args[1]
+        args[1]
     except:
-        raise TypeError("Missing 6 required positional arguments: 'dgn_dan', 'd2gn_dan2', 'a1', 'f1', 'g1', and 'dt'")
+        raise TypeError("Missing 6 required positional arguments: 'd_kinetics', 'd2_kinetics', 'a_start', 'a_step', 'a1', 'f1', 'g1', and 'dt'")
     try:
-        d2gn_dan2 = args[2]
+        args[2]
     except:
-        raise TypeError("Missing 5 required positional arguments: 'd2gn_dan2', 'a1', 'f1', 'g1', and 'dt'")
+        raise TypeError("Missing 5 required positional arguments: 'd2_kinetics', 'a_start', 'a_step', 'a1', 'f1', 'g1', and 'dt'")
     try:
-        a1 = args[3]
+        a_start = args[3]
+    except:
+        raise TypeError("Missing 4 required positional arguments: 'a_start', 'a_step', 'a1', 'f1', 'g1', and 'dt'")
+    try:
+        a_step = args[4]
+    except:
+        raise TypeError("Missing 4 required positional arguments: 'a_step', 'a1', 'f1', 'g1', and 'dt'")
+    try:
+        a1 = args[5]
     except:
         raise TypeError("Missing 4 required positional arguments: 'a1', 'f1', 'g1', and 'dt'")
     try:
-        f1 = args[4]
+        f1 = args[6]
     except:
         raise TypeError("Missing 3 required positional arguments: 'f1', 'g1', and 'dt'")
     try:
-        g1 = args[5]
+        g1 = args[7]
     except:
         raise TypeError("Missing 2 required positional arguments: 'g1' and 'dt'")
     try:
-        dt = args[6]
+        dt = args[8]
     except:
         raise TypeError("Missing 1 required positional argument: 'dt'")
 
+    # Calculate second derivative of square implicit error
+    ind = min(np.rint((an-a_start)/(a_step)).astype(int)[0], len(args[0])-1)
+    gn = args[0][ind]
+    dgn_dan = args[1][ind]
+    d2gn_dan2 = args[2][ind]
     hess = 2.*(0.5*dt*f1*dgn_dan-1.)*(0.5*dt*f1*dgn_dan-1.) + 2.*(a1+0.5*dt*f1*(g1+gn)-an)*(0.5*dt*f1*d2gn_dan2)
-    return hess
+    return np.diag(hess)
     
 
 #__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__@__#
@@ -527,11 +712,11 @@ if __name__ == "__main__":
     dev_hr = 0.01*mean_hr
     A = 8.55e15
     E = 110750.0
-    n = 1.72
+    R = 8.314
     m = 0.77
+    n = 1.72
     C = 14.48
     ac = 0.41
-    R = 8.314
     
     # Define time parameters
     tot_t = 10.0          ## Seconds
@@ -594,29 +779,9 @@ if __name__ == "__main__":
     print("Build dynamical matrices...")
     laplacian = build_laplacian_mat(num_y,num_x,num_z,dy,dx,dz,order=order)
     
-    print("Generate cure kinetics lookup tables...")    
-    T_start = 0.90*min(mean_T0-dev_T0,amb_T)
-    T_end = 1.5*(((mean_hr+dev_hr)*(1.0-(mean_a0-dev_a0)))/cp+(mean_T0+dev_T0))
-    T_space, T_step = np.linspace(T_start, T_end,1000000,retstep=True)
-    a_start = 0.99*(mean_a0-dev_a0)
-    a_space, a_step = np.linspace(a_start,0.999999999,1000000,retstep=True)
-    arrhenius = A*np.exp(-E/(R*T_space))
-    kinetics = (abs(a_space)/a_space)*(((abs(a_space)**m)*((1.0-abs(a_space))**n))/(1.0+np.exp(C*(abs(a_space)-ac))))
-    kinetics_deriv = (abs(a_space)/a_space)*((m*abs(a_space)**(m-1.)*(1.-abs(a_space))**n)/(1.+np.exp(C*(abs(a_space)-ac))) + 
-                      (-n*abs(a_space)**m*(1.-abs(a_space))**(n-1.))/(1.+np.exp(C*(abs(a_space)-ac))) + 
-                      (-C*abs(a_space)**m*(1.-abs(a_space))**n*np.exp(C*(abs(a_space)-ac)))/((1.0+np.exp(C*(abs(a_space)-ac)))**2))
-    kinetics_2_deriv =  (abs(a_space)/a_space)*((m*(m-1.)*abs(a_space)**(m-2.)*(1.-abs(a_space))**(n)) / (1.+np.exp(C*(abs(a_space)-ac))) + 
-                        (-m*n*abs(a_space)**(m-1.)*(1.-abs(a_space))**(n-1.)) / (1.+np.exp(C*(abs(a_space)-ac))) + 
-                        (-m*C*abs(a_space)**(m-1.)*(1-abs(a_space))**(n)*np.exp(C*(abs(a_space)-ac))) / (1.+np.exp(C*(abs(a_space)-ac)))**2. + 
-                        (-m*n*abs(a_space)**(m-1.)*(1.-abs(a_space))**(n-1.)) / (1.+np.exp(C*(abs(a_space)-ac))) + 
-                        (n*(n-1.)*abs(a_space)**(m)*(1.-abs(a_space))**(n-2.)) / (1.+np.exp(C*(abs(a_space)-ac))) + 
-                        (n*C*abs(a_space)**(m)*(1-abs(a_space))**(n-1.)*np.exp(C*(abs(a_space)-ac))) / (1.+np.exp(C*(abs(a_space)-ac)))**2. + 
-                        (-m*C*abs(a_space)**(m-1.)*(1.-abs(a_space))**(n)*np.exp(C*(abs(a_space)-ac))) / (1.+np.exp(C*(abs(a_space)-ac)))**2. + 
-                        (n*C*abs(a_space)**(m)*(1.-abs(a_space))**(n-1.)*np.exp(C*(abs(a_space)-ac))) / (1.+np.exp(C*(abs(a_space)-ac)))**2. + 
-                        (-C*C*abs(a_space)**(m)*(1.-abs(a_space))**(n)*np.exp(C*(abs(a_space)-ac))) / (1.+np.exp(C*(abs(a_space)-ac)))**2. + 
-                        (2.*C*C*abs(a_space)**(m)*(1.-abs(a_space))**(n)*np.exp(2.*C*(abs(a_space)-ac))) / (1.+np.exp(C*(abs(a_space)-ac)))**3.)
-    del(T_space)
-    del(a_space)
+    print("Generate cure kinetics lookup tables...")   
+    T_start, T_step, arrhenius = build_arrhenius(mean_T0,mean_a0,mean_hr,dev_T0=dev_T0,dev_a0=dev_a0,dev_hr=dev_hr,amb_T=amb_T,cp=cp,A=A,E=E)
+    a_start, a_step, kinetics, d_kinetics, d2_kinetics = build_kinetics(mean_a0,dev_a0=dev_a0,m=m,n=n,C=C,ac=ac)
     
     print("Setup front tracker...")
     front=[[0.0,0.0,0.0,0.0]]
@@ -635,7 +800,7 @@ if __name__ == "__main__":
     """
     ########################################################  SIMULATION ########################################################
     """
-    print("Start simulation...")
+    print("Run simulation...")
     t0 = time.time()
     for t in times:
         
@@ -675,6 +840,7 @@ if __name__ == "__main__":
         imp_points = cure_rate>imp_cure_rate
         exp_points = np.invert(imp_points)
         
+        # If there are points that require implicit integration, use implicit integration there
         if (imp_points).any():
 
             # Record front location if it has moved in the propogation direction
@@ -688,45 +854,94 @@ if __name__ == "__main__":
                 if abs(np.mean(z_grid[imp_points]) - front[-1][2])>0.5*dz or np.mean(z_grid[imp_points])==0.0:
                     front.append([np.mean(y_grid[imp_points]),np.mean(x_grid[imp_points]),np.mean(z_grid[imp_points]),t])   
 
-            # Get the current conditions of cure regions with high expected cure rates
-            itr = 0
+            # Get the current conditions of cure regions with high cure rates
             a1 = cure[imp_points]
             f1 = f[imp_points]
             g1 = g[imp_points]
-            dg1 = scale * kinetics_deriv[np.rint((cure[imp_points]-a_start)/(a_step)).astype(int)]
+            #inds = np.arange(len(a1))
+            a2 = copy.deepcopy(a1)
             
-            # Get the first step of gradient descent toward implicit solution
-            an = (a1+0.5*dt*f1*(g1+g1-dg1*a1)) / (1. - 0.5*dt*f1*dg1)
-            an[an>1.0] = 0.5 + 0.5*a1[an>1.0]
-            gn = kinetics[np.rint((an-a_start)/(a_step)).astype(int)]
-            dgn = (decay**(itr+1)*scale) * kinetics_deriv[np.rint((an-a_start)/(a_step)).astype(int)]
+            # Optimize the a2 guess
+            for i in range(len(a2)):
+                args=(kinetics,d_kinetics,d2_kinetics,a_start,a_step,a1[i],f1[i],g1[i],dt)
+                options={'maxiter':10}
+                bounds=optimize.Bounds(a1[i], 1.0, keep_feasible=True)
+                a2[i] = optimize.minimize(get_err,a2[i],args=args,jac=get_jac,bounds=bounds,options=options,method='L-BFGS-B').x[0]
             
-            # Calcualte the error to determine which instances require further gradient descent
-            err = get_err(an,gn,a1,f1,g1,dt)
-            update = err>2.*a_step
-               
-            # Use gradient descent to calculate implicit cure solutions
-            while update.any():
-                # Update iterator
-                itr = itr + 1
-                if itr > 14 and update.any():
-                    print()
+            # Ensure implicit a2 is in proper bounds
+            g2 = kinetics[np.rint((a2-a_start)/(a_step)).astype(int)]
+            
+            
+            # # Optimize the a2_guess
+            # itr = 0
+            # revisit = deque([])
+            # while True:
                 
-                # Take another gradient descent step
-                next_an = (a1[update]+0.5*dt*f1[update]*(g1[update]+gn[update]-dgn[update]*an[update])) / (1. - 0.5*dt*f1[update]*dgn[update])
-                next_an[next_an>1.0] = 0.5 + 0.5*an[update][next_an>1.0]
-                an[update] = next_an
-                gn[update] = kinetics[np.rint((an[update]-a_start)/(a_step)).astype(int)]
-                dgn[update] = (decay**(itr+1)*scale) * kinetics_deriv[np.rint((an[update]-a_start)/(a_step)).astype(int)]
+            #     # Calculate the error to determine if done optimizing
+            #     itr = itr + 1
+            #     err = get_err(a2_guess,kinetics,a_start,a_step,a1,f1,g1,dt)
+            #     not_done = err >= 1.99*a_step
                 
-                # Calcualte the error to determine which instances require further gradient descent
-                err = get_err(an,gn,a1,f1,g1,dt)
-                update = err>2.*a_step
+            #     # Termination conditions
+            #     if not not_done.any():
+            #         break
+            #     if itr > 20:
+            #         break
+            
+            #     # Calcualte the error derivative, and error second derivative given guess
+            #     grad = get_jac(a2_guess[not_done],kinetics,d_kinetics,a_start,a_step,a1[not_done],f1[not_done],g1[not_done],dt)
+            #     hess = get_hess(a2_guess[not_done],kinetics,d_kinetics,d2_kinetics,a_start,a_step,a1[not_done],f1[not_done],g1[not_done],dt)
+            
+            #     # Calculate the quadratic approximation of the error as a function of the guessed a2
+            #     a=0.5*hess
+            #     b=grad-hess*a2_guess[not_done]
+            #     c=err[not_done]-grad*a2_guess[not_done]+0.5*hess*a2_guess[not_done]*a2_guess[not_done]
+            #     radicand = b*b - 4 * a * c
                 
-            # Update implicit and explicit points
-            cure[imp_points] = an
-            cure_rate[imp_points] = 0.5*f1*(g1 + gn)
+            #     # Determine where to use quadratic approximation and where to use linear approximation
+            #     quad = radicand>=0.
+            #     lin = radicand<0.
+                
+            #     # Use quadratic approximation if radicand positive
+            #     if quad.any():
+            #         a2_guess[inds[not_done][quad]] = (-b[quad] + np.sqrt(radicand[quad]))/(2.*a[quad])
+            #         if (a2_guess >= 1.0).any():
+            #             revisit.extend(inds[a2_guess>=1.0])
+            #             a2_guess[a2_guess>=1.0] = a1[a2_guess>=1.0] + np.random.rand()*(1.-a1[a2_guess>=1.0])
+            #         if (a2_guess < a_start).any():
+            #             print()
+            #         g2_guess[inds[not_done][quad]] = kinetics[np.rint((a2_guess[not_done][quad]-a_start)/(a_step)).astype(int)]
+                    
+            #     # Use linear approximation if radicand negative
+            #     if lin.any():
+            #         a2_guess[inds[not_done][lin]] = (grad[lin]*a2_guess[not_done][lin]-err[not_done][lin])/grad[lin]
+            #         if (a2_guess >= 1.0).any():
+            #             revisit.extend(inds[a2_guess>=1.0])
+            #             a2_guess[a2_guess>=1.0] = a1[a2_guess>=1.0] + np.random.rand()*(1.-a1[a2_guess>=1.0])
+            #         if (a2_guess < a_start).any():
+            #             print()
+            #         g2_guess[inds[not_done][lin]] = kinetics[np.rint((a2_guess[not_done][lin]-a_start)/(a_step)).astype(int)]
+                    
+            #     # If any point has already been revisited twice, optimize via a different method
+            #     for x in [x for x in set(revisit) if revisit.count(x) >= 3]:
+                    
+            #         # Remove the pesky instances from the revisit deque
+            #         revisit = deque([y for y in revisit if y != x])
+                    
+            #         # Solve the pesky instances via scipy.optimize.minimize_scalar
+            #         print()
+                        
+                    
+            # Update the cure and cure rate for the implicit points
+            cure_rate[imp_points] = 0.5*f1*(g1+g2)
+            cure[imp_points] = a2
+            
+            # Update the cure and cure rate for the explicit points
+            cure_rate[exp_points][((cure[exp_points] + cure_rate[exp_points]*dt)>1.0)] = (0.99999 - cure[exp_points][((cure[exp_points] + cure_rate[exp_points]*dt)>1.0)])/dt
             cure[exp_points] = cure[exp_points] + cure_rate[exp_points]*dt
+            
+                    
+        # If there are no points that require implicit integration, use explicit integration
         else:
             # Limit the FE cure rate so that the max cure value is exactly 0.99999
             cure_rate[((cure + cure_rate*dt)>1.0)] = (0.99999 - cure[((cure + cure_rate*dt)>1.0)])/dt
@@ -819,6 +1034,7 @@ if __name__ == "__main__":
     # Print time
     tf = time.time()
     print("Simulation took: " + str(np.round(tf-t0,1)) + " seconds\n\t(" + str(np.round((tf-t0)/tot_t,2)) + " CPU seconds per sim second)")
+    print(oof)
     
     # Plot front speed
     plt.clf()
