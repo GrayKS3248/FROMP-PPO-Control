@@ -1,16 +1,3 @@
-1D_Cure/validation/
-1D_Cure/results/
-
-2D_Cure/validation/
-2D_Cure/results/
-
-2D_Temp/validation/
-2D_Temp/results/
-
-3D_Cure_Py/validation/
-3D_Cure_Py/results/
-
-3D_Cure_Cpp/validation/
 3D_Cure_Cpp/results/
 3D_Cure_Cpp/training_data/
 3D_Cure_Cpp/py_src/cache/
