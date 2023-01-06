@@ -1,3 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 output filter=lfs diff=lfs merge=lfs -text
+combined_data* filter=lfs diff=lfs merge=lfs -text
+perf_combined_data* filter=lfs diff=lfs merge=lfs -text
+*combined_data filter=lfs diff=lfs merge=lfs -text
+*perf_combined_data filter=lfs diff=lfs merge=lfs -text
+*.csv filter=lfs diff=lfs merge=lfs -text
